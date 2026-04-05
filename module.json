@@ -44,8 +44,8 @@
   "flags": {
     "hotReload": false
   },
-  "bugs": "",
-  "url": "",
-  "manifest": "",
-  "download": ""
+  "bugs": "https://github.com/WesleySniperss/a5e-mancer/issues",
+  "url": "https://github.com/WesleySniperss/a5e-mancer",
+  "manifest": "https://raw.githubusercontent.com/WesleySniperss/a5e-mancer/master/module.json",
+  "download": "https://github.com/WesleySniperss/a5e-mancer/releases/download/v1.0.0/module.zip"
 }
