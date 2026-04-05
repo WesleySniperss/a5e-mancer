@@ -1,0 +1,100 @@
+{{!-- Maneuvers Tab (character creation) --}}
+<div class="tab {{tabs.maneuvers.cssClass}}" data-tab="maneuvers" data-group="a5e-mancer-tabs"
+     role="tabpanel" id="maneuvers-panel" aria-labelledby="tab-maneuvers">
+  <fieldset>
+    <legend>{{localize 'am.app.maneuvers.tooltip'}}</legend>
+
+    {{#if classSelected}}
+
+      {{#if maneuverInfo}}
+
+        <p>{{localize 'am.app.maneuvers.preamble'}}</p>
+
+        <div class="am-maneuver-summary-box">
+          <div class="am-info-row">
+            <i class="fa-solid fa-chess-rook" style="color:var(--am-gold)"></i>
+            <span>
+              <strong>{{maneuverInfo.maneuversKnown}}</strong>
+              {{localize 'am.app.maneuvers.known-at-1'}}
+              ({{localize 'am.app.maneuvers.max-degree' degree=maneuverInfo.maxDegree}})
+            </span>
+          </div>
+          <div class="am-info-row">
+            <i class="fa-solid fa-bolt" style="color:var(--am-gold)"></i>
+            <span>{{localize 'am.app.maneuvers.exertion-info'}}</span>
+          </div>
+          <div class="am-info-row">
+            <i class="fa-solid fa-book"></i>
+            <span>
+              {{localize 'am.app.maneuvers.traditions-needed' n=maneuverInfo.traditions}}
+            </span>
+          </div>
+        </div>
+
+        <hr />
+
+        {{#if selectedManeuverUuids.length}}
+          <div class="am-selection-status am-selection-ok">
+            <i class="fa-solid fa-circle-check"></i>
+            {{localize 'am.app.maneuvers.selected-count' n=selectedManeuverUuids.length total=maneuverInfo.maneuversKnown}}
+          </div>
+        {{else}}
+          <div class="am-selection-status am-selection-pending">
+            <i class="fa-solid fa-circle-exclamation"></i>
+            {{localize 'am.app.maneuvers.none-selected'}}
+          </div>
+        {{/if}}
+
+        <div class="flex items-center gap-sm mt-sm">
+          <button type="button" class="am-open-maneuvers" data-action="openManeuverPicker">
+            <i class="fa-solid fa-swords"></i>
+            {{#if selectedManeuverUuids.length}}
+              {{localize 'am.app.maneuvers.change-selection'}}
+            {{else}}
+              {{localize 'am.app.maneuvers.open-picker'}}
+            {{/if}}
+          </button>
+        </div>
+
+        {{!-- Show selected maneuvers as preview --}}
+        {{#if selectedManeuverNames.length}}
+          <div class="am-selected-preview mt-sm">
+            <h4>{{localize 'am.app.maneuvers.your-maneuvers'}}</h4>
+            <ul class="am-preview-list">
+              {{#each selectedManeuverNames}}
+                <li><i class="fa-solid fa-swords am-preview-icon"></i> {{this}}</li>
+              {{/each}}
+            </ul>
+          </div>
+        {{/if}}
+
+        {{!-- Hidden inputs for form submission --}}
+        {{#each selectedManeuverUuids}}
+          <input type="hidden" name="maneuverUuids[]" value="{{this}}" />
+        {{/each}}
+        {{#each selectedTraditions}}
+          <input type="hidden" name="maneuverTraditions[]" value="{{this}}" />
+        {{/each}}
+
+      {{else}}
+
+        {{!-- Class doesn't use maneuvers --}}
+        <div class="am-info-placeholder">
+          <i class="fa-solid fa-circle-info fa-2x" style="opacity:0.5"></i>
+          <p>{{localize 'am.app.maneuvers.class-no-maneuvers'}}</p>
+          <p class="am-hint">{{localize 'am.app.maneuvers.class-no-maneuvers-hint'}}</p>
+        </div>
+
+      {{/if}}
+
+    {{else}}
+
+      <div class="am-info-placeholder">
+        <i class="fa-solid fa-arrow-left fa-xl" style="opacity:0.4"></i>
+        <p>{{localize 'am.app.maneuvers.select-class-first'}}</p>
+      </div>
+
+    {{/if}}
+
+  </fieldset>
+</div>

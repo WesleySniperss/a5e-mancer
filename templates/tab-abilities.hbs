@@ -1,0 +1,130 @@
+{{!-- Abilities Tab --}}
+<div class="tab {{tabs.abilities.cssClass}}" data-tab="abilities" data-group="a5e-mancer-tabs"
+     role="tabpanel" id="abilities-panel" aria-labelledby="tab-abilities">
+  <fieldset>
+    <legend>{{localize 'am.app.abilities.tooltip'}}</legend>
+
+    <p>{{localize 'am.app.abilities.preamble'}}</p>
+
+    {{!-- Method selector --}}
+    <div class="roll-method-selector flex items-center gap-sm mb-sm">
+      <label for="roll-method">{{localize 'am.app.abilities.select-method'}}:</label>
+      <select id="roll-method" class="form-select">
+
+        {{#if allowedMethods.standardArray}}
+          <option value="standardArray" {{#if (eq diceRollMethod 'standardArray')}}selected{{/if}}>
+            {{localize 'am.app.abilities.method.standard-array'}}
+          </option>
+        {{/if}}
+        {{#if allowedMethods.pointBuy}}
+          <option value="pointBuy" {{#if (eq diceRollMethod 'pointBuy')}}selected{{/if}}>
+            {{localize 'am.app.abilities.method.point-buy'}}
+          </option>
+        {{/if}}
+        {{#if allowedMethods.manual}}
+          <option value="manualFormula" {{#if (eq diceRollMethod 'manualFormula')}}selected{{/if}}>
+            {{localize 'am.app.abilities.method.manual'}}
+          </option>
+        {{/if}}
+      </select>
+      <button type="button" data-action="randomizeTabContent" data-for="abilities"
+        class="select-button" data-tooltip="{{localize 'am.app.randomize'}}">
+        <i class="fa-solid fa-shuffle"></i>
+      </button>
+    </div>
+
+    {{!-- ═══ POINT BUY ═══ --}}
+    {{#if (eq diceRollMethod 'pointBuy')}}
+      <h2>{{localize 'am.app.abilities.point-buy.title'}}</h2>
+      <p>{{localize 'am.app.abilities.point-buy.description'}}</p>
+      <hr />
+
+      <div class="remaining-points-container flex flex-col justify-center items-center gap-sm text-center"
+           role="region" aria-live="polite" aria-atomic="true">
+        <div class="remaining-label font-bold">{{localize 'am.app.abilities.point-buy.remaining'}}</div>
+        <div class="points-display font-bold">
+          <span id="remaining-points">{{remainingPoints}}</span>/<span id="total-points">{{totalPoints}}</span>
+        </div>
+      </div>
+
+      <div class="ability-container point-buy flex flex-wrap justify-between gap-md">
+        {{#each abilities}}
+          <div id="ability-block-{{@index}}" class="ability-block point-buy flex flex-col items-center">
+            <span class="ability-label font-bold">{{this.label}}</span>
+            <div class="control-row flex items-center gap-xs">
+              <button type="button" class="adjust-button minus-button"
+                data-action="adjustScore" data-ability-index="{{@index}}" data-adjust="-1">−</button>
+              <span id="ability-score-{{@index}}" class="current-score text-center"
+                aria-live="polite">{{this.currentScore}}</span>
+              <button type="button" class="adjust-button plus-button"
+                data-action="adjustScore" data-ability-index="{{@index}}" data-adjust="1">+</button>
+            </div>
+            <input type="hidden" id="ability-{{@index}}-input"
+              name="abilities[{{this.key}}]" value="{{this.currentScore}}" data-dtype="Number" />
+          </div>
+        {{/each}}
+      </div>
+
+    {{!-- ═══ STANDARD ARRAY ═══ --}}
+    {{else if (eq diceRollMethod 'standardArray')}}
+      <h2>{{localize 'am.app.abilities.standard-array.title'}}</h2>
+      <p>{{localize 'am.app.abilities.standard-array.description'}}</p>
+      <hr />
+
+      <div class="ability-container flex justify-between items-center">
+        {{#each abilities}}
+          <div id="ability-block-{{@index}}" class="ability-block flex flex-col items-center gap-xs">
+            <span class="ability-label">{{this.abbreviation}}</span>
+            <select id="ability-{{@index}}-dropdown"
+              name="abilities[{{this.key}}]"
+              class="ability-dropdown form-select text-center" data-dtype="Number">
+              <option value="">—</option>
+              {{#each ../standardArray}}
+                <option value="{{this}}">{{this}}</option>
+              {{/each}}
+            </select>
+            <small class="ability-full-label">{{this.label}}</small>
+          </div>
+        {{/each}}
+      </div>
+
+    {{!-- ═══ MANUAL ROLL ═══ --}}
+    {{else if (eq diceRollMethod 'manualFormula')}}
+      <h2>{{localize 'am.app.abilities.manual.title'}}</h2>
+      <p>{{localize 'am.app.abilities.manual.description'}}</p>
+      <hr />
+
+      <div class="ability-container flex justify-between items-center">
+        {{#each abilities}}
+          <div id="ability-block-{{@index}}" class="ability-block flex flex-col items-center gap-xs">
+            <span class="ability-label">{{this.abbreviation}}</span>
+            <input id="ability-{{@index}}-score" type="number"
+              name="abilities[{{this.key}}]"
+              class="ability-score form-input text-center" data-dtype="Number"
+              placeholder="—" min="3" max="20" />
+            <i class="fa-solid fa-dice-d6 fa-xl roll-die" style="cursor:pointer"
+               data-action="rollStat" data-index="{{@index}}" role="button"
+               aria-label="{{localize 'am.app.abilities.roll'}} {{this.label}}"></i>
+            <small class="ability-full-label">{{this.label}}</small>
+          </div>
+        {{/each}}
+      </div>
+
+      {{#if chainedRolls}}
+        <hr />
+        <p>{{localize 'am.app.abilities.chained-rolls-info'}}</p>
+      {{/if}}
+
+    {{else}}
+      <p>{{localize 'am.app.abilities.no-method'}}</p>
+    {{/if}}
+
+    {{!-- A5e note about ability check proficiency --}}
+    <hr />
+    <p class="am-hint">
+      <i class="fa-solid fa-circle-info"></i>
+      {{localize 'am.app.abilities.a5e-note'}}
+    </p>
+
+  </fieldset>
+</div>

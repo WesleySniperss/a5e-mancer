@@ -1,0 +1,47 @@
+{{!-- Culture Tab --}}
+<div class="tab {{tabs.culture.cssClass}}" data-tab="culture" data-group="a5e-mancer-tabs"
+     role="tabpanel" id="culture-panel" aria-labelledby="tab-culture">
+  <fieldset>
+    <legend>{{localize 'am.app.culture.tooltip'}}</legend>
+    <p>Culture represents how and where your character was raised — the traditions, values, and skills instilled during their upbringing. Unlike Heritage (biology), Culture (society) shapes who your character became through their environment.</p>
+    <hr />
+
+    {{!-- Dropdown --}}
+    <div class="form-row flex items-center gap-sm mb-sm">
+      <label for="culture-dropdown">{{localize 'am.app.culture.select-label'}}</label>
+      <select id="culture-dropdown" name="culture" class="form-select" data-dtype="String"
+        aria-required="true" aria-describedby="culture-description">
+        <option value="">{{localize 'am.app.culture.select-placeholder'}}</option>
+
+        {{#each cultureDocs}}
+          {{#if this.folderName}}
+            <optgroup label="{{this.folderName}}">
+              {{#each this.docs}}
+                <option value="{{this.id}} ({{this.packId}}) [{{this.uuid}}]">
+                  {{this.name}}
+                </option>
+              {{/each}}
+            </optgroup>
+          {{else}}
+            {{#each this.docs}}
+              <option value="{{this.id}} ({{this.packId}}) [{{this.uuid}}]">
+                {{this.name}}
+              </option>
+            {{/each}}
+          {{/if}}
+        {{else}}
+          <option>{{localize 'am.app.culture.none'}}</option>
+        {{/each}}
+      </select>
+      <button type="button" data-action="randomizeTabContent" data-for="culture"
+        class="select-button" data-tooltip="{{localize 'am.app.randomize'}}">
+        <i class="fa-solid fa-shuffle"></i>
+      </button>
+    </div>
+
+    {{!-- Description panel --}}
+    <div id="culture-description" class="am-description-panel overflow-vert-only"
+         role="region" aria-live="polite" aria-atomic="true">
+    </div>
+  </fieldset>
+</div>

@@ -1,0 +1,175 @@
+{{!-- Maneuver Selection Dialog --}}
+<div class="am-maneuver-dialog-wrapper">
+
+{{!-- Action bar (top) --}}
+<div class="am-maneuver-footer flex justify-between items-center">
+  <button type="button" class="am-maneuver-cancel">
+    {{localize 'am.app.cancel'}}
+  </button>
+
+  <div class="flex items-center gap-sm">
+    {{#if slotsAvailable}}
+      <span class="am-hint">
+        {{localize 'am.maneuvers.footer-hint' n=slotsAvailable}}
+      </span>
+    {{/if}}
+    <button type="button" class="am-footer-submit am-maneuver-confirm">
+      <i class="fa-solid fa-check"></i>
+      {{localize 'am.maneuvers.confirm'}}
+    </button>
+  </div>
+</div>
+
+<div class="am-maneuver-layout">
+
+  {{!-- LEFT: sidebar with traditions + degree filter --}}
+  <aside class="am-maneuver-sidebar">
+
+    <div class="am-sidebar-section">
+      <h4>{{localize 'am.maneuvers.traditions'}}</h4>
+      {{#each traditions}}
+        <button type="button"
+          class="am-tradition-btn {{#if (eq this.key ../activeTradition)}}am-active{{/if}} {{#unless this.known}}am-unknown-tradition{{/unless}}"
+          data-tradition="{{this.key}}"
+          data-tooltip="{{this.maneuverCount}} maneuvers">
+          {{#if this.known}}<i class="fa-solid fa-circle-check am-tradition-known"></i>{{/if}}
+          <span>{{this.name}}</span>
+          <small>({{this.maneuverCount}})</small>
+        </button>
+      {{/each}}
+    </div>
+
+    <div class="am-sidebar-section">
+      <h4>{{localize 'am.maneuvers.degree'}}</h4>
+      <div class="am-degree-filters flex flex-wrap gap-xs">
+        {{#each degrees}}
+          <button type="button"
+            class="am-degree-btn {{#if (eq this ../activeDegree)}}am-active{{/if}}"
+            data-degree="{{this}}">
+            {{this}}°
+          </button>
+        {{/each}}
+      </div>
+    </div>
+
+    {{!-- Tradition description (populated by JS on click) --}}
+    <div class="am-sidebar-desc am-description-panel" style="display:none"></div>
+
+    {{!-- Currently known --}}
+    <div class="am-sidebar-section am-known-section">
+      <h4>{{localize 'am.maneuvers.known'}} ({{knownManeuvers.length}})</h4>
+      {{#if knownManeuvers.length}}
+        <ul class="am-known-list">
+          {{#each knownManeuvers}}
+            <li class="am-known-item" data-tooltip="{{this.traditionLabel}} · {{this.degree}}°">
+              <img src="{{this.img}}" alt="" class="am-maneuver-img-sm" />
+              <span>{{this.name}}</span>
+            </li>
+          {{/each}}
+        </ul>
+      {{else}}
+        <p class="am-hint">{{localize 'am.maneuvers.none-known'}}</p>
+      {{/if}}
+    </div>
+
+  </aside>
+
+  {{!-- RIGHT: maneuver grid --}}
+  <main class="am-maneuver-main">
+
+    {{!-- Toolbar --}}
+    <div class="am-maneuver-toolbar flex items-center gap-sm mb-sm">
+      <input type="text" id="maneuver-search" class="form-input am-search-input"
+        placeholder="{{localize 'am.maneuvers.search'}}" />
+      <div class="am-sort-controls flex items-center gap-xs">
+        <span class="am-hint">{{localize 'am.app.sort-label'}}:</span>
+        <button type="button" class="am-sort-btn {{#if (eq sortBy 'degree')}}am-active{{/if}}" data-sort="degree">
+          {{localize 'am.maneuvers.sort-degree'}}
+          {{#if (eq sortBy 'degree')}}
+            <i class="fa-solid {{#if (eq sortDir 'asc')}}fa-arrow-up{{else}}fa-arrow-down{{/if}}"></i>
+          {{/if}}
+        </button>
+        <button type="button" class="am-sort-btn {{#if (eq sortBy 'name')}}am-active{{/if}}" data-sort="name">
+          {{localize 'am.maneuvers.sort-name'}}
+          {{#if (eq sortBy 'name')}}
+            <i class="fa-solid {{#if (eq sortDir 'asc')}}fa-arrow-up{{else}}fa-arrow-down{{/if}}"></i>
+          {{/if}}
+        </button>
+        <button type="button" class="am-sort-btn {{#if (eq sortBy 'tradition')}}am-active{{/if}}" data-sort="tradition">
+          {{localize 'am.maneuvers.sort-tradition'}}
+          {{#if (eq sortBy 'tradition')}}
+            <i class="fa-solid {{#if (eq sortDir 'asc')}}fa-arrow-up{{else}}fa-arrow-down{{/if}}"></i>
+          {{/if}}
+        </button>
+      </div>
+      {{#if slotsAvailable}}
+        <div class="am-slot-counter">
+          <span class="am-selected-count">{{selectedCount}}</span>/{{slotsAvailable}}
+          {{localize 'am.maneuvers.slots-label'}}
+        </div>
+      {{/if}}
+    </div>
+
+    {{!-- Maneuver cards grid --}}
+    {{#if loading}}
+      <div class="am-loading-center">
+        <i class="fas fa-spinner fa-spin fa-2xl"></i>
+        <p>{{localize 'am.app.loading'}}</p>
+      </div>
+    {{else if visibleManeuvers.length}}
+      <div class="am-maneuver-grid">
+        {{#each visibleManeuvers}}
+          <div class="am-maneuver-card
+            {{#if this.selected}}am-selected{{/if}}
+            {{#if this.alreadyKnown}}am-already-known{{/if}}"
+            data-uuid="{{this.uuid}}"
+            data-name="{{this.name}}"
+            data-img="{{this.img}}"
+            data-degree="{{this.degree}}"
+            data-tradition-label="{{this.traditionLabel}}"
+            data-exertion="{{this.exertion}}"
+            role="button" tabindex="0"
+            aria-pressed="{{this.selected}}"
+            aria-label="{{this.name}}">
+
+            <div class="am-maneuver-card-header">
+              <img src="{{this.img}}" alt="" class="am-maneuver-img" />
+              <div class="am-maneuver-meta">
+                <span class="am-maneuver-degree am-badge">{{this.degree}}°</span>
+                {{#if this.exertion}}
+                  <span class="am-maneuver-cost am-badge am-badge-gold">
+                    <i class="fa-solid fa-bolt"></i> {{this.exertion}}
+                  </span>
+                {{/if}}
+                {{#if this.alreadyKnown}}
+                  <span class="am-badge am-badge-success">
+                    <i class="fa-solid fa-check"></i> {{localize 'am.maneuvers.known-badge'}}
+                  </span>
+                {{/if}}
+              </div>
+            </div>
+
+            <div class="am-maneuver-name">{{this.name}}</div>
+            <div class="am-maneuver-tradition am-hint">{{this.traditionLabel}}</div>
+
+          </div>
+        {{/each}}
+      </div>
+    {{else}}
+      <div class="am-empty-state">
+        <i class="fa-solid fa-swords fa-3x" style="opacity:0.3"></i>
+        <p>{{localize 'am.maneuvers.none-found'}}</p>
+        {{#unless activeTradition}}
+          <p class="am-hint">{{localize 'am.maneuvers.select-tradition-hint'}}</p>
+        {{/unless}}
+      </div>
+    {{/if}}
+
+    {{!-- Description tooltip (filled by JS) --}}
+    <div class="am-maneuver-tooltip" style="display:none"></div>
+
+  </main>
+
+</div>
+
+</div>

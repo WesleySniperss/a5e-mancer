@@ -1,0 +1,48 @@
+{{!-- Heritage Tab --}}
+<div class="tab {{tabs.heritage.cssClass}}" data-tab="heritage" data-group="a5e-mancer-tabs"
+     role="tabpanel" id="heritage-panel" aria-labelledby="tab-heritage">
+  <fieldset>
+    <legend>{{localize 'am.app.heritage.tooltip'}}</legend>
+    <p>Your heritage represents your character's ancestry and innate traits — the biological and magical legacy passed down from their lineage. In A5e, Heritage replaces the concept of 'Race' and defines core physical traits, innate abilities, and natural features.</p>
+    <hr />
+
+    {{!-- Dropdown --}}
+    <div class="form-row flex items-center gap-sm mb-sm">
+      <label for="heritage-dropdown">{{localize 'am.app.heritage.select-label'}}</label>
+      <select id="heritage-dropdown" name="heritage" class="form-select" data-dtype="String"
+        aria-required="true" aria-describedby="heritage-description">
+
+        <option value="">{{localize 'am.app.heritage.select-placeholder'}}</option>
+
+        {{#each heritageDocs}}
+          {{#if this.folderName}}
+            <optgroup label="{{this.folderName}}">
+              {{#each this.docs}}
+                <option value="{{this.id}} ({{this.packId}}) [{{this.uuid}}]">
+                  {{this.name}}
+                </option>
+              {{/each}}
+            </optgroup>
+          {{else}}
+            {{#each this.docs}}
+              <option value="{{this.id}} ({{this.packId}}) [{{this.uuid}}]">
+                {{this.name}}
+              </option>
+            {{/each}}
+          {{/if}}
+        {{else}}
+          <option>{{localize 'am.app.heritage.none'}}</option>
+        {{/each}}
+      </select>
+      <button type="button" data-action="randomizeTabContent" data-for="heritage"
+        class="select-button" data-tooltip="{{localize 'am.app.randomize'}}">
+        <i class="fa-solid fa-shuffle"></i>
+      </button>
+    </div>
+
+    {{!-- Description panel --}}
+    <div id="heritage-description" class="am-description-panel overflow-vert-only"
+         role="region" aria-live="polite" aria-atomic="true">
+    </div>
+  </fieldset>
+</div>

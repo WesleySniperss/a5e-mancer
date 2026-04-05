@@ -1,0 +1,58 @@
+{{!-- Inventory Tab --}}
+<section class="tab am-tab-inventory" data-tab="inventory" data-group="primary">
+
+  {{!-- Currency --}}
+  <div class="am-currency-row">
+    {{#each currency}}
+      <div class="am-currency-block">
+        <label class="am-currency-label">{{@key}}</label>
+        <input type="number" class="am-currency-input" name="system.currency.{{@key}}"
+          value="{{this}}" min="0" />
+      </div>
+    {{/each}}
+  </div>
+  <hr />
+
+  {{!-- Equipment list --}}
+  {{#if grouped.equipment.length}}
+    <table class="am-inventory-table">
+      <thead>
+        <tr>
+          <th class="am-col-img"></th>
+          <th>Name</th>
+          <th class="am-col-qty">Qty</th>
+          <th class="am-col-weight">Wt</th>
+          <th class="am-col-btns"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each grouped.equipment}}
+          <tr class="am-item-row {{#if this.equipped}}am-equipped{{/if}}"
+            data-item-id="{{this.id}}">
+            <td class="am-col-img">
+              <img src="{{this.img}}" class="am-item-img-sm" alt="" />
+            </td>
+            <td>
+              <span class="am-item-name">{{this.name}}</span>
+            </td>
+            <td class="am-col-qty">
+              <input type="number" class="am-item-qty am-qty-input"
+                data-item-id="{{this.id}}"
+                value="{{this.quantity}}" min="0" />
+            </td>
+            <td class="am-col-weight am-muted">{{this.weight}}</td>
+            <td class="am-col-btns">
+              {{> "modules/a5e-mancer/templates/sheet/partials/item-controls.hbs"}}
+            </td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  {{else}}
+    <div class="am-empty-tab">
+      <i class="fa-solid fa-backpack fa-3x am-muted"></i>
+      <p class="am-muted">No items. Drag items here from the compendium.</p>
+    </div>
+  {{/if}}
+
+</section>

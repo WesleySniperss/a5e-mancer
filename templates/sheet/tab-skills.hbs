@@ -1,0 +1,36 @@
+{{!-- Skills Tab --}}
+<section class="tab am-tab-skills" data-tab="abilities" data-group="primary">
+
+  <div class="am-skills-grid">
+    {{#each skills}}
+      <div class="am-skill-row">
+        <span class="am-prof-icon am-prof-{{this.profLevel}}"
+          title="{{#if (eq this.profLevel 0)}}Not proficient{{else if (eq this.profLevel 1)}}Half proficiency{{else if (eq this.profLevel 2)}}Proficient{{else}}Expertise{{/if}}">
+          {{this.profIcon}}
+        </span>
+        <button type="button" class="am-skill-roll am-skill-name"
+          data-skill="{{this.key}}" title="Roll {{this.label}}">
+          {{this.label}}
+        </button>
+        <span class="am-skill-ability am-muted">({{this.ability}})</span>
+        <span class="am-skill-bonus">{{this.bonusStr}}</span>
+        {{#if this.expertiseDie}}
+          <span class="am-expertise-die am-muted">+{{this.expertiseDie}}</span>
+        {{/if}}
+      </div>
+    {{/each}}
+  </div>
+
+  {{!-- Passive Perception --}}
+  <div class="am-passive-row">
+    <span>Passive Perception:</span>
+    <strong>
+      {{#with (lookup ../skills "perception")}}
+        {{add 10 this.bonus}}
+      {{else}}
+        10
+      {{/with}}
+    </strong>
+  </div>
+
+</section>

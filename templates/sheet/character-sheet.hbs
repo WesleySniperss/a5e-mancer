@@ -1,0 +1,320 @@
+{{!-- A5e Mancer Character Sheet --}}
+<div class="am-sheet-wrapper">
+
+  {{!-- ══ HEADER ══════════════════════════════════════ --}}
+  <header class="am-sheet-header">
+    <div class="am-portrait-wrap">
+      <img src="{{actor.img}}" data-edit="img" title="{{actor.name}}" alt="" />
+      {{#if resources.inspiration}}
+        <div class="am-inspired-star" title="Inspired">✦</div>
+      {{/if}}
+    </div>
+
+    <div class="am-identity">
+      <div class="am-name-row">
+        <input class="am-charname" type="text" name="name" value="{{actor.name}}" />
+        <button type="button" data-action="level-up" class="am-header-btn" title="Level Up">
+          <i class="fa-solid fa-arrow-up"></i> Level Up
+        </button>
+        <button type="button" data-action="toggle-inspiration"
+          class="am-header-btn am-insp-btn {{#if resources.inspiration}}am-insp-on{{/if}}"
+          title="Toggle Inspiration">
+          <i class="fa-solid fa-star"></i>
+        </button>
+      </div>
+      <div class="am-origin-row">
+        {{#each charInfo.classes}}
+          <span class="am-class-chip" title="Hit Die: d{{this.hitDie}}">
+            {{this.name}} {{this.level}}
+          </span>
+        {{/each}}
+        <span class="am-chip-dim">·</span>
+        <span class="am-chip" title="Heritage">{{charInfo.heritage}}</span>
+        <span class="am-chip-dim">·</span>
+        <span class="am-chip" title="Background">{{charInfo.background}}</span>
+        {{#if charInfo.destiny}}
+          <span class="am-chip-dim">·</span>
+          <span class="am-chip am-destiny" title="Destiny">⭐ {{charInfo.destiny}}</span>
+        {{/if}}
+      </div>
+    </div>
+
+    <div class="am-prof-box" title="Proficiency Bonus">
+      <span class="am-stat-label">PROF</span>
+      <span class="am-stat-val">{{resources.profBonus}}</span>
+    </div>
+  </header>
+
+  {{!-- ══ RESOURCES ══════════════════════════════════ --}}
+  <div class="am-resource-bar">
+
+    {{!-- HP --}}
+    <div class="am-res-hp">
+      <div class="am-res-label">HP</div>
+      <div class="am-hp-inputs">
+        <input id="am-hp-current" type="number" class="am-hp-big" value="{{resources.hp.value}}" min="0" />
+        <span class="am-slash">/</span>
+        <input id="am-hp-max" type="number" class="am-hp-small" value="{{resources.hp.max}}" />
+      </div>
+      <div class="am-bar-track">
+        <div class="am-bar-fill" style="width:{{resources.hp.pct}}%; background:{{resources.hp.color}}"></div>
+      </div>
+      <div class="am-temp-row">
+        <label>TMP</label>
+        <input id="am-hp-temp" type="number" class="am-temp-inp" value="{{resources.hp.temp}}" min="0" placeholder="0" />
+      </div>
+    </div>
+
+    {{!-- AC --}}
+    <div class="am-res-stat">
+      <div class="am-res-label">AC</div>
+      <input id="am-ac-input" type="number" class="am-stat-big" value="{{resources.ac}}" />
+    </div>
+
+    {{!-- Initiative --}}
+    <div class="am-res-stat">
+      <div class="am-res-label">INIT</div>
+      <input id="am-initiative-input" type="text" class="am-stat-big" value="{{resources.initiative}}" />
+    </div>
+
+    {{!-- Speed --}}
+    <div class="am-res-stat">
+      <div class="am-res-label">SPEED</div>
+      <div class="am-speed-row">
+        <input id="am-speed-input" type="number" class="am-stat-big" value="{{resources.speed}}" />
+        <span class="am-unit">ft</span>
+      </div>
+    </div>
+
+    {{!-- Exertion --}}
+    <div class="am-res-exertion">
+      <div class="am-res-label">EXERTION <i class="fa-solid fa-bolt" style="font-size:0.6rem"></i></div>
+      <div class="am-hp-inputs">
+        <input id="am-exertion-current" type="number" class="am-hp-big" value="{{resources.exertion.current}}" min="0" />
+        <span class="am-slash">/</span>
+        <span class="am-hp-small am-text-center">{{resources.exertion.max}}</span>
+      </div>
+      <div class="am-bar-track">
+        <div class="am-bar-fill am-ex-fill" style="width:{{resources.exertion.pct}}%"></div>
+      </div>
+    </div>
+
+    {{!-- Fatigue + Strife --}}
+    <div class="am-res-conditions">
+      <div class="am-cond-row">
+        <span class="am-cond-label">Fatigue</span>
+        {{#each fatiguePips}}
+          <span class="am-cond-pip {{#if this.active}}am-pip-on{{/if}}"
+            data-action="condition-pip" data-type="fatigue"
+            data-index="{{this.i}}" data-current="{{../resources.fatigue}}">●</span>
+        {{/each}}
+      </div>
+      <div class="am-cond-row">
+        <span class="am-cond-label">Strife</span>
+        {{#each strifePips}}
+          <span class="am-cond-pip am-strife-pip {{#if this.active}}am-pip-on{{/if}}"
+            data-action="condition-pip" data-type="strife"
+            data-index="{{this.i}}" data-current="{{../resources.strife}}">●</span>
+        {{/each}}
+      </div>
+      <div class="am-rest-row">
+        <button type="button" data-action="short-rest" class="am-rest-btn" title="Short Rest">⏱ Short</button>
+        <button type="button" data-action="long-rest" class="am-rest-btn" title="Long Rest">🌙 Long</button>
+      </div>
+    </div>
+
+  </div>
+
+  {{!-- ══ MAIN ════════════════════════════════════════ --}}
+  <div class="am-sheet-main">
+
+    {{!-- LEFT: Abilities --}}
+    <aside class="am-sheet-left">
+      {{#each abilities}}
+        <div class="am-ability">
+          <div class="am-abl-name">{{this.abbr}}</div>
+          <input class="am-abl-score" type="number"
+            name="system.abilities.{{this.key}}.value"
+            data-ability="{{this.key}}"
+            value="{{this.value}}" min="1" max="30" />
+          <button class="am-abl-mod" type="button"
+            data-action="ability-check"
+            data-ability="{{this.key}}"
+            data-label="{{this.label}} Check"
+            title="{{this.label}} Check">{{this.modStr}}</button>
+          <div class="am-save-row">
+            <span class="am-save-dot {{#if this.saveProf}}am-save-prof{{/if}}">
+              {{#if this.saveProf}}●{{else}}○{{/if}}
+            </span>
+            <button class="am-save-btn" type="button"
+              data-action="saving-throw"
+              data-ability="{{this.key}}"
+              title="{{this.label}} Save">{{this.saveModeStr}}</button>
+          </div>
+        </div>
+      {{/each}}
+    </aside>
+
+    {{!-- RIGHT: Tabs --}}
+    <div class="am-sheet-right">
+      <nav class="am-sheet-tabs tabs" data-group="primary">
+        <a class="item active" data-tab="actions" data-group="primary">
+          <i class="fa-solid fa-hand-fist"></i><span>Actions</span>
+        </a>
+        <a class="item" data-tab="maneuvers" data-group="primary">
+          <i class="fa-solid fa-swords"></i><span>Maneuvers</span>
+        </a>
+        <a class="item" data-tab="spells" data-group="primary">
+          <i class="fa-solid fa-sparkles"></i><span>Spells</span>
+        </a>
+        <a class="item" data-tab="skills" data-group="primary">
+          <i class="fa-solid fa-dice-d20"></i><span>Skills</span>
+        </a>
+        <a class="item" data-tab="features" data-group="primary">
+          <i class="fa-solid fa-scroll"></i><span>Features</span>
+        </a>
+<a class="item" data-tab="inventory" data-group="primary">
+          <i class="fa-solid fa-backpack"></i><span>Inventory</span>
+        </a>
+        <a class="item" data-tab="biography" data-group="primary">
+          <i class="fa-solid fa-book-open"></i><span>Bio</span>
+        </a>
+      </nav>
+
+      <div class="am-sheet-body tab-content">
+
+        {{!-- ▸ ACTIONS ──────────────────────────────── --}}
+        <section class="tab active" data-tab="actions" data-group="primary">
+
+          {{!-- ── Actions ──────────────────────── --}}
+          <div class="am-act-group">
+            <div class="am-act-group-head am-act-head-action">
+              <i class="fa-solid fa-hand-fist"></i> Action
+            </div>
+            {{#if actionsGroup.length}}
+              {{#each actionsGroup}}
+                {{> am-action-row}}
+              {{/each}}
+            {{else}}
+              <p class="am-empty-group">No actions.</p>
+            {{/if}}
+          </div>
+
+          {{!-- ── Bonus Actions ───────────────── --}}
+          <div class="am-act-group">
+            <div class="am-act-group-head am-act-head-bonus">
+              <i class="fa-solid fa-plus-circle"></i> Bonus Action
+            </div>
+            {{#if bonusActions.length}}
+              {{#each bonusActions}}
+                {{> am-action-row}}
+              {{/each}}
+            {{else}}
+              <p class="am-empty-group">No bonus actions.</p>
+            {{/if}}
+          </div>
+
+          {{!-- ── Reactions ───────────────────── --}}
+          <div class="am-act-group">
+            <div class="am-act-group-head am-act-head-reaction">
+              <i class="fa-solid fa-bolt"></i> Reaction
+            </div>
+            {{#if reactions.length}}
+              {{#each reactions}}
+                {{> am-action-row}}
+              {{/each}}
+            {{else}}
+              <p class="am-empty-group">No reactions.</p>
+            {{/if}}
+          </div>
+
+        </section>
+
+        {{!-- ▸ SPELLS ───────────────────────────────────── --}}
+        <section class="tab" data-tab="spells" data-group="primary">
+
+          {{!-- Slot tracker --}}
+          {{#if slotRows}}
+            <div class="am-slot-tracker">
+              {{#each slotRows}}
+                <div class="am-slot-col">
+                  <div class="am-slot-lbl">{{this.level}}</div>
+                  <div class="am-slot-pips-row">
+                    {{#each this.pips}}
+                      <span class="am-slot-pip {{#if this.used}}am-slot-used{{/if}}"
+                        data-action="slot-pip"
+                        data-level="{{this.level}}"
+                        data-index="{{this.index}}"
+                        data-current="{{../value}}">◆</span>
+                    {{/each}}
+                  </div>
+                </div>
+              {{/each}}
+            </div>
+          {{/if}}
+
+          {{#if hasSpells}}
+            <div class="am-spells-manage-row">
+              <button type="button" data-action="manage-spells" class="am-sec-btn am-sec-btn-lg">
+                <i class="fa-solid fa-sparkles"></i> Add / Remove Spells
+              </button>
+              <span class="am-dim" style="font-size:0.78rem">{{spells.length}} known</span>
+            </div>
+
+            {{!-- Cantrips --}}
+            {{#if spellGroups.Cantrips}}
+              <div class="am-spell-level-block">
+                <div class="am-spell-level-head am-lvl-cantrip">
+                  <i class="fa-solid fa-star-of-life"></i> Cantrips
+                  <span class="am-spell-count">{{spellGroups.Cantrips.length}}</span>
+                </div>
+                {{#each spellGroups.Cantrips}}
+                  {{> am-spell-row}}
+                {{/each}}
+              </div>
+            {{/if}}
+
+            {{!-- Levelled spells --}}
+            {{#each spellLevelOrder}}
+              {{#if (lookup ../spellGroups this)}}
+                <div class="am-spell-level-block">
+                  <div class="am-spell-level-head">
+                    <i class="fa-solid fa-circle-dot"></i> {{this}}
+                    {{#with (lookup ../spellGroups this)}}
+                      <span class="am-spell-count">{{this.length}}</span>
+                    {{/with}}
+                    {{!-- Show slot pips inline --}}
+                    {{#each ../slotRows}}
+                      {{#if (eq (concat "Level " this.level) ../this)}}
+                        <div class="am-inline-slots">
+                          {{#each this.pips}}
+                            <span class="am-slot-pip {{#if this.used}}am-slot-used{{/if}}"
+                              data-action="slot-pip"
+                              data-level="{{this.level}}"
+                              data-index="{{this.index}}"
+                              data-current="{{../value}}">◆</span>
+                          {{/each}}
+                        </div>
+                      {{/if}}
+                    {{/each}}
+                  </div>
+                  {{#each (lookup ../spellGroups this)}}
+                    {{> am-spell-row}}
+                  {{/each}}
+                </div>
+              {{/if}}
+            {{/each}}
+
+          {{else}}
+            <div class="am-empty">
+              <i class="fa-solid fa-sparkles fa-2x am-dim"></i>
+              <p class="am-dim">No spells yet.</p>
+              <button type="button" data-action="manage-spells" class="am-use-btn" style="margin-top:0.5rem">
+                <i class="fa-solid fa-plus"></i> Add Spells
+              </button>
+            </div>
+          {{/if}}
+
+        </section>
+
+

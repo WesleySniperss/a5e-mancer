@@ -1,0 +1,61 @@
+{{!-- A5e Mancer Footer --}}
+<footer>
+  <div class="am-footer-container">
+
+    {{!-- Previous --}}
+    <div class="am-footer-left">
+      {{#if navigationButtons}}
+        {{#unless isFirstTab}}
+          <button type="button" data-action="previousTab" class="am-nav-prev"
+            data-tooltip='{{localize "am.app.nav.previous"}}'>
+            <i class="fas fa-chevron-left"></i>
+            <span>{{localize "am.app.nav.previous-format" tabName=previousTabName}}</span>
+          </button>
+        {{/unless}}
+      {{/if}}
+    </div>
+
+    {{!-- Middle actions --}}
+    <div class="am-footer-middle">
+      {{#if randomizeButton}}
+        <button type="button" data-action="randomize" class="am-footer-randomize"
+          data-tooltip='{{localize "am.app.randomize"}}'>
+          <i class="fa-solid fa-shuffle"></i>
+          <span>{{localize 'am.app.randomize'}}</span>
+        </button>
+      {{/if}}
+
+      <button type="submit" data-action="saveOptions" class="am-footer-save"
+        data-tooltip='{{localize "am.app.save-description"}}'>
+        <span>{{localize 'am.app.save'}}</span>
+      </button>
+
+      <button type="button" data-action="resetOptions" class="am-footer-reset"
+        data-tooltip='{{localize "am.app.reset-description"}}'>
+        <span>{{localize 'am.app.reset'}}</span>
+      </button>
+
+      <button type="cancel" data-action="nosubmit" class="am-app-footer-cancel"
+        data-tooltip='{{localize "am.app.cancel-description"}}'>
+        <span>{{localize 'am.app.cancel'}}</span>
+      </button>
+    </div>
+
+    {{!-- Next / Submit --}}
+    <div class="am-footer-right">
+      {{#if isLastTab}}
+        {{#if canCreateActor}}
+          <button type="submit" data-action="submit" class="am-footer-submit">
+            <span>{{localize 'am.app.submit'}}</span>
+          </button>
+        {{/if}}
+      {{else if navigationButtons}}
+        <button type="button" data-action="nextTab" class="am-nav-next">
+          <span>{{localize "am.app.nav.next-format" tabName=nextTabName}}</span>
+          <i class="fas fa-chevron-right"></i>
+        </button>
+      {{/if}}
+    </div>
+
+  </div>
+</footer>

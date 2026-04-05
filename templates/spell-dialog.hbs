@@ -1,0 +1,174 @@
+{{!-- Spell Selection Dialog --}}
+<div class="am-spell-dialog-wrapper">
+
+{{!-- Action bar (top) --}}
+<div class="am-spell-footer flex justify-between items-center">
+  <button type="button" class="am-spell-cancel">{{localize 'am.app.cancel'}}</button>
+  <button type="button" class="am-footer-submit am-spell-confirm">
+    <i class="fa-solid fa-check"></i> {{localize 'am.spells.confirm'}}
+  </button>
+</div>
+
+<div class="am-spell-layout">
+
+  {{!-- LEFT sidebar --}}
+  <aside class="am-spell-sidebar">
+
+    {{!-- Selection counters --}}
+    <div class="am-spell-counters">
+      {{#if cantripsToChoose}}
+        <div class="am-counter-row">
+          <span>{{localize 'am.spells.cantrips'}}</span>
+          <span><span class="am-cantrip-count">{{selectedCantrips}}</span>/{{cantripsToChoose}}</span>
+        </div>
+      {{/if}}
+      {{#if spellsToChoose}}
+        <div class="am-counter-row">
+          <span>{{localize 'am.spells.spells'}}</span>
+          <span><span class="am-spell-count">{{selectedSpells}}</span>/{{spellsToChoose}}</span>
+        </div>
+      {{/if}}
+    </div>
+
+    {{!-- Level filter --}}
+    <div class="am-sidebar-section">
+      <h4>{{localize 'am.spells.level'}}</h4>
+      <div class="am-level-filters">
+        {{#each levels}}
+          <button type="button"
+            class="am-level-btn {{#if (eq this ../activeLevel)}}am-active{{/if}}"
+            data-level="{{this}}">
+            {{#if (eq this 0)}}
+              {{localize 'am.spells.cantrip'}}
+            {{else}}
+              {{localize 'am.spells.level-n' n=this}}
+            {{/if}}
+          </button>
+        {{/each}}
+      </div>
+    </div>
+
+    {{!-- Primary school filter --}}
+    <div class="am-sidebar-section">
+      <h4>{{localize 'am.spells.school'}}</h4>
+      <div class="am-school-filters">
+        {{#each schools}}
+          <button type="button"
+            class="am-school-btn {{#if (eq this.key ../activeSchool)}}am-active{{/if}}"
+            data-school="{{this.key}}">
+            {{this.label}}
+          </button>
+        {{/each}}
+      </div>
+    </div>
+
+    {{!-- Secondary school (tag) filter — shown only for classes that have relevant tags --}}
+    {{#if secondarySchools.length}}
+      <div class="am-sidebar-section">
+        <h4>{{localize 'am.spells.tags'}}</h4>
+        <div class="am-school-filters am-secondary-school-filters">
+          {{#each secondarySchools}}
+            <button type="button"
+              class="am-secondary-school-btn {{#if (eq this.key ../activeSecondarySchool)}}am-active{{/if}}"
+              data-school="{{this.key}}">
+              {{this.label}}
+            </button>
+          {{/each}}
+        </div>
+      </div>
+    {{/if}}
+
+    {{!-- School/tag description (populated by JS on click) --}}
+    <div class="am-sidebar-desc am-description-panel" style="display:none"></div>
+
+  </aside>
+
+  {{!-- MAIN --}}
+  <main class="am-spell-main">
+
+    <div class="am-spell-toolbar flex items-center gap-sm mb-sm">
+      <input type="text" id="spell-search" class="form-input am-search-input"
+        placeholder="{{localize 'am.spells.search'}}" />
+      <div class="am-sort-controls flex items-center gap-xs">
+        <span class="am-hint">{{localize 'am.app.sort-label'}}:</span>
+        <button type="button" class="am-sort-btn {{#if (eq sortBy 'level')}}am-active{{/if}}" data-sort="level">
+          {{localize 'am.spells.sort-level'}}
+          {{#if (eq sortBy 'level')}}
+            <i class="fa-solid {{#if (eq sortDir 'asc')}}fa-arrow-up{{else}}fa-arrow-down{{/if}}"></i>
+          {{/if}}
+        </button>
+        <button type="button" class="am-sort-btn {{#if (eq sortBy 'name')}}am-active{{/if}}" data-sort="name">
+          {{localize 'am.spells.sort-name'}}
+          {{#if (eq sortBy 'name')}}
+            <i class="fa-solid {{#if (eq sortDir 'asc')}}fa-arrow-up{{else}}fa-arrow-down{{/if}}"></i>
+          {{/if}}
+        </button>
+        <button type="button" class="am-sort-btn {{#if (eq sortBy 'school')}}am-active{{/if}}" data-sort="school">
+          {{localize 'am.spells.sort-school'}}
+          {{#if (eq sortBy 'school')}}
+            <i class="fa-solid {{#if (eq sortDir 'asc')}}fa-arrow-up{{else}}fa-arrow-down{{/if}}"></i>
+          {{/if}}
+        </button>
+      </div>
+      <span class="am-hint">{{visibleSpells.length}} {{localize 'am.spells.shown'}}</span>
+    </div>
+
+    {{#if loading}}
+      <div class="am-loading-center">
+        <i class="fas fa-spinner fa-spin fa-2xl"></i>
+        <p>{{localize 'am.app.loading'}}</p>
+      </div>
+    {{else if visibleSpells.length}}
+      <div class="am-spell-grid">
+        {{#each visibleSpells}}
+          <div class="am-spell-card
+            {{#if this.selected}}am-selected{{/if}}
+            {{#if this.alreadyKnown}}am-already-known{{/if}}"
+            data-uuid="{{this.uuid}}"
+            data-name="{{this.name}}"
+            data-img="{{this.img}}"
+            data-level="{{this.level}}"
+            data-level-label="{{this.levelLabel}}"
+            data-school="{{this.school}}"
+            data-school-label="{{this.schoolLabel}}"
+            data-ritual="{{this.ritual}}"
+            data-concentration="{{this.concentration}}"
+            role="button" tabindex="0">
+
+            <div class="am-spell-card-header">
+              <img src="{{this.img}}" alt="" class="am-spell-img" />
+              <div class="am-spell-badges">
+                <span class="am-badge {{#if (eq this.level 0)}}am-badge-cantrip{{else}}am-badge-spell{{/if}}">
+                  {{this.levelLabel}}
+                </span>
+                {{#if this.ritual}}
+                  <span class="am-badge am-badge-ritual" data-tooltip="Ritual">R</span>
+                {{/if}}
+                {{#if this.concentration}}
+                  <span class="am-badge am-badge-conc" data-tooltip="Concentration">C</span>
+                {{/if}}
+                {{#if this.alreadyKnown}}
+                  <span class="am-badge am-badge-success"><i class="fa-solid fa-check"></i></span>
+                {{/if}}
+              </div>
+            </div>
+
+            <div class="am-spell-name">{{this.name}}</div>
+            {{#if this.schoolLabel}}
+              <div class="am-spell-school am-hint">{{this.schoolLabel}}</div>
+            {{/if}}
+
+          </div>
+        {{/each}}
+      </div>
+    {{else}}
+      <div class="am-empty-state">
+        <i class="fa-solid fa-hat-wizard fa-3x" style="opacity:0.3"></i>
+        <p>{{localize 'am.spells.none-found'}}</p>
+      </div>
+    {{/if}}
+
+  </main>
+</div>
+
+</div>

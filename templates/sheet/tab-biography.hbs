@@ -1,0 +1,92 @@
+{{!-- Biography Tab --}}
+<section class="tab am-tab-biography" data-tab="biography" data-group="primary">
+
+  <div class="am-bio-grid">
+
+    <div class="am-bio-section">
+      <label>Backstory</label>
+      <div class="am-bio-editor" data-edit="system.details.biography.value">
+        {{{actor.system.details.biography.value}}}
+      </div>
+    </div>
+
+    <div class="am-bio-section">
+      <label>Personality Traits</label>
+      <textarea class="form-input am-bio-textarea"
+        name="system.details.personality.value"
+        placeholder="How does your character act?">{{actor.system.details.personality.value}}</textarea>
+    </div>
+
+    <div class="am-bio-section">
+      <label>Ideals</label>
+      <textarea class="form-input am-bio-textarea"
+        name="system.details.ideals.value"
+        placeholder="What do they believe in?">{{actor.system.details.ideals.value}}</textarea>
+    </div>
+
+    <div class="am-bio-section">
+      <label>Bonds</label>
+      <textarea class="form-input am-bio-textarea"
+        name="system.details.bonds.value"
+        placeholder="Who or what do they care about?">{{actor.system.details.bonds.value}}</textarea>
+    </div>
+
+    <div class="am-bio-section">
+      <label>Flaws</label>
+      <textarea class="form-input am-bio-textarea"
+        name="system.details.flaws.value"
+        placeholder="What are their weaknesses?">{{actor.system.details.flaws.value}}</textarea>
+    </div>
+
+    <div class="am-bio-section">
+      <label>Connections <span class="am-muted">(a5e)</span></label>
+      <textarea class="form-input am-bio-textarea"
+        name="system.details.connections.value"
+        placeholder="Important relationships...">{{actor.system.details.connections.value}}</textarea>
+    </div>
+
+    <div class="am-bio-section">
+      <label>Mementos <span class="am-muted">(a5e)</span></label>
+      <textarea class="form-input am-bio-textarea"
+        name="system.details.mementos.value"
+        placeholder="A meaningful object...">{{actor.system.details.mementos.value}}</textarea>
+    </div>
+
+  </div>
+
+  {{!-- Physical details --}}
+  <hr />
+  <div class="am-phys-grid">
+    <div class="form-group">
+      <label>Age</label>
+      <input type="text" class="form-input" name="system.details.age"
+        value="{{actor.system.details.age}}" />
+    </div>
+    <div class="form-group">
+      <label>Height</label>
+      <input type="text" class="form-input" name="system.details.height"
+        value="{{actor.system.details.height}}" />
+    </div>
+    <div class="form-group">
+      <label>Weight</label>
+      <input type="text" class="form-input" name="system.details.weight"
+        value="{{actor.system.details.weight}}" />
+    </div>
+    <div class="form-group">
+      <label>Eyes</label>
+      <input type="text" class="form-input" name="system.details.eyes"
+        value="{{actor.system.details.eyes}}" />
+    </div>
+    <div class="form-group">
+      <label>Hair</label>
+      <input type="text" class="form-input" name="system.details.hair"
+        value="{{actor.system.details.hair}}" />
+    </div>
+    <div class="form-group">
+      <label>Skin</label>
+      <input type="text" class="form-input" name="system.details.skin"
+        value="{{actor.system.details.skin}}" />
+    </div>
+  </div>
+
+</section>

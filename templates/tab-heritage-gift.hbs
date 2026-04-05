@@ -1,0 +1,65 @@
+{{!-- Heritage Gift Tab --}}
+<div class="tab {{tabs.heritageGift.cssClass}}" data-tab="heritageGift" data-group="a5e-mancer-tabs"
+     role="tabpanel" id="heritageGift-panel" aria-labelledby="tab-heritageGift">
+  <fieldset>
+    <legend>{{localize 'am.app.heritageGift.tooltip'}}</legend>
+
+    {{#if heritageSelected}}
+
+      {{#if heritageGifts.length}}
+
+        <div class="flex items-center gap-sm mb-sm">
+          <p class="flex-1">{{localize 'am.app.heritageGift.preamble'}}</p>
+          <button type="button" data-action="randomizeTabContent" data-for="heritageGift"
+            class="select-button" data-tooltip="{{localize 'am.app.randomize'}}">
+            <i class="fa-solid fa-shuffle"></i>
+          </button>
+        </div>
+        <hr />
+
+        <div class="am-gift-list" role="radiogroup" aria-label="{{localize 'am.app.heritageGift.choose'}}">
+          {{#each heritageGifts}}
+            <div class="am-gift-option-wrapper">
+              <label class="am-gift-label">
+                <input type="radio"
+                  name="heritageGift"
+                  class="am-gift-option"
+                  value="{{@index}}"
+                  data-uuid="{{this.uuid}}"
+                  data-name="{{this.name}}" />
+                <span class="am-gift-title">{{this.name}}</span>
+              </label>
+              {{#if this.description}}
+                <div class="am-gift-description am-description-panel">
+                  {{{this.description}}}
+                </div>
+              {{/if}}
+            </div>
+          {{/each}}
+        </div>
+
+        {{!-- Hidden field stores the chosen gift UUID for form submission --}}
+        <input type="hidden" name="heritageGiftUuid" id="heritage-gift-uuid" value="" />
+
+      {{else}}
+
+        {{!-- No structured gifts found — the Grants system will handle it --}}
+        <div class="am-grants-notice">
+          <i class="fa-solid fa-bolt"></i>
+          <p>{{localize 'am.app.heritageGift.auto-grants'}}</p>
+          <p class="am-hint">{{localize 'am.app.heritageGift.auto-grants-hint'}}</p>
+        </div>
+
+      {{/if}}
+
+    {{else}}
+
+      <div class="am-info-placeholder">
+        <i class="fa-solid fa-arrow-left fa-xl" style="opacity:0.4"></i>
+        <p>{{localize 'am.app.heritageGift.select-heritage-first'}}</p>
+      </div>
+
+    {{/if}}
+
+  </fieldset>
+</div>

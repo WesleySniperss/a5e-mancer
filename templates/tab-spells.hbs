@@ -1,0 +1,115 @@
+{{!-- Spells Tab (character creation) --}}
+<div class="tab {{tabs.spells.cssClass}}" data-tab="spells" data-group="a5e-mancer-tabs"
+     role="tabpanel" id="spells-panel" aria-labelledby="tab-spells">
+  <fieldset>
+    <legend>{{localize 'am.app.spells.tooltip'}}</legend>
+
+    {{#if classSelected}}
+
+      {{#if spellInfo}}
+
+        <p>{{localize 'am.app.spells.preamble'}}</p>
+
+        <div class="am-maneuver-summary-box">
+          {{#if spellInfo.cantrips}}
+            <div class="am-info-row">
+              <i class="fa-solid fa-sparkles" style="color:var(--am-gold)"></i>
+              <span>
+                <strong>{{spellInfo.cantrips}}</strong> {{localize 'am.app.spells.cantrips-label'}}
+              </span>
+            </div>
+          {{/if}}
+          {{#if (eq spellInfo.type 'known')}}
+            <div class="am-info-row">
+              <i class="fa-solid fa-book-sparkles" style="color:var(--am-gold)"></i>
+              <span>
+                <strong>{{spellInfo.spellsKnown}}</strong> {{localize 'am.app.spells.spells-known-label'}}
+              </span>
+            </div>
+          {{else}}
+            <div class="am-info-row">
+              <i class="fa-solid fa-book-open" style="color:var(--am-accent)"></i>
+              <span>{{localize 'am.app.spells.prepared-note'}}</span>
+            </div>
+          {{/if}}
+          <div class="am-info-row">
+            <i class="fa-solid fa-arrow-up"></i>
+            <span>{{localize 'am.app.spells.max-level-label'}}: <strong>{{spellInfo.maxLevel}}</strong></span>
+          </div>
+        </div>
+
+        <hr />
+
+        {{!-- Status --}}
+        <div class="am-spell-selection-status flex gap-sm flex-wrap">
+          {{#if spellInfo.cantrips}}
+            <div class="am-counter-badge {{#if (gte selectedCantripCount spellInfo.cantrips)}}am-badge-success{{else}}am-badge-pending{{/if}}">
+              <i class="fa-solid fa-sparkles"></i>
+              {{localize 'am.app.spells.cantrips'}}:
+              {{selectedCantripCount}}/{{spellInfo.cantrips}}
+            </div>
+          {{/if}}
+          {{#if (eq spellInfo.type 'known')}}
+            <div class="am-counter-badge {{#if (gte selectedSpellCount spellInfo.spellsKnown)}}am-badge-success{{else}}am-badge-pending{{/if}}">
+              <i class="fa-solid fa-book-sparkles"></i>
+              {{localize 'am.app.spells.spells-label'}}:
+              {{selectedSpellCount}}/{{spellInfo.spellsKnown}}
+            </div>
+          {{/if}}
+        </div>
+
+        <div class="flex items-center gap-sm mt-sm">
+          <button type="button" class="am-open-spells" data-action="openSpellPicker">
+            <i class="fa-solid fa-sparkles"></i>
+            {{#if (or selectedCantripCount selectedSpellCount)}}
+              {{localize 'am.app.spells.change-selection'}}
+            {{else}}
+              {{localize 'am.app.spells.open-picker'}}
+            {{/if}}
+          </button>
+        </div>
+
+        {{!-- Preview --}}
+        {{#if selectedSpellNames.length}}
+          <div class="am-selected-preview mt-sm">
+            <h4>{{localize 'am.app.spells.your-spells'}}</h4>
+            <ul class="am-preview-list">
+              {{#each selectedSpellNames}}
+                <li>
+                  <i class="fa-solid fa-sparkles am-preview-icon"></i>
+                  {{this}}
+                </li>
+              {{/each}}
+            </ul>
+          </div>
+        {{/if}}
+
+        {{!-- Hidden form inputs --}}
+        {{#each selectedCantripUuids}}
+          <input type="hidden" name="cantripUuids[]" value="{{this}}" />
+        {{/each}}
+        {{#each selectedSpellUuids}}
+          <input type="hidden" name="spellUuids[]" value="{{this}}" />
+        {{/each}}
+
+      {{else}}
+
+        <div class="am-info-placeholder">
+          <i class="fa-solid fa-circle-info fa-2x" style="opacity:0.5"></i>
+          <p>{{localize 'am.app.spells.class-no-spells'}}</p>
+          <p class="am-hint">{{localize 'am.app.spells.class-no-spells-hint'}}</p>
+        </div>
+
+      {{/if}}
+
+    {{else}}
+
+      <div class="am-info-placeholder">
+        <i class="fa-solid fa-arrow-left fa-xl" style="opacity:0.4"></i>
+        <p>{{localize 'am.app.spells.select-class-first'}}</p>
+      </div>
+
+    {{/if}}
+
+  </fieldset>
+</div>

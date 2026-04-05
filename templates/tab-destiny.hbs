@@ -1,0 +1,47 @@
+{{!-- Destiny Tab --}}
+<div class="tab {{tabs.destiny.cssClass}}" data-tab="destiny" data-group="a5e-mancer-tabs"
+     role="tabpanel" id="destiny-panel" aria-labelledby="tab-destiny">
+  <fieldset>
+    <legend>{{localize 'am.app.destiny.tooltip'}}</legend>
+    <p>Destiny is unique to A5e — it represents your character's long-term purpose and motivation. Each destiny grants a special feature, an inspiring source of motivation, and a fulfillment reward when major milestones are achieved.</p>
+    <hr />
+
+    {{!-- Dropdown --}}
+    <div class="form-row flex items-center gap-sm mb-sm">
+      <label for="destiny-dropdown">{{localize 'am.app.destiny.select-label'}}</label>
+      <select id="destiny-dropdown" name="destiny" class="form-select" data-dtype="String"
+        aria-required="true" aria-describedby="destiny-description">
+        <option value="">{{localize 'am.app.destiny.select-placeholder'}}</option>
+
+        {{#each destinyDocs}}
+          {{#if this.folderName}}
+            <optgroup label="{{this.folderName}}">
+              {{#each this.docs}}
+                <option value="{{this.id}} ({{this.packId}}) [{{this.uuid}}]">
+                  {{this.name}}
+                </option>
+              {{/each}}
+            </optgroup>
+          {{else}}
+            {{#each this.docs}}
+              <option value="{{this.id}} ({{this.packId}}) [{{this.uuid}}]">
+                {{this.name}}
+              </option>
+            {{/each}}
+          {{/if}}
+        {{else}}
+          <option>{{localize 'am.app.destiny.none'}}</option>
+        {{/each}}
+      </select>
+      <button type="button" data-action="randomizeTabContent" data-for="destiny"
+        class="select-button" data-tooltip="{{localize 'am.app.randomize'}}">
+        <i class="fa-solid fa-shuffle"></i>
+      </button>
+    </div>
+
+    {{!-- Description panel --}}
+    <div id="destiny-description" class="am-description-panel overflow-vert-only"
+         role="region" aria-live="polite" aria-atomic="true">
+    </div>
+  </fieldset>
+</div>

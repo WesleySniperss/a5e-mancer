@@ -1,0 +1,299 @@
+{{!-- A5e Mancer NPC Sheet --}}
+<div class="am-npc-wrapper">
+
+  {{!-- ══ HEADER ═══════════════════════════════════════ --}}
+  <header class="am-npc-header">
+    <img src="{{actor.img}}" data-edit="img" title="{{actor.name}}" alt=""
+      class="am-npc-portrait" />
+
+    <div class="am-npc-identity">
+      <input class="am-npc-name" type="text" name="name" value="{{actor.name}}" />
+      <div class="am-npc-subtitle">
+        {{#if details.size}}<span class="am-npc-chip">{{details.size}}</span>{{/if}}
+        {{#if details.type}}<span class="am-npc-chip">{{details.type}}</span>{{/if}}
+        {{#if details.alignment}}<span class="am-npc-chip am-dim">{{details.alignment}}</span>{{/if}}
+      </div>
+      {{#if details.source}}
+        <div class="am-npc-source am-dim">{{details.source}}</div>
+      {{/if}}
+    </div>
+
+    {{!-- CR + XP --}}
+    <div class="am-npc-cr-block">
+      <div class="am-npc-cr-val">CR {{cr}}</div>
+      <div class="am-npc-xp am-dim">{{details.xp}} XP</div>
+      <div class="am-npc-prof am-dim">Prof +{{profBonus}}</div>
+    </div>
+  </header>
+
+  {{!-- ══ COMBAT STATS ════════════════════════════════ --}}
+  <div class="am-npc-stats-bar">
+
+    {{!-- HP --}}
+    <div class="am-npc-hp-block">
+      <div class="am-npc-stat-label">HP</div>
+      <div class="am-npc-hp-row">
+        <input id="npc-hp-cur" type="number" class="am-npc-hp-big"
+          value="{{hp.value}}" min="0" />
+        <span class="am-slash">/</span>
+        <input id="npc-hp-max" type="number" class="am-npc-hp-sm"
+          value="{{hp.max}}" />
+      </div>
+      <div class="am-npc-bar-track">
+        <div class="am-npc-bar-fill" style="width:{{hp.pct}}%; background:{{hp.color}}"></div>
+      </div>
+      {{#if hp.formula}}
+        <div class="am-npc-hp-formula am-dim">({{hp.formula}})</div>
+      {{/if}}
+    </div>
+
+    {{!-- AC --}}
+    <div class="am-npc-stat-block">
+      <div class="am-npc-stat-label">AC</div>
+      <input id="npc-ac" type="number" class="am-npc-stat-big" value="{{ac}}" />
+    </div>
+
+    {{!-- Speed --}}
+    <div class="am-npc-stat-block am-npc-stat-wide">
+      <div class="am-npc-stat-label">Speed</div>
+      <div class="am-npc-speed">{{speed}}</div>
+    </div>
+
+    {{!-- Abilities row --}}
+    <div class="am-npc-abilities">
+      {{#each abilities}}
+        <div class="am-npc-abl">
+          <div class="am-npc-abl-name">{{this.abbr}}</div>
+          <div class="am-npc-abl-score">{{this.val}}</div>
+          <button type="button" class="am-npc-abl-mod"
+            data-action="ability-check"
+            data-ability="{{this.key}}"
+            data-mod="{{this.modStr}}"
+            data-label="{{this.label}} Check"
+            title="Roll {{this.label}}">{{this.modStr}}</button>
+          <button type="button" class="am-npc-save"
+            data-action="saving-throw"
+            data-ability="{{this.key}}"
+            data-save="{{this.saveStr}}"
+            title="{{this.label}} Save">
+            <span class="am-save-dot {{#if this.saveProf}}am-save-prof{{/if}}">{{#if this.saveProf}}●{{else}}○{{/if}}</span>
+            {{this.saveStr}}
+          </button>
+        </div>
+      {{/each}}
+    </div>
+
+  </div>
+
+  {{!-- ══ TRAITS ROW ════════════════════════════════ --}}
+  {{#if (or dmgResist dmgImmune condImmune)}}
+    <div class="am-npc-traits-row">
+      {{#if dmgResist}}
+        <span class="am-trait-block"><b>Resistances:</b> {{dmgResist}}</span>
+      {{/if}}
+      {{#if dmgImmune}}
+        <span class="am-trait-block"><b>Immunities:</b> {{dmgImmune}}</span>
+      {{/if}}
+      {{#if condImmune}}
+        <span class="am-trait-block"><b>Cond. Immune:</b> {{condImmune}}</span>
+      {{/if}}
+    </div>
+  {{/if}}
+  {{#if senses}}
+    <div class="am-npc-senses-row am-dim">{{senses}}</div>
+  {{/if}}
+
+  {{!-- ══ LEGENDARY RESOURCES ════════════════════ --}}
+  {{#if legendaryActions}}
+    <div class="am-npc-leg-row">
+      <span class="am-leg-label">
+        <i class="fa-solid fa-crown"></i> Legendary Actions
+      </span>
+      <div class="am-leg-pips">
+        {{#each legendaryActions.pips}}
+          <span class="am-leg-pip {{#if this.on}}am-leg-pip-on{{/if}}"
+            data-action="leg-pip"
+            data-index="{{this.i}}"
+            data-current="{{../legendaryActions.value}}">◆</span>
+        {{/each}}
+      </div>
+      <span class="am-dim" style="font-size:0.72rem">
+        {{legendaryActions.value}}/{{legendaryActions.max}}
+      </span>
+    </div>
+  {{/if}}
+
+  {{!-- ══ TABS ════════════════════════════════════ --}}
+  <nav class="am-npc-tabs tabs" data-group="npc-primary">
+    <a class="item active" data-tab="actions" data-group="npc-primary">
+      <i class="fa-solid fa-swords"></i> Actions
+    </a>
+    <a class="item" data-tab="features" data-group="npc-primary">
+      <i class="fa-solid fa-scroll"></i> Traits
+    </a>
+    {{#if hasLegendary}}
+      <a class="item" data-tab="legendary" data-group="npc-primary">
+        <i class="fa-solid fa-crown"></i> Legendary
+      </a>
+    {{/if}}
+    <a class="item" data-tab="bio" data-group="npc-primary">
+      <i class="fa-solid fa-book"></i> Info
+    </a>
+  </nav>
+
+  <div class="am-npc-body tab-content">
+
+    {{!-- ▸ ACTIONS ──────────────────────────────── --}}
+    <section class="tab active" data-tab="actions" data-group="npc-primary">
+      {{#if hasActions}}
+        {{!-- Group by activation type --}}
+        {{#each actionGroups}}
+          {{#if this.items.length}}
+            <div class="am-npc-act-group">
+              <div class="am-npc-act-head am-npc-head-{{this.type}}">
+                {{this.label}}
+              </div>
+              {{#each this.items}}
+                <div class="am-npc-action-row" data-item-id="{{this.id}}">
+                  <img src="{{this.img}}" class="am-ico" alt="" />
+                  <div class="am-npc-action-main">
+                    <span class="am-item-name">{{this.name}}</span>
+                    {{#if this.isAttack}}
+                      <span class="am-npc-atk">
+                        <i class="fa-solid fa-crosshairs"></i> {{this.atkBonus}}
+                        <span class="am-dim">hit</span>
+                      </span>
+                      <span class="am-npc-dmg">{{this.dmg}}</span>
+                      {{#if this.range}}
+                        <span class="am-npc-range am-dim">{{this.range}}</span>
+                      {{/if}}
+                    {{/if}}
+                  </div>
+                  <div class="am-npc-row-btns">
+                    <button type="button" data-action="item-use"
+                      data-id="{{this.id}}" class="am-use-btn">Roll</button>
+                    <a data-action="item-edit" data-id="{{this.id}}"
+                      class="am-npc-ctrl" title="Edit"><i class="fa-solid fa-pen"></i></a>
+                    <a data-action="item-delete" data-id="{{this.id}}"
+                      class="am-npc-ctrl am-npc-ctrl-del" title="Delete"><i class="fa-solid fa-trash"></i></a>
+                  </div>
+                </div>
+                {{#if this.desc}}
+                  <div class="am-npc-action-desc am-dim">{{{this.desc}}}</div>
+                {{/if}}
+              {{/each}}
+            </div>
+          {{/if}}
+        {{/each}}
+      {{else}}
+        <div class="am-empty">
+          <p class="am-dim">No actions. Drag weapons or features here.</p>
+        </div>
+      {{/if}}
+    </section>
+
+    {{!-- ▸ TRAITS / FEATURES ─────────────────── --}}
+    <section class="tab" data-tab="features" data-group="npc-primary">
+      {{#if hasFeatures}}
+        {{#each features}}
+          <div class="npc-feat-item">
+            <div class="npc-feat-head">
+              <button type="button" class="npc-feat-toggle">▸</button>
+              <span class="am-item-name">{{this.name}}</span>
+              {{#if this.recharge}}
+                <span class="am-npc-recharge">(Recharge {{this.recharge}})</span>
+              {{/if}}
+              <a data-action="item-edit" data-id="{{this.id}}" class="am-npc-ctrl"><i class="fa-solid fa-pen"></i></a>
+              <a data-action="item-delete" data-id="{{this.id}}" class="am-npc-ctrl am-npc-ctrl-del"><i class="fa-solid fa-trash"></i></a>
+            </div>
+            <div class="npc-feat-body am-hidden">{{{this.desc}}}</div>
+          </div>
+        {{/each}}
+      {{else}}
+        <div class="am-empty"><p class="am-dim">No traits yet.</p></div>
+      {{/if}}
+    </section>
+
+    {{!-- ▸ LEGENDARY ──────────────────────────── --}}
+    {{#if hasLegendary}}
+      <section class="tab" data-tab="legendary" data-group="npc-primary">
+        {{#each legendaries}}
+          <div class="npc-feat-item">
+            <div class="npc-feat-head">
+              <button type="button" class="npc-feat-toggle">▸</button>
+              <span class="am-item-name">{{this.name}}</span>
+              <a data-action="item-edit" data-id="{{this.id}}" class="am-npc-ctrl"><i class="fa-solid fa-pen"></i></a>
+              <a data-action="item-delete" data-id="{{this.id}}" class="am-npc-ctrl am-npc-ctrl-del"><i class="fa-solid fa-trash"></i></a>
+            </div>
+            <div class="npc-feat-body am-hidden">{{{this.desc}}}</div>
+          </div>
+        {{/each}}
+        {{#if hasLair}}
+          <div class="am-npc-act-head am-npc-head-lair">Lair Actions</div>
+          {{#each lairActions}}
+            <div class="npc-feat-item">
+              <div class="npc-feat-head">
+                <button type="button" class="npc-feat-toggle">▸</button>
+                <span class="am-item-name">{{this.name}}</span>
+              </div>
+              <div class="npc-feat-body am-hidden">{{{this.desc}}}</div>
+            </div>
+          {{/each}}
+        {{/if}}
+      </section>
+    {{/if}}
+
+    {{!-- ▸ INFO ──────────────────────────────── --}}
+    <section class="tab" data-tab="bio" data-group="npc-primary">
+      <div class="am-npc-info-grid">
+        <div class="am-npc-info-row">
+          <label>Type</label>
+          <input type="text" class="form-input"
+            name="system.details.type.value" value="{{details.type}}" />
+        </div>
+        <div class="am-npc-info-row">
+          <label>Size</label>
+          <input type="text" class="form-input"
+            name="system.traits.size" value="{{details.size}}" />
+        </div>
+        <div class="am-npc-info-row">
+          <label>Alignment</label>
+          <input type="text" class="form-input"
+            name="system.details.alignment" value="{{details.alignment}}" />
+        </div>
+        <div class="am-npc-info-row">
+          <label>Languages</label>
+          <input type="text" class="form-input"
+            name="system.traits.languages" value="{{details.language}}" />
+        </div>
+        <div class="am-npc-info-row">
+          <label>Source</label>
+          <input type="text" class="form-input"
+            name="system.details.source" value="{{details.source}}" />
+        </div>
+      </div>
+
+      {{!-- Conditions / active effects --}}
+      {{#if hasConditions}}
+        <div class="am-npc-conditions">
+          <div class="am-npc-cond-label">Active Conditions</div>
+          <div class="am-npc-cond-row">
+            {{#each activeEffects}}
+              <div class="am-npc-condition" title="{{this.label}}">
+                <img src="{{this.icon}}" alt="{{this.label}}" />
+                <span>{{this.label}}</span>
+              </div>
+            {{/each}}
+          </div>
+        </div>
+      {{/if}}
+
+      {{!-- Rest --}}
+      <div class="am-rest-row" style="margin-top:0.7rem">
+        <button type="button" data-action="short-rest" class="am-rest-btn">⏱ Short Rest</button>
+        <button type="button" data-action="long-rest"  class="am-rest-btn">🌙 Long Rest</button>
+      </div>
+    </section>
+
+  </div>{{!-- .am-npc-body --}}
+</div>

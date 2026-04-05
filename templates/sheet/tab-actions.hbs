@@ -1,0 +1,160 @@
+{{!-- Actions Tab: everything needed in combat --}}
+<section class="tab active am-tab-actions" data-tab="actions" data-group="primary">
+
+  {{!-- ── Weapons ─────────────────────────────────── --}}
+  {{#if grouped.weapons.length}}
+  <div class="am-section">
+    <h3 class="am-section-title"><i class="fa-solid fa-khanda"></i> Weapons</h3>
+    <table class="am-action-table">
+      <thead>
+        <tr>
+          <th class="am-col-img"></th>
+          <th class="am-col-name">Name</th>
+          <th class="am-col-hit">Attack</th>
+          <th class="am-col-dmg">Damage</th>
+          <th class="am-col-range">Range</th>
+          <th class="am-col-btns"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each grouped.weapons}}
+          <tr class="am-item-row {{#if this.equipped}}am-equipped{{/if}}"
+            data-item-id="{{this.id}}">
+            <td class="am-col-img">
+              <img src="{{this.img}}" class="am-item-img-sm" alt="" />
+            </td>
+            <td class="am-col-name am-item-name-cell">
+              <span class="am-item-name">{{this.name}}</span>
+            </td>
+            <td class="am-col-hit">
+              <button type="button" class="am-item-use am-roll-btn" data-item-id="{{this.id}}">
+                Roll
+              </button>
+            </td>
+            <td class="am-col-dmg am-muted">—</td>
+            <td class="am-col-range am-muted">—</td>
+            <td class="am-col-btns">
+              {{> "modules/a5e-mancer/templates/sheet/partials/item-controls.hbs"}}
+            </td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </div>
+  {{/if}}
+
+  {{!-- ── Maneuvers ───────────────────────────────── --}}
+  {{#if grouped.maneuvers.length}}
+  <div class="am-section">
+    <div class="am-section-header">
+      <h3 class="am-section-title">
+        <i class="fa-solid fa-swords"></i> Combat Maneuvers
+        <span class="am-exertion-badge">
+          <i class="fa-solid fa-bolt"></i>
+          {{resources.exertion.current}}/{{resources.exertion.max}} Exertion
+        </span>
+      </h3>
+      <button type="button" class="am-sheet-maneuvers am-add-btn"
+        title="Manage Maneuvers">+ Manage</button>
+    </div>
+
+    {{!-- Group by tradition --}}
+    {{#each maneuversByTradition}}
+      <div class="am-tradition-group">
+        <div class="am-tradition-header">{{@key}}</div>
+        {{#each this}}
+          <div class="am-maneuver-row am-item-row" data-item-id="{{this.id}}">
+            <img src="{{this.img}}" class="am-item-img-sm" alt="" />
+            <div class="am-maneuver-info">
+              <span class="am-item-name">{{this.name}}</span>
+              <span class="am-degree-tag">{{this.degree}}°</span>
+              {{#if this.exertion}}
+                <span class="am-exertion-tag">
+                  <i class="fa-solid fa-bolt"></i>{{this.exertion}}
+                </span>
+              {{/if}}
+            </div>
+            <div class="am-maneuver-controls">
+              <button type="button" class="am-item-use am-use-btn"
+                data-item-id="{{this.id}}" title="Use {{this.name}}">
+                Use
+              </button>
+              {{> "modules/a5e-mancer/templates/sheet/partials/item-controls.hbs"}}
+            </div>
+          </div>
+        {{/each}}
+      </div>
+    {{/each}}
+  </div>
+  {{/if}}
+
+  {{!-- ── Spells ──────────────────────────────────── --}}
+  {{#if grouped.spells.length}}
+  <div class="am-section">
+    <div class="am-section-header">
+      <h3 class="am-section-title">
+        <i class="fa-solid fa-sparkles"></i> Spells
+      </h3>
+      <button type="button" class="am-sheet-spells am-add-btn"
+        title="Manage Spells">+ Manage</button>
+    </div>
+
+    {{!-- Spell slots --}}
+    {{#if slotLevels.length}}
+      <div class="am-slot-row">
+        {{#each slotLevels}}
+          <div class="am-slot-group">
+            <div class="am-slot-label">{{this.level}}</div>
+            <div class="am-slot-pips">
+              {{#each (range this.max)}}
+                <span class="am-slot-pip {{#if (lt this ../value)}}am-slot-used{{/if}}"
+                  data-level="{{../level}}"
+                  data-index="{{this}}"
+                  data-current="{{../value}}"
+                  title="Slot {{add this 1}}">◆</span>
+              {{/each}}
+            </div>
+          </div>
+        {{/each}}
+      </div>
+    {{/if}}
+
+    {{!-- Grouped by level --}}
+    {{#each spellsByLevel}}
+      <div class="am-spell-level-group">
+        <div class="am-spell-level-header">
+          {{#if (eq @key 0)}}Cantrips{{else}}Level {{@key}}{{/if}}
+        </div>
+        {{#each this}}
+          <div class="am-spell-row am-item-row" data-item-id="{{this.id}}">
+            <img src="{{this.img}}" class="am-item-img-sm" alt="" />
+            <div class="am-spell-info">
+              <span class="am-item-name">{{this.name}}</span>
+              {{#if this.concentration}}<span class="am-spell-tag am-conc-tag">C</span>{{/if}}
+              {{#if this.ritual}}<span class="am-spell-tag am-ritual-tag">R</span>{{/if}}
+              <span class="am-spell-school am-muted">{{this.school}}</span>
+            </div>
+            <div class="am-spell-controls">
+              <button type="button" class="am-item-use am-use-btn"
+                data-item-id="{{this.id}}" title="Cast {{this.name}}">
+                Cast
+              </button>
+              {{> "modules/a5e-mancer/templates/sheet/partials/item-controls.hbs"}}
+            </div>
+          </div>
+        {{/each}}
+      </div>
+    {{/each}}
+  </div>
+  {{/if}}
+
+  {{!-- Empty state --}}
+  {{#unless (or grouped.weapons.length grouped.maneuvers.length grouped.spells.length)}}
+    <div class="am-empty-tab">
+      <i class="fa-solid fa-swords fa-3x am-muted"></i>
+      <p class="am-muted">No combat actions yet.</p>
+      <p class="am-muted">Drag weapons, maneuvers, and spells here, or use the Level Up wizard.</p>
+    </div>
+  {{/unless}}
+
+</section>

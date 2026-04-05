@@ -1,0 +1,47 @@
+{{!-- Class Tab --}}
+<div class="tab {{tabs.class.cssClass}}" data-tab="class" data-group="a5e-mancer-tabs"
+     role="tabpanel" id="class-panel" aria-labelledby="tab-class">
+  <fieldset>
+    <legend>{{localize 'am.app.class.tooltip'}}</legend>
+    <p>Your class defines your character's adventuring role, primary abilities, and how they grow in power. A5e classes are fully compatible with standard 5e classes but include expanded options like Archetypes and Exploration Knacks.</p>
+    <hr />
+
+    {{!-- Dropdown --}}
+    <div class="form-row flex items-center gap-sm mb-sm">
+      <label for="class-dropdown">{{localize 'am.app.class.select-label'}}</label>
+      <select id="class-dropdown" name="class" class="form-select" data-dtype="String"
+        aria-required="true" aria-describedby="class-description">
+        <option value="">{{localize 'am.app.class.select-placeholder'}}</option>
+
+        {{#each classDocs}}
+          {{#if this.folderName}}
+            <optgroup label="{{this.folderName}}">
+              {{#each this.docs}}
+                <option value="{{this.id}} ({{this.packId}}) [{{this.uuid}}]">
+                  {{this.name}}
+                </option>
+              {{/each}}
+            </optgroup>
+          {{else}}
+            {{#each this.docs}}
+              <option value="{{this.id}} ({{this.packId}}) [{{this.uuid}}]">
+                {{this.name}}
+              </option>
+            {{/each}}
+          {{/if}}
+        {{else}}
+          <option>{{localize 'am.app.class.none'}}</option>
+        {{/each}}
+      </select>
+      <button type="button" data-action="randomizeTabContent" data-for="class"
+        class="select-button" data-tooltip="{{localize 'am.app.randomize'}}">
+        <i class="fa-solid fa-shuffle"></i>
+      </button>
+    </div>
+
+    {{!-- Description panel --}}
+    <div id="class-description" class="am-description-panel overflow-vert-only"
+         role="region" aria-live="polite" aria-atomic="true">
+    </div>
+  </fieldset>
+</div>

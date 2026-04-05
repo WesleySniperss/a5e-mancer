@@ -1,0 +1,78 @@
+{{!-- Finalize / Review Tab --}}
+<div class="tab {{tabs.finalize.cssClass}}" data-tab="finalize" data-group="a5e-mancer-tabs"
+     role="tabpanel" id="finalize-panel" aria-labelledby="tab-finalize">
+  <fieldset>
+    <legend>{{localize 'am.app.finalize.tooltip'}}</legend>
+
+    <p class="am-hint">{{localize 'am.app.finalize.instructions'}}</p>
+
+    {{!-- Portrait + name --}}
+    <div class="review-header flex items-center gap-md mb-md">
+      <div class="character-portrait">
+        <img src="icons/svg/mystery-man.svg" alt="{{localize 'am.app.finalize.portrait-alt'}}" />
+      </div>
+      <div>
+        <h2 class="character-name-display">—</h2>
+        <div class="character-summary-text am-hint"></div>
+      </div>
+    </div>
+
+    <div class="review-sections">
+
+      {{!-- Basic Info --}}
+      <section class="review-section" aria-labelledby="ri-heading">
+        <h3 id="ri-heading"><i class="fa-solid fa-id-card"></i> {{localize 'am.app.finalize.basic-info'}}</h3>
+        <div class="review-content review-grid">
+          <div class="review-item">
+            <span class="review-label">{{localize 'am.app.tab-names.heritage'}}:</span>
+            <span class="review-value review-heritage">—</span>
+          </div>
+          <div class="review-item">
+            <span class="review-label">{{localize 'am.app.tab-names.heritageGift'}}:</span>
+            <span class="review-value review-heritageGift">—</span>
+          </div>
+          <div class="review-item">
+            <span class="review-label">{{localize 'am.app.tab-names.culture'}}:</span>
+            <span class="review-value review-culture">—</span>
+          </div>
+          <div class="review-item">
+            <span class="review-label">{{localize 'am.app.tab-names.background'}}:</span>
+            <span class="review-value review-background">—</span>
+          </div>
+          <div class="review-item">
+            <span class="review-label">{{localize 'am.app.tab-names.destiny'}}:</span>
+            <span class="review-value review-destiny">—</span>
+          </div>
+          <div class="review-item">
+            <span class="review-label">{{localize 'am.app.tab-names.class'}}:</span>
+            <span class="review-value review-class">—</span>
+          </div>
+        </div>
+      </section>
+
+      {{!-- Ability Scores --}}
+      <section class="review-section" aria-labelledby="ab-heading">
+        <h3 id="ab-heading"><i class="fa-solid fa-fist-raised"></i> {{localize 'am.app.finalize.abilities'}}</h3>
+        <div class="review-content abilities-grid" aria-live="polite">
+          {{!-- Filled by DOMManager.updateAbilitiesSummary() --}}
+        </div>
+      </section>
+
+      {{!-- Biography preview --}}
+      <section class="review-section" aria-labelledby="bio-heading">
+        <h3 id="bio-heading"><i class="fa-solid fa-book-open"></i> {{localize 'am.app.finalize.biography'}}</h3>
+        <div class="review-content bio-preview" aria-live="polite">
+          {{!-- Filled dynamically --}}
+        </div>
+      </section>
+
+      {{!-- A5e reminder --}}
+      <section class="review-section am-grants-notice">
+        <h3><i class="fa-solid fa-bolt"></i> {{localize 'am.app.finalize.grants-title'}}</h3>
+        <p class="am-hint">{{localize 'am.app.finalize.grants-notice'}}</p>
+      </section>
+
+    </div>
+  </fieldset>
+</div>
+{{!-- Additional finalize sections injected by JS --}}

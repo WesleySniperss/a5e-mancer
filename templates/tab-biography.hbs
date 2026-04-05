@@ -1,0 +1,133 @@
+{{!-- Biography Tab --}}
+<div class="tab {{tabs.biography.cssClass}}" data-tab="biography" data-group="a5e-mancer-tabs"
+     role="tabpanel" id="biography-panel" aria-labelledby="tab-biography">
+  <fieldset>
+    <legend>{{localize 'am.app.biography.tooltip'}}</legend>
+
+    {{!-- Physical Characteristics --}}
+    <section class="characteristics-section" aria-labelledby="phys-heading">
+      <h2 id="phys-heading">{{localize 'am.app.biography.physical'}}</h2>
+
+      <div class="grid grid-5-col gap-md mb-md">
+        <div class="form-group">
+          <label for="gender">{{localize 'am.app.biography.gender'}}</label>
+          <input id="gender" type="text" name="gender" class="form-input" />
+        </div>
+        <div class="form-group">
+          <label for="age">{{localize 'am.app.biography.age'}}</label>
+          <input id="age" type="text" name="age" class="form-input" />
+        </div>
+        <div class="form-group">
+          <label for="height">{{localize 'am.app.biography.height'}}</label>
+          <input id="height" type="text" name="height" class="form-input" />
+        </div>
+        <div class="form-group">
+          <label for="weight">{{localize 'am.app.biography.weight'}}</label>
+          <input id="weight" type="text" name="weight" class="form-input" />
+        </div>
+        <div class="form-group">
+          <label for="size">{{localize 'am.app.biography.size'}}</label>
+          <input id="size" type="text" name="size" class="form-input"
+            placeholder="{{localize 'am.app.biography.size-placeholder'}}" />
+        </div>
+      </div>
+
+      <div class="grid grid-5-col gap-md mb-md">
+        <div class="form-group">
+          <label for="eyes">{{localize 'am.app.biography.eyes'}}</label>
+          <input id="eyes" type="text" name="eyes" class="form-input" />
+        </div>
+        <div class="form-group">
+          <label for="hair">{{localize 'am.app.biography.hair'}}</label>
+          <input id="hair" type="text" name="hair" class="form-input" />
+        </div>
+        <div class="form-group">
+          <label for="skin">{{localize 'am.app.biography.skin'}}</label>
+          <input id="skin" type="text" name="skin" class="form-input" />
+        </div>
+        <div class="form-group">
+          {{!-- Alignment (A5e uses it as optional RP flavour) --}}
+          <label for="alignment">{{localize 'am.app.biography.alignment'}}</label>
+          {{#if enableAlignmentFaithInputs}}
+            <input id="alignment" type="text" name="alignment" class="form-input"
+              placeholder="{{localize 'am.app.biography.alignment-placeholder'}}" />
+          {{else}}
+            <select id="alignment" name="alignment" class="form-select">
+              <option value="">{{localize 'None'}}</option>
+              {{#each alignments}}
+                <option value="{{this}}">{{this}}</option>
+              {{/each}}
+            </select>
+          {{/if}}
+        </div>
+        <div class="form-group">
+          <label for="pronouns">{{localize 'am.app.biography.pronouns'}}</label>
+          <input id="pronouns" type="text" name="pronouns" class="form-input"
+            placeholder="they/them" />
+        </div>
+      </div>
+    </section>
+    <hr />
+
+    {{!-- Personality --}}
+    <section class="personality-section" aria-labelledby="pers-heading">
+      <h2 id="pers-heading">{{localize 'am.app.biography.personality'}}</h2>
+      <div class="grid grid-2-col gap-md">
+
+        <div class="form-group">
+          <label for="traits">{{localize 'am.app.biography.traits'}}</label>
+          <textarea id="traits" name="traits" class="form-input" rows="3"
+            placeholder="{{localize 'am.app.biography.traits-placeholder'}}"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="ideals">{{localize 'am.app.biography.ideals'}}</label>
+          <textarea id="ideals" name="ideals" class="form-input" rows="3"
+            placeholder="{{localize 'am.app.biography.ideals-placeholder'}}"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="bonds">{{localize 'am.app.biography.bonds'}}</label>
+          <textarea id="bonds" name="bonds" class="form-input" rows="3"
+            placeholder="{{localize 'am.app.biography.bonds-placeholder'}}"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="flaws">{{localize 'am.app.biography.flaws'}}</label>
+          <textarea id="flaws" name="flaws" class="form-input" rows="3"
+            placeholder="{{localize 'am.app.biography.flaws-placeholder'}}"></textarea>
+        </div>
+      </div>
+    </section>
+    <hr />
+
+    {{!-- Backstory --}}
+    <section aria-labelledby="backstory-heading">
+      <h2 id="backstory-heading">{{localize 'am.app.biography.backstory'}}</h2>
+      <div class="form-group">
+        <textarea id="backstory" name="backstory" class="form-input am-backstory" rows="6"
+          placeholder="{{localize 'am.app.biography.backstory-placeholder'}}"></textarea>
+      </div>
+    </section>
+
+    {{!-- A5e-specific: Connections & Mementos --}}
+    <hr />
+    <section aria-labelledby="connections-heading">
+      <h2 id="connections-heading">{{localize 'am.app.biography.connections'}}</h2>
+      <p class="am-hint">{{localize 'am.app.biography.connections-hint'}}</p>
+      <div class="grid grid-2-col gap-md">
+        <div class="form-group">
+          <label for="connections">{{localize 'am.app.biography.connections-label'}}</label>
+          <textarea id="connections" name="connections" class="form-input" rows="3"
+            placeholder="{{localize 'am.app.biography.connections-placeholder'}}"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="mementos">{{localize 'am.app.biography.mementos'}}</label>
+          <textarea id="mementos" name="mementos" class="form-input" rows="3"
+            placeholder="{{localize 'am.app.biography.mementos-placeholder'}}"></textarea>
+        </div>
+      </div>
+    </section>
+
+  </fieldset>
+</div>

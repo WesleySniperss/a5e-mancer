@@ -1,0 +1,24 @@
+{{!-- Features Tab --}}
+<section class="tab am-tab-features" data-tab="features" data-group="primary">
+  {{#if grouped.features.length}}
+    <div class="am-features-list">
+      {{#each grouped.features}}
+        <details class="am-feature-item" data-item-id="{{this.id}}">
+          <summary class="am-feature-summary">
+            <img src="{{this.img}}" class="am-item-img-sm" alt="" />
+            <span class="am-item-name">{{this.name}}</span>
+            {{> "modules/a5e-mancer/templates/sheet/partials/item-controls.hbs"}}
+          </summary>
+          <div class="am-feature-desc am-description-panel">
+            {{{this.description}}}
+          </div>
+        </details>
+      {{/each}}
+    </div>
+  {{else}}
+    <div class="am-empty-tab">
+      <i class="fa-solid fa-scroll fa-3x am-muted"></i>
+      <p class="am-muted">No features yet. They'll appear here after character creation.</p>
+    </div>
+  {{/if}}
+</section>

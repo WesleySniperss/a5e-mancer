@@ -1,0 +1,177 @@
+{{!-- Equipment Tab --}}
+<div class="tab {{tabs.equipment.cssClass}}" data-tab="equipment" data-group="a5e-mancer-tabs"
+     role="tabpanel" id="equipment-panel" aria-labelledby="tab-equipment">
+  <fieldset>
+    <legend>{{localize 'am.app.equipment.tooltip'}}</legend>
+
+    {{!-- ═══════════════════════════════════════════════════════
+         STARTING WEALTH
+         ═══════════════════════════════════════════════════════ --}}
+    <section class="am-wealth-section" aria-labelledby="wealth-heading">
+      <h2 id="wealth-heading">
+        <i class="fa-solid fa-coins"></i>
+        {{localize 'am.app.equipment.wealth-title'}}
+      </h2>
+
+      {{#if wealthFormula}}
+        <p>{{localize 'am.app.equipment.wealth-formula-label'}}:
+          <strong>{{wealthFormula}} gp</strong></p>
+
+        <div class="am-wealth-controls flex items-center gap-sm mb-sm">
+          <button type="button" data-action="rollWealth" class="am-wealth-roll-btn">
+            <i class="fa-solid fa-dice"></i>
+            {{localize 'am.app.equipment.roll-wealth'}}
+          </button>
+          <span>{{localize 'am.app.equipment.or'}}</span>
+          <label for="starting-wealth-amount">{{localize 'am.app.equipment.enter-wealth'}}</label>
+          <input id="starting-wealth-amount" type="number" name="startingWealth"
+            class="form-input am-wealth-input" min="0" placeholder="0" />
+          <span>gp</span>
+        </div>
+        <div id="wealth-roll-result" class="am-wealth-result font-bold"></div>
+      {{else}}
+        <p class="am-hint">
+          {{#if classDocs}}
+            {{localize 'am.app.equipment.select-class-for-wealth'}}
+          {{else}}
+            {{localize 'am.app.equipment.no-wealth-data'}}
+          {{/if}}
+        </p>
+      {{/if}}
+    </section>
+
+    <hr />
+
+    {{!-- ═══════════════════════════════════════════════════════
+         CLASS EQUIPMENT
+         ═══════════════════════════════════════════════════════ --}}
+    <section class="am-equipment-section" aria-labelledby="class-equip-heading">
+      <h2 id="class-equip-heading">
+        <i class="fa-solid fa-chess-rook"></i>
+        {{localize 'am.app.equipment.class-equipment'}}
+      </h2>
+
+      {{#if classEquipment}}
+
+        {{!-- Fixed items --}}
+        {{#if classEquipment.fixed.length}}
+          <h3>{{localize 'am.app.equipment.you-receive'}}</h3>
+          <ul class="am-equipment-fixed">
+            {{#each classEquipment.fixed}}
+              <li>
+                <i class="fa-solid fa-check-circle" style="color:var(--am-success)"></i>
+                <span>{{#if this.qty}}{{this.qty}}× {{/if}}{{this.name}}</span>
+              </li>
+            {{/each}}
+          </ul>
+        {{/if}}
+
+        {{!-- Choice groups --}}
+        {{#each classEquipment.choices}}
+          <div class="am-equipment-choice-group" data-choice-index="{{@index}}">
+            <h3>{{localize 'am.app.equipment.choose-one'}}</h3>
+            <div class="am-equipment-options flex flex-wrap gap-sm">
+              {{#each this.options}}
+                <div class="am-equipment-option {{#if (eq @index 0)}}am-selected{{/if}}">
+                  <button type="button" class="am-equipment-option-btn" data-idx="{{@index}}">
+                    <i class="fa-solid fa-shield-halved"></i>
+                    <span>{{#if this.qty}}{{this.qty}}× {{/if}}{{this.name}}</span>
+                  </button>
+                </div>
+              {{/each}}
+            </div>
+            <input type="hidden" name="classEquipmentChoice[{{@index}}]" value="0" />
+          </div>
+        {{/each}}
+
+        {{!-- Raw text fallback --}}
+        {{#if classEquipment.raw}}
+          <div class="am-equipment-raw am-hint">
+            <p><strong>{{localize 'am.app.equipment.from-description'}} ({{classEquipment.sourceName}}):</strong></p>
+            <p>{{classEquipment.raw}}</p>
+          </div>
+        {{/if}}
+
+        {{#unless classEquipment.fixed.length}}
+          {{#unless classEquipment.choices.length}}
+            {{#unless classEquipment.raw}}
+              <p class="am-hint">{{localize 'am.app.equipment.no-structured-data'}}</p>
+            {{/unless}}
+          {{/unless}}
+        {{/unless}}
+
+      {{else}}
+        <p class="am-hint">{{localize 'am.app.equipment.select-class-first'}}</p>
+      {{/if}}
+    </section>
+
+    <hr />
+
+    {{!-- ═══════════════════════════════════════════════════════
+         BACKGROUND EQUIPMENT
+         ═══════════════════════════════════════════════════════ --}}
+    <section class="am-equipment-section" aria-labelledby="bg-equip-heading">
+      <h2 id="bg-equip-heading">
+        <i class="fa-solid fa-scroll"></i>
+        {{localize 'am.app.equipment.background-equipment'}}
+      </h2>
+
+      {{#if backgroundEquipment}}
+
+        {{#if backgroundEquipment.fixed.length}}
+          <h3>{{localize 'am.app.equipment.you-receive'}}</h3>
+          <ul class="am-equipment-fixed">
+            {{#each backgroundEquipment.fixed}}
+              <li>
+                <i class="fa-solid fa-check-circle" style="color:var(--am-success)"></i>
+                <span>{{#if this.qty}}{{this.qty}}× {{/if}}{{this.name}}</span>
+              </li>
+            {{/each}}
+          </ul>
+        {{/if}}
+
+        {{#each backgroundEquipment.choices}}
+          <div class="am-equipment-choice-group" data-choice-index="{{@index}}">
+            <h3>{{localize 'am.app.equipment.choose-one'}}</h3>
+            <div class="am-equipment-options flex flex-wrap gap-sm">
+              {{#each this.options}}
+                <div class="am-equipment-option {{#if (eq @index 0)}}am-selected{{/if}}">
+                  <button type="button" class="am-equipment-option-btn" data-idx="{{@index}}">
+                    <i class="fa-solid fa-scroll"></i>
+                    <span>{{#if this.qty}}{{this.qty}}× {{/if}}{{this.name}}</span>
+                  </button>
+                </div>
+              {{/each}}
+            </div>
+            <input type="hidden" name="bgEquipmentChoice[{{@index}}]" value="0" />
+          </div>
+        {{/each}}
+
+        {{#if backgroundEquipment.raw}}
+          <div class="am-equipment-raw am-hint">
+            <p><strong>{{localize 'am.app.equipment.from-description'}} ({{backgroundEquipment.sourceName}}):</strong></p>
+            <p>{{backgroundEquipment.raw}}</p>
+          </div>
+        {{/if}}
+
+        {{#unless backgroundEquipment.fixed.length}}
+          {{#unless backgroundEquipment.choices.length}}
+            {{#unless backgroundEquipment.raw}}
+              <p class="am-hint">{{localize 'am.app.equipment.no-structured-data'}}</p>
+            {{/unless}}
+          {{/unless}}
+        {{/unless}}
+
+      {{else}}
+        <p class="am-hint">{{localize 'am.app.equipment.select-background-first'}}</p>
+      {{/if}}
+    </section>
+
+    <hr />
+    <p class="am-hint">
+      <i class="fa-solid fa-circle-info"></i>
+      {{localize 'am.app.equipment.grants-note'}}
+    </p>
+
+  </fieldset>
+</div>
