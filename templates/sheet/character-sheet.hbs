@@ -1,275 +1,334 @@
-{{!-- A5e Mancer Character Sheet --}}
-<div class="am-sheet-wrapper">
+{{!-- A5e Mancer Character Sheet v2 --}}
+<div class="am-cs">
 
-  {{!-- ══ HEADER ══════════════════════════════════════ --}}
-  <header class="am-sheet-header">
-    <div class="am-portrait-wrap">
+  {{!-- ══ HEADER ═══════════════════════════════════════════════════════════ --}}
+  <header class="am-cs-header">
+
+    {{!-- Portrait --}}
+    <div class="am-cs-portrait">
       <img src="{{actor.img}}" data-edit="img" title="{{actor.name}}" alt="" />
       {{#if resources.inspiration}}
-        <div class="am-inspired-star" title="Inspired">✦</div>
+        <div class="am-cs-inspired" title="Inspired">✦</div>
       {{/if}}
     </div>
 
-    <div class="am-identity">
-      <div class="am-name-row">
-        <input class="am-charname" type="text" name="name" value="{{actor.name}}" />
-        <button type="button" data-action="level-up" class="am-header-btn" title="Level Up">
-          <i class="fa-solid fa-arrow-up"></i> Level Up
-        </button>
-        <button type="button" data-action="toggle-inspiration"
-          class="am-header-btn am-insp-btn {{#if resources.inspiration}}am-insp-on{{/if}}"
-          title="Toggle Inspiration">
-          <i class="fa-solid fa-star"></i>
-        </button>
-      </div>
-      <div class="am-origin-row">
+    {{!-- Name + classes + origin --}}
+    <div class="am-cs-identity">
+      <input class="am-cs-charname" type="text" name="name" value="{{actor.name}}" />
+      <div class="am-cs-origin">
         {{#each charInfo.classes}}
-          <span class="am-class-chip" title="Hit Die: d{{this.hitDie}}">
-            {{this.name}} {{this.level}}
-          </span>
+          <span class="am-cs-chip am-cs-chip-class">{{this.level}}th {{this.name}}</span>
         {{/each}}
-        <span class="am-chip-dim">·</span>
-        <span class="am-chip" title="Heritage">{{charInfo.heritage}}</span>
-        <span class="am-chip-dim">·</span>
-        <span class="am-chip" title="Background">{{charInfo.background}}</span>
+        <span class="am-cs-chip-sep">·</span>
+        <span class="am-cs-chip">{{charInfo.heritage}}</span>
+        <span class="am-cs-chip-sep">·</span>
+        <span class="am-cs-chip">{{charInfo.background}}</span>
         {{#if charInfo.destiny}}
-          <span class="am-chip-dim">·</span>
-          <span class="am-chip am-destiny" title="Destiny">⭐ {{charInfo.destiny}}</span>
+          <span class="am-cs-chip-sep">·</span>
+          <span class="am-cs-chip">{{charInfo.destiny}}</span>
         {{/if}}
       </div>
     </div>
 
-    <div class="am-prof-box" title="Proficiency Bonus">
-      <span class="am-stat-label">PROF</span>
-      <span class="am-stat-val">{{resources.profBonus}}</span>
+    {{!-- 6 Ability score boxes --}}
+    <div class="am-cs-abilities">
+      {{#each abilities}}
+        <div class="am-cs-abl">
+          <div class="am-cs-abl-name">{{this.abbr}}</div>
+          <button class="am-cs-abl-mod" type="button"
+            data-action="ability-check" data-ability="{{this.key}}"
+            data-label="{{this.label}} Check" title="Roll {{this.label}} Check">
+            {{this.modStr}}
+          </button>
+          <input class="am-cs-abl-score" type="number"
+            name="system.abilities.{{this.key}}.value"
+            value="{{this.value}}" min="1" max="30" />
+        </div>
+      {{/each}}
     </div>
+
+    {{!-- HP block --}}
+    <div class="am-cs-hp-block">
+      <div class="am-cs-hp-label">HIT POINTS</div>
+      <div class="am-cs-hp-row">
+        <input type="number" class="am-cs-hp-cur" id="am-hp-current" value="{{resources.hp.value}}" min="0" />
+        <span>/</span>
+        <input type="number" class="am-cs-hp-max" id="am-hp-max" value="{{resources.hp.max}}" />
+        <span class="am-cs-hp-temp-lbl">tmp</span>
+        <input type="number" class="am-cs-hp-tmp" id="am-hp-temp" value="{{resources.hp.temp}}" min="0" placeholder="0" />
+      </div>
+      <div class="am-cs-hp-bar">
+        <div class="am-cs-hp-fill" style="width:{{resources.hp.pct}}%; background:{{resources.hp.color}}"></div>
+      </div>
+      <div class="am-cs-hp-btns">
+        <button type="button" class="am-cs-heal-btn" data-action="heal-hp" title="Heal">
+          <i class="fa-solid fa-heart-pulse"></i> Heal
+        </button>
+        <button type="button" class="am-cs-dmg-btn" data-action="damage-hp" title="Damage">
+          <i class="fa-solid fa-burst"></i> Damage
+        </button>
+      </div>
+    </div>
+
   </header>
 
-  {{!-- ══ RESOURCES ══════════════════════════════════ --}}
-  <div class="am-resource-bar">
+  {{!-- ══ STATS BAR ══════════════════════════════════════════════════════ --}}
+  <div class="am-cs-statsbar">
 
-    {{!-- HP --}}
-    <div class="am-res-hp">
-      <div class="am-res-label">HP</div>
-      <div class="am-hp-inputs">
-        <input id="am-hp-current" type="number" class="am-hp-big" value="{{resources.hp.value}}" min="0" />
-        <span class="am-slash">/</span>
-        <input id="am-hp-max" type="number" class="am-hp-small" value="{{resources.hp.max}}" />
-      </div>
-      <div class="am-bar-track">
-        <div class="am-bar-fill" style="width:{{resources.hp.pct}}%; background:{{resources.hp.color}}"></div>
-      </div>
-      <div class="am-temp-row">
-        <label>TMP</label>
-        <input id="am-hp-temp" type="number" class="am-temp-inp" value="{{resources.hp.temp}}" min="0" placeholder="0" />
+    <div class="am-cs-stat" title="Armor Class">
+      <div class="am-cs-stat-lbl">ARMOR CLASS</div>
+      <input class="am-cs-stat-val" type="number" id="am-ac-input" value="{{resources.ac}}" />
+    </div>
+
+    <div class="am-cs-stat" title="Proficiency Bonus">
+      <div class="am-cs-stat-lbl">PROF BONUS</div>
+      <div class="am-cs-stat-val">{{resources.profBonus}}</div>
+    </div>
+
+    <div class="am-cs-stat" title="Initiative">
+      <div class="am-cs-stat-lbl">INITIATIVE</div>
+      <div class="am-cs-stat-val">{{resources.initiative}}</div>
+    </div>
+
+    <div class="am-cs-stat" title="Speed">
+      <div class="am-cs-stat-lbl">SPEED</div>
+      <div class="am-cs-stat-val">
+        <input type="number" class="am-cs-stat-inline" id="am-speed-input" value="{{resources.speed}}" />
+        <span class="am-cs-unit">ft</span>
       </div>
     </div>
 
-    {{!-- AC --}}
-    <div class="am-res-stat">
-      <div class="am-res-label">AC</div>
-      <input id="am-ac-input" type="number" class="am-stat-big" value="{{resources.ac}}" />
+    <div class="am-cs-stat" title="Maneuver DC">
+      <div class="am-cs-stat-lbl">MANEUVER DC</div>
+      <div class="am-cs-stat-val">{{maneuverDC}}</div>
     </div>
 
-    {{!-- Initiative --}}
-    <div class="am-res-stat">
-      <div class="am-res-label">INIT</div>
-      <input id="am-initiative-input" type="text" class="am-stat-big" value="{{resources.initiative}}" />
-    </div>
-
-    {{!-- Speed --}}
-    <div class="am-res-stat">
-      <div class="am-res-label">SPEED</div>
-      <div class="am-speed-row">
-        <input id="am-speed-input" type="number" class="am-stat-big" value="{{resources.speed}}" />
-        <span class="am-unit">ft</span>
+    <div class="am-cs-stat am-cs-exertion" title="Exertion Pool">
+      <div class="am-cs-stat-lbl">EXERTION <i class="fa-solid fa-bolt" style="font-size:0.55em"></i></div>
+      <div class="am-cs-stat-val">
+        <input type="number" class="am-cs-stat-inline" id="am-exertion-current" value="{{resources.exertion.current}}" min="0" />
+        <span>/</span>
+        <span>{{resources.exertion.max}}</span>
       </div>
     </div>
 
-    {{!-- Exertion --}}
-    <div class="am-res-exertion">
-      <div class="am-res-label">EXERTION <i class="fa-solid fa-bolt" style="font-size:0.6rem"></i></div>
-      <div class="am-hp-inputs">
-        <input id="am-exertion-current" type="number" class="am-hp-big" value="{{resources.exertion.current}}" min="0" />
-        <span class="am-slash">/</span>
-        <span class="am-hp-small am-text-center">{{resources.exertion.max}}</span>
-      </div>
-      <div class="am-bar-track">
-        <div class="am-bar-fill am-ex-fill" style="width:{{resources.exertion.pct}}%"></div>
-      </div>
+    <div class="am-cs-stat am-cs-inspiration" title="Inspiration">
+      <div class="am-cs-stat-lbl">INSPIRATION</div>
+      <button type="button" data-action="toggle-inspiration"
+        class="am-cs-insp-btn {{#if resources.inspiration}}am-cs-insp-on{{/if}}">
+        <i class="fa-solid fa-star"></i>
+      </button>
     </div>
 
-    {{!-- Fatigue + Strife --}}
-    <div class="am-res-conditions">
-      <div class="am-cond-row">
-        <span class="am-cond-label">Fatigue</span>
-        {{#each fatiguePips}}
-          <span class="am-cond-pip {{#if this.active}}am-pip-on{{/if}}"
-            data-action="condition-pip" data-type="fatigue"
-            data-index="{{this.i}}" data-current="{{../resources.fatigue}}">●</span>
-        {{/each}}
-      </div>
-      <div class="am-cond-row">
-        <span class="am-cond-label">Strife</span>
-        {{#each strifePips}}
-          <span class="am-cond-pip am-strife-pip {{#if this.active}}am-pip-on{{/if}}"
-            data-action="condition-pip" data-type="strife"
-            data-index="{{this.i}}" data-current="{{../resources.strife}}">●</span>
-        {{/each}}
-      </div>
-      <div class="am-rest-row">
-        <button type="button" data-action="short-rest" class="am-rest-btn" title="Short Rest">⏱ Short</button>
-        <button type="button" data-action="long-rest" class="am-rest-btn" title="Long Rest">🌙 Long</button>
+    <div class="am-cs-stat am-cs-rest-stat">
+      <div class="am-cs-stat-lbl">REST</div>
+      <div class="am-cs-rest-btns">
+        <button type="button" data-action="short-rest" class="am-cs-rest-btn" title="Short Rest">Short</button>
+        <button type="button" data-action="long-rest"  class="am-cs-rest-btn" title="Long Rest">Long</button>
       </div>
     </div>
 
   </div>
 
-  {{!-- ══ MAIN ════════════════════════════════════════ --}}
-  <div class="am-sheet-main">
+  {{!-- ══ MAIN 3-COLUMN ═══════════════════════════════════════════════════ --}}
+  <div class="am-cs-body">
 
-    {{!-- LEFT: Abilities --}}
-    <aside class="am-sheet-left">
-      {{#each abilities}}
-        <div class="am-ability">
-          <div class="am-abl-name">{{this.abbr}}</div>
-          <input class="am-abl-score" type="number"
-            name="system.abilities.{{this.key}}.value"
-            data-ability="{{this.key}}"
-            value="{{this.value}}" min="1" max="30" />
-          <button class="am-abl-mod" type="button"
-            data-action="ability-check"
-            data-ability="{{this.key}}"
-            data-label="{{this.label}} Check"
-            title="{{this.label}} Check">{{this.modStr}}</button>
-          <div class="am-save-row">
-            <span class="am-save-dot {{#if this.saveProf}}am-save-prof{{/if}}">
-              {{#if this.saveProf}}●{{else}}○{{/if}}
-            </span>
-            <button class="am-save-btn" type="button"
-              data-action="saving-throw"
-              data-ability="{{this.key}}"
-              title="{{this.label}} Save">{{this.saveModeStr}}</button>
+    {{!-- ── LEFT: Skills ─────────────────────────────────────────────── --}}
+    <aside class="am-cs-left">
+      <div class="am-cs-sidebar-heading">SKILLS</div>
+      <div class="am-cs-skills-list">
+        {{#each skills}}
+          <div class="am-cs-skill">
+            <span class="am-cs-prof-dot am-cs-prof-{{this.profLvl}}" title="{{this.profIcon}}"></span>
+            <button type="button" class="am-cs-skill-name"
+              data-action="skill-check" data-skill="{{this.key}}"
+              data-label="{{this.label}}">
+              {{this.label}}
+            </button>
+            <span class="am-cs-skill-abl">{{this.ability}}</span>
+            <span class="am-cs-skill-bonus">{{this.bonusStr}}</span>
+            {{#if this.expDie}}
+              <span class="am-cs-skill-exp">{{this.expDie}}</span>
+            {{/if}}
           </div>
-        </div>
-      {{/each}}
+        {{/each}}
+      </div>
+      <div class="am-cs-passive">
+        <span>Passive Perception</span>
+        <strong>{{passivePerception}}</strong>
+      </div>
     </aside>
 
-    {{!-- RIGHT: Tabs --}}
-    <div class="am-sheet-right">
-      <nav class="am-sheet-tabs tabs" data-group="primary">
-        <a class="item active" data-tab="actions" data-group="primary">
-          <i class="fa-solid fa-hand-fist"></i><span>Actions</span>
-        </a>
-        <a class="item" data-tab="maneuvers" data-group="primary">
-          <i class="fa-solid fa-swords"></i><span>Maneuvers</span>
-        </a>
-        <a class="item" data-tab="spells" data-group="primary">
-          <i class="fa-solid fa-sparkles"></i><span>Spells</span>
-        </a>
-        <a class="item" data-tab="skills" data-group="primary">
-          <i class="fa-solid fa-dice-d20"></i><span>Skills</span>
-        </a>
-        <a class="item" data-tab="features" data-group="primary">
-          <i class="fa-solid fa-scroll"></i><span>Features</span>
-        </a>
-<a class="item" data-tab="inventory" data-group="primary">
-          <i class="fa-solid fa-backpack"></i><span>Inventory</span>
-        </a>
-        <a class="item" data-tab="biography" data-group="primary">
-          <i class="fa-solid fa-book-open"></i><span>Bio</span>
-        </a>
+    {{!-- ── CENTER: Tabs ────────────────────────────────────────────── --}}
+    <main class="am-cs-main">
+
+      <nav class="am-cs-tabs tabs" data-group="primary">
+        <a class="item active" data-tab="actions"    data-group="primary">ACTIONS</a>
+        <a class="item"        data-tab="magic"      data-group="primary">MAGIC</a>
+        <a class="item"        data-tab="martial"    data-group="primary">MARTIAL</a>
+        <a class="item"        data-tab="inventory"  data-group="primary">INVENTORY</a>
+        <a class="item"        data-tab="features"   data-group="primary">FEATURES</a>
+        <a class="item"        data-tab="notes"      data-group="primary">NOTES</a>
       </nav>
 
-      <div class="am-sheet-body tab-content">
+      <div class="am-cs-tabcontent tab-content">
 
-        {{!-- ▸ ACTIONS ──────────────────────────────── --}}
+        {{!-- ▸ ACTIONS ─────────────────────────────────────────────── --}}
         <section class="tab active" data-tab="actions" data-group="primary">
 
-          {{!-- ── Actions ──────────────────────── --}}
-          <div class="am-act-group">
-            <div class="am-act-group-head am-act-head-action">
-              <i class="fa-solid fa-hand-fist"></i> Action
-            </div>
-            {{#if actionsGroup.length}}
-              {{#each actionsGroup}}
-                {{> am-action-row}}
-              {{/each}}
-            {{else}}
-              <p class="am-empty-group">No actions.</p>
-            {{/if}}
-          </div>
+          {{!-- Critical hit note --}}
+          {{#if resources.critRange}}
+            <div class="am-cs-crit-note">Critical on: {{resources.critRange}}</div>
+          {{/if}}
 
-          {{!-- ── Bonus Actions ───────────────── --}}
-          <div class="am-act-group">
-            <div class="am-act-group-head am-act-head-bonus">
-              <i class="fa-solid fa-plus-circle"></i> Bonus Action
-            </div>
-            {{#if bonusActions.length}}
-              {{#each bonusActions}}
-                {{> am-action-row}}
-              {{/each}}
-            {{else}}
-              <p class="am-empty-group">No bonus actions.</p>
-            {{/if}}
-          </div>
-
-          {{!-- ── Reactions ───────────────────── --}}
-          <div class="am-act-group">
-            <div class="am-act-group-head am-act-head-reaction">
-              <i class="fa-solid fa-bolt"></i> Reaction
-            </div>
-            {{#if reactions.length}}
-              {{#each reactions}}
-                {{> am-action-row}}
-              {{/each}}
-            {{else}}
-              <p class="am-empty-group">No reactions.</p>
-            {{/if}}
-          </div>
-
-        </section>
-
-        {{!-- ▸ SPELLS ───────────────────────────────────── --}}
-        <section class="tab" data-tab="spells" data-group="primary">
-
-          {{!-- Slot tracker --}}
-          {{#if slotRows}}
-            <div class="am-slot-tracker">
-              {{#each slotRows}}
-                <div class="am-slot-col">
-                  <div class="am-slot-lbl">{{this.level}}</div>
-                  <div class="am-slot-pips-row">
-                    {{#each this.pips}}
-                      <span class="am-slot-pip {{#if this.used}}am-slot-used{{/if}}"
-                        data-action="slot-pip"
-                        data-level="{{this.level}}"
-                        data-index="{{this.index}}"
-                        data-current="{{../value}}">◆</span>
-                    {{/each}}
-                  </div>
-                </div>
-              {{/each}}
+          {{!-- Actions --}}
+          {{#if actionsGroup.length}}
+            <div class="am-cs-act-section">
+              <div class="am-cs-act-head">ACTIONS</div>
+              <table class="am-cs-act-table">
+                <thead><tr>
+                  <th class="am-col-img"></th>
+                  <th class="am-col-name">Name</th>
+                  <th class="am-col-atk">Attack / DC</th>
+                  <th class="am-col-eff">Effect</th>
+                  <th class="am-col-rng">Range</th>
+                  <th class="am-col-btn"></th>
+                </tr></thead>
+                <tbody>
+                  {{#each actionsGroup}}
+                    <tr class="am-item-row" data-item-id="{{this.id}}">
+                      <td><img src="{{this.img}}" class="am-cs-ico" alt="" /></td>
+                      <td class="am-col-name">
+                        <span class="am-item-name">{{this.name}}</span>
+                        {{#if this.isManeuver}}
+                          <span class="am-cs-tag">{{this.degree}}°</span>
+                        {{/if}}
+                        {{#if this.isSpell}}
+                          {{#if this.concentration}}<span class="am-cs-tag am-tag-c">C</span>{{/if}}
+                          {{#if this.ritual}}<span class="am-cs-tag am-tag-r">R</span>{{/if}}
+                        {{/if}}
+                      </td>
+                      <td class="am-col-atk">
+                        {{#if this.atkBonus}}<span class="am-cs-atk">{{this.atkBonus}}</span>{{else}}—{{/if}}
+                      </td>
+                      <td class="am-col-eff am-cs-muted">{{#if this.dmg}}{{this.dmg}}{{else}}—{{/if}}</td>
+                      <td class="am-col-rng am-cs-muted">{{#if this.range}}{{this.range}}{{else}}—{{/if}}</td>
+                      <td class="am-col-btn">
+                        <button type="button" class="am-cs-use-btn" data-action="item-use" data-id="{{this.id}}">Use</button>
+                        {{> am-controls id=this.id}}
+                      </td>
+                    </tr>
+                  {{/each}}
+                </tbody>
+              </table>
             </div>
           {{/if}}
 
+          {{!-- Bonus Actions --}}
+          {{#if bonusActions.length}}
+            <div class="am-cs-act-section">
+              <div class="am-cs-act-head am-act-bonus">BONUS ACTIONS</div>
+              <table class="am-cs-act-table">
+                <tbody>
+                  {{#each bonusActions}}
+                    <tr class="am-item-row" data-item-id="{{this.id}}">
+                      <td><img src="{{this.img}}" class="am-cs-ico" alt="" /></td>
+                      <td class="am-col-name"><span class="am-item-name">{{this.name}}</span></td>
+                      <td class="am-col-atk">{{#if this.atkBonus}}{{this.atkBonus}}{{else}}—{{/if}}</td>
+                      <td class="am-col-eff am-cs-muted">{{#if this.dmg}}{{this.dmg}}{{else}}—{{/if}}</td>
+                      <td class="am-col-rng am-cs-muted">—</td>
+                      <td class="am-col-btn">
+                        <button type="button" class="am-cs-use-btn" data-action="item-use" data-id="{{this.id}}">Use</button>
+                        {{> am-controls id=this.id}}
+                      </td>
+                    </tr>
+                  {{/each}}
+                </tbody>
+              </table>
+            </div>
+          {{/if}}
+
+          {{!-- Reactions --}}
+          {{#if reactions.length}}
+            <div class="am-cs-act-section">
+              <div class="am-cs-act-head am-act-reaction">REACTIONS</div>
+              <table class="am-cs-act-table">
+                <tbody>
+                  {{#each reactions}}
+                    <tr class="am-item-row" data-item-id="{{this.id}}">
+                      <td><img src="{{this.img}}" class="am-cs-ico" alt="" /></td>
+                      <td class="am-col-name"><span class="am-item-name">{{this.name}}</span></td>
+                      <td class="am-col-atk">—</td>
+                      <td class="am-col-eff am-cs-muted">—</td>
+                      <td class="am-col-rng am-cs-muted">—</td>
+                      <td class="am-col-btn">
+                        <button type="button" class="am-cs-use-btn" data-action="item-use" data-id="{{this.id}}">Use</button>
+                        {{> am-controls id=this.id}}
+                      </td>
+                    </tr>
+                  {{/each}}
+                </tbody>
+              </table>
+            </div>
+          {{/if}}
+
+          {{#unless (or actionsGroup.length bonusActions.length reactions.length)}}
+            <div class="am-cs-empty">
+              <i class="fa-solid fa-swords fa-2x"></i>
+              <p>No combat actions yet. Drag weapons, maneuvers, or spells here.</p>
+            </div>
+          {{/unless}}
+
+        </section>
+
+        {{!-- ▸ MAGIC ─────────────────────────────────────────────────── --}}
+        <section class="tab" data-tab="magic" data-group="primary">
+
           {{#if hasSpells}}
-            <div class="am-spells-manage-row">
-              <button type="button" data-action="manage-spells" class="am-sec-btn am-sec-btn-lg">
-                <i class="fa-solid fa-sparkles"></i> Add / Remove Spells
+            {{!-- Spell slot tracker --}}
+            {{#if slotRows.length}}
+              <div class="am-cs-slots">
+                {{#each slotRows}}
+                  <div class="am-cs-slot-group">
+                    <div class="am-cs-slot-lbl">Lv{{this.level}}</div>
+                    <div class="am-cs-slot-pips">
+                      {{#each this.pips}}
+                        <span class="am-cs-slot-pip {{#if this.used}}am-cs-slot-used{{/if}}"
+                          data-action="slot-pip"
+                          data-level="{{this.level}}"
+                          data-index="{{this.index}}"
+                          data-current="{{../value}}"></span>
+                      {{/each}}
+                    </div>
+                    <span class="am-cs-slot-count">{{this.value}}/{{this.max}}</span>
+                  </div>
+                {{/each}}
+              </div>
+            {{/if}}
+
+            <div class="am-cs-manage-row">
+              <button type="button" data-action="manage-spells" class="am-cs-manage-btn">
+                <i class="fa-solid fa-plus"></i> Add / Remove Spells
               </button>
-              <span class="am-dim" style="font-size:0.78rem">{{spells.length}} known</span>
+              <span class="am-cs-muted">{{spells.length}} known</span>
             </div>
 
             {{!-- Cantrips --}}
             {{#if spellGroups.Cantrips}}
-              <div class="am-spell-level-block">
-                <div class="am-spell-level-head am-lvl-cantrip">
-                  <i class="fa-solid fa-star-of-life"></i> Cantrips
-                  <span class="am-spell-count">{{spellGroups.Cantrips.length}}</span>
-                </div>
+              <div class="am-cs-spell-block">
+                <div class="am-cs-spell-level-head">Cantrips</div>
                 {{#each spellGroups.Cantrips}}
-                  {{> am-spell-row}}
+                  <div class="am-item-row am-cs-spell-row" data-item-id="{{this.id}}">
+                    <img src="{{this.img}}" class="am-cs-ico" alt="" />
+                    <span class="am-item-name">{{this.name}}</span>
+                    {{#if this.concentration}}<span class="am-cs-tag am-tag-c" title="Concentration">C</span>{{/if}}
+                    {{#if this.ritual}}<span class="am-cs-tag am-tag-r" title="Ritual">R</span>{{/if}}
+                    <span class="am-cs-muted am-cs-school">{{this.school}}</span>
+                    <div class="am-cs-row-right">
+                      <button type="button" class="am-cs-use-btn am-cast-btn" data-action="item-use" data-id="{{this.id}}">Cast</button>
+                      {{> am-controls id=this.id}}
+                    </div>
+                  </div>
                 {{/each}}
               </div>
             {{/if}}
@@ -277,39 +336,29 @@
             {{!-- Levelled spells --}}
             {{#each spellLevelOrder}}
               {{#if (lookup ../spellGroups this)}}
-                <div class="am-spell-level-block">
-                  <div class="am-spell-level-head">
-                    <i class="fa-solid fa-circle-dot"></i> {{this}}
-                    {{#with (lookup ../spellGroups this)}}
-                      <span class="am-spell-count">{{this.length}}</span>
-                    {{/with}}
-                    {{!-- Show slot pips inline --}}
-                    {{#each ../slotRows}}
-                      {{#if (eq (concat "Level " this.level) ../this)}}
-                        <div class="am-inline-slots">
-                          {{#each this.pips}}
-                            <span class="am-slot-pip {{#if this.used}}am-slot-used{{/if}}"
-                              data-action="slot-pip"
-                              data-level="{{this.level}}"
-                              data-index="{{this.index}}"
-                              data-current="{{../value}}">◆</span>
-                          {{/each}}
-                        </div>
-                      {{/if}}
-                    {{/each}}
-                  </div>
+                <div class="am-cs-spell-block">
+                  <div class="am-cs-spell-level-head">{{this}}</div>
                   {{#each (lookup ../spellGroups this)}}
-                    {{> am-spell-row}}
+                    <div class="am-item-row am-cs-spell-row" data-item-id="{{this.id}}">
+                      <img src="{{this.img}}" class="am-cs-ico" alt="" />
+                      <span class="am-item-name">{{this.name}}</span>
+                      {{#if this.concentration}}<span class="am-cs-tag am-tag-c" title="Concentration">C</span>{{/if}}
+                      {{#if this.ritual}}<span class="am-cs-tag am-tag-r" title="Ritual">R</span>{{/if}}
+                      <span class="am-cs-muted am-cs-school">{{this.school}}</span>
+                      <div class="am-cs-row-right">
+                        <button type="button" class="am-cs-use-btn am-cast-btn" data-action="item-use" data-id="{{this.id}}">Cast</button>
+                        {{> am-controls id=this.id}}
+                      </div>
+                    </div>
                   {{/each}}
                 </div>
               {{/if}}
             {{/each}}
-
           {{else}}
-            <div class="am-empty">
-              <i class="fa-solid fa-sparkles fa-2x am-dim"></i>
-              <p class="am-dim">No spells yet.</p>
-              <button type="button" data-action="manage-spells" class="am-use-btn" style="margin-top:0.5rem">
+            <div class="am-cs-empty">
+              <i class="fa-solid fa-sparkles fa-2x"></i>
+              <p>No spells yet.</p>
+              <button type="button" data-action="manage-spells" class="am-cs-manage-btn" style="margin-top:0.5rem">
                 <i class="fa-solid fa-plus"></i> Add Spells
               </button>
             </div>
@@ -317,4 +366,271 @@
 
         </section>
 
+        {{!-- ▸ MARTIAL ───────────────────────────────────────────────── --}}
+        <section class="tab" data-tab="martial" data-group="primary">
 
+          {{#if hasManeuvers}}
+            {{!-- Exertion pool + manage button --}}
+            <div class="am-cs-martial-header">
+              <div class="am-cs-exertion-pool">
+                <i class="fa-solid fa-bolt"></i> EXERTION POOL
+                <span class="am-cs-ex-count">
+                  <input type="number" id="am-exertion-current2" class="am-cs-ex-input"
+                    value="{{resources.exertion.current}}" min="0" />
+                  / {{resources.exertion.max}}
+                </span>
+              </div>
+              <button type="button" class="am-cs-manage-btn" data-action="manage-maneuvers">
+                <i class="fa-solid fa-plus"></i> Manage Maneuvers
+              </button>
+            </div>
+
+            {{!-- Traditions --}}
+            {{#if maneuverGroups}}
+              {{#each maneuverGroups}}
+                <div class="am-cs-tradition">
+                  <div class="am-cs-tradition-head">{{@key}}</div>
+                  {{#each this}}
+                    <div class="am-item-row am-cs-maneuver-row" data-item-id="{{this.id}}">
+                      <img src="{{this.img}}" class="am-cs-ico" alt="" />
+                      <div class="am-cs-man-info">
+                        <span class="am-item-name">{{this.name}}</span>
+                        <span class="am-cs-tag am-deg-tag">{{this.degree}}°</span>
+                        {{#if this.exertion}}
+                          <span class="am-cs-tag am-ex-tag">
+                            <i class="fa-solid fa-bolt"></i>{{this.exertion}}
+                          </span>
+                        {{/if}}
+                      </div>
+                      <div class="am-cs-row-right">
+                        <button type="button" class="am-cs-use-btn" data-action="item-use" data-id="{{this.id}}">Use</button>
+                        {{> am-controls id=this.id}}
+                      </div>
+                    </div>
+                  {{/each}}
+                </div>
+              {{/each}}
+            {{/if}}
+          {{else}}
+            <div class="am-cs-empty">
+              <i class="fa-solid fa-swords fa-2x"></i>
+              <p>No maneuvers yet.</p>
+            </div>
+          {{/if}}
+
+        </section>
+
+        {{!-- ▸ INVENTORY ─────────────────────────────────────────────── --}}
+        <section class="tab" data-tab="inventory" data-group="primary">
+
+          {{!-- Currency --}}
+          <div class="am-cs-currency">
+            {{#each currency}}
+              <div class="am-cs-coin">
+                <label class="am-cs-coin-lbl">{{@key}}</label>
+                <input type="number" class="am-cs-coin-inp" name="system.currency.{{@key}}"
+                  value="{{this}}" min="0" />
+              </div>
+            {{/each}}
+          </div>
+
+          {{!-- Equipment --}}
+          {{#if hasEquipment}}
+            <table class="am-cs-inv-table">
+              <thead><tr>
+                <th class="am-col-img"></th>
+                <th>Name</th>
+                <th class="am-col-qty">Qty</th>
+                <th class="am-col-wt">Wt</th>
+                <th class="am-col-btn"></th>
+              </tr></thead>
+              <tbody>
+                {{#each equipment}}
+                  <tr class="am-item-row {{#if this.equipped}}am-cs-equipped{{/if}}"
+                    data-item-id="{{this.id}}">
+                    <td><img src="{{this.img}}" class="am-cs-ico" alt="" /></td>
+                    <td><span class="am-item-name">{{this.name}}</span></td>
+                    <td class="am-col-qty">
+                      <input type="number" class="am-cs-qty-inp" data-item-id="{{this.id}}"
+                        value="{{this.qty}}" min="0" />
+                    </td>
+                    <td class="am-col-wt am-cs-muted">{{this.weight}}</td>
+                    <td class="am-col-btn">{{> am-controls id=this.id}}</td>
+                  </tr>
+                {{/each}}
+              </tbody>
+            </table>
+          {{else}}
+            <div class="am-cs-empty">
+              <i class="fa-solid fa-backpack fa-2x"></i>
+              <p>No items. Drag from the compendium.</p>
+            </div>
+          {{/if}}
+
+        </section>
+
+        {{!-- ▸ FEATURES ──────────────────────────────────────────────── --}}
+        <section class="tab" data-tab="features" data-group="primary">
+          {{#if allFeatures.length}}
+            <div class="am-cs-features-list">
+              {{#each allFeatures}}
+                <details class="am-cs-feature" data-item-id="{{this.id}}">
+                  <summary class="am-cs-feature-summary">
+                    <img src="{{this.img}}" class="am-cs-ico" alt="" />
+                    <span class="am-item-name">{{this.name}}</span>
+                    <span class="am-cs-feat-src am-cs-muted">{{this.source}}</span>
+                    {{> am-controls id=this.id}}
+                  </summary>
+                  <div class="am-cs-feature-desc">
+                    {{{this.desc}}}
+                  </div>
+                </details>
+              {{/each}}
+            </div>
+          {{else}}
+            <div class="am-cs-empty">
+              <i class="fa-solid fa-scroll fa-2x"></i>
+              <p>No features yet. They appear after character creation.</p>
+            </div>
+          {{/if}}
+        </section>
+
+        {{!-- ▸ NOTES ────────────────────────────────────────────────── --}}
+        <section class="tab" data-tab="notes" data-group="primary">
+          <div class="am-cs-notes-grid">
+
+            <div class="am-cs-note-card">
+              <div class="am-cs-note-label">Personality Traits</div>
+              <textarea class="am-cs-note-text" name="system.details.personality.value"
+                placeholder="How does your character act?">{{actor.system.details.personality.value}}</textarea>
+            </div>
+
+            <div class="am-cs-note-card">
+              <div class="am-cs-note-label">Ideals</div>
+              <textarea class="am-cs-note-text" name="system.details.ideals.value"
+                placeholder="What do they believe in?">{{actor.system.details.ideals.value}}</textarea>
+            </div>
+
+            <div class="am-cs-note-card">
+              <div class="am-cs-note-label">Bonds</div>
+              <textarea class="am-cs-note-text" name="system.details.bonds.value"
+                placeholder="Who or what do they care about?">{{actor.system.details.bonds.value}}</textarea>
+            </div>
+
+            <div class="am-cs-note-card">
+              <div class="am-cs-note-label">Flaws</div>
+              <textarea class="am-cs-note-text" name="system.details.flaws.value"
+                placeholder="What are their weaknesses?">{{actor.system.details.flaws.value}}</textarea>
+            </div>
+
+            <div class="am-cs-note-card am-cs-note-wide">
+              <div class="am-cs-note-label">Backstory</div>
+              <textarea class="am-cs-note-text am-cs-note-tall" name="system.details.biography.value"
+                placeholder="Your character's history...">{{actor.system.details.biography.value}}</textarea>
+            </div>
+
+            <div class="am-cs-note-card">
+              <div class="am-cs-note-label">Connections <span class="am-cs-muted">(A5e)</span></div>
+              <textarea class="am-cs-note-text" name="system.details.connections.value"
+                placeholder="Important relationships...">{{actor.system.details.connections.value}}</textarea>
+            </div>
+
+            <div class="am-cs-note-card">
+              <div class="am-cs-note-label">Mementos <span class="am-cs-muted">(A5e)</span></div>
+              <textarea class="am-cs-note-text" name="system.details.mementos.value"
+                placeholder="A meaningful object...">{{actor.system.details.mementos.value}}</textarea>
+            </div>
+
+          </div>
+
+          {{!-- Physical --}}
+          <div class="am-cs-phys-grid">
+            <div><label>Age</label><input type="text" class="am-cs-phys-inp" name="system.details.age" value="{{actor.system.details.age}}" /></div>
+            <div><label>Height</label><input type="text" class="am-cs-phys-inp" name="system.details.height" value="{{actor.system.details.height}}" /></div>
+            <div><label>Weight</label><input type="text" class="am-cs-phys-inp" name="system.details.weight" value="{{actor.system.details.weight}}" /></div>
+            <div><label>Eyes</label><input type="text" class="am-cs-phys-inp" name="system.details.eyeColor" value="{{actor.system.details.eyeColor}}" /></div>
+            <div><label>Hair</label><input type="text" class="am-cs-phys-inp" name="system.details.hairColor" value="{{actor.system.details.hairColor}}" /></div>
+            <div><label>Skin</label><input type="text" class="am-cs-phys-inp" name="system.details.skinColor" value="{{actor.system.details.skinColor}}" /></div>
+          </div>
+
+        </section>
+
+      </div>{{!-- end tabcontent --}}
+    </main>
+
+    {{!-- ── RIGHT: Saves + Conditions + Proficiencies ─────────────────── --}}
+    <aside class="am-cs-right">
+
+      {{!-- Saving Throws --}}
+      <div class="am-cs-sidebar-heading">SAVING THROWS</div>
+      <div class="am-cs-saves-grid">
+        {{#each savingThrows}}
+          <div class="am-cs-save">
+            <span class="am-cs-prof-dot am-cs-prof-{{#if this.proficient}}2{{else}}0{{/if}}"></span>
+            <button type="button" class="am-cs-save-mod" data-action="saving-throw"
+              data-ability="{{this.key}}" title="{{this.label}} Save">
+              {{this.modStr}}
+            </button>
+            <span class="am-cs-save-lbl">{{this.abbr}}</span>
+          </div>
+        {{/each}}
+      </div>
+
+      {{!-- Fatigue / Strife --}}
+      <div class="am-cs-sidebar-heading" style="margin-top:0.5rem">CONDITIONS</div>
+      <div class="am-cs-cond-block">
+        <div class="am-cs-cond-row">
+          <span class="am-cs-cond-lbl">Fatigue</span>
+          <div class="am-cs-cond-pips">
+            {{#each fatiguePips}}
+              <span class="am-cs-cond-pip {{#if this.active}}am-cs-pip-on{{/if}}"
+                data-action="condition-pip" data-type="fatigue"
+                data-index="{{this.i}}" data-current="{{../resources.fatigue}}"></span>
+            {{/each}}
+          </div>
+        </div>
+        <div class="am-cs-cond-row">
+          <span class="am-cs-cond-lbl">Strife</span>
+          <div class="am-cs-cond-pips">
+            {{#each strifePips}}
+              <span class="am-cs-cond-pip am-strife {{#if this.active}}am-cs-pip-on{{/if}}"
+                data-action="condition-pip" data-type="strife"
+                data-index="{{this.i}}" data-current="{{../resources.strife}}"></span>
+            {{/each}}
+          </div>
+        </div>
+      </div>
+
+      {{!-- Proficiencies --}}
+      {{#if proficiencies.senses.length}}
+        <div class="am-cs-sidebar-heading" style="margin-top:0.5rem">ADDITIONAL SENSES</div>
+        <div class="am-cs-prof-list">
+          {{#each proficiencies.senses}}<div>{{this}}</div>{{/each}}
+        </div>
+      {{/if}}
+
+      {{#if proficiencies.languages.length}}
+        <div class="am-cs-sidebar-heading" style="margin-top:0.5rem">LANGUAGES</div>
+        <div class="am-cs-prof-list">
+          {{#each proficiencies.languages}}<span class="am-cs-prof-tag">{{this}}</span>{{/each}}
+        </div>
+      {{/if}}
+
+      {{#if proficiencies.weapons.length}}
+        <div class="am-cs-sidebar-heading" style="margin-top:0.5rem">WEAPONS</div>
+        <div class="am-cs-prof-list">
+          {{#each proficiencies.weapons}}<span class="am-cs-prof-tag">{{this}}</span>{{/each}}
+        </div>
+      {{/if}}
+
+      {{#if proficiencies.armor.length}}
+        <div class="am-cs-sidebar-heading" style="margin-top:0.5rem">ARMOR</div>
+        <div class="am-cs-prof-list">
+          {{#each proficiencies.armor}}<span class="am-cs-prof-tag">{{this}}</span>{{/each}}
+        </div>
+      {{/if}}
+
+    </aside>
+
+  </div>{{!-- end am-cs-body --}}
+</div>{{!-- end am-cs --}}

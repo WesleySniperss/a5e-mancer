@@ -47,11 +47,11 @@ export class A5eCharacterSheet extends ActorSheet {
     return foundry.utils.mergeObject(super.defaultOptions, {
       classes: ['a5e-mancer-sheet', 'sheet', 'actor'],
       template: `modules/${MODULE_ID}/templates/sheet/character-sheet.hbs`,
-      width: 820,
-      height: 700,
+      width: 960,
+      height: 740,
       resizable: true,
-      tabs: [{ navSelector: '.am-sheet-tabs', contentSelector: '.am-sheet-body', initial: 'actions' }],
-      dragDrop: [{ dragSelector: '.am-item-row', dropSelector: '.am-sheet-body' }]
+      tabs: [{ navSelector: '.am-cs-tabs', contentSelector: '.am-cs-tabcontent', initial: 'actions' }],
+      dragDrop: [{ dragSelector: '.am-item-row', dropSelector: '.am-cs-tabcontent' }]
     });
   }
 
@@ -65,13 +65,43 @@ export class A5eCharacterSheet extends ActorSheet {
 
     /* Abilities */
     const abilities = ABILITIES.map(({ key, label, abbr }) => {
-      const d       = sys.abilities?.[key] ?? {};
-      const value   = d.value ?? 10;
-      const mod     = Math.floor((value - 10) / 2);
-      const saveMod = d.save ?? mod;
+      const d        = sys.abilities?.[key] ?? {};
+      const value    = d.value ?? 10;
+      const mod      = Math.floor((value - 10) / 2);
       const saveProf = !!(d.saveProficient ?? d.proficient);
-      return { key, label, abbr, value, mod, modStr: sign(mod), saveMod, saveModeStr: sign(saveMod), saveProf };
+      const saveMod  = saveProf ? mod + profBonus : mod;
+      return { key, label, abbr, value, mod, modStr: sign(mod), saveMod, saveModStr: sign(saveMod), saveProf };
     });
+
+    /* Saving throws (for right sidebar) */
+    const savingThrows = abilities.map(a => ({
+      key: a.key, abbr: a.abbr, label: a.label,
+      mod: a.saveMod, modStr: a.saveModStr, proficient: a.saveProf
+    }));
+
+    /* Maneuver DC: 8 + prof + highest of STR/DEX mod */
+    const strMod = abilities.find(a => a.key === 'str')?.mod ?? 0;
+    const dexMod = abilities.find(a => a.key === 'dex')?.mod ?? 0;
+    const maneuverDC = 8 + profBonus + Math.max(strMod, dexMod);
+
+    /* Proficiencies — A5e stores these in various locations */
+    const toArray = v => {
+      if (!v) return [];
+      if (v instanceof Set) return [...v];
+      if (Array.isArray(v)) return v;
+      if (typeof v === 'string') return v.split(',').map(s => s.trim()).filter(Boolean);
+      if (typeof v === 'object') return Object.values(v).filter(Boolean);
+      return [];
+    };
+    const proficiencies = {
+      armor:     toArray(sys.proficiencies?.armor     ?? sys.traits?.armorProficiencies),
+      weapons:   toArray(sys.proficiencies?.weapons   ?? sys.traits?.weaponProficiencies),
+      tools:     toArray(sys.proficiencies?.tools     ?? sys.traits?.toolProficiencies),
+      languages: toArray(sys.proficiencies?.languages ?? sys.traits?.languages ?? sys.languages),
+      senses:    toArray(sys.senses ? Object.entries(sys.senses)
+        .filter(([,v]) => v && v !== 0)
+        .map(([k, v]) => `${k.charAt(0).toUpperCase() + k.slice(1)}: ${v} ft.`) : [])
+    };
 
     /* Skills */
     const abilMap = Object.fromEntries(abilities.map(a => [a.abbr, a.mod]));
@@ -184,6 +214,7 @@ export class A5eCharacterSheet extends ActorSheet {
     return {
       actor, system: sys, isOwner: actor.isOwner, isGM: game.user.isGM,
       abilities, skills, resources, classes,
+      savingThrows, maneuverDC, proficiencies,
       weapons, maneuvers, maneuverGroups, spells, spellGroups, slotRows,
       features, feats, allFeatures, customCounters, equipment, currency,
       fatiguePips, strifePips, exertionPips,
