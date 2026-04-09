@@ -78,6 +78,16 @@ export class DOMManager {
       this.#listeners.push({ el: wealthInput, type: 'input', fn });
     }
 
+    // ── Destiny narrative fields → live review sync ───────
+    for (const id of ['destinyMotivation', 'destinyGoals', 'destinyConnection',
+                       'destinyFulfillment', 'destinyInspiration']) {
+      const el = form.querySelector(`#${id}`);
+      if (!el) continue;
+      const fn = () => this.#updateDestinyNarrativePreview(form);
+      el.addEventListener('input', fn);
+      this.#listeners.push({ el, type: 'input', fn });
+    }
+
     this.updateTabIndicators(form);
     this.updateReviewTab(form);
     this.updateProgressBar(form);
@@ -326,13 +336,18 @@ export class DOMManager {
     const panel = form.querySelector('#finalize-panel');
     if (!panel) return;
 
-    const motivVal = form.querySelector('#destinyMotivation')?.value?.trim() || '—';
-    const goalsVal = form.querySelector('#destinyGoals')?.value?.trim()      || '—';
-
-    const motivEl = panel.querySelector('.review-destinyMotivation');
-    const goalsEl = panel.querySelector('.review-destinyGoals');
-    if (motivEl) motivEl.textContent = motivVal;
-    if (goalsEl) goalsEl.textContent = goalsVal;
+    const fields = [
+      ['#destinyMotivation',  '.review-destinyMotivation'],
+      ['#destinyGoals',       '.review-destinyGoals'],
+      ['#destinyConnection',  '.review-destinyConnection'],
+      ['#destinyFulfillment', '.review-destinyFulfillment'],
+      ['#destinyInspiration', '.review-destinyInspiration'],
+    ];
+    for (const [inputSel, reviewSel] of fields) {
+      const val = form.querySelector(inputSel)?.value?.trim() || '—';
+      const el  = panel.querySelector(reviewSel);
+      if (el) el.textContent = val;
+    }
   }
 
   static #updateBioPreview(form) {

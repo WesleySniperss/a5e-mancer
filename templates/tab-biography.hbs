@@ -141,6 +141,7 @@
       </h2>
       <p class="am-hint">{{localize 'am.app.biography.destiny-rolls-hint'}}</p>
 
+      {{!-- Row 1: roll tables --}}
       <div class="grid grid-2-col gap-md">
 
         {{!-- Source of Motivation --}}
@@ -172,6 +173,45 @@
         </div>
 
       </div>
+
+      {{!-- Row 2: narrative fields --}}
+      <div class="grid grid-2-col gap-md" style="margin-top:0.75rem">
+
+        {{!-- Connection to destiny --}}
+        <div class="form-group">
+          <label for="destinyConnection">
+            <i class="fa-solid fa-link fa-xs"></i>
+            {{localize 'am.app.biography.destiny-connection'}}
+          </label>
+          <p class="am-hint" style="margin-bottom:0.3rem">{{localize 'am.app.biography.destiny-connection-hint'}}</p>
+          <textarea id="destinyConnection" name="destinyConnection" class="form-input" rows="4"
+            placeholder="{{localize 'am.app.biography.destiny-connection-placeholder'}}"></textarea>
+        </div>
+
+        {{!-- Path to fulfillment --}}
+        <div class="form-group">
+          <label for="destinyFulfillment">
+            <i class="fa-solid fa-trophy fa-xs"></i>
+            {{localize 'am.app.biography.destiny-fulfillment'}}
+          </label>
+          <p class="am-hint" style="margin-bottom:0.3rem">{{localize 'am.app.biography.destiny-fulfillment-hint'}}</p>
+          <textarea id="destinyFulfillment" name="destinyFulfillment" class="form-input" rows="4"
+            placeholder="{{localize 'am.app.biography.destiny-fulfillment-placeholder'}}"></textarea>
+        </div>
+
+      </div>
+
+      {{!-- Inspiration feature note --}}
+      <div class="form-group" style="margin-top:0.5rem">
+        <label for="destinyInspiration">
+          <i class="fa-solid fa-bolt fa-xs"></i>
+          {{localize 'am.app.biography.destiny-inspiration-feature'}}
+        </label>
+        <p class="am-hint" style="margin-bottom:0.3rem">{{localize 'am.app.biography.destiny-inspiration-hint'}}</p>
+        <textarea id="destinyInspiration" name="destinyInspiration" class="form-input" rows="3"
+          placeholder="{{localize 'am.app.biography.destiny-inspiration-placeholder'}}"></textarea>
+      </div>
+
     </section>
 
   </fieldset>

@@ -292,7 +292,15 @@ export class ActorCreationService {
         : '',
       'system.details.goals.value':       fd.destinyGoals
         ? `<p>${fd.destinyGoals}</p>`
-        : ''
+        : '',
+      'system.details.connections.value': fd.destinyConnection
+        ? `<p>${fd.destinyConnection}</p>`
+        : '',
+      'system.details.bonds.value': [
+          fd.bonds        ? `<p><strong>Bonds:</strong> ${fd.bonds}</p>`          : '',
+          fd.destinyFulfillment ? `<p><strong>Destiny Fulfillment:</strong> ${fd.destinyFulfillment}</p>` : '',
+          fd.destinyInspiration ? `<p><strong>Inspiration Feature:</strong> ${fd.destinyInspiration}</p>` : ''
+        ].filter(Boolean).join('\n') || ''
     };
     Object.assign(updates, bioFields);
     await actor.update(updates).catch(() => {});
