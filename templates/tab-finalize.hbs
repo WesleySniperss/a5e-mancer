@@ -62,7 +62,22 @@
       <section class="review-section" aria-labelledby="bio-heading">
         <h3 id="bio-heading"><i class="fa-solid fa-book-open"></i> {{localize 'am.app.finalize.biography'}}</h3>
         <div class="review-content bio-preview" aria-live="polite">
-          {{!-- Filled dynamically --}}
+          {{!-- Filled dynamically by DOMManager --}}
+        </div>
+      </section>
+
+      {{!-- Destiny narrative --}}
+      <section class="review-section" aria-labelledby="dest-rolls-heading">
+        <h3 id="dest-rolls-heading"><i class="fa-solid fa-star"></i> {{localize 'am.app.biography.destiny-rolls'}}</h3>
+        <div class="review-content review-grid" aria-live="polite">
+          <div class="review-item">
+            <span class="review-label">{{localize 'am.app.biography.destiny-motivation'}}:</span>
+            <span class="review-value review-destinyMotivation am-hint">—</span>
+          </div>
+          <div class="review-item">
+            <span class="review-label">{{localize 'am.app.biography.destiny-goals'}}:</span>
+            <span class="review-value review-destinyGoals am-hint">—</span>
+          </div>
         </div>
       </section>
 

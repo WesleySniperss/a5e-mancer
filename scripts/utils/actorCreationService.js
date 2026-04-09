@@ -279,13 +279,20 @@ export class ActorCreationService {
   static async #applyBiography(actor, fd) {
     const updates = {};
     const bioFields = {
-      'system.details.biography.value':  fd.backstory   || '',
-      'system.details.personality.value': fd.traits     || '',
-      'system.details.ideals.value':      fd.ideals     || '',
-      'system.details.bonds.value':       fd.bonds      || '',
-      'system.details.flaws.value':       fd.flaws      || '',
+      'system.details.biography.value':   fd.backstory   || '',
+      'system.details.personality.value': fd.traits      || '',
+      'system.details.ideals.value':      fd.ideals      || '',
+      'system.details.bonds.value':       fd.bonds       || '',
+      'system.details.flaws.value':       fd.flaws       || '',
       'system.details.connections.value': fd.connections || '',
-      'system.details.mementos.value':    fd.mementos   || ''
+      'system.details.mementos.value':    fd.mementos    || '',
+      // Destiny-specific narrative fields
+      'system.details.notes.value':       fd.destinyMotivation
+        ? `<p>${fd.destinyMotivation}</p>`
+        : '',
+      'system.details.goals.value':       fd.destinyGoals
+        ? `<p>${fd.destinyGoals}</p>`
+        : ''
     };
     Object.assign(updates, bioFields);
     await actor.update(updates).catch(() => {});

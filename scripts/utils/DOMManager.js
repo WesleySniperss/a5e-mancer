@@ -237,6 +237,7 @@ export class DOMManager {
     this.#updateNameDisplay(form);
     this.#updatePortraitSrc(form);
     this.#updateBioPreview(form);
+    this.#updateDestinyNarrativePreview(form);
   }
 
   static updateAbilitiesSummary(form) {
@@ -321,11 +322,33 @@ export class DOMManager {
     if (row) row.style.display = chk?.checked ? 'none' : '';
   }
 
+  static #updateDestinyNarrativePreview(form) {
+    const panel = form.querySelector('[data-tab="finalize"]');
+    if (!panel) return;
+
+    const motivVal = form.querySelector('#destinyMotivation')?.value?.trim() || '—';
+    const goalsVal = form.querySelector('#destinyGoals')?.value?.trim()      || '—';
+
+    const motivEl = panel.querySelector('.review-destinyMotivation');
+    const goalsEl = panel.querySelector('.review-destinyGoals');
+    if (motivEl) motivEl.textContent = motivVal;
+    if (goalsEl) goalsEl.textContent = goalsVal;
+  }
+
   static #updateBioPreview(form) {
     const preview = form.querySelector('.bio-preview');
     if (!preview) return;
-    const traits = form.querySelector('#traits')?.value?.slice(0, 200);
-    preview.textContent = traits || '—';
+
+    const traits = form.querySelector('#traits')?.value?.trim();
+    const motivation = form.querySelector('#destinyMotivation')?.value?.trim();
+    const goals      = form.querySelector('#destinyGoals')?.value?.trim();
+
+    const parts = [];
+    if (traits)     parts.push(`<div class="bio-review-row"><span class="bio-review-label">${game.i18n.localize('am.app.biography.traits')}:</span> ${traits.slice(0, 150)}</div>`);
+    if (motivation) parts.push(`<div class="bio-review-row"><span class="bio-review-label">${game.i18n.localize('am.app.biography.destiny-motivation')}:</span> ${motivation.slice(0, 150)}</div>`);
+    if (goals)      parts.push(`<div class="bio-review-row"><span class="bio-review-label">${game.i18n.localize('am.app.biography.destiny-goals')}:</span> ${goals.slice(0, 150)}</div>`);
+
+    preview.innerHTML = parts.length ? parts.join('') : '<span class="am-hint">—</span>';
   }
 
   static #extractUuid(raw) {

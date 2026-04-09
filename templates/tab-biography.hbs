@@ -129,5 +129,50 @@
       </div>
     </section>
 
+    {{!-- A5e Destiny rolls --}}
+    <hr />
+    <section aria-labelledby="destiny-rolls-heading">
+      <h2 id="destiny-rolls-heading">
+        <i class="fa-solid fa-star"></i>
+        {{localize 'am.app.biography.destiny-rolls'}}
+        {{#if selectedDestiny.name}}
+          <span class="am-hint am-destiny-name-hint"> — {{selectedDestiny.name}}</span>
+        {{/if}}
+      </h2>
+      <p class="am-hint">{{localize 'am.app.biography.destiny-rolls-hint'}}</p>
+
+      <div class="grid grid-2-col gap-md">
+
+        {{!-- Source of Motivation --}}
+        <div class="form-group">
+          <div class="flex items-center gap-xs mb-xs">
+            <label for="destinyMotivation">{{localize 'am.app.biography.destiny-motivation'}}</label>
+            <button type="button" class="am-roll-btn" data-action="rollDestinyTable"
+              data-field="destinyMotivation" data-die="4"
+              data-tooltip="{{localize 'am.app.biography.roll-motivation'}}">
+              <i class="fa-solid fa-dice"></i> d4
+            </button>
+          </div>
+          <textarea id="destinyMotivation" name="destinyMotivation" class="form-input" rows="3"
+            placeholder="{{localize 'am.app.biography.destiny-motivation-placeholder'}}"></textarea>
+        </div>
+
+        {{!-- Goals --}}
+        <div class="form-group">
+          <div class="flex items-center gap-xs mb-xs">
+            <label for="destinyGoals">{{localize 'am.app.biography.destiny-goals'}}</label>
+            <button type="button" class="am-roll-btn" data-action="rollDestinyTable"
+              data-field="destinyGoals" data-die="6"
+              data-tooltip="{{localize 'am.app.biography.roll-goals'}}">
+              <i class="fa-solid fa-dice"></i> d6
+            </button>
+          </div>
+          <textarea id="destinyGoals" name="destinyGoals" class="form-input" rows="3"
+            placeholder="{{localize 'am.app.biography.destiny-goals-placeholder'}}"></textarea>
+        </div>
+
+      </div>
+    </section>
+
   </fieldset>
 </div>

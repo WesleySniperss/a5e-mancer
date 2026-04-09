@@ -36,6 +36,7 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
       randomize:              A5eMancer.randomizeAll,
       randomizeCharacterName: A5eMancer.randomizeName,
       randomizeTabContent:    A5eMancer.randomizeTabContent,
+      rollDestinyTable:       A5eMancer.rollDestinyTable,
       toggleEquipmentChoice:  A5eMancer.toggleEquipmentChoice,
       openManeuverPicker:     A5eMancer.openManeuverPicker,
       openSpellPicker:        A5eMancer.openSpellPicker
@@ -169,6 +170,7 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
           context.alignments = (game.settings.get(AM.ID, 'alignments') || '')
             .split(',').map(s => s.trim()).filter(Boolean);
           context.enableAlignmentFaithInputs = game.settings.get(AM.ID, 'enableAlignmentFaithInputs');
+          context.selectedDestiny = AM.SELECTED.destiny ?? null;
           break;
 
         case 'footer':
@@ -333,6 +335,70 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
         dd.dispatchEvent(new Event('change', { bubbles: true }));
       }
     }
+  }
+
+  static async rollDestinyTable(_event, btn) {
+    const fieldName = btn.dataset.field;
+    const die       = parseInt(btn.dataset.die) || 4;
+    const result    = 1 + Math.floor(Math.random() * die);
+    const form      = AM.app?.element;
+    if (!form) return;
+    const field = form.querySelector(`[name="${fieldName}"]`);
+    if (!field) return;
+
+    // Try to get the rolled text from the destiny description tables
+    const destinyDoc = AM.SELECTED.destiny?.uuid
+      ? await fromUuid(AM.SELECTED.destiny.uuid).catch(() => null)
+      : null;
+
+    const tableText = destinyDoc
+      ? A5eMancer.#extractTableEntry(destinyDoc.system?.description?.value ?? '', fieldName, result)
+      : null;
+
+    if (tableText) {
+      field.value = tableText;
+    } else {
+      // Fallback: just insert the roll result as a prompt
+      const label = fieldName === 'destinyMotivation'
+        ? game.i18n.localize('am.app.biography.roll-result-motivation')
+        : game.i18n.localize('am.app.biography.roll-result-goals');
+      field.value = `${label} ${result} (1d${die})`;
+    }
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  /**
+   * Tries to extract the Nth entry from a named roll table in an HTML description.
+   * Looks for <table> elements preceded by headings containing keywords.
+   */
+  static #extractTableEntry(html, fieldName, n) {
+    if (!html) return null;
+    const div = document.createElement('div');
+    div.innerHTML = html;
+
+    // Keywords to look for depending on which field we're rolling for
+    const keywords = fieldName === 'destinyMotivation'
+      ? ['motivation', 'inspir', 'source']
+      : ['goal', 'quest', 'objective', 'purpose'];
+
+    // Find a table preceded by a heading matching keywords
+    const tables = div.querySelectorAll('table');
+    for (const table of tables) {
+      let prev = table.previousElementSibling;
+      const heading = prev?.textContent?.toLowerCase() ?? '';
+      if (!keywords.some(k => heading.includes(k))) continue;
+
+      // Get the nth row (skip header row if present)
+      const rows = table.querySelectorAll('tr');
+      for (const row of rows) {
+        const cells = row.querySelectorAll('td');
+        if (cells.length < 2) continue;
+        const rollCell = cells[0].textContent.trim();
+        const rollNum  = parseInt(rollCell);
+        if (rollNum === n) return cells[1].textContent.trim();
+      }
+    }
+    return null;
   }
 
   static async randomizeAll(event) {
