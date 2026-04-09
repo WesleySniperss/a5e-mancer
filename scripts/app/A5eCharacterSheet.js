@@ -194,6 +194,41 @@ export class A5eCharacterSheet extends ActorSheet {
     const exCur        = resources.exertion.current || 0;
     const exertionPips = Array.from({ length: Math.min(exMax, 20) }, (_, i) => ({ i, active: i < exCur }));
 
+    /* Fatigue / Strife level descriptions (A5e rules) */
+    const FATIGUE_DESCS = [
+      null,
+      'Disadvantage on ability checks.',
+      'Speed halved.',
+      'Disadvantage on attack rolls and saving throws.',
+      'Hit point maximum halved.',
+      'Speed reduced to 5 ft.',
+      'Death.'
+    ];
+    const STRIFE_DESCS = [
+      null,
+      'Disadvantage on ability checks.',
+      "Can't take reactions.",
+      'Disadvantage on attack rolls and saving throws.',
+      'Action or bonus action — not both.',
+      'Speed halved.',
+      'Incapacitated.'
+    ];
+    const fatigueDesc = FATIGUE_DESCS[Math.min(resources.fatigue, 6)] ?? null;
+    const strifeDesc  = STRIFE_DESCS[Math.min(resources.strife,  6)] ?? null;
+
+    /* Status conditions — all defined effects + which are active on this actor */
+    const activeStatuses = actor.statuses ?? new Set();
+    const statusConditions = (CONFIG.statusEffects ?? [])
+      .filter(s => s.id && (s.label || s.name))
+      .map(s => ({
+        id:          s.id,
+        label:       game.i18n.localize(s.label ?? s.name),
+        icon:        s.icon ?? s.img ?? 'icons/svg/mystery-man.svg',
+        description: s.description ? game.i18n.localize(s.description) : '',
+        active:      activeStatuses.has(s.id)
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+
     /* Currency */
     const currency = sys.currency ?? sys.wealth ?? { gp: 0, sp: 0, cp: 0, ep: 0, pp: 0 };
 
@@ -218,6 +253,7 @@ export class A5eCharacterSheet extends ActorSheet {
       weapons, maneuvers, maneuverGroups, spells, spellGroups, slotRows,
       features, feats, allFeatures, customCounters, equipment, currency,
       fatiguePips, strifePips, exertionPips,
+      fatigueDesc, strifeDesc, statusConditions,
       passivePerception, charInfo,
       hasWeapons:   weapons.length   > 0,
       hasManeuvers: maneuvers.length > 0,
@@ -494,6 +530,42 @@ export class A5eCharacterSheet extends ActorSheet {
         await this.actor.update({ [`system.attributes.${type}`]: newVal });
       })
     );
+
+    /* Status condition toggles */
+    el.querySelectorAll('[data-action="toggle-condition"]').forEach(btn =>
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.id;
+        if (!id) return;
+        // Foundry v11+ native toggle
+        if (typeof this.actor.toggleStatusEffect === 'function') {
+          await this.actor.toggleStatusEffect(id);
+          return;
+        }
+        // Fallback: manually add/remove the effect
+        const existing = this.actor.effects.find(e => e.statuses?.has(id) || e.getFlag('core','statusId') === id);
+        if (existing) { await existing.delete(); return; }
+        const def = CONFIG.statusEffects.find(s => s.id === id);
+        if (def) await ActiveEffect.create({ ...def, statuses: [id] }, { parent: this.actor });
+      })
+    );
+
+    /* Condition description popover — click icon to show desc in panel */
+    const condDescPanel = el.querySelector('.am-cs-cond-desc-panel');
+    if (condDescPanel) {
+      el.querySelectorAll('[data-action="toggle-condition"]').forEach(btn => {
+        btn.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          const desc  = btn.dataset.description;
+          const label = btn.dataset.label;
+          if (!desc) return;
+          condDescPanel.innerHTML = `<strong>${label}</strong><p>${desc}</p>`;
+          condDescPanel.style.display = '';
+        });
+      });
+      condDescPanel.addEventListener('click', () => {
+        condDescPanel.style.display = 'none';
+      });
+    }
 
     /* Spell slot pips */
     el.querySelectorAll('[data-action="slot-pip"]').forEach(pip =>

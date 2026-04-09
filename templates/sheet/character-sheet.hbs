@@ -577,7 +577,7 @@
       </div>
 
       {{!-- Fatigue / Strife --}}
-      <div class="am-cs-sidebar-heading" style="margin-top:0.5rem">CONDITIONS</div>
+      <div class="am-cs-sidebar-heading" style="margin-top:0.5rem">EXHAUSTION</div>
       <div class="am-cs-cond-block">
         <div class="am-cs-cond-row">
           <span class="am-cs-cond-lbl">Fatigue</span>
@@ -589,7 +589,10 @@
             {{/each}}
           </div>
         </div>
-        <div class="am-cs-cond-row">
+        {{#if fatigueDesc}}
+          <div class="am-cs-exhaust-desc">{{fatigueDesc}}</div>
+        {{/if}}
+        <div class="am-cs-cond-row" style="margin-top:0.2rem">
           <span class="am-cs-cond-lbl">Strife</span>
           <div class="am-cs-cond-pips">
             {{#each strifePips}}
@@ -599,7 +602,31 @@
             {{/each}}
           </div>
         </div>
+        {{#if strifeDesc}}
+          <div class="am-cs-exhaust-desc am-strife-desc">{{strifeDesc}}</div>
+        {{/if}}
       </div>
+
+      {{!-- Status Conditions --}}
+      {{#if statusConditions.length}}
+        <div class="am-cs-sidebar-heading" style="margin-top:0.5rem">STATUS CONDITIONS</div>
+        <div class="am-cs-status-grid">
+          {{#each statusConditions}}
+            <button type="button"
+              class="am-cs-status-btn {{#if this.active}}am-cs-status-active{{/if}}"
+              data-action="toggle-condition"
+              data-id="{{this.id}}"
+              data-label="{{this.label}}"
+              data-description="{{this.description}}"
+              title="{{this.label}}{{#if this.description}} — {{this.description}}{{/if}}">
+              <img src="{{this.icon}}" alt="{{this.label}}" />
+              <span class="am-cs-status-lbl">{{this.label}}</span>
+            </button>
+          {{/each}}
+        </div>
+        {{!-- Description panel — right-click a condition to show --}}
+        <div class="am-cs-cond-desc-panel" style="display:none"></div>
+      {{/if}}
 
       {{!-- Proficiencies --}}
       {{#if proficiencies.senses.length}}
