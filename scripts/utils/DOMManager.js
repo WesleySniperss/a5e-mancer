@@ -220,7 +220,7 @@ export class DOMManager {
 
   static updateReviewTab(form) {
     if (!form) return;
-    const panel = form.querySelector('[data-tab="finalize"]');
+    const panel = form.querySelector('#finalize-panel');
     if (!panel) return;
 
     for (const type of [...ITEM_TYPES, 'heritageGift']) {
@@ -323,7 +323,7 @@ export class DOMManager {
   }
 
   static #updateDestinyNarrativePreview(form) {
-    const panel = form.querySelector('[data-tab="finalize"]');
+    const panel = form.querySelector('#finalize-panel');
     if (!panel) return;
 
     const motivVal = form.querySelector('#destinyMotivation')?.value?.trim() || '—';
