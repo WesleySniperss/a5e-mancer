@@ -401,11 +401,25 @@ export class A5eCharacterSheet extends ActorSheet {
       })
     );
 
-    /* Item use */
+    /* Item use — try A5e's activate(), then generic fallbacks */
     el.querySelectorAll('[data-action="item-use"]').forEach(b =>
       b.addEventListener('click', () => {
         const item = this.actor.items.get(b.dataset.id);
-        item?.use?.() ?? item?.roll?.();
+        if (!item) return;
+        if (typeof item.activate === 'function')  { item.activate(); return; }
+        if (typeof item.use     === 'function')   { item.use();      return; }
+        if (typeof item.roll    === 'function')   { item.roll();     return; }
+        item.sheet.render(true);
+      })
+    );
+
+    /* Item name click — open description via item sheet */
+    el.querySelectorAll('.am-item-name').forEach(span =>
+      span.addEventListener('click', () => {
+        const row  = span.closest('[data-item-id]');
+        const id   = row?.dataset?.itemId;
+        const item = id ? this.actor.items.get(id) : null;
+        item?.sheet?.render(true);
       })
     );
 
@@ -413,7 +427,11 @@ export class A5eCharacterSheet extends ActorSheet {
     el.querySelectorAll('[data-action="item-chat"]').forEach(b =>
       b.addEventListener('click', () => {
         const item = this.actor.items.get(b.dataset.id);
-        item?.toChat?.() ?? item?.roll?.();
+        if (!item) return;
+        if (typeof item.toChat   === 'function') { item.toChat();   return; }
+        if (typeof item.toMessage=== 'function') { item.toMessage();return; }
+        if (typeof item.roll     === 'function') { item.roll();     return; }
+        item.sheet.render(true);
       })
     );
 
