@@ -267,22 +267,24 @@ export class A5eCharacterSheet extends ActorSheet {
           ...maneuvers.map(i => ({...i, isManeuver: true})),
           ...spells.map(i => ({...i, isSpell: true}))].forEach(() => {}),
 
-      // Actions tab — grouped by activation type
-      // Includes: weapons, maneuvers, AND spells (cantrips use action by default)
+      // Actions tab — only EQUIPPED weapons, all maneuvers/spells
       actionsGroup: [
-        ...weapons.map(i => ({...i, isWeapon: true})).filter(i => i.activation === 'action'),
+        ...weapons.map(i => ({...i, isWeapon: true}))
+          .filter(i => i.equipped && i.activation === 'action'),
         ...maneuvers.map(i => ({...i, isManeuver: true})).filter(i => i.activation === 'action'),
         ...spells.map(i => ({...i, isSpell: true})).filter(i =>
           i.activation === 'action' && (i.level === 0 || i.prepared !== false)
         )
       ],
       bonusActions: [
-        ...weapons.map(i => ({...i, isWeapon: true})).filter(i => i.activation === 'bonus'),
+        ...weapons.map(i => ({...i, isWeapon: true}))
+          .filter(i => i.equipped && i.activation === 'bonus'),
         ...maneuvers.map(i => ({...i, isManeuver: true})).filter(i => i.activation === 'bonus'),
         ...spells.map(i => ({...i, isSpell: true})).filter(i => i.activation === 'bonus')
       ],
       reactions: [
-        ...weapons.map(i => ({...i, isWeapon: true})).filter(i => i.activation === 'reaction'),
+        ...weapons.map(i => ({...i, isWeapon: true}))
+          .filter(i => i.equipped && i.activation === 'reaction'),
         ...maneuvers.map(i => ({...i, isManeuver: true})).filter(i => i.activation === 'reaction'),
         ...spells.map(i => ({...i, isSpell: true})).filter(i => i.activation === 'reaction')
       ],
