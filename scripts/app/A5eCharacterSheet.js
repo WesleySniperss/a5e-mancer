@@ -304,20 +304,26 @@ export class A5eCharacterSheet extends ActorSheet {
     const dmgArr   = firstAction.damage ?? firstAction.damages ?? [];
     const dmg      = dmgArr[0]?.formula ?? dmgArr[0]?.dice ?? '—';
     const activation = this.#resolveActivation(firstAction, sys);
-    const rng = sys.range ?? sys.range ?? {};
+    const rng = sys.range ?? {};
     const rangeStr = rng.reach
       ? `${rng.reach} ft`
       : (rng.long ? `${rng.short ?? rng.value ?? 0}/${rng.long} ft` :
          rng.value ? `${rng.value} ${rng.units ?? 'ft'}` : '—');
+    // A5e equippedState: 0=notCarried, 1=carried, 2=equipped
+    const equippedState  = sys.equippedState ?? 1;
+    const attuned        = sys.attuned ?? false;
+    const needsAttune    = sys.requiresAttunement ?? false;
     return {
       id: item.id, name: item.name, img: item.img,
       atkBonus: atkBonus ? sign(Number(atkBonus)) : '—', dmg,
       range: rangeStr,
-      equipped: sys.equipped ?? false,
+      equippedState,
+      equipped:     equippedState === 2,
+      carried:      equippedState === 1,
+      notCarried:   equippedState === 0,
+      attuned, needsAttune,
+      attuneProblem: needsAttune && !attuned,
       activation,
-      properties: sys.properties
-        ? [...(sys.properties instanceof Set ? sys.properties : Object.keys(sys.properties))]
-        : []
     };
   }
 
@@ -397,11 +403,20 @@ export class A5eCharacterSheet extends ActorSheet {
   }
 
   #gear(item) {
+    const sys = item.system ?? {};
+    const equippedState = sys.equippedState ?? 1;
+    const attuned       = sys.attuned ?? false;
+    const needsAttune   = sys.requiresAttunement ?? false;
     return {
       id: item.id, name: item.name, img: item.img,
-      qty: item.system?.quantity ?? 1,
-      weight: item.system?.weight?.value ?? item.system?.weight ?? 0,
-      equipped: item.system?.equipped ?? false
+      qty:    sys.quantity ?? 1,
+      weight: sys.weight?.value ?? sys.weight ?? 0,
+      equippedState,
+      equipped:     equippedState === 2,
+      carried:      equippedState === 1,
+      notCarried:   equippedState === 0,
+      attuned, needsAttune,
+      attuneProblem: needsAttune && !attuned,
     };
   }
 
@@ -446,13 +461,24 @@ export class A5eCharacterSheet extends ActorSheet {
       })
     );
 
-    /* Item equip toggle */
+    /* Item equip toggle — A5e equippedState: 0=notCarried,1=carried,2=equipped */
     el.querySelectorAll('[data-action="item-equip"]').forEach(b =>
       b.addEventListener('click', async () => {
         const item = this.actor.items.get(b.dataset.id);
         if (!item) return;
-        const cur = item.system?.equipped ?? false;
-        await item.update({ 'system.equipped': !cur });
+        const cur  = item.system?.equippedState ?? 1;
+        // Toggle between carried(1) and equipped(2); skip notCarried
+        const next = cur === 2 ? 1 : 2;
+        await item.update({ 'system.equippedState': next });
+      })
+    );
+
+    /* Item attunement toggle */
+    el.querySelectorAll('[data-action="item-attune"]').forEach(b =>
+      b.addEventListener('click', async () => {
+        const item = this.actor.items.get(b.dataset.id);
+        if (!item) return;
+        await item.update({ 'system.attuned': !(item.system?.attuned ?? false) });
       })
     );
 

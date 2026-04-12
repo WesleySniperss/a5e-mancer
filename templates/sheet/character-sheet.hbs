@@ -456,26 +456,38 @@
               </tr></thead>
               <tbody>
                 {{#each weapons}}
-                  <tr class="am-item-row {{#if this.equipped}}am-cs-equipped{{/if}}"
+                  <tr class="am-item-row
+                    {{#if this.equipped}}am-cs-eq-equipped{{/if}}
+                    {{#if this.notCarried}}am-cs-eq-stashed{{/if}}
+                    {{#if this.attuned}}am-cs-attuned{{/if}}
+                    {{#if this.attuneProblem}}am-cs-attune-warn{{/if}}"
                     data-item-id="{{this.id}}">
                     <td class="am-col-eq">
                       <button type="button"
-                        class="am-cs-equip-btn {{#if this.equipped}}am-cs-equip-on{{/if}}"
+                        class="am-cs-equip-btn am-cs-eq-state-{{this.equippedState}}"
                         data-action="item-equip" data-id="{{this.id}}"
-                        title="{{#if this.equipped}}Unequip{{else}}Equip{{/if}}">
-                        <i class="fa-solid fa-shield"></i>
+                        title="{{#if this.equipped}}Equipped — click to unequip{{else}}Carried — click to equip{{/if}}">
+                        <i class="fa-solid {{#if this.equipped}}fa-shield{{else}}fa-shield-halved{{/if}}"></i>
                       </button>
                     </td>
                     <td><img src="{{this.img}}" class="am-cs-ico" alt="" /></td>
                     <td>
                       <span class="am-item-name">{{this.name}}</span>
-                      {{#unless this.equipped}}
-                        <span class="am-cs-unequipped-tag">unequipped</span>
-                      {{/unless}}
+                      {{#if this.attuned}}<span class="am-cs-attune-pip" title="Attuned"><i class="fa-solid fa-gem"></i></span>{{/if}}
+                      {{#if this.attuneProblem}}<span class="am-cs-attune-warn-pip" title="Requires attunement!"><i class="fa-solid fa-triangle-exclamation"></i></span>{{/if}}
+                      {{#if this.notCarried}}<span class="am-cs-unequipped-tag">stashed</span>{{/if}}
                     </td>
                     <td class="am-col-atk am-cs-muted">{{this.atkBonus}}</td>
                     <td class="am-col-rng am-cs-muted">{{#if this.range}}{{this.range}}{{else}}—{{/if}}</td>
                     <td class="am-col-btn">
+                      {{#if this.needsAttune}}
+                        <button type="button"
+                          class="am-cs-attune-btn {{#if this.attuned}}am-cs-attuned-btn{{/if}}"
+                          data-action="item-attune" data-id="{{this.id}}"
+                          title="{{#if this.attuned}}Break attunement{{else}}Attune{{/if}}">
+                          <i class="fa-solid fa-gem"></i>
+                        </button>
+                      {{/if}}
                       <button type="button" class="am-cs-use-btn" data-action="item-use" data-id="{{this.id}}">Use</button>
                       {{> am-controls id=this.id}}
                     </td>
@@ -501,24 +513,42 @@
               </tr></thead>
               <tbody>
                 {{#each equipment}}
-                  <tr class="am-item-row {{#if this.equipped}}am-cs-equipped{{/if}}"
+                  <tr class="am-item-row
+                    {{#if this.equipped}}am-cs-eq-equipped{{/if}}
+                    {{#if this.notCarried}}am-cs-eq-stashed{{/if}}
+                    {{#if this.attuned}}am-cs-attuned{{/if}}
+                    {{#if this.attuneProblem}}am-cs-attune-warn{{/if}}"
                     data-item-id="{{this.id}}">
                     <td class="am-col-eq">
                       <button type="button"
-                        class="am-cs-equip-btn {{#if this.equipped}}am-cs-equip-on{{/if}}"
+                        class="am-cs-equip-btn am-cs-eq-state-{{this.equippedState}}"
                         data-action="item-equip" data-id="{{this.id}}"
-                        title="{{#if this.equipped}}Unequip{{else}}Equip{{/if}}">
-                        <i class="fa-solid fa-shield-halved"></i>
+                        title="{{#if this.equipped}}Equipped{{else}}Carried{{/if}} — click to toggle">
+                        <i class="fa-solid {{#if this.equipped}}fa-shield{{else}}fa-shield-halved{{/if}}"></i>
                       </button>
                     </td>
                     <td><img src="{{this.img}}" class="am-cs-ico" alt="" /></td>
-                    <td><span class="am-item-name">{{this.name}}</span></td>
+                    <td>
+                      <span class="am-item-name">{{this.name}}</span>
+                      {{#if this.attuned}}<span class="am-cs-attune-pip" title="Attuned"><i class="fa-solid fa-gem"></i></span>{{/if}}
+                      {{#if this.attuneProblem}}<span class="am-cs-attune-warn-pip" title="Requires attunement!"><i class="fa-solid fa-triangle-exclamation"></i></span>{{/if}}
+                    </td>
                     <td class="am-col-qty">
                       <input type="number" class="am-cs-qty-inp" data-item-id="{{this.id}}"
                         value="{{this.qty}}" min="0" />
                     </td>
                     <td class="am-col-wt am-cs-muted">{{this.weight}}</td>
-                    <td class="am-col-btn">{{> am-controls id=this.id}}</td>
+                    <td class="am-col-btn">
+                      {{#if this.needsAttune}}
+                        <button type="button"
+                          class="am-cs-attune-btn {{#if this.attuned}}am-cs-attuned-btn{{/if}}"
+                          data-action="item-attune" data-id="{{this.id}}"
+                          title="{{#if this.attuned}}Break attunement{{else}}Attune{{/if}}">
+                          <i class="fa-solid fa-gem"></i>
+                        </button>
+                      {{/if}}
+                      {{> am-controls id=this.id}}
+                    </td>
                   </tr>
                 {{/each}}
               </tbody>

@@ -3710,8 +3710,6 @@
   color: var(--cs-text);
   font-size: 0.75rem;
 }
-.am-cs-equipped { background: rgba(200,160,32,0.06); }
-
 /* Inventory section headings */
 .am-cs-inv-section-head {
   display: flex;
@@ -3735,32 +3733,88 @@
   margin-inline-start: auto;
 }
 
+/* ── Item row state highlighting (DnD Beyond style) ── */
+
+/* Equipped = green left border + subtle green tint */
+.am-cs-eq-equipped {
+  border-left: 2px solid var(--cs-green) !important;
+  background: rgba(74,154,96,0.07);
+  .am-item-name { color: var(--cs-text); }
+}
+
+/* Stashed = dimmed */
+.am-cs-eq-stashed {
+  opacity: 0.5;
+  filter: grayscale(0.4);
+}
+
+/* Attuned = purple gem glow on left border */
+.am-cs-attuned {
+  border-left: 2px solid #9060c0 !important;
+  background: rgba(144,96,192,0.07);
+}
+
+/* Requires attunement but not attuned = amber warning */
+.am-cs-attune-warn {
+  border-left: 2px solid #c08020 !important;
+  background: rgba(192,128,32,0.07);
+}
+
 /* Equip toggle button */
 .am-col-eq { width: 1.6rem; padding: 0.1rem 0.15rem !important; }
 .am-cs-equip-btn {
   background: none !important;
-  border: 1px solid var(--cs-border) !important;
+  border: 1px solid transparent !important;
   border-radius: 3px !important;
   box-shadow: none !important;
-  width: 1.3rem !important;
-  height: 1.3rem !important;
+  width: 1.4rem !important;
+  height: 1.4rem !important;
   padding: 0 !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   cursor: pointer;
-  color: var(--cs-border);
-  font-size: 0.6rem;
+  font-size: 0.65rem;
   transition: all 0.12s;
-  &:hover { border-color: var(--cs-gold) !important; color: var(--cs-gold); }
 }
-.am-cs-equip-btn.am-cs-equip-on {
-  background: rgba(200,160,32,0.18) !important;
-  border-color: var(--cs-gold) !important;
-  color: var(--cs-gold);
+/* carried (state 1) */
+.am-cs-eq-state-1 { color: var(--cs-border); &:hover { border-color: var(--cs-gold) !important; color: var(--cs-gold); } }
+/* equipped (state 2) */
+.am-cs-eq-state-2 { color: var(--cs-green); border-color: var(--cs-green) !important; background: rgba(74,154,96,0.15) !important; &:hover { background: rgba(74,154,96,0.28) !important; } }
+/* not carried (state 0) */
+.am-cs-eq-state-0 { color: var(--cs-muted); opacity: 0.5; }
+
+/* Attunement indicator pips in item name */
+.am-cs-attune-pip {
+  color: #9060c0;
+  font-size: 0.6rem;
+  margin-inline-start: 0.3rem;
+}
+.am-cs-attune-warn-pip {
+  color: #c08020;
+  font-size: 0.6rem;
+  margin-inline-start: 0.3rem;
 }
 
-/* Unequipped label in weapon row */
+/* Attune button */
+.am-cs-attune-btn {
+  background: transparent !important;
+  border: 1px solid #9060c0 !important;
+  border-radius: 2px !important;
+  box-shadow: none !important;
+  color: #9060c0;
+  font-size: 0.65rem;
+  padding: 0.08rem 0.3rem !important;
+  cursor: pointer;
+  &:hover { background: rgba(144,96,192,0.2) !important; }
+}
+.am-cs-attuned-btn {
+  background: rgba(144,96,192,0.2) !important;
+  color: #c090ff;
+  border-color: #c090ff !important;
+}
+
+/* "stashed" tag */
 .am-cs-unequipped-tag {
   display: inline-block;
   background: rgba(138,122,96,0.15);
