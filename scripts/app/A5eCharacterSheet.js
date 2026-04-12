@@ -300,12 +300,19 @@ export class A5eCharacterSheet extends ActorSheet {
     const sys = item.system;
     const actions = sys.actions ? Object.values(sys.actions) : [];
     const firstAction = actions[0] ?? {};
-    const atkBonus = firstAction.attackBonus ?? '';
-    const dmg = firstAction.damage?.[0] ? `${firstAction.damage[0].formula}` : '—';
+    const atkBonus = firstAction.attackBonus ?? firstAction.attack?.bonus ?? '';
+    const dmgArr   = firstAction.damage ?? firstAction.damages ?? [];
+    const dmg      = dmgArr[0]?.formula ?? dmgArr[0]?.dice ?? '—';
     const activation = this.#resolveActivation(firstAction, sys);
+    const rng = sys.range ?? sys.range ?? {};
+    const rangeStr = rng.reach
+      ? `${rng.reach} ft`
+      : (rng.long ? `${rng.short ?? rng.value ?? 0}/${rng.long} ft` :
+         rng.value ? `${rng.value} ${rng.units ?? 'ft'}` : '—');
     return {
       id: item.id, name: item.name, img: item.img,
-      atkBonus: atkBonus ? sign(atkBonus) : '—', dmg,
+      atkBonus: atkBonus ? sign(Number(atkBonus)) : '—', dmg,
+      range: rangeStr,
       equipped: sys.equipped ?? false,
       activation,
       properties: sys.properties
@@ -436,6 +443,16 @@ export class A5eCharacterSheet extends ActorSheet {
         const id = b.dataset.skill;
         try { this.actor.rollSkill?.(id); }
         catch { this.#roll('1d20', b.dataset.label ?? id); }
+      })
+    );
+
+    /* Item equip toggle */
+    el.querySelectorAll('[data-action="item-equip"]').forEach(b =>
+      b.addEventListener('click', async () => {
+        const item = this.actor.items.get(b.dataset.id);
+        if (!item) return;
+        const cur = item.system?.equipped ?? false;
+        await item.update({ 'system.equipped': !cur });
       })
     );
 

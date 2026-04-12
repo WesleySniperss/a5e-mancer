@@ -275,7 +275,12 @@
           {{#unless (or actionsGroup.length bonusActions.length reactions.length)}}
             <div class="am-cs-empty">
               <i class="fa-solid fa-swords fa-2x"></i>
-              <p>No combat actions yet. Drag weapons, maneuvers, or spells here.</p>
+              {{#if hasWeapons}}
+                <p>No equipped weapons. Go to <strong>Inventory</strong> and click
+                  <i class="fa-solid fa-shield"></i> to equip.</p>
+              {{else}}
+                <p>No combat actions yet. Drag weapons, maneuvers, or spells here.</p>
+              {{/if}}
             </div>
           {{/unless}}
 
@@ -434,10 +439,60 @@
             {{/each}}
           </div>
 
-          {{!-- Equipment --}}
-          {{#if hasEquipment}}
+          {{!-- Weapons --}}
+          {{#if hasWeapons}}
+            <div class="am-cs-inv-section-head">
+              <i class="fa-solid fa-sword"></i> WEAPONS
+              <span class="am-cs-inv-equip-hint">Click shield to equip/unequip</span>
+            </div>
             <table class="am-cs-inv-table">
               <thead><tr>
+                <th class="am-col-eq" title="Equipped"></th>
+                <th class="am-col-img"></th>
+                <th>Name</th>
+                <th class="am-col-atk">Attack</th>
+                <th class="am-col-rng">Range</th>
+                <th class="am-col-btn"></th>
+              </tr></thead>
+              <tbody>
+                {{#each weapons}}
+                  <tr class="am-item-row {{#if this.equipped}}am-cs-equipped{{/if}}"
+                    data-item-id="{{this.id}}">
+                    <td class="am-col-eq">
+                      <button type="button"
+                        class="am-cs-equip-btn {{#if this.equipped}}am-cs-equip-on{{/if}}"
+                        data-action="item-equip" data-id="{{this.id}}"
+                        title="{{#if this.equipped}}Unequip{{else}}Equip{{/if}}">
+                        <i class="fa-solid fa-shield"></i>
+                      </button>
+                    </td>
+                    <td><img src="{{this.img}}" class="am-cs-ico" alt="" /></td>
+                    <td>
+                      <span class="am-item-name">{{this.name}}</span>
+                      {{#unless this.equipped}}
+                        <span class="am-cs-unequipped-tag">unequipped</span>
+                      {{/unless}}
+                    </td>
+                    <td class="am-col-atk am-cs-muted">{{this.atkBonus}}</td>
+                    <td class="am-col-rng am-cs-muted">{{#if this.range}}{{this.range}}{{else}}—{{/if}}</td>
+                    <td class="am-col-btn">
+                      <button type="button" class="am-cs-use-btn" data-action="item-use" data-id="{{this.id}}">Use</button>
+                      {{> am-controls id=this.id}}
+                    </td>
+                  </tr>
+                {{/each}}
+              </tbody>
+            </table>
+          {{/if}}
+
+          {{!-- Equipment / Armor / Gear --}}
+          {{#if hasEquipment}}
+            <div class="am-cs-inv-section-head" style="margin-top:0.5rem">
+              <i class="fa-solid fa-backpack"></i> GEAR
+            </div>
+            <table class="am-cs-inv-table">
+              <thead><tr>
+                <th class="am-col-eq" title="Equipped"></th>
                 <th class="am-col-img"></th>
                 <th>Name</th>
                 <th class="am-col-qty">Qty</th>
@@ -448,6 +503,14 @@
                 {{#each equipment}}
                   <tr class="am-item-row {{#if this.equipped}}am-cs-equipped{{/if}}"
                     data-item-id="{{this.id}}">
+                    <td class="am-col-eq">
+                      <button type="button"
+                        class="am-cs-equip-btn {{#if this.equipped}}am-cs-equip-on{{/if}}"
+                        data-action="item-equip" data-id="{{this.id}}"
+                        title="{{#if this.equipped}}Unequip{{else}}Equip{{/if}}">
+                        <i class="fa-solid fa-shield-halved"></i>
+                      </button>
+                    </td>
                     <td><img src="{{this.img}}" class="am-cs-ico" alt="" /></td>
                     <td><span class="am-item-name">{{this.name}}</span></td>
                     <td class="am-col-qty">
@@ -460,12 +523,14 @@
                 {{/each}}
               </tbody>
             </table>
-          {{else}}
+          {{/if}}
+
+          {{#unless (or hasWeapons hasEquipment)}}
             <div class="am-cs-empty">
               <i class="fa-solid fa-backpack fa-2x"></i>
               <p>No items. Drag from the compendium.</p>
             </div>
-          {{/if}}
+          {{/unless}}
 
         </section>
 
