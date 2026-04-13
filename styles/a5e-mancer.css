@@ -4093,3 +4093,62 @@
   }
 }
 
+/* ── Equipped Items Panel (right sidebar) ─────────── */
+.am-cs-equipped-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  margin-bottom: 0.1rem;
+}
+
+.am-cs-eq-item {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.18rem 0.35rem;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--cs-green) 40%, var(--cs-border));
+  background: rgba(74,154,96,0.06);
+  cursor: grab;
+  transition: background 0.12s, border-color 0.12s;
+
+  &:hover {
+    background: rgba(74,154,96,0.14);
+    border-color: var(--cs-green);
+  }
+
+  &:active { cursor: grabbing; }
+
+  .am-cs-ico {
+    width: 1.3rem;
+    height: 1.3rem;
+    flex-shrink: 0;
+  }
+}
+
+.am-cs-eq-name {
+  flex: 1;
+  font-size: 0.77rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+
+  &:hover { color: var(--cs-gold); text-decoration: underline; }
+}
+
+.am-cs-eq-stat {
+  font-size: 0.7rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.am-cs-eq-use {
+  padding: 0.05rem 0.3rem !important;
+  font-size: 0.68rem !important;
+  min-width: 1.5rem !important;
+  height: auto !important;
+  line-height: 1.4 !important;
+  flex-shrink: 0;
+}
+

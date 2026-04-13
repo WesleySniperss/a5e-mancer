@@ -163,6 +163,12 @@ export class A5eCharacterSheet extends ActorSheet {
                             .map(i => this.#gear(i));
     const classes   = items.filter(i => i.type === 'class').map(i => this.#classItem(i));
 
+    /* Equipped items panel — weapons + gear with equippedState === 2 */
+    const equippedItems = [
+      ...weapons.filter(i => i.equipped).map(i => ({ ...i, itemType: 'weapon' })),
+      ...equipment.filter(i => i.equipped).map(i => ({ ...i, itemType: 'gear' }))
+    ];
+
     /* Maneuvers grouped by tradition */
     const maneuverGroups = this.#groupBy(maneuvers, 'tradition');
     const featsBySource  = this.#groupFeatsBySource(feats);
@@ -260,13 +266,14 @@ export class A5eCharacterSheet extends ActorSheet {
       features, feats, allFeatures, customCounters, equipment, currency,
       fatiguePips, strifePips, exertionPips,
       fatigueDesc, strifeDesc, statusConditions,
-      passivePerception, charInfo,
-      hasWeapons:   weapons.length   > 0,
-      hasManeuvers: maneuvers.length > 0,
-      hasSpells:    spells.length    > 0,
-      hasFeatures:  features.length  > 0,
-      hasEquipment: equipment.length > 0,
-      hasCombat:    weapons.length + maneuvers.length + spells.length > 0,
+      equippedItems, passivePerception, charInfo,
+      hasWeapons:        weapons.length   > 0,
+      hasManeuvers:      maneuvers.length > 0,
+      hasSpells:         spells.length    > 0,
+      hasFeatures:       features.length  > 0,
+      hasEquipment:      equipment.length > 0,
+      hasCombat:         weapons.length + maneuvers.length + spells.length > 0,
+      hasEquippedItems:  equippedItems.length > 0,
 
       // Tag items with type for partial rendering
       ...[...weapons.map(i => ({...i, isWeapon: true})),
@@ -450,6 +457,20 @@ export class A5eCharacterSheet extends ActorSheet {
       level: item.system?.levels ?? item.system?.level ?? 1,
       hitDie: item.system?.hitDice?.denomination ?? item.system?.hitDie ?? 8
     };
+  }
+
+  /* ── Drag support ────────────────────────────────── */
+  _onDragStart(event) {
+    const row = event.currentTarget.closest('[data-item-id]');
+    if (!row) return super._onDragStart(event);
+    const item = this.actor.items.get(row.dataset.itemId);
+    if (!item) return super._onDragStart(event);
+    event.dataTransfer.setData('text/plain', JSON.stringify({
+      type: 'Item',
+      uuid: item.uuid,
+      actorId: this.actor.id,
+      data: item.toObject()
+    }));
   }
 
   /* ── Listeners ────────────────────────────────────── */
