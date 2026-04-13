@@ -3923,9 +3923,8 @@
 .am-cs-save {
   display: flex;
   align-items: center;
-  gap: 0.15rem;
+  gap: 0.2rem;
   min-width: 0;
-  overflow: hidden;
 }
 .am-cs-save-mod {
   background: none !important;
@@ -3946,8 +3945,8 @@
   font-size: 0.62rem;
   color: var(--cs-muted);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 1.5rem;
 }
 
 /* Conditions */

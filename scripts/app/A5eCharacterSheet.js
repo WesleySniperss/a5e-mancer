@@ -217,7 +217,13 @@ export class A5eCharacterSheet extends ActorSheet {
     const strifeDesc  = STRIFE_DESCS[Math.min(resources.strife,  6)] ?? null;
 
     /* Status conditions — all defined effects + which are active on this actor */
-    const activeStatuses = actor.statuses ?? new Set();
+    // A5e stores active conditions as effects with effect.conditionId; also check actor.statuses
+    const activeCondIds = new Set([
+      ...(actor.statuses ?? []),
+      ...(actor.effects ?? [])
+        .filter(e => !e.disabled && e.conditionId)
+        .map(e => e.conditionId)
+    ]);
     const statusConditions = (CONFIG.statusEffects ?? [])
       .filter(s => s.id && (s.label || s.name))
       .map(s => ({
@@ -225,7 +231,7 @@ export class A5eCharacterSheet extends ActorSheet {
         label:       game.i18n.localize(s.label ?? s.name),
         icon:        s.icon ?? s.img ?? 'icons/svg/mystery-man.svg',
         description: s.description ? game.i18n.localize(s.description) : '',
-        active:      activeStatuses.has(s.id)
+        active:      activeCondIds.has(s.id)
       }))
       .sort((a, b) => a.label.localeCompare(b.label));
 
@@ -267,27 +273,34 @@ export class A5eCharacterSheet extends ActorSheet {
           ...maneuvers.map(i => ({...i, isManeuver: true})),
           ...spells.map(i => ({...i, isSpell: true}))].forEach(() => {}),
 
-      // Actions tab — only EQUIPPED weapons, all maneuvers/spells
-      actionsGroup: [
-        ...weapons.map(i => ({...i, isWeapon: true}))
-          .filter(i => i.equipped && i.activation === 'action'),
-        ...maneuvers.map(i => ({...i, isManeuver: true})).filter(i => i.activation === 'action'),
-        ...spells.map(i => ({...i, isSpell: true})).filter(i =>
-          i.activation === 'action' && (i.level === 0 || i.prepared !== false)
-        )
-      ],
-      bonusActions: [
-        ...weapons.map(i => ({...i, isWeapon: true}))
-          .filter(i => i.equipped && i.activation === 'bonus'),
-        ...maneuvers.map(i => ({...i, isManeuver: true})).filter(i => i.activation === 'bonus'),
-        ...spells.map(i => ({...i, isSpell: true})).filter(i => i.activation === 'bonus')
-      ],
-      reactions: [
-        ...weapons.map(i => ({...i, isWeapon: true}))
-          .filter(i => i.equipped && i.activation === 'reaction'),
-        ...maneuvers.map(i => ({...i, isManeuver: true})).filter(i => i.activation === 'reaction'),
-        ...spells.map(i => ({...i, isSpell: true})).filter(i => i.activation === 'reaction')
-      ],
+      // Actions tab — equipped weapons (fallback: all weapons), maneuvers, spells, features
+      ...(()=>{
+        const equippedWeapons = weapons.filter(i => i.equipped);
+        // If no weapons are equipped yet, fall back to showing all so tab isn't empty
+        const weaponsForActions = equippedWeapons.length ? equippedWeapons : weapons;
+        const featuresWithActivation = allFeatures.filter(i => i.activation && i.activation !== 'other');
+        return {
+          actionsGroup: [
+            ...weaponsForActions.map(i=>({...i,isWeapon:true})).filter(i=>i.activation==='action'),
+            ...maneuvers.map(i=>({...i,isManeuver:true})).filter(i=>i.activation==='action'),
+            ...spells.map(i=>({...i,isSpell:true})).filter(i=>
+              i.activation==='action'&&(i.level===0||i.prepared!==false)),
+            ...featuresWithActivation.filter(i=>i.activation==='action'),
+          ],
+          bonusActions: [
+            ...weaponsForActions.map(i=>({...i,isWeapon:true})).filter(i=>i.activation==='bonus'),
+            ...maneuvers.map(i=>({...i,isManeuver:true})).filter(i=>i.activation==='bonus'),
+            ...spells.map(i=>({...i,isSpell:true})).filter(i=>i.activation==='bonus'),
+            ...featuresWithActivation.filter(i=>i.activation==='bonus'),
+          ],
+          reactions: [
+            ...weaponsForActions.map(i=>({...i,isWeapon:true})).filter(i=>i.activation==='reaction'),
+            ...maneuvers.map(i=>({...i,isManeuver:true})).filter(i=>i.activation==='reaction'),
+            ...spells.map(i=>({...i,isSpell:true})).filter(i=>i.activation==='reaction'),
+            ...featuresWithActivation.filter(i=>i.activation==='reaction'),
+          ],
+        };
+      })(),
 
       // Spell level order for template iteration (Handlebars can't do computed keys)
       spellLevelOrder: ['Level 1','Level 2','Level 3','Level 4','Level 5',
@@ -363,10 +376,21 @@ export class A5eCharacterSheet extends ActorSheet {
   }
 
   #feature(item) {
+    const sys = item.system ?? {};
+    const actions = sys.actions ? Object.values(sys.actions) : [];
+    const firstAction = actions[0] ?? {};
+    const activation = this.#resolveActivation(firstAction, sys);
+    const atkBonus = firstAction.attackBonus ?? firstAction.attack?.bonus ?? null;
+    const dmgArr = firstAction.damage ?? firstAction.damages ?? [];
+    const dmg = dmgArr[0]?.formula ?? null;
     return {
       id: item.id, name: item.name, img: item.img,
       type: item.type, source: item.type.charAt(0).toUpperCase() + item.type.slice(1),
-      desc: item.system?.description?.value ?? ''
+      desc: sys.description?.value ?? '',
+      activation,
+      isAbility: true,
+      atkBonus: atkBonus ? sign(Number(atkBonus)) : null,
+      dmg,
     };
   }
 
@@ -581,16 +605,37 @@ export class A5eCharacterSheet extends ActorSheet {
       btn.addEventListener('click', async () => {
         const id = btn.dataset.id;
         if (!id) return;
-        // Foundry v11+ native toggle
-        if (typeof this.actor.toggleStatusEffect === 'function') {
-          await this.actor.toggleStatusEffect(id);
+
+        // Find existing effect by conditionId (A5e) OR statuses set (Foundry standard)
+        const existing = this.actor.effects.find(e =>
+          (e.conditionId === id) ||
+          (e.statuses?.has(id)) ||
+          (e.getFlag?.('core', 'statusId') === id)
+        );
+
+        if (existing) {
+          await existing.delete();
           return;
         }
-        // Fallback: manually add/remove the effect
-        const existing = this.actor.effects.find(e => e.statuses?.has(id) || e.getFlag('core','statusId') === id);
-        if (existing) { await existing.delete(); return; }
-        const def = CONFIG.statusEffects.find(s => s.id === id);
-        if (def) await ActiveEffect.create({ ...def, statuses: [id] }, { parent: this.actor });
+
+        // Try Foundry v11+ native toggle first (works for standard status effects)
+        if (typeof this.actor.toggleStatusEffect === 'function') {
+          try {
+            await this.actor.toggleStatusEffect(id, { active: true });
+            return;
+          } catch(e) { /* fall through to manual create */ }
+        }
+
+        // Manual create with conditionId for A5e
+        const def = (CONFIG.statusEffects ?? []).find(s => s.id === id);
+        if (!def) return;
+        const effectData = {
+          name:   game.i18n.localize(def.label ?? def.name ?? id),
+          icon:   def.icon ?? def.img ?? 'icons/svg/mystery-man.svg',
+          statuses: [id],
+          flags: { a5e: { conditionId: id } },
+        };
+        await ActiveEffect.create(effectData, { parent: this.actor });
       })
     );
 
