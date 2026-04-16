@@ -656,29 +656,34 @@
     {{!-- ── RIGHT: Saves + Conditions + Proficiencies ─────────────────── --}}
     <aside class="am-cs-right">
 
-      {{!-- Equipped Items Panel --}}
-      {{#if hasEquippedItems}}
-        <div class="am-cs-sidebar-heading">EQUIPPED</div>
+      {{!-- Attunement Panel --}}
+      {{#if hasAttunementItems}}
+        <div class="am-cs-sidebar-heading">
+          ATTUNEMENT
+          <span class="am-cs-attune-slots am-cs-muted">{{attuneCount}}/3</span>
+        </div>
         <div class="am-cs-equipped-panel">
-          {{#each equippedItems}}
-            <div class="am-cs-eq-item am-item-row" data-item-id="{{this.id}}" draggable="true">
+          {{#each attunementItems}}
+            <div class="am-cs-eq-item {{#if this.attuned}}am-cs-eq-attuned-row{{/if}} am-item-row"
+              data-item-id="{{this.id}}" draggable="true">
               <img src="{{this.img}}" class="am-cs-ico" alt="" />
               <span class="am-item-name am-cs-eq-name">{{this.name}}</span>
               {{#if this.dmg}}
                 <span class="am-cs-eq-stat am-cs-muted">{{this.dmg}}</span>
               {{/if}}
-              {{#if this.attuned}}
-                <span title="Attuned" style="color:#9060c0;font-size:0.65rem"><i class="fa-solid fa-gem"></i></span>
-              {{/if}}
-              <button type="button" class="am-cs-use-btn am-cs-eq-use"
-                data-action="item-use" data-id="{{this.id}}" title="Use {{this.name}}">▶</button>
+              <button type="button"
+                class="am-cs-attune-btn {{#if this.attuned}}am-cs-attuned-btn{{/if}} am-cs-eq-use"
+                data-action="item-attune" data-id="{{this.id}}"
+                title="{{#if this.attuned}}Attuned — click to break{{else}}Not attuned — click to attune{{/if}}">
+                <i class="fa-solid fa-gem"></i>
+              </button>
             </div>
           {{/each}}
         </div>
       {{/if}}
 
       {{!-- Saving Throws --}}
-      <div class="am-cs-sidebar-heading" {{#if hasEquippedItems}}style="margin-top:0.5rem"{{/if}}>SAVING THROWS</div>
+      <div class="am-cs-sidebar-heading" {{#if hasAttunementItems}}style="margin-top:0.5rem"{{/if}}>SAVING THROWS</div>
       <div class="am-cs-saves-grid">
         {{#each savingThrows}}
           <div class="am-cs-save">

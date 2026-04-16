@@ -163,11 +163,12 @@ export class A5eCharacterSheet extends ActorSheet {
                             .map(i => this.#gear(i));
     const classes   = items.filter(i => i.type === 'class').map(i => this.#classItem(i));
 
-    /* Equipped items panel — weapons + gear with equippedState === 2 */
-    const equippedItems = [
-      ...weapons.filter(i => i.equipped).map(i => ({ ...i, itemType: 'weapon' })),
-      ...equipment.filter(i => i.equipped).map(i => ({ ...i, itemType: 'gear' }))
+    /* Attunement panel — all items that require attunement (any equip state) */
+    const attunementItems = [
+      ...weapons.filter(i => i.needsAttune).map(i => ({ ...i, itemType: 'weapon' })),
+      ...equipment.filter(i => i.needsAttune).map(i => ({ ...i, itemType: 'gear' }))
     ];
+    const attuneCount = attunementItems.filter(i => i.attuned).length;
 
     /* Maneuvers grouped by tradition */
     const maneuverGroups = this.#groupBy(maneuvers, 'tradition');
@@ -266,21 +267,21 @@ export class A5eCharacterSheet extends ActorSheet {
       features, feats, allFeatures, customCounters, equipment, currency,
       fatiguePips, strifePips, exertionPips,
       fatigueDesc, strifeDesc, statusConditions,
-      equippedItems, passivePerception, charInfo,
-      hasWeapons:        weapons.length   > 0,
-      hasManeuvers:      maneuvers.length > 0,
-      hasSpells:         spells.length    > 0,
-      hasFeatures:       features.length  > 0,
-      hasEquipment:      equipment.length > 0,
-      hasCombat:         weapons.length + maneuvers.length + spells.length > 0,
-      hasEquippedItems:  equippedItems.length > 0,
+      attunementItems, attuneCount, passivePerception, charInfo,
+      hasWeapons:          weapons.length        > 0,
+      hasManeuvers:        maneuvers.length      > 0,
+      hasSpells:           spells.length         > 0,
+      hasFeatures:         features.length       > 0,
+      hasEquipment:        equipment.length      > 0,
+      hasCombat:           weapons.length + maneuvers.length + spells.length > 0,
+      hasAttunementItems:  attunementItems.length > 0,
 
       // Tag items with type for partial rendering
       ...[...weapons.map(i => ({...i, isWeapon: true})),
           ...maneuvers.map(i => ({...i, isManeuver: true})),
           ...spells.map(i => ({...i, isSpell: true}))].forEach(() => {}),
 
-      // Actions tab — equipped weapons (fallback: all weapons), maneuvers, spells, features
+      // Actions tab — equipped weapons (fallback: all weapons), spells, features (NO maneuvers — they have their own tab)
       ...(()=>{
         const equippedWeapons = weapons.filter(i => i.equipped);
         // If no weapons are equipped yet, fall back to showing all so tab isn't empty
@@ -289,20 +290,17 @@ export class A5eCharacterSheet extends ActorSheet {
         return {
           actionsGroup: [
             ...weaponsForActions.map(i=>({...i,isWeapon:true})).filter(i=>i.activation==='action'),
-            ...maneuvers.map(i=>({...i,isManeuver:true})).filter(i=>i.activation==='action'),
             ...spells.map(i=>({...i,isSpell:true})).filter(i=>
               i.activation==='action'&&(i.level===0||i.prepared!==false)),
             ...featuresWithActivation.filter(i=>i.activation==='action'),
           ],
           bonusActions: [
             ...weaponsForActions.map(i=>({...i,isWeapon:true})).filter(i=>i.activation==='bonus'),
-            ...maneuvers.map(i=>({...i,isManeuver:true})).filter(i=>i.activation==='bonus'),
             ...spells.map(i=>({...i,isSpell:true})).filter(i=>i.activation==='bonus'),
             ...featuresWithActivation.filter(i=>i.activation==='bonus'),
           ],
           reactions: [
             ...weaponsForActions.map(i=>({...i,isWeapon:true})).filter(i=>i.activation==='reaction'),
-            ...maneuvers.map(i=>({...i,isManeuver:true})).filter(i=>i.activation==='reaction'),
             ...spells.map(i=>({...i,isSpell:true})).filter(i=>i.activation==='reaction'),
             ...featuresWithActivation.filter(i=>i.activation==='reaction'),
           ],

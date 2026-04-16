@@ -4093,7 +4093,14 @@
   }
 }
 
-/* ── Equipped Items Panel (right sidebar) ─────────── */
+/* ── Attunement Panel (right sidebar) ────────────── */
+.am-cs-attune-slots {
+  float: right;
+  font-size: 0.7rem;
+  font-weight: normal;
+  letter-spacing: normal;
+}
+
 .am-cs-equipped-panel {
   display: flex;
   flex-direction: column;
@@ -4107,17 +4114,22 @@
   gap: 0.3rem;
   padding: 0.18rem 0.35rem;
   border-radius: 4px;
-  border: 1px solid color-mix(in srgb, var(--cs-green) 40%, var(--cs-border));
-  background: rgba(74,154,96,0.06);
+  border: 1px solid rgba(144,96,192,0.35);
+  background: rgba(144,96,192,0.06);
   cursor: grab;
   transition: background 0.12s, border-color 0.12s;
 
   &:hover {
-    background: rgba(74,154,96,0.14);
-    border-color: var(--cs-green);
+    background: rgba(144,96,192,0.14);
+    border-color: #9060c0;
   }
 
   &:active { cursor: grabbing; }
+
+  &.am-cs-eq-attuned-row {
+    border-color: #9060c0;
+    background: rgba(144,96,192,0.12);
+  }
 
   .am-cs-ico {
     width: 1.3rem;
