@@ -230,11 +230,23 @@ export class SpellService {
       ?? Object.keys(actor.system?.spellBooks ?? {})[0]
       ?? null;
 
+    // Collect existing spell names + source UUIDs to prevent duplicates
+    const existingNames = new Set(
+      actor.items.filter(i => i.type === 'spell').map(i => i.name.toLowerCase())
+    );
+    const existingSources = new Set(
+      actor.items.filter(i => i.type === 'spell')
+        .map(i => i._stats?.compendiumSource ?? i.flags?.core?.sourceId ?? '')
+        .filter(Boolean)
+    );
+
     const itemDatas = [];
     for (const uuid of spellUuids) {
+      if (existingSources.has(uuid)) continue; // exact UUID match
       try {
         const item = await fromUuid(uuid);
         if (!item) continue;
+        if (existingNames.has(item.name.toLowerCase())) continue; // name match fallback
         const data = item.toObject();
         data._stats = data._stats || {};
         data._stats.compendiumSource = uuid;
@@ -244,6 +256,7 @@ export class SpellService {
           data.system.spellBook = spellBookId;
         }
         itemDatas.push(data);
+        existingNames.add(item.name.toLowerCase()); // prevent within-batch dupes
       } catch (err) {
         AM.log(2, `Error fetching spell ${uuid}:`, err);
       }

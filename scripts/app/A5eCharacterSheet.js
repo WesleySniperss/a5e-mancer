@@ -136,17 +136,28 @@ export class A5eCharacterSheet extends ActorSheet {
       deathSaves: sys.attributes?.death ?? null
     };
 
-    /* Items categorised */
-    const weapons   = items.filter(i => i.type === 'weapon').map(i => this.#weapon(i));
+    /* Items categorised — A5e uses type='object' + system.objectType for all physical items */
+    const weapons   = items.filter(i => i.type === 'object' && i.system?.objectType === 'weapon')
+                            .map(i => this.#weapon(i));
     const maneuvers = items.filter(i => i.type === 'maneuver').map(i => this.#maneuver(i));
     const spells    = items.filter(i => i.type === 'spell').map(i => this.#spell(i));
-    const features  = items.filter(i => ['feature','feat','background','heritage','culture','destiny'].includes(i.type))
+    const features  = items.filter(i => ['feature','background','heritage','culture','destiny'].includes(i.type))
                             .map(i => this.#feature(i));
     const feats       = items.filter(i => i.type === 'feat').map(i => this.#feat(i));
     const allFeatures = [
       ...features.map(f => ({...f, type: 'feature'})),
       ...feats.map(f => ({...f, type: 'feat'}))
     ].sort((a, b) => a.name.localeCompare(b.name));
+
+    const _srcOrder = ['Class', 'Heritage', 'Culture', 'Background', 'Destiny', 'Feat', 'Other'];
+    const _fGroups = new Map(_srcOrder.map(s => [s, []]));
+    for (const f of allFeatures) {
+      const key = _srcOrder.includes(f.source) ? f.source : 'Other';
+      _fGroups.get(key).push(f);
+    }
+    const featuresBySource = [..._fGroups.entries()]
+      .filter(([, arr]) => arr.length > 0)
+      .map(([source, items]) => ({ source, items }));
 
     // Custom counters — stored in actor flags
     const savedCounters = actor.getFlag(MODULE_ID, 'customCounters') ?? [{}, {}];
@@ -159,7 +170,8 @@ export class A5eCharacterSheet extends ActorSheet {
         : [];
       return { name: s.name ?? '', value: val, max, pips };
     });
-    const equipment = items.filter(i => ['equipment','tool','consumable','backpack','loot','object'].includes(i.type))
+    // All non-weapon objects go to equipment panel
+    const equipment = items.filter(i => i.type === 'object' && i.system?.objectType !== 'weapon')
                             .map(i => this.#gear(i));
     const classes   = items.filter(i => i.type === 'class').map(i => this.#classItem(i));
 
@@ -182,14 +194,13 @@ export class A5eCharacterSheet extends ActorSheet {
       spellGroups[k].push(s);
     }
 
-    /* Spell slots */
-    const rawSlots = sys.spellcasting?.slots ?? sys.spells ?? {};
+    /* Spell slots — A5e stores at system.spellResources.slots keyed by level string, uses 'current' */
+    const rawSlots = sys.spellResources?.slots ?? sys.spellcasting?.slots ?? sys.spells ?? {};
     const slotRows = [1,2,3,4,5,6,7,8,9].map(l => {
-      const d = rawSlots[`spell${l}`] ?? rawSlots[l] ?? {};
-      const max   = d.max   ?? 0;
-      const value = d.value ?? 0;
+      const d = rawSlots[String(l)] ?? rawSlots[`spell${l}`] ?? rawSlots[l] ?? {};
+      const max   = d.max     ?? 0;
+      const value = d.current ?? d.value ?? 0;
       if (!max) return null;
-      // Build array of pip states
       const pips = Array.from({ length: max }, (_, i) => ({ index: i, used: i >= value, level: l }));
       return { level: l, value, max, pips };
     }).filter(Boolean);
@@ -242,16 +253,20 @@ export class A5eCharacterSheet extends ActorSheet {
         _condMap.set(s.id, { ...s, _hasDesc: hasDesc });
       }
     }
+    const _stripHtml = h => h.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
     const statusConditions = [..._condMap.values()]
-      .map(s => ({
-        id:          s.id,
-        label:       game.i18n.localize(s.label ?? s.name),
-        icon:        s.icon ?? s.img ?? 'icons/svg/mystery-man.svg',
-        description: s.description ? game.i18n.localize(s.description)
-                   : s.hint        ? game.i18n.localize(s.hint)
-                   : '',
-        active:      activeCondIds.has(s.id)
-      }))
+      .map(s => {
+        const rawDesc = s.description ? game.i18n.localize(s.description)
+                      : s.hint        ? game.i18n.localize(s.hint)
+                      : '';
+        return {
+          id:          s.id,
+          label:       game.i18n.localize(s.label ?? s.name),
+          icon:        s.icon ?? s.img ?? 'icons/svg/mystery-man.svg',
+          description: rawDesc ? _stripHtml(rawDesc) : '',
+          active:      activeCondIds.has(s.id)
+        };
+      })
       .sort((a, b) => a.label.localeCompare(b.label));
 
     /* Currency */
@@ -263,12 +278,20 @@ export class A5eCharacterSheet extends ActorSheet {
 
     /* Character overview info */
     const totalLevel = classes.reduce((n, c) => n + c.level, 0) || 1;
+    const _hItem = items.find(i => i.type === 'heritage');
+    const _cItem = items.find(i => i.type === 'culture');
+    const _bgItem = items.find(i => i.type === 'background');
+    const _dItem  = items.find(i => i.type === 'destiny');
     const charInfo = {
       totalLevel,
-      heritage:   items.find(i => i.type === 'heritage')?.name   ?? sys.details?.heritage?.name   ?? '—',
-      culture:    items.find(i => i.type === 'culture')?.name    ?? sys.details?.culture?.name    ?? '—',
-      background: items.find(i => i.type === 'background')?.name ?? sys.details?.background?.name ?? '—',
-      destiny:    items.find(i => i.type === 'destiny')?.name    ?? sys.details?.destiny?.name    ?? null
+      heritage:   _hItem?.name   ?? sys.details?.heritage?.name   ?? '—',
+      culture:    _cItem?.name   ?? sys.details?.culture?.name    ?? '—',
+      background: _bgItem?.name  ?? sys.details?.background?.name ?? '—',
+      destiny:    _dItem?.name   ?? sys.details?.destiny?.name    ?? null,
+      heritageDesc:   _hItem?.system?.description?.value   ?? '',
+      cultureDesc:    _cItem?.system?.description?.value   ?? '',
+      backgroundDesc: _bgItem?.system?.description?.value  ?? '',
+      destinyDesc:    _dItem?.system?.description?.value   ?? '',
     };
 
     return {
@@ -276,7 +299,7 @@ export class A5eCharacterSheet extends ActorSheet {
       abilities, skills, resources, classes,
       savingThrows, maneuverDC, proficiencies,
       weapons, maneuvers, maneuverGroups, spells, spellGroups, slotRows,
-      features, feats, allFeatures, customCounters, equipment, currency,
+      features, feats, allFeatures, featuresBySource, customCounters, equipment, currency,
       fatiguePips, strifePips, exertionPips,
       fatigueDesc, strifeDesc, statusConditions,
       attunementItems, attuneCount, passivePerception, charInfo,
@@ -293,28 +316,27 @@ export class A5eCharacterSheet extends ActorSheet {
           ...maneuvers.map(i => ({...i, isManeuver: true})),
           ...spells.map(i => ({...i, isSpell: true}))].forEach(() => {}),
 
-      // Actions tab — weapons + spells + active class abilities (Maneuvers → Martial, passive feats → Features)
+      // Actions tab — 4 sections: ATTACKS · ACTIONS · BONUS · REACTIONS
       ...(()=>{
         const equippedWeapons = weapons.filter(i => i.equipped);
         const weaponsForActions = equippedWeapons.length ? equippedWeapons : weapons;
-        // Features/abilities with actual activations (class abilities, heritage abilities, etc.)
-        const activeFeatures = features.filter(f => f.activation !== 'other');
+        const wm = weaponsForActions.map(i => ({...i, isWeapon: true}));
+        const sm = spells.map(i => ({...i, isSpell: true})).filter(i => i.level===0 || i.prepared!==false);
+        // Only class features with actual A5e actions go into the actions tab
+        const activeFeatures = features.filter(f => f.featureType === 'class' && f.hasActions && f.activation !== 'other');
+        const fm = activeFeatures.map(f => ({...f, isFeature: true}));
         return {
-          actionsGroup: [
-            ...weaponsForActions.map(i=>({...i,isWeapon:true})).filter(i=>i.activation==='action'),
-            ...spells.map(i=>({...i,isSpell:true})).filter(i=>
-              i.activation==='action'&&(i.level===0||i.prepared!==false)),
-            ...activeFeatures.filter(f=>f.activation==='action').map(f=>({...f,isFeature:true})),
-          ],
+          // Weapon attacks only (no spells — spells are in Magic tab)
+          attackActions: wm.filter(i => i.activation !== 'bonus' && i.activation !== 'reaction'),
+          // Class/heritage/background abilities that cost a main action
+          abilityActions: fm.filter(f => f.activation === 'action'),
           bonusActions: [
-            ...weaponsForActions.map(i=>({...i,isWeapon:true})).filter(i=>i.activation==='bonus'),
-            ...spells.map(i=>({...i,isSpell:true})).filter(i=>i.activation==='bonus'),
-            ...activeFeatures.filter(f=>f.activation==='bonus').map(f=>({...f,isFeature:true})),
+            ...wm.filter(i => i.activation === 'bonus'),
+            ...fm.filter(f => f.activation === 'bonus'),
           ],
           reactions: [
-            ...weaponsForActions.map(i=>({...i,isWeapon:true})).filter(i=>i.activation==='reaction'),
-            ...spells.map(i=>({...i,isSpell:true})).filter(i=>i.activation==='reaction'),
-            ...activeFeatures.filter(f=>f.activation==='reaction').map(f=>({...f,isFeature:true})),
+            ...wm.filter(i => i.activation === 'reaction'),
+            ...fm.filter(f => f.activation === 'reaction'),
           ],
         };
       })(),
@@ -336,12 +358,15 @@ export class A5eCharacterSheet extends ActorSheet {
 
   #weapon(item) {
     const sys = item.system;
-    const actions = sys.actions ? Object.values(sys.actions) : [];
+    // A5e actions may be a plain object or an EmbeddedCollection — handle both
+    const actionsRaw = sys.actions ?? {};
+    const actions = actionsRaw.contents ?? Object.values(actionsRaw);
     const firstAction = actions[0] ?? {};
     const atkBonus = firstAction.attackBonus ?? firstAction.attack?.bonus ?? '';
     const dmgArr   = firstAction.damage ?? firstAction.damages ?? [];
     const dmg      = dmgArr[0]?.formula ?? dmgArr[0]?.dice ?? '—';
     const activation = this.#resolveActivation(firstAction, sys);
+    AM.log(3, `weapon "${item.name}" activation="${activation}" equippedState=${sys.equippedState ?? 1}`);
     const rng = sys.range ?? {};
     const rangeStr = rng.reach
       ? `${rng.reach} ft`
@@ -376,7 +401,8 @@ export class A5eCharacterSheet extends ActorSheet {
   #maneuver(item) {
     const sys = item.system;
     const tradition = this.#normTrad(sys.tradition ?? sys.combatTradition ?? '');
-    const actions = sys.actions ? Object.values(sys.actions) : [];
+    const actionsRaw = sys.actions ?? {};
+    const actions = actionsRaw.contents ?? Object.values(actionsRaw);
     const firstAction = actions[0] ?? {};
     const activation = this.#resolveActivation(firstAction, sys);
     const degree    = sys.degree ?? sys.maneuverDegree ?? 1;
@@ -403,7 +429,8 @@ export class A5eCharacterSheet extends ActorSheet {
 
   #spell(item) {
     const sys = item.system;
-    const actions = sys.actions ? Object.values(sys.actions) : [];
+    const actionsRaw = sys.actions ?? {};
+    const actions = actionsRaw.contents ?? Object.values(actionsRaw);
     const firstAction = actions[0] ?? {};
     const activation = this.#resolveActivation(firstAction, sys);
     const level = sys.level ?? sys.spellLevel ?? 0;
@@ -437,7 +464,8 @@ export class A5eCharacterSheet extends ActorSheet {
 
   #feature(item) {
     const sys = item.system ?? {};
-    const actions = sys.actions ? Object.values(sys.actions) : [];
+    const actionsRaw = sys.actions ?? {};
+    const actions = actionsRaw.contents ?? Object.values(actionsRaw);
     const firstAction = actions[0] ?? {};
     const activation = this.#resolveActivation(firstAction, sys);
     const atkBonus = firstAction.attackBonus ?? firstAction.attack?.bonus ?? null;
@@ -448,9 +476,15 @@ export class A5eCharacterSheet extends ActorSheet {
     const rangeStr = rangeVal ? `${rangeVal} ${firstAction.range?.units ?? sys.range?.units ?? 'ft'}` : null;
     return {
       id: item.id, name: item.name, img: item.img,
-      type: item.type, source: item.type.charAt(0).toUpperCase() + item.type.slice(1),
+      type: item.type,
+      featureType: sys.featureType ?? (item.type !== 'feature' ? item.type : 'other'),
+      source: ({ class:'Class', heritage:'Heritage', culture:'Culture', background:'Background',
+                 destiny:'Destiny', feat:'Feat', naturalWeapon:'Heritage',
+                 boon:'Other', knack:'Other', paragon:'Other' })[sys.featureType ?? item.type]
+              ?? item.type.charAt(0).toUpperCase() + item.type.slice(1),
       desc: sys.description?.value ?? '',
       activation,
+      hasActions: actions.length > 0,
       isAbility: true,
       atkBonus: atkBonus ? sign(Number(atkBonus)) : null,
       dmg,
@@ -638,29 +672,21 @@ export class A5eCharacterSheet extends ActorSheet {
       })
     );
 
-    /* Right-click any item row → show description in the panel inside the same tab */
+    /* Right-click any item row → open A5e activation dialog (with adv/disadv modifiers) */
     el.querySelectorAll('.am-item-row[data-item-id]').forEach(row =>
-      row.addEventListener('contextmenu', (e) => {
+      row.addEventListener('contextmenu', async (e) => {
         e.preventDefault();
         const item = this.actor.items.get(row.dataset.itemId);
         if (!item) return;
-        // Find the .am-cs-desc-panel in the same tab section
-        const panel = row.closest('section.tab')?.querySelector('.am-cs-desc-panel');
-        if (!panel) return;
-        const raw     = item.system?.description?.value ?? '';
-        const summary = row.querySelector('.am-act-summary')?.textContent?.trim() ?? '';
-        panel.innerHTML = `
-          <div class="am-desc-header">
-            <img src="${item.img}" class="am-cs-ico" />
-            <strong>${item.name}</strong>
-            ${summary ? `<span class="am-cs-muted" style="font-size:0.72rem;font-weight:normal;flex:1">${summary}</span>` : ''}
-            <button type="button" class="am-desc-close" title="Close">✕</button>
-          </div>
-          <div class="am-desc-body">${raw || '<em>No description.</em>'}</div>`;
-        panel.style.display = '';
-        panel.querySelector('.am-desc-close')?.addEventListener('click', () => {
-          panel.style.display = 'none';
-        });
+        try {
+          if (typeof item.activate === 'function') { await item.activate(); return; }
+          if (typeof item.use      === 'function') { await item.use();      return; }
+          if (typeof item.roll     === 'function') { await item.roll();     return; }
+          item.sheet.render(true);
+        } catch(err) {
+          AM.log(2, 'contextmenu activate error:', err);
+          item.sheet.render(true);
+        }
       })
     );
 
@@ -800,8 +826,8 @@ export class A5eCharacterSheet extends ActorSheet {
         const idx  = parseInt(pip.dataset.index);
         const cur  = parseInt(pip.dataset.current);
         const next = idx === cur - 1 ? idx : idx + 1;
-        await this.actor.update({ [`system.spellcasting.slots.spell${lvl}.value`]: next })
-          .catch(() => this.actor.update({ [`system.spells.spell${lvl}.value`]: next }));
+        await this.actor.update({ [`system.spellResources.slots.${lvl}.current`]: next })
+          .catch(() => this.actor.update({ [`system.spellcasting.slots.spell${lvl}.value`]: next }));
       })
     );
 
@@ -989,12 +1015,12 @@ export class A5eCharacterSheet extends ActorSheet {
 
     /* Manage maneuvers */
     el.querySelector('[data-action="manage-maneuvers"]')?.addEventListener('click', () =>
-      new ManeuverDialog(this.actor, { slotsAvailable: 0 }).render(true)
+      new ManeuverDialog(this.actor, { slotsAvailable: -1 }).render(true)
     );
 
     /* Manage spells */
     el.querySelector('[data-action="manage-spells"]')?.addEventListener('click', () =>
-      new SpellDialog(this.actor, { slotsAvailable: 0 }).render(true)
+      new SpellDialog(this.actor, { cantripsToChoose: -1, spellsToChoose: -1 }).render(true)
     );
 
     /* Feature collapse */

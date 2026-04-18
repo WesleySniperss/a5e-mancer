@@ -180,12 +180,13 @@
             <div class="am-cs-crit-note">Critical on: {{resources.critRange}}</div>
           {{/if}}
 
-          {{!-- Macro: render one action group --}}
-          {{!-- ACTIONS --}}
-          {{#if actionsGroup.length}}
+          {{!-- Helper partial for one item row --}}
+
+          {{!-- ATTACKS (weapons + action-cost spells) --}}
+          {{#if attackActions.length}}
             <div class="am-cs-act-section">
-              <div class="am-cs-act-head">ACTIONS</div>
-              {{#each actionsGroup}}
+              <div class="am-cs-act-head am-act-attacks">ATTACKS</div>
+              {{#each attackActions}}
                 <div class="am-item-row am-act-row" data-item-id="{{this.id}}">
                   <img src="{{this.img}}" class="am-cs-ico" alt="" />
                   <div class="am-act-info">
@@ -196,6 +197,29 @@
                         {{#if this.concentration}}<span class="am-cs-tag am-tag-c" title="Concentration">C</span>{{/if}}
                         {{#if this.ritual}}<span class="am-cs-tag am-tag-r" title="Ritual">R</span>{{/if}}
                       {{/if}}
+                    </div>
+                    {{#if this.summary}}<div class="am-act-summary am-cs-muted">{{this.summary}}</div>{{/if}}
+                  </div>
+                  <div class="am-act-btns">
+                    <button type="button" class="am-cs-use-btn" data-action="item-use" data-id="{{this.id}}">Use</button>
+                    {{> am-controls id=this.id}}
+                  </div>
+                </div>
+              {{/each}}
+            </div>
+          {{/if}}
+
+          {{!-- ACTIONS (class/heritage abilities that cost an action) --}}
+          {{#if abilityActions.length}}
+            <div class="am-cs-act-section">
+              <div class="am-cs-act-head">ACTIONS</div>
+              {{#each abilityActions}}
+                <div class="am-item-row am-act-row" data-item-id="{{this.id}}">
+                  <img src="{{this.img}}" class="am-cs-ico" alt="" />
+                  <div class="am-act-info">
+                    <div class="am-act-name-row">
+                      <span class="am-item-name">{{this.name}}</span>
+                      {{#if this.atkBonus}}<span class="am-cs-tag am-tag-atk">{{this.atkBonus}}</span>{{/if}}
                     </div>
                     {{#if this.summary}}<div class="am-act-summary am-cs-muted">{{this.summary}}</div>{{/if}}
                   </div>
@@ -254,7 +278,7 @@
             </div>
           {{/if}}
 
-          {{#unless (or actionsGroup.length bonusActions.length reactions.length)}}
+          {{#unless (or attackActions.length abilityActions.length bonusActions.length reactions.length)}}
             <div class="am-cs-empty">
               <i class="fa-solid fa-swords fa-2x"></i>
               {{#if hasWeapons}}
@@ -553,22 +577,24 @@
 
         {{!-- ▸ FEATURES ──────────────────────────────────────────────── --}}
         <section class="tab" data-tab="features" data-group="primary">
-          {{#if allFeatures.length}}
-            <div class="am-cs-features-list">
-              {{#each allFeatures}}
-                <details class="am-cs-feature" data-item-id="{{this.id}}">
-                  <summary class="am-cs-feature-summary">
-                    <img src="{{this.img}}" class="am-cs-ico" alt="" />
-                    <span class="am-item-name">{{this.name}}</span>
-                    <span class="am-cs-feat-src am-cs-muted">{{this.source}}</span>
-                    {{> am-controls id=this.id}}
-                  </summary>
-                  <div class="am-cs-feature-desc">
-                    {{{this.desc}}}
-                  </div>
-                </details>
-              {{/each}}
-            </div>
+          {{#if featuresBySource.length}}
+            {{#each featuresBySource}}
+              <div class="am-cs-feat-group">
+                <div class="am-cs-feat-group-head">{{this.source}}</div>
+                {{#each this.items}}
+                  <details class="am-cs-feature" data-item-id="{{this.id}}">
+                    <summary class="am-cs-feature-summary">
+                      <img src="{{this.img}}" class="am-cs-ico" alt="" />
+                      <span class="am-item-name">{{this.name}}</span>
+                      {{> am-controls id=this.id}}
+                    </summary>
+                    <div class="am-cs-feature-desc">
+                      {{{this.desc}}}
+                    </div>
+                  </details>
+                {{/each}}
+              </div>
+            {{/each}}
           {{else}}
             <div class="am-cs-empty">
               <i class="fa-solid fa-scroll fa-2x"></i>
@@ -579,7 +605,42 @@
 
         {{!-- ▸ NOTES ────────────────────────────────────────────────── --}}
         <section class="tab" data-tab="notes" data-group="primary">
+
+          {{!-- Origin info panels (read-only from items) --}}
+          <div class="am-cs-origin-cards">
+            {{#if charInfo.heritageDesc}}
+              <div class="am-cs-origin-card">
+                <div class="am-cs-note-label">Heritage — {{charInfo.heritage}}</div>
+                <div class="am-cs-origin-desc">{{{charInfo.heritageDesc}}}</div>
+              </div>
+            {{/if}}
+            {{#if charInfo.cultureDesc}}
+              <div class="am-cs-origin-card">
+                <div class="am-cs-note-label">Culture — {{charInfo.culture}}</div>
+                <div class="am-cs-origin-desc">{{{charInfo.cultureDesc}}}</div>
+              </div>
+            {{/if}}
+            {{#if charInfo.backgroundDesc}}
+              <div class="am-cs-origin-card">
+                <div class="am-cs-note-label">Background — {{charInfo.background}}</div>
+                <div class="am-cs-origin-desc">{{{charInfo.backgroundDesc}}}</div>
+              </div>
+            {{/if}}
+            {{#if charInfo.destinyDesc}}
+              <div class="am-cs-origin-card">
+                <div class="am-cs-note-label">Destiny — {{charInfo.destiny}}</div>
+                <div class="am-cs-origin-desc">{{{charInfo.destinyDesc}}}</div>
+              </div>
+            {{/if}}
+          </div>
+
+          {{!-- Editable biography fields (A5e field paths: no .value subkey) --}}
           <div class="am-cs-notes-grid">
+
+            <div class="am-cs-note-card am-cs-note-wide">
+              <div class="am-cs-note-label">Notes / Backstory</div>
+              <div class="am-cs-note-html">{{{actor.system.details.notes}}}</div>
+            </div>
 
             <div class="am-cs-note-card">
               <div class="am-cs-note-label">Ideals</div>
@@ -600,15 +661,8 @@
             </div>
 
             <div class="am-cs-note-card">
-              <div class="am-cs-note-label">Goals <span class="am-cs-muted">(A5e)</span></div>
-              <textarea class="am-cs-note-text" name="system.details.goals"
-                placeholder="Destiny goals...">{{actor.system.details.goals}}</textarea>
-            </div>
-
-            <div class="am-cs-note-card am-cs-note-wide">
-              <div class="am-cs-note-label">Notes / Backstory</div>
-              <textarea class="am-cs-note-text am-cs-note-tall" name="system.details.notes"
-                placeholder="Your character's history, personality, and notes...">{{actor.system.details.notes}}</textarea>
+              <div class="am-cs-note-label">Goals <span class="am-cs-muted">(Destiny)</span></div>
+              <div class="am-cs-note-html">{{{actor.system.details.goals}}}</div>
             </div>
 
           </div>
@@ -618,9 +672,9 @@
             <div><label>Age</label><input type="text" class="am-cs-phys-inp" name="system.details.age" value="{{actor.system.details.age}}" /></div>
             <div><label>Height</label><input type="text" class="am-cs-phys-inp" name="system.details.height" value="{{actor.system.details.height}}" /></div>
             <div><label>Weight</label><input type="text" class="am-cs-phys-inp" name="system.details.weight" value="{{actor.system.details.weight}}" /></div>
-            <div><label>Eyes</label><input type="text" class="am-cs-phys-inp" name="system.details.eyeColor" value="{{actor.system.details.eyeColor}}" /></div>
-            <div><label>Hair</label><input type="text" class="am-cs-phys-inp" name="system.details.hairColor" value="{{actor.system.details.hairColor}}" /></div>
-            <div><label>Skin</label><input type="text" class="am-cs-phys-inp" name="system.details.skinColor" value="{{actor.system.details.skinColor}}" /></div>
+            <div><label>Eyes</label><input type="text" class="am-cs-phys-inp" name="system.details.eyes" value="{{actor.system.details.eyes}}" /></div>
+            <div><label>Hair</label><input type="text" class="am-cs-phys-inp" name="system.details.hair" value="{{actor.system.details.hair}}" /></div>
+            <div><label>Skin</label><input type="text" class="am-cs-phys-inp" name="system.details.skin" value="{{actor.system.details.skin}}" /></div>
           </div>
 
         </section>
@@ -663,12 +717,12 @@
         {{#each savingThrows}}
           <div class="am-cs-save">
             <span class="am-cs-prof-dot am-cs-prof-{{#if this.proficient}}2{{else}}0{{/if}}"></span>
+            <span class="am-cs-save-lbl">{{this.abbr}}</span>
             <button type="button" class="am-cs-save-mod" data-action="saving-throw"
               data-ability="{{this.key}}" data-mod="{{this.mod}}" data-label="{{this.label}} Save"
               title="{{this.label}} Save">
               {{this.modStr}}
             </button>
-            <span class="am-cs-save-lbl">{{this.abbr}}</span>
           </div>
         {{/each}}
       </div>

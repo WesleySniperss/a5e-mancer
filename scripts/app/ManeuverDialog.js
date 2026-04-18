@@ -14,7 +14,7 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   /**
    * @param {Actor} actor
    * @param {object} options
-   * @param {number} [options.slotsAvailable]   How many NEW maneuvers to pick (0 = free manage)
+   * @param {number} [options.slotsAvailable]   How many NEW maneuvers to pick (-1 = free manage, 0 = none allowed)
    * @param {number} [options.maxDegree]        Max degree allowed
    * @param {string[]} [options.allowedTraditions]  Filter to these traditions (empty = all)
    * @param {Function} [options.onConfirm]      Callback(selectedUuids, selectedTraditions)
@@ -22,7 +22,7 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   constructor(actor, options = {}) {
     super(options);
     this.actor             = actor;
-    this.slotsAvailable    = options.slotsAvailable ?? 0;
+    this.slotsAvailable    = options.slotsAvailable ?? -1;
     this.maxDegree         = options.maxDegree ?? 5;
     this.allowedTraditions = options.allowedTraditions ?? [];
     this.onConfirm         = options.onConfirm ?? null;
@@ -61,7 +61,7 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   get title() {
     const label = this.slotsAvailable > 0
       ? game.i18n.format('am.maneuvers.title-pick', { n: this.slotsAvailable })
-      : game.i18n.localize('am.maneuvers.title-manage');
+      : game.i18n.localize('am.maneuvers.title-manage');  // -1 or 0
     return this.actor ? `${label} — ${this.actor.name}` : label;
   }
 
@@ -112,7 +112,7 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     const visibleManeuvers = this.#getVisibleManeuvers(knownUuids);
 
     const selectedCount = this._selectedUuids.size;
-    const canSelectMore = this.slotsAvailable === 0 || selectedCount < this.slotsAvailable;
+    const canSelectMore = this.slotsAvailable === -1 || (this.slotsAvailable > 0 && selectedCount < this.slotsAvailable);
 
     return {
       traditions,
@@ -130,7 +130,7 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       knownManeuvers,
       degrees:           [1, 2, 3, 4, 5].filter(d => d <= this.maxDegree),
       loading:           this._loading,
-      freeManage:        this.slotsAvailable === 0
+      freeManage:        this.slotsAvailable === -1
     };
   }
 
@@ -281,7 +281,7 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       this._selectedUuids.delete(uuid);
       card.classList.remove('am-selected');
     } else {
-      if (this.slotsAvailable > 0 && this._selectedUuids.size >= this.slotsAvailable) {
+      if (this.slotsAvailable !== -1 && (this.slotsAvailable === 0 || this._selectedUuids.size >= this.slotsAvailable)) {
         ui.notifications.warn(
           game.i18n.format('am.maneuvers.slots-full', { n: this.slotsAvailable })
         );

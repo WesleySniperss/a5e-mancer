@@ -67,10 +67,17 @@ export class SpellDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       }
     }
 
-    const knownUuids = this.actor
-      ? new Set(SpellService.getActorSpells(this.actor).map(s =>
-          this.actor.items.get(s.id)?.flags?.core?.sourceId ?? '').filter(Boolean))
-      : new Set();
+    // Build set of known spell identifiers: compendium source UUID + name fallback
+    const knownUuids = this.actor ? (() => {
+      const s = new Set();
+      for (const spell of SpellService.getActorSpells(this.actor)) {
+        const item = this.actor.items.get(spell.id);
+        const src  = item?._stats?.compendiumSource ?? item?.flags?.core?.sourceId;
+        if (src) s.add(src);
+        s.add(spell.name.toLowerCase()); // name fallback
+      }
+      return s;
+    })() : new Set();
 
     const visibleSpells = this.#getVisible(knownUuids);
 
@@ -222,7 +229,7 @@ export class SpellDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         }
         results.push({
           ...s,
-          alreadyKnown: knownUuids.has(s.uuid),
+          alreadyKnown: knownUuids.has(s.uuid) || knownUuids.has(s.name.toLowerCase()),
           selected:     this._selectedCantrips.has(s.uuid) || this._selectedSpells.has(s.uuid),
           levelLabel:   level === 0 ? 'Cantrip' : `Level ${level}`
         });
@@ -256,11 +263,26 @@ export class SpellDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     if (set.has(uuid)) {
       set.delete(uuid);
     } else {
-      if (limit > 0 && set.size >= limit) {
-        ui.notifications.warn(game.i18n.format(limitLabel, { n: limit }));
+      // -1 = unlimited (character sheet management); 0 = none allowed; >0 = capped
+      if (limit !== -1 && set.size >= limit) {
+        ui.notifications.warn(
+          limit === 0
+            ? game.i18n.localize('am.spells.none-allowed')
+            : game.i18n.format(limitLabel, { n: limit })
+        );
         return;
       }
       set.add(uuid);
+    }
+
+    // Persist selections to AM.creationSpells immediately (for creation flow)
+    // so that closing and reopening the dialog restores the in-progress selection
+    if (!this.actor) {
+      AM.creationSpells = {
+        cantrips: [...this._selectedCantrips],
+        spells:   [...this._selectedSpells],
+        names:    AM.creationSpells?.names ?? []
+      };
     }
 
     // Update just this card visually

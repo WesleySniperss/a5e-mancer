@@ -306,6 +306,7 @@
   "am.spells.confirm": "Add Selected Spells",
   "am.spells.cantrips-full": "You can only choose {n} cantrip(s). Deselect one first.",
   "am.spells.spells-full": "You can only choose {n} spell(s). Deselect one first.",
+  "am.spells.none-allowed": "Your class does not get spells of this type at level 1.",
   "am.spells.sort-level": "Level",
   "am.spells.sort-name": "Name",
   "am.spells.sort-school": "School",
