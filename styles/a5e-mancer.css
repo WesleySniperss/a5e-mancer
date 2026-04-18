@@ -533,6 +533,20 @@
   }
 }
 
+.am-pack-contents {
+  margin-block-start: 0.2rem;
+  margin-inline-start: 1.2rem;
+  summary {
+    cursor: pointer;
+    font-size: 0.7rem;
+    color: var(--am-primary, #c8a84b);
+    opacity: 0.8;
+    &:hover { opacity: 1; }
+  }
+  ul { margin: 0.2rem 0 0 1rem; padding: 0; list-style: disc; }
+  li { font-size: 0.7rem; opacity: 0.8; }
+}
+
 .am-equipment-choice-group {
   margin-block: var(--am-spacing-sm);
   padding: var(--am-spacing-sm);

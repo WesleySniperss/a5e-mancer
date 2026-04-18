@@ -210,6 +210,8 @@
   "am.app.equipment.select-class-first": "Select a Class to see starting equipment options.",
   "am.app.equipment.select-background-first": "Select a Background to see starting equipment options.",
   "am.app.equipment.grants-note": "Some equipment may be granted automatically by the A5e Grants system when your character is created.",
+  "am.app.equipment.view-contents": "View contents",
+  "am.app.equipment.see-item-description": "Open the item to see its contents.",
   "am.app.finalize.heritageGift": "Heritage Gift",
   "am.app.finalize.equipment": "Equipment",
   "am.app.finalize.wealth": "Starting Wealth",

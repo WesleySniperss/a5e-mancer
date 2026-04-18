@@ -184,10 +184,13 @@ export class EquipmentService {
         const qty = entry?.quantityOverride || 1;
         try {
           const doc = await fromUuid(entryUuid);
+          const isContainer = doc?.system?.objectType === 'container';
           fixed.push({
-            name: doc?.name ?? 'Unknown Item',
-            uuid: entryUuid,
-            qty
+            name:      doc?.name ?? 'Unknown Item',
+            uuid:      entryUuid,
+            qty,
+            isContainer,
+            contents:  isContainer ? await this.#getContainerContents(doc) : null
           });
         } catch {
           fixed.push({ name: 'Unknown Item', uuid: entryUuid, qty });
@@ -205,10 +208,13 @@ export class EquipmentService {
           const qty = entry?.quantityOverride || 1;
           try {
             const doc = await fromUuid(entryUuid);
+            const isContainer = doc?.system?.objectType === 'container';
             opts.push({
-              name: doc?.name ?? 'Unknown Item',
-              uuid: entryUuid,
-              qty
+              name:      doc?.name ?? 'Unknown Item',
+              uuid:      entryUuid,
+              qty,
+              isContainer,
+              contents:  isContainer ? await this.#getContainerContents(doc) : null
             });
           } catch {
             opts.push({ name: 'Unknown Item', uuid: entryUuid, qty });
@@ -221,6 +227,34 @@ export class EquipmentService {
     }
 
     return { fixed, choices, raw: '', sourceName };
+  }
+
+  /**
+   * Extract container contents from a container item.
+   * A5e stores pack contents either as sub-items or in the description.
+   * Returns an array of { name, qty } or null.
+   */
+  static async #getContainerContents(containerDoc) {
+    if (!containerDoc) return null;
+    // Try system.items (some versions store contents here)
+    const sysItems = containerDoc.system?.items;
+    if (sysItems && typeof sysItems === 'object') {
+      const entries = Object.values(sysItems);
+      if (entries.length) {
+        return entries.map(e => ({
+          name: e.name ?? 'Unknown',
+          qty:  e.quantity ?? e.quantityOverride ?? 1
+        }));
+      }
+    }
+    // Fall back to parsing the description
+    const desc = containerDoc.system?.description?.value ?? '';
+    if (!desc) return null;
+    const text = desc.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    // Look for bullet-list style contents: "• Item name" or "- Item name" or "* Item"
+    const lines = text.split(/[•\-\*\n]/).map(l => l.trim()).filter(l => l.length > 2 && l.length < 60);
+    if (lines.length >= 2) return lines.slice(0, 12).map(l => ({ name: l, qty: 1 }));
+    return null;
   }
 
   static #parseEquipmentFromDescription(desc, sourceType, sourceName) {

@@ -61,6 +61,16 @@
               <li>
                 <i class="fa-solid fa-check-circle" style="color:var(--am-success)"></i>
                 <span>{{#if this.qty}}{{this.qty}}× {{/if}}{{this.name}}</span>
+                {{#if this.isContainer}}
+                  <details class="am-pack-contents">
+                    <summary><i class="fa-solid fa-box-open"></i> {{localize 'am.app.equipment.view-contents'}}</summary>
+                    {{#if this.contents}}
+                      <ul>{{#each this.contents}}<li>{{#if this.qty}}{{this.qty}}× {{/if}}{{this.name}}</li>{{/each}}</ul>
+                    {{else}}
+                      <em>{{localize 'am.app.equipment.see-item-description'}}</em>
+                    {{/if}}
+                  </details>
+                {{/if}}
               </li>
             {{/each}}
           </ul>
@@ -125,6 +135,16 @@
               <li>
                 <i class="fa-solid fa-check-circle" style="color:var(--am-success)"></i>
                 <span>{{#if this.qty}}{{this.qty}}× {{/if}}{{this.name}}</span>
+                {{#if this.isContainer}}
+                  <details class="am-pack-contents">
+                    <summary><i class="fa-solid fa-box-open"></i> {{localize 'am.app.equipment.view-contents'}}</summary>
+                    {{#if this.contents}}
+                      <ul>{{#each this.contents}}<li>{{#if this.qty}}{{this.qty}}× {{/if}}{{this.name}}</li>{{/each}}</ul>
+                    {{else}}
+                      <em>{{localize 'am.app.equipment.see-item-description'}}</em>
+                    {{/if}}
+                  </details>
+                {{/if}}
               </li>
             {{/each}}
           </ul>

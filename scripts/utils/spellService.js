@@ -7,14 +7,15 @@ import { AM } from '../a5e-mancer.js';
 
 // Spells known at level 1 for "known" casters
 export const CLASS_SPELL_TABLES = {
-  bard:      { type: 'known', spellsKnown: 4, cantrips: 2, maxLevel: 1 },
-  sorcerer:  { type: 'known', spellsKnown: 2, cantrips: 4, maxLevel: 1 },
-  warlock:   { type: 'known', spellsKnown: 2, cantrips: 2, maxLevel: 1 },
-  wizard:    { type: 'prepared', cantrips: 3, prepares: 'int+level', maxLevel: 1 },
-  cleric:    { type: 'prepared', cantrips: 3, prepares: 'wis+level', maxLevel: 1 },
-  druid:     { type: 'prepared', cantrips: 2, prepares: 'wis+level', maxLevel: 1 },
-  herald:    { type: 'prepared', cantrips: 0, prepares: 'cha+halfLevel', maxLevel: 1 },
-  artificer: { type: 'prepared', cantrips: 2, prepares: 'int+halfLevel', maxLevel: 1 }
+  bard:      { type: 'known',    spellsKnown: 4,  cantrips: 2, maxLevel: 1 },
+  sorcerer:  { type: 'known',    spellsKnown: 2,  cantrips: 4, maxLevel: 1 },
+  warlock:   { type: 'known',    spellsKnown: 2,  cantrips: 2, maxLevel: 1 },
+  // Prepared casters: spellsKnown: -1 = unlimited (add any spells to their list/spellbook)
+  wizard:    { type: 'prepared', spellsKnown: -1, cantrips: 3, maxLevel: 1 },
+  cleric:    { type: 'prepared', spellsKnown: -1, cantrips: 3, maxLevel: 1 },
+  druid:     { type: 'prepared', spellsKnown: -1, cantrips: 2, maxLevel: 1 },
+  herald:    { type: 'prepared', spellsKnown: -1, cantrips: 0, maxLevel: 1 },
+  artificer: { type: 'prepared', spellsKnown: -1, cantrips: 2, maxLevel: 1 }
 };
 
 /**
@@ -133,10 +134,11 @@ export class SpellService {
 
       if (!hasSpellsAtOne) return null;
 
+      const isPrepared = ['halfCaster', 'halfCasterWithFirstLevel'].includes(casterType) && !isFullCaster;
       const info = {
-        type: 'known',
+        type: isPrepared ? 'prepared' : 'known',
         cantrips: isFullCaster ? 2 : 0,
-        spellsKnown: isFullCaster ? 2 : 1,
+        spellsKnown: isPrepared ? -1 : (isFullCaster ? 2 : 1),
         maxLevel: 1
       };
 
