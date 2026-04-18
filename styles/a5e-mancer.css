@@ -3458,20 +3458,96 @@
 .am-act-bonus   { color: var(--cs-accent); border-bottom-color: var(--cs-accent); }
 .am-act-reaction{ color: #c87a20; border-bottom-color: #c87a20; }
 
-.am-cs-act-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.78rem;
-  th {
-    font-size: 0.6rem;
-    color: var(--cs-muted);
-    font-weight: normal;
-    letter-spacing: 0.04em;
-    padding: 0 0.3rem 0.15rem;
-    text-align: left;
-    border-bottom: 1px solid var(--cs-border);
+/* ── Action rows (flex, replaces table) ──────────── */
+.am-act-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.22rem 0.35rem;
+  border-radius: 3px;
+  margin-block-end: 0.1rem;
+  border: 1px solid transparent;
+
+  &:hover {
+    background: rgba(200,160,32,0.06);
+    border-color: var(--cs-border);
   }
-  td { padding: 0.18rem 0.3rem; vertical-align: middle; }
+
+  &:hover .am-item-controls { opacity: 1; }
+}
+
+.am-act-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+}
+
+.am-act-name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.am-act-summary {
+  font-size: 0.7rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.am-act-btns {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  flex-shrink: 0;
+}
+
+.am-tag-atk {
+  color: var(--cs-accent);
+  border-color: var(--cs-accent);
+  background: rgba(88,130,170,0.12);
+}
+
+/* ── Description popup panel ────────────────────── */
+.am-cs-desc-panel {
+  margin-top: 0.5rem;
+  border: 1px solid var(--cs-border);
+  border-radius: var(--cs-radius);
+  background: color-mix(in srgb, var(--cs-bg) 90%, white 10%);
+  font-size: 0.8rem;
+  overflow: hidden;
+}
+.am-desc-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid var(--cs-border);
+  background: rgba(0,0,0,0.15);
+  strong { flex: 1; }
+}
+.am-desc-close {
+  background: none;
+  border: none;
+  color: var(--cs-muted);
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0.1rem 0.3rem;
+  border-radius: 2px;
+  flex-shrink: 0;
+  &:hover { color: var(--cs-text); background: rgba(255,255,255,0.08); }
+}
+.am-desc-body {
+  padding: 0.5rem 0.6rem;
+  max-height: 200px;
+  overflow-y: auto;
+  line-height: 1.5;
+  p { margin: 0 0 0.4rem; }
+  p:last-child { margin-bottom: 0; }
 }
 .am-item-row {
   &:hover { background: rgba(200,160,32,0.05); }
@@ -3916,9 +3992,8 @@
 .am-cs-saves-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.1rem 0.2rem;
+  gap: 0.05rem 0.1rem;
   margin-block-end: 0.2rem;
-  overflow: hidden;
 }
 .am-cs-save {
   display: flex;
@@ -3945,8 +4020,8 @@
   font-size: 0.62rem;
   color: var(--cs-muted);
   white-space: nowrap;
-  flex-shrink: 1;
-  min-width: 1.5rem;
+  flex-shrink: 0;
+  min-width: 1.6rem;
 }
 
 /* Conditions */

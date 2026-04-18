@@ -24,8 +24,9 @@ export class SpellDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     this.onConfirm        = options.onConfirm ?? null;
 
     this._allSpells        = new Map(); // level → spell[]
-    this._selectedCantrips = new Set();
-    this._selectedSpells   = new Set();
+    // Pre-populate from AM.creationSpells so re-opening the dialog restores selections
+    this._selectedCantrips = new Set(AM.creationSpells?.cantrips ?? []);
+    this._selectedSpells   = new Set(AM.creationSpells?.spells   ?? []);
     this._activeLevel           = null;    // null = show all
     this._activeSchool          = null;    // primary school filter
     this._activeSecondarySchool = null;    // secondary school tag filter

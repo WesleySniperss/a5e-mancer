@@ -153,10 +153,11 @@ export class ActorCreationService {
         AM.log(1, `Error fetching ${type} (${uuid}):`, err);
       }
     }
-    if (itemDatas.length) {
-      await actor.createEmbeddedDocuments('Item', itemDatas);
-      AM.log(3, `Added ${itemDatas.length} items`);
+    // Create one-at-a-time so A5e's grant system (skills, proficiencies) fires per item
+    for (const data of itemDatas) {
+      await actor.createEmbeddedDocuments('Item', [data]);
     }
+    if (itemDatas.length) AM.log(3, `Added ${itemDatas.length} items`);
   }
 
   /* ── Heritage Gift ──────────────────────────────────── */
@@ -277,32 +278,40 @@ export class ActorCreationService {
   }
 
   static async #applyBiography(actor, fd) {
-    const updates = {};
-    const bioFields = {
-      'system.details.biography.value':   fd.backstory   || '',
-      'system.details.personality.value': fd.traits      || '',
-      'system.details.ideals.value':      fd.ideals      || '',
-      'system.details.bonds.value':       fd.bonds       || '',
-      'system.details.flaws.value':       fd.flaws       || '',
-      'system.details.connections.value': fd.connections || '',
-      'system.details.mementos.value':    fd.mementos    || '',
-      // Destiny-specific narrative fields
-      'system.details.notes.value':       fd.destinyMotivation
-        ? `<p>${fd.destinyMotivation}</p>`
-        : '',
-      'system.details.goals.value':       fd.destinyGoals
-        ? `<p>${fd.destinyGoals}</p>`
-        : '',
-      'system.details.connections.value': fd.destinyConnection
-        ? `<p>${fd.destinyConnection}</p>`
-        : '',
-      'system.details.bonds.value': [
-          fd.bonds        ? `<p><strong>Bonds:</strong> ${fd.bonds}</p>`          : '',
-          fd.destinyFulfillment ? `<p><strong>Destiny Fulfillment:</strong> ${fd.destinyFulfillment}</p>` : '',
-          fd.destinyInspiration ? `<p><strong>Inspiration Feature:</strong> ${fd.destinyInspiration}</p>` : ''
-        ].filter(Boolean).join('\n') || ''
+    // A5e system.details fields (verified from A5e schema):
+    //   bonds, flaws, ideals, goals, notes — HTMLField (direct, no .value)
+    //   appearance — StringField
+    //   NO personality, biography, connections, mementos fields exist in A5e
+
+    // Combine bonds + destiny narrative into bonds field
+    const bondsHtml = [
+      fd.bonds              ? `<p>${fd.bonds}</p>` : '',
+      fd.connections        ? `<p><strong>Connections:</strong> ${fd.connections}</p>` : '',
+      fd.destinyConnection  ? `<p><strong>Destiny Connection:</strong> ${fd.destinyConnection}</p>` : '',
+      fd.destinyFulfillment ? `<p><strong>Fulfillment:</strong> ${fd.destinyFulfillment}</p>` : '',
+    ].filter(Boolean).join('\n');
+
+    // Pack personality traits, backstory, mementos, destiny motivation/inspiration into notes
+    const notesHtml = [
+      fd.traits             ? `<h4>Personality Traits</h4><p>${fd.traits}</p>` : '',
+      fd.backstory          ? `<h4>Backstory</h4><p>${fd.backstory}</p>` : '',
+      fd.mementos           ? `<h4>Mementos</h4><p>${fd.mementos}</p>` : '',
+      fd.destinyMotivation  ? `<h4>Destiny Motivation</h4><p>${fd.destinyMotivation}</p>` : '',
+      fd.destinyInspiration ? `<h4>Inspiration Feature</h4><p>${fd.destinyInspiration}</p>` : '',
+    ].filter(Boolean).join('\n');
+
+    const updates = {
+      'system.details.ideals': fd.ideals || '',
+      'system.details.bonds':  bondsHtml || '',
+      'system.details.flaws':  fd.flaws  || '',
+      'system.details.goals':  fd.destinyGoals ? `<p>${fd.destinyGoals}</p>` : '',
+      'system.details.notes':  notesHtml || '',
     };
-    Object.assign(updates, bioFields);
-    await actor.update(updates).catch(() => {});
+
+    try {
+      await actor.update(updates);
+    } catch(err) {
+      AM.log(2, 'Biography update failed:', err);
+    }
   }
 }

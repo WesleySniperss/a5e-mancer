@@ -231,13 +231,25 @@ export class A5eCharacterSheet extends ActorSheet {
         .filter(e => !e.disabled && e.conditionId)
         .map(e => e.conditionId)
     ]);
-    const statusConditions = (CONFIG.statusEffects ?? [])
-      .filter(s => s.id && (s.label || s.name))
+    // Deduplicate by id (A5e often re-registers standard conditions),
+    // preferring the entry that has a description
+    const _condMap = new Map();
+    for (const s of (CONFIG.statusEffects ?? [])) {
+      if (!s.id || !(s.label || s.name)) continue;
+      const existing = _condMap.get(s.id);
+      const hasDesc  = !!(s.description || s.hint);
+      if (!existing || (!_condMap.get(s.id)._hasDesc && hasDesc)) {
+        _condMap.set(s.id, { ...s, _hasDesc: hasDesc });
+      }
+    }
+    const statusConditions = [..._condMap.values()]
       .map(s => ({
         id:          s.id,
         label:       game.i18n.localize(s.label ?? s.name),
         icon:        s.icon ?? s.img ?? 'icons/svg/mystery-man.svg',
-        description: s.description ? game.i18n.localize(s.description) : '',
+        description: s.description ? game.i18n.localize(s.description)
+                   : s.hint        ? game.i18n.localize(s.hint)
+                   : '',
         active:      activeCondIds.has(s.id)
       }))
       .sort((a, b) => a.label.localeCompare(b.label));
@@ -281,28 +293,28 @@ export class A5eCharacterSheet extends ActorSheet {
           ...maneuvers.map(i => ({...i, isManeuver: true})),
           ...spells.map(i => ({...i, isSpell: true}))].forEach(() => {}),
 
-      // Actions tab — equipped weapons (fallback: all weapons), spells, features (NO maneuvers — they have their own tab)
+      // Actions tab — weapons + spells + active class abilities (Maneuvers → Martial, passive feats → Features)
       ...(()=>{
         const equippedWeapons = weapons.filter(i => i.equipped);
-        // If no weapons are equipped yet, fall back to showing all so tab isn't empty
         const weaponsForActions = equippedWeapons.length ? equippedWeapons : weapons;
-        const featuresWithActivation = allFeatures.filter(i => i.activation && i.activation !== 'other');
+        // Features/abilities with actual activations (class abilities, heritage abilities, etc.)
+        const activeFeatures = features.filter(f => f.activation !== 'other');
         return {
           actionsGroup: [
             ...weaponsForActions.map(i=>({...i,isWeapon:true})).filter(i=>i.activation==='action'),
             ...spells.map(i=>({...i,isSpell:true})).filter(i=>
               i.activation==='action'&&(i.level===0||i.prepared!==false)),
-            ...featuresWithActivation.filter(i=>i.activation==='action'),
+            ...activeFeatures.filter(f=>f.activation==='action').map(f=>({...f,isFeature:true})),
           ],
           bonusActions: [
             ...weaponsForActions.map(i=>({...i,isWeapon:true})).filter(i=>i.activation==='bonus'),
             ...spells.map(i=>({...i,isSpell:true})).filter(i=>i.activation==='bonus'),
-            ...featuresWithActivation.filter(i=>i.activation==='bonus'),
+            ...activeFeatures.filter(f=>f.activation==='bonus').map(f=>({...f,isFeature:true})),
           ],
           reactions: [
             ...weaponsForActions.map(i=>({...i,isWeapon:true})).filter(i=>i.activation==='reaction'),
             ...spells.map(i=>({...i,isSpell:true})).filter(i=>i.activation==='reaction'),
-            ...featuresWithActivation.filter(i=>i.activation==='reaction'),
+            ...activeFeatures.filter(f=>f.activation==='reaction').map(f=>({...f,isFeature:true})),
           ],
         };
       })(),
@@ -314,6 +326,14 @@ export class A5eCharacterSheet extends ActorSheet {
   }
 
   /* ── Item builders ────────────────────────────────── */
+
+  /* Helper: build compact one-liner summary */
+  #summary(...parts) { return parts.filter(Boolean).join(' · '); }
+
+  #actLabel(activation) {
+    return { action: 'Action', bonus: 'Bonus Action', reaction: 'Reaction' }[activation] ?? 'Action';
+  }
+
   #weapon(item) {
     const sys = item.system;
     const actions = sys.actions ? Object.values(sys.actions) : [];
@@ -326,7 +346,8 @@ export class A5eCharacterSheet extends ActorSheet {
     const rangeStr = rng.reach
       ? `${rng.reach} ft`
       : (rng.long ? `${rng.short ?? rng.value ?? 0}/${rng.long} ft` :
-         rng.value ? `${rng.value} ${rng.units ?? 'ft'}` : '—');
+         rng.value ? `${rng.value} ${rng.units ?? 'ft'}` : null);
+    const saveDC = firstAction.save?.dc ? `Save DC ${firstAction.save.dc}` : null;
     // A5e equippedState: 0=notCarried, 1=carried, 2=equipped
     const equippedState  = sys.equippedState ?? 1;
     const attuned        = sys.attuned ?? false;
@@ -334,7 +355,7 @@ export class A5eCharacterSheet extends ActorSheet {
     return {
       id: item.id, name: item.name, img: item.img,
       atkBonus: atkBonus ? sign(Number(atkBonus)) : '—', dmg,
-      range: rangeStr,
+      range: rangeStr ?? '—',
       equippedState,
       equipped:     equippedState === 2,
       carried:      equippedState === 1,
@@ -342,6 +363,13 @@ export class A5eCharacterSheet extends ActorSheet {
       attuned, needsAttune,
       attuneProblem: needsAttune && !attuned,
       activation,
+      summary: this.#summary(
+        this.#actLabel(activation),
+        dmg !== '—' ? dmg : null,
+        rangeStr,
+        saveDC
+      ),
+      desc: sys.description?.value ?? '',
     };
   }
 
@@ -349,34 +377,61 @@ export class A5eCharacterSheet extends ActorSheet {
     const sys = item.system;
     const tradition = this.#normTrad(sys.tradition ?? sys.combatTradition ?? '');
     const actions = sys.actions ? Object.values(sys.actions) : [];
-    const activation = this.#resolveActivation(actions[0] ?? {}, sys);
+    const firstAction = actions[0] ?? {};
+    const activation = this.#resolveActivation(firstAction, sys);
+    const degree    = sys.degree ?? sys.maneuverDegree ?? 1;
+    const exertion  = sys.exertionCost ?? sys.cost ?? null;
+    const dmgArr    = firstAction.damage ?? firstAction.damages ?? [];
+    const dmg       = dmgArr[0]?.formula ?? null;
+    const saveDC    = firstAction.save?.dc ? `Save DC ${firstAction.save.dc}` : null;
+    const rangeVal  = sys.range?.value;
+    const rangeStr  = rangeVal ? `${rangeVal} ${sys.range?.units ?? 'ft'}` : null;
     return {
       id: item.id, name: item.name, img: item.img,
       tradition: tradition || 'Other',
-      degree: sys.degree ?? sys.maneuverDegree ?? 1,
-      exertion: sys.exertionCost ?? sys.cost ?? null,
-      activation,
-      desc: sys.description?.value ?? ''
+      degree, exertion, activation,
+      desc: sys.description?.value ?? '',
+      summary: this.#summary(
+        `${degree}° · ${this.#actLabel(activation)}`,
+        exertion ? `⚡${exertion}` : null,
+        rangeStr,
+        dmg,
+        saveDC
+      ),
     };
   }
 
   #spell(item) {
     const sys = item.system;
     const actions = sys.actions ? Object.values(sys.actions) : [];
-    const activation = this.#resolveActivation(actions[0] ?? {}, sys);
+    const firstAction = actions[0] ?? {};
+    const activation = this.#resolveActivation(firstAction, sys);
     const level = sys.level ?? sys.spellLevel ?? 0;
+    const dmgArr = firstAction.damage ?? firstAction.damages ?? [];
+    const dmg    = dmgArr[0]?.formula ?? null;
+    const saveDC = firstAction.save?.dc ? `Save DC ${firstAction.save.dc}` : null;
+    const rangeStr = sys.range?.value ? `${sys.range.value} ${sys.range.units ?? ''}`.trim() : null;
+    const conc   = sys.concentration ?? false;
     return {
       id: item.id, name: item.name, img: item.img,
       level,
       levelLabel: level === 0 ? 'Cantrip' : `Level ${level}`,
       school: sys.school ?? '',
       ritual: sys.ritual ?? false,
-      concentration: sys.concentration ?? false,
+      concentration: conc,
       prepared: sys.prepared !== false,
       activation,
       castingTime: sys.castingTime ?? sys.activation?.type ?? '',
-      range: sys.range?.value ? `${sys.range.value} ${sys.range.units ?? ''}`.trim() : '',
-      desc: sys.description?.value ?? ''
+      range: rangeStr ?? '',
+      desc: sys.description?.value ?? '',
+      summary: this.#summary(
+        level === 0 ? 'Cantrip' : `Level ${level}`,
+        this.#actLabel(activation),
+        rangeStr,
+        dmg,
+        saveDC,
+        conc ? 'Conc.' : null
+      ),
     };
   }
 
@@ -387,7 +442,10 @@ export class A5eCharacterSheet extends ActorSheet {
     const activation = this.#resolveActivation(firstAction, sys);
     const atkBonus = firstAction.attackBonus ?? firstAction.attack?.bonus ?? null;
     const dmgArr = firstAction.damage ?? firstAction.damages ?? [];
-    const dmg = dmgArr[0]?.formula ?? null;
+    const dmg    = dmgArr[0]?.formula ?? null;
+    const saveDC = firstAction.save?.dc ? `Save DC ${firstAction.save.dc}` : null;
+    const rangeVal = firstAction.range?.value ?? sys.range?.value;
+    const rangeStr = rangeVal ? `${rangeVal} ${firstAction.range?.units ?? sys.range?.units ?? 'ft'}` : null;
     return {
       id: item.id, name: item.name, img: item.img,
       type: item.type, source: item.type.charAt(0).toUpperCase() + item.type.slice(1),
@@ -396,6 +454,12 @@ export class A5eCharacterSheet extends ActorSheet {
       isAbility: true,
       atkBonus: atkBonus ? sign(Number(atkBonus)) : null,
       dmg,
+      summary: this.#summary(
+        this.#actLabel(activation),
+        rangeStr,
+        dmg,
+        saveDC
+      ),
     };
   }
 
@@ -477,32 +541,53 @@ export class A5eCharacterSheet extends ActorSheet {
     if (!this.isEditable) return;
     const el = html instanceof jQuery ? html[0] : html;
 
-    /* Ability rolls */
-    el.querySelectorAll('[data-action="ability-check"]').forEach(b =>
-      b.addEventListener('click', () => {
+    /* Ability rolls — left-click: plain roll; right-click: A5e dialog */
+    el.querySelectorAll('[data-action="ability-check"]').forEach(b => {
+      b.addEventListener('click', (e) => {
+        e.preventDefault();
         const id = b.dataset.ability;
-        try { this.actor.rollAbilityCheck?.(id) ?? this.actor.rollAbility?.(id); }
-        catch { this.#roll(`1d20 + @abilities.${id}.mod`, b.dataset.label ?? id); }
-      })
-    );
-
-    /* Save rolls */
-    el.querySelectorAll('[data-action="saving-throw"]').forEach(b =>
-      b.addEventListener('click', () => {
+        this.#roll(`1d20 + @abilities.${id}.mod`, b.dataset.label ?? id);
+      });
+      b.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
         const id = b.dataset.ability;
-        try { this.actor.rollSavingThrow?.(id) ?? this.actor.rollAbilitySave?.(id); }
-        catch { this.#roll(`1d20 + @abilities.${id}.save`, `${id} Save`); }
-      })
-    );
+        if      (typeof this.actor.rollAbilityCheck === 'function') this.actor.rollAbilityCheck(id);
+        else if (typeof this.actor.rollAbility      === 'function') this.actor.rollAbility(id);
+        else this.#roll(`1d20 + @abilities.${id}.mod`, b.dataset.label ?? id);
+      });
+    });
 
-    /* Skill rolls */
-    el.querySelectorAll('[data-action="skill-check"]').forEach(b =>
-      b.addEventListener('click', () => {
+    /* Save rolls — left-click: plain roll; right-click: A5e dialog */
+    el.querySelectorAll('[data-action="saving-throw"]').forEach(b => {
+      b.addEventListener('click', (e) => {
+        e.preventDefault();
+        const mod = parseInt(b.dataset.mod) || 0;
+        this.#roll(`1d20 + ${mod}`, b.dataset.label ?? `${b.dataset.ability?.toUpperCase()} Save`);
+      });
+      b.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        const id = b.dataset.ability;
+        if      (typeof this.actor.rollSavingThrow  === 'function') this.actor.rollSavingThrow(id);
+        else if (typeof this.actor.rollAbilitySave  === 'function') this.actor.rollAbilitySave(id);
+        else this.#roll(`1d20 + @abilities.${id}.save`, `${id} Save`);
+      });
+    });
+
+    /* Skill rolls — left-click: plain roll; right-click: A5e dialog */
+    el.querySelectorAll('[data-action="skill-check"]').forEach(b => {
+      b.addEventListener('click', (e) => {
+        e.preventDefault();
+        const id    = b.dataset.skill;
+        const bonus = parseInt(b.dataset.bonus) || 0;
+        this.#roll(`1d20 + ${bonus}`, b.dataset.label ?? id);
+      });
+      b.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
         const id = b.dataset.skill;
-        try { this.actor.rollSkill?.(id); }
-        catch { this.#roll('1d20', b.dataset.label ?? id); }
-      })
-    );
+        if (typeof this.actor.rollSkill === 'function') this.actor.rollSkill(id);
+        else this.#roll('1d20', b.dataset.label ?? id);
+      });
+    });
 
     /* Item equip toggle — A5e equippedState: 0=notCarried,1=carried,2=equipped */
     el.querySelectorAll('[data-action="item-equip"]').forEach(b =>
@@ -527,23 +612,55 @@ export class A5eCharacterSheet extends ActorSheet {
 
     /* Item use — try A5e's activate(), then generic fallbacks */
     el.querySelectorAll('[data-action="item-use"]').forEach(b =>
-      b.addEventListener('click', () => {
+      b.addEventListener('click', async (e) => {
+        e.stopPropagation();
         const item = this.actor.items.get(b.dataset.id);
         if (!item) return;
-        if (typeof item.activate === 'function')  { item.activate(); return; }
-        if (typeof item.use     === 'function')   { item.use();      return; }
-        if (typeof item.roll    === 'function')   { item.roll();     return; }
-        item.sheet.render(true);
+        try {
+          if (typeof item.activate === 'function') { await item.activate(); return; }
+          if (typeof item.use      === 'function') { await item.use();      return; }
+          if (typeof item.roll     === 'function') { await item.roll();     return; }
+          item.sheet.render(true);
+        } catch(err) {
+          AM.log(2, 'item-use error, falling back to sheet:', err);
+          item.sheet.render(true);
+        }
       })
     );
 
-    /* Item name click — open description via item sheet */
+    /* Item name click — open item sheet */
     el.querySelectorAll('.am-item-name').forEach(span =>
       span.addEventListener('click', () => {
         const row  = span.closest('[data-item-id]');
         const id   = row?.dataset?.itemId;
         const item = id ? this.actor.items.get(id) : null;
         item?.sheet?.render(true);
+      })
+    );
+
+    /* Right-click any item row → show description in the panel inside the same tab */
+    el.querySelectorAll('.am-item-row[data-item-id]').forEach(row =>
+      row.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        const item = this.actor.items.get(row.dataset.itemId);
+        if (!item) return;
+        // Find the .am-cs-desc-panel in the same tab section
+        const panel = row.closest('section.tab')?.querySelector('.am-cs-desc-panel');
+        if (!panel) return;
+        const raw     = item.system?.description?.value ?? '';
+        const summary = row.querySelector('.am-act-summary')?.textContent?.trim() ?? '';
+        panel.innerHTML = `
+          <div class="am-desc-header">
+            <img src="${item.img}" class="am-cs-ico" />
+            <strong>${item.name}</strong>
+            ${summary ? `<span class="am-cs-muted" style="font-size:0.72rem;font-weight:normal;flex:1">${summary}</span>` : ''}
+            <button type="button" class="am-desc-close" title="Close">✕</button>
+          </div>
+          <div class="am-desc-body">${raw || '<em>No description.</em>'}</div>`;
+        panel.style.display = '';
+        panel.querySelector('.am-desc-close')?.addEventListener('click', () => {
+          panel.style.display = 'none';
+        });
       })
     );
 
@@ -929,8 +1046,8 @@ export class A5eCharacterSheet extends ActorSheet {
 
     if (raw.includes('bonus'))    return 'bonus';
     if (raw.includes('reaction')) return 'reaction';
-    if (raw.includes('action') || raw === 'standard' || raw === '') return 'action';
-    return 'other';
+    if (raw.includes('passive') || raw.includes('none') || raw.includes('special')) return 'other';
+    return 'action'; // 'action', 'standard', '', or anything else → main action
   }
 
   async #openFeatPicker() {

@@ -340,29 +340,30 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
   static async rollDestinyTable(_event, btn) {
     const fieldName = btn.dataset.field;
     const die       = parseInt(btn.dataset.die) || 4;
+    const source    = btn.dataset.source ?? 'destiny'; // 'destiny' or 'background'
     const result    = 1 + Math.floor(Math.random() * die);
     const form      = AM.app?.element;
     if (!form) return;
     const field = form.querySelector(`[name="${fieldName}"]`);
     if (!field) return;
 
-    // Try to get the rolled text from the destiny description tables
-    const destinyDoc = AM.SELECTED.destiny?.uuid
-      ? await fromUuid(AM.SELECTED.destiny.uuid).catch(() => null)
+    // Look up table from the relevant compendium item (destiny or background)
+    const itemUuid = source === 'background'
+      ? AM.SELECTED.background?.uuid
+      : AM.SELECTED.destiny?.uuid;
+
+    const doc = itemUuid
+      ? await fromUuid(itemUuid).catch(() => null)
       : null;
 
-    const tableText = destinyDoc
-      ? A5eMancer.#extractTableEntry(destinyDoc.system?.description?.value ?? '', fieldName, result)
+    const tableText = doc
+      ? A5eMancer.#extractTableEntry(doc.system?.description?.value ?? '', fieldName, result)
       : null;
 
     if (tableText) {
       field.value = tableText;
     } else {
-      // Fallback: just insert the roll result as a prompt
-      const label = fieldName === 'destinyMotivation'
-        ? game.i18n.localize('am.app.biography.roll-result-motivation')
-        : game.i18n.localize('am.app.biography.roll-result-goals');
-      field.value = `${label} ${result} (1d${die})`;
+      field.value = `${result} (1d${die})`;
     }
     field.dispatchEvent(new Event('input', { bubbles: true }));
   }
@@ -379,7 +380,9 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     // Keywords to look for depending on which field we're rolling for
     const keywords = fieldName === 'destinyMotivation'
       ? ['motivation', 'inspir', 'source']
-      : ['goal', 'quest', 'objective', 'purpose'];
+      : fieldName === 'destinyGoals'
+        ? ['goal', 'quest', 'objective', 'purpose']
+        : ['backstory', 'background', 'history', 'origin', 'event'];
 
     // Find a table preceded by a heading matching keywords
     const tables = div.querySelectorAll('table');

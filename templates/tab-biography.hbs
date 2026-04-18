@@ -105,6 +105,14 @@
     <section aria-labelledby="backstory-heading">
       <h2 id="backstory-heading">{{localize 'am.app.biography.backstory'}}</h2>
       <div class="form-group">
+        <div class="flex items-center gap-xs mb-xs">
+          <label for="backstory">{{localize 'am.app.biography.backstory'}}</label>
+          <button type="button" class="am-roll-btn" data-action="rollDestinyTable"
+            data-field="backstory" data-die="6" data-source="background"
+            data-tooltip="{{localize 'am.app.biography.roll-backstory'}}">
+            <i class="fa-solid fa-dice"></i> d6
+          </button>
+        </div>
         <textarea id="backstory" name="backstory" class="form-input am-backstory" rows="6"
           placeholder="{{localize 'am.app.biography.backstory-placeholder'}}"></textarea>
       </div>

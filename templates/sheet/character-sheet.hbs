@@ -142,7 +142,7 @@
             <span class="am-cs-prof-dot am-cs-prof-{{this.profLvl}}" title="{{this.profIcon}}"></span>
             <button type="button" class="am-cs-skill-name"
               data-action="skill-check" data-skill="{{this.key}}"
-              data-label="{{this.label}}">
+              data-label="{{this.label}}" data-bonus="{{this.bonus}}">
               {{this.label}}
             </button>
             <span class="am-cs-skill-abl">{{this.ability}}</span>
@@ -176,99 +176,81 @@
         {{!-- ▸ ACTIONS ─────────────────────────────────────────────── --}}
         <section class="tab active" data-tab="actions" data-group="primary">
 
-          {{!-- Critical hit note --}}
           {{#if resources.critRange}}
             <div class="am-cs-crit-note">Critical on: {{resources.critRange}}</div>
           {{/if}}
 
-          {{!-- Actions --}}
+          {{!-- Macro: render one action group --}}
+          {{!-- ACTIONS --}}
           {{#if actionsGroup.length}}
             <div class="am-cs-act-section">
               <div class="am-cs-act-head">ACTIONS</div>
-              <table class="am-cs-act-table">
-                <thead><tr>
-                  <th class="am-col-img"></th>
-                  <th class="am-col-name">Name</th>
-                  <th class="am-col-atk">Attack / DC</th>
-                  <th class="am-col-eff">Effect</th>
-                  <th class="am-col-rng">Range</th>
-                  <th class="am-col-btn"></th>
-                </tr></thead>
-                <tbody>
-                  {{#each actionsGroup}}
-                    <tr class="am-item-row" data-item-id="{{this.id}}">
-                      <td><img src="{{this.img}}" class="am-cs-ico" alt="" /></td>
-                      <td class="am-col-name">
-                        <span class="am-item-name">{{this.name}}</span>
-                        {{#if this.isManeuver}}
-                          <span class="am-cs-tag">{{this.degree}}°</span>
-                        {{/if}}
-                        {{#if this.isSpell}}
-                          {{#if this.concentration}}<span class="am-cs-tag am-tag-c">C</span>{{/if}}
-                          {{#if this.ritual}}<span class="am-cs-tag am-tag-r">R</span>{{/if}}
-                        {{/if}}
-                      </td>
-                      <td class="am-col-atk">
-                        {{#if this.atkBonus}}<span class="am-cs-atk">{{this.atkBonus}}</span>{{else}}—{{/if}}
-                      </td>
-                      <td class="am-col-eff am-cs-muted">{{#if this.dmg}}{{this.dmg}}{{else}}—{{/if}}</td>
-                      <td class="am-col-rng am-cs-muted">{{#if this.range}}{{this.range}}{{else}}—{{/if}}</td>
-                      <td class="am-col-btn">
-                        <button type="button" class="am-cs-use-btn" data-action="item-use" data-id="{{this.id}}">Use</button>
-                        {{> am-controls id=this.id}}
-                      </td>
-                    </tr>
-                  {{/each}}
-                </tbody>
-              </table>
+              {{#each actionsGroup}}
+                <div class="am-item-row am-act-row" data-item-id="{{this.id}}">
+                  <img src="{{this.img}}" class="am-cs-ico" alt="" />
+                  <div class="am-act-info">
+                    <div class="am-act-name-row">
+                      <span class="am-item-name">{{this.name}}</span>
+                      {{#if this.atkBonus}}<span class="am-cs-tag am-tag-atk">{{this.atkBonus}}</span>{{/if}}
+                      {{#if this.isSpell}}
+                        {{#if this.concentration}}<span class="am-cs-tag am-tag-c" title="Concentration">C</span>{{/if}}
+                        {{#if this.ritual}}<span class="am-cs-tag am-tag-r" title="Ritual">R</span>{{/if}}
+                      {{/if}}
+                    </div>
+                    {{#if this.summary}}<div class="am-act-summary am-cs-muted">{{this.summary}}</div>{{/if}}
+                  </div>
+                  <div class="am-act-btns">
+                    <button type="button" class="am-cs-use-btn" data-action="item-use" data-id="{{this.id}}">Use</button>
+                    {{> am-controls id=this.id}}
+                  </div>
+                </div>
+              {{/each}}
             </div>
           {{/if}}
 
-          {{!-- Bonus Actions --}}
+          {{!-- BONUS ACTIONS --}}
           {{#if bonusActions.length}}
             <div class="am-cs-act-section">
               <div class="am-cs-act-head am-act-bonus">BONUS ACTIONS</div>
-              <table class="am-cs-act-table">
-                <tbody>
-                  {{#each bonusActions}}
-                    <tr class="am-item-row" data-item-id="{{this.id}}">
-                      <td><img src="{{this.img}}" class="am-cs-ico" alt="" /></td>
-                      <td class="am-col-name"><span class="am-item-name">{{this.name}}</span></td>
-                      <td class="am-col-atk">{{#if this.atkBonus}}{{this.atkBonus}}{{else}}—{{/if}}</td>
-                      <td class="am-col-eff am-cs-muted">{{#if this.dmg}}{{this.dmg}}{{else}}—{{/if}}</td>
-                      <td class="am-col-rng am-cs-muted">—</td>
-                      <td class="am-col-btn">
-                        <button type="button" class="am-cs-use-btn" data-action="item-use" data-id="{{this.id}}">Use</button>
-                        {{> am-controls id=this.id}}
-                      </td>
-                    </tr>
-                  {{/each}}
-                </tbody>
-              </table>
+              {{#each bonusActions}}
+                <div class="am-item-row am-act-row" data-item-id="{{this.id}}">
+                  <img src="{{this.img}}" class="am-cs-ico" alt="" />
+                  <div class="am-act-info">
+                    <div class="am-act-name-row">
+                      <span class="am-item-name">{{this.name}}</span>
+                      {{#if this.atkBonus}}<span class="am-cs-tag am-tag-atk">{{this.atkBonus}}</span>{{/if}}
+                    </div>
+                    {{#if this.summary}}<div class="am-act-summary am-cs-muted">{{this.summary}}</div>{{/if}}
+                  </div>
+                  <div class="am-act-btns">
+                    <button type="button" class="am-cs-use-btn" data-action="item-use" data-id="{{this.id}}">Use</button>
+                    {{> am-controls id=this.id}}
+                  </div>
+                </div>
+              {{/each}}
             </div>
           {{/if}}
 
-          {{!-- Reactions --}}
+          {{!-- REACTIONS --}}
           {{#if reactions.length}}
             <div class="am-cs-act-section">
               <div class="am-cs-act-head am-act-reaction">REACTIONS</div>
-              <table class="am-cs-act-table">
-                <tbody>
-                  {{#each reactions}}
-                    <tr class="am-item-row" data-item-id="{{this.id}}">
-                      <td><img src="{{this.img}}" class="am-cs-ico" alt="" /></td>
-                      <td class="am-col-name"><span class="am-item-name">{{this.name}}</span></td>
-                      <td class="am-col-atk">—</td>
-                      <td class="am-col-eff am-cs-muted">—</td>
-                      <td class="am-col-rng am-cs-muted">—</td>
-                      <td class="am-col-btn">
-                        <button type="button" class="am-cs-use-btn" data-action="item-use" data-id="{{this.id}}">Use</button>
-                        {{> am-controls id=this.id}}
-                      </td>
-                    </tr>
-                  {{/each}}
-                </tbody>
-              </table>
+              {{#each reactions}}
+                <div class="am-item-row am-act-row" data-item-id="{{this.id}}">
+                  <img src="{{this.img}}" class="am-cs-ico" alt="" />
+                  <div class="am-act-info">
+                    <div class="am-act-name-row">
+                      <span class="am-item-name">{{this.name}}</span>
+                      {{#if this.atkBonus}}<span class="am-cs-tag am-tag-atk">{{this.atkBonus}}</span>{{/if}}
+                    </div>
+                    {{#if this.summary}}<div class="am-act-summary am-cs-muted">{{this.summary}}</div>{{/if}}
+                  </div>
+                  <div class="am-act-btns">
+                    <button type="button" class="am-cs-use-btn" data-action="item-use" data-id="{{this.id}}">Use</button>
+                    {{> am-controls id=this.id}}
+                  </div>
+                </div>
+              {{/each}}
             </div>
           {{/if}}
 
@@ -279,10 +261,13 @@
                 <p>No equipped weapons. Go to <strong>Inventory</strong> and click
                   <i class="fa-solid fa-shield"></i> to equip.</p>
               {{else}}
-                <p>No combat actions yet. Drag weapons, maneuvers, or spells here.</p>
+                <p>No combat actions yet.</p>
               {{/if}}
             </div>
           {{/unless}}
+
+          {{!-- Description panel (right-click to populate) --}}
+          <div class="am-cs-desc-panel" style="display:none"></div>
 
         </section>
 
@@ -396,18 +381,19 @@
                 <div class="am-cs-tradition">
                   <div class="am-cs-tradition-head">{{@key}}</div>
                   {{#each this}}
-                    <div class="am-item-row am-cs-maneuver-row" data-item-id="{{this.id}}">
+                    <div class="am-item-row am-act-row" data-item-id="{{this.id}}">
                       <img src="{{this.img}}" class="am-cs-ico" alt="" />
-                      <div class="am-cs-man-info">
-                        <span class="am-item-name">{{this.name}}</span>
-                        <span class="am-cs-tag am-deg-tag">{{this.degree}}°</span>
-                        {{#if this.exertion}}
-                          <span class="am-cs-tag am-ex-tag">
-                            <i class="fa-solid fa-bolt"></i>{{this.exertion}}
-                          </span>
-                        {{/if}}
+                      <div class="am-act-info">
+                        <div class="am-act-name-row">
+                          <span class="am-item-name">{{this.name}}</span>
+                          <span class="am-cs-tag am-deg-tag">{{this.degree}}°</span>
+                          {{#if this.exertion}}
+                            <span class="am-cs-tag am-ex-tag"><i class="fa-solid fa-bolt"></i>{{this.exertion}}</span>
+                          {{/if}}
+                        </div>
+                        {{#if this.summary}}<div class="am-act-summary am-cs-muted">{{this.summary}}</div>{{/if}}
                       </div>
-                      <div class="am-cs-row-right">
+                      <div class="am-act-btns">
                         <button type="button" class="am-cs-use-btn" data-action="item-use" data-id="{{this.id}}">Use</button>
                         {{> am-controls id=this.id}}
                       </div>
@@ -422,6 +408,7 @@
               <p>No maneuvers yet.</p>
             </div>
           {{/if}}
+          <div class="am-cs-desc-panel" style="display:none"></div>
 
         </section>
 
@@ -595,45 +582,33 @@
           <div class="am-cs-notes-grid">
 
             <div class="am-cs-note-card">
-              <div class="am-cs-note-label">Personality Traits</div>
-              <textarea class="am-cs-note-text" name="system.details.personality.value"
-                placeholder="How does your character act?">{{actor.system.details.personality.value}}</textarea>
-            </div>
-
-            <div class="am-cs-note-card">
               <div class="am-cs-note-label">Ideals</div>
-              <textarea class="am-cs-note-text" name="system.details.ideals.value"
-                placeholder="What do they believe in?">{{actor.system.details.ideals.value}}</textarea>
+              <textarea class="am-cs-note-text" name="system.details.ideals"
+                placeholder="What do they believe in?">{{actor.system.details.ideals}}</textarea>
             </div>
 
             <div class="am-cs-note-card">
               <div class="am-cs-note-label">Bonds</div>
-              <textarea class="am-cs-note-text" name="system.details.bonds.value"
-                placeholder="Who or what do they care about?">{{actor.system.details.bonds.value}}</textarea>
+              <textarea class="am-cs-note-text" name="system.details.bonds"
+                placeholder="Who or what do they care about?">{{actor.system.details.bonds}}</textarea>
             </div>
 
             <div class="am-cs-note-card">
               <div class="am-cs-note-label">Flaws</div>
-              <textarea class="am-cs-note-text" name="system.details.flaws.value"
-                placeholder="What are their weaknesses?">{{actor.system.details.flaws.value}}</textarea>
+              <textarea class="am-cs-note-text" name="system.details.flaws"
+                placeholder="What are their weaknesses?">{{actor.system.details.flaws}}</textarea>
+            </div>
+
+            <div class="am-cs-note-card">
+              <div class="am-cs-note-label">Goals <span class="am-cs-muted">(A5e)</span></div>
+              <textarea class="am-cs-note-text" name="system.details.goals"
+                placeholder="Destiny goals...">{{actor.system.details.goals}}</textarea>
             </div>
 
             <div class="am-cs-note-card am-cs-note-wide">
-              <div class="am-cs-note-label">Backstory</div>
-              <textarea class="am-cs-note-text am-cs-note-tall" name="system.details.biography.value"
-                placeholder="Your character's history...">{{actor.system.details.biography.value}}</textarea>
-            </div>
-
-            <div class="am-cs-note-card">
-              <div class="am-cs-note-label">Connections <span class="am-cs-muted">(A5e)</span></div>
-              <textarea class="am-cs-note-text" name="system.details.connections.value"
-                placeholder="Important relationships...">{{actor.system.details.connections.value}}</textarea>
-            </div>
-
-            <div class="am-cs-note-card">
-              <div class="am-cs-note-label">Mementos <span class="am-cs-muted">(A5e)</span></div>
-              <textarea class="am-cs-note-text" name="system.details.mementos.value"
-                placeholder="A meaningful object...">{{actor.system.details.mementos.value}}</textarea>
+              <div class="am-cs-note-label">Notes / Backstory</div>
+              <textarea class="am-cs-note-text am-cs-note-tall" name="system.details.notes"
+                placeholder="Your character's history, personality, and notes...">{{actor.system.details.notes}}</textarea>
             </div>
 
           </div>
@@ -689,7 +664,8 @@
           <div class="am-cs-save">
             <span class="am-cs-prof-dot am-cs-prof-{{#if this.proficient}}2{{else}}0{{/if}}"></span>
             <button type="button" class="am-cs-save-mod" data-action="saving-throw"
-              data-ability="{{this.key}}" title="{{this.label}} Save">
+              data-ability="{{this.key}}" data-mod="{{this.mod}}" data-label="{{this.label}} Save"
+              title="{{this.label}} Save">
               {{this.modStr}}
             </button>
             <span class="am-cs-save-lbl">{{this.abbr}}</span>

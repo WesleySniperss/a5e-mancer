@@ -124,6 +124,7 @@
   "am.app.biography.destiny-goals-placeholder": "What short-term steps is your character taking to fulfil this destiny? Roll d6 or write your own.",
   "am.app.biography.roll-motivation": "Roll d4 on your destiny's Source of Motivation table",
   "am.app.biography.roll-goals": "Roll d6 on your destiny's Goals table",
+  "am.app.biography.roll-backstory": "Roll d6 on your background's history table",
   "am.app.biography.roll-result-motivation": "Motivation result:",
   "am.app.biography.roll-result-goals": "Goals result:",
   "am.app.biography.destiny-connection": "Connection to Destiny",
