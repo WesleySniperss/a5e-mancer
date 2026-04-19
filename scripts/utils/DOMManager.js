@@ -43,6 +43,29 @@ export class DOMManager {
       this.#listeners.push({ el: btn, type: 'click', fn });
     });
 
+    // ── Standard array uniqueness ────────────────────────
+    const arrayDropdowns = [...form.querySelectorAll('.ability-dropdown')];
+    if (arrayDropdowns.length) {
+      const enforceUnique = () => {
+        const selected = new Set(arrayDropdowns.map(d => d.value).filter(Boolean));
+        for (const dd of arrayDropdowns) {
+          const current = dd.value;
+          for (const opt of dd.options) {
+            if (!opt.value) continue;
+            opt.disabled = selected.has(opt.value) && opt.value !== current;
+          }
+        }
+        DOMManager.updateAbilitiesSummary(form);
+        DOMManager.updateTabIndicators(form);
+      };
+      for (const dd of arrayDropdowns) {
+        const fn = enforceUnique;
+        dd.addEventListener('change', fn);
+        this.#listeners.push({ el: dd, type: 'change', fn });
+      }
+      enforceUnique();
+    }
+
     // ── Roll method selector ─────────────────────────────
     const rollMethodSel = form.querySelector('#roll-method');
     if (rollMethodSel) {

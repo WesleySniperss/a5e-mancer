@@ -124,7 +124,7 @@ export class StatRoller {
     inputEl.value = next;
 
     // Update points display
-    const remaining = app.element.querySelector('#remaining-points');
+    const remaining = document.getElementById('remaining-points');
     if (remaining) remaining.textContent = this.getTotalPoints() - spent;
 
     inputEl.dispatchEvent(new Event('change', { bubbles: true }));
