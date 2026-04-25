@@ -3368,6 +3368,7 @@
 }
 .am-cs-skill-name {
   flex: 1;
+  min-width: 0;
   background: none;
   border: none;
   color: var(--cs-text);
@@ -3375,6 +3376,9 @@
   text-align: left;
   cursor: pointer;
   padding: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   &:hover { color: var(--cs-gold); }
 }
 .am-cs-skill-abl  { font-size: 0.62rem; color: var(--cs-muted); width: 1.8rem; flex-shrink: 0; }

@@ -359,38 +359,51 @@ export class A5eCharacterSheet extends ActorSheet {
 
   /**
    * Parse A5e action data from an item.
-   * A5e stores actions in system.actions as { [actionId]: ActionDataModel }
-   * Each action has rolls[] where each roll has a `type` field.
+   * Supports both old format (action.attackBonus, action.damage[]) and
+   * new format (action.rolls[] with type field).
    */
   #parseActions(item) {
     const sys = item.system ?? {};
     const actionsObj = sys.actions ?? {};
+
+    // EmbeddedCollection has .contents; Map has .values(); plain object uses Object.values()
     const actionList = actionsObj instanceof Map
       ? [...actionsObj.values()]
-      : (Array.isArray(actionsObj) ? actionsObj : Object.values(actionsObj));
+      : (actionsObj.contents ?? (Array.isArray(actionsObj) ? actionsObj : Object.values(actionsObj)));
     const firstAction = actionList[0] ?? {};
 
-    const rolls = Array.isArray(firstAction.rolls) ? firstAction.rolls : [];
+    // New format: rolls[] array with typed entries
+    const rolls       = Array.isArray(firstAction.rolls) ? firstAction.rolls : [];
     const attackRoll  = rolls.find(r => r.type === 'attack');
     const damageRolls = rolls.filter(r => r.type === 'damage');
     const saveRoll    = rolls.find(r => r.type === 'savingThrow');
 
-    const rawDmgType = damageRolls[0]?.damageType ?? null;
+    // Old format fallbacks: direct fields on the action object
+    const oldDmgArr  = firstAction.damage ?? firstAction.damages ?? [];
+    const oldDmg     = oldDmgArr[0]?.formula ?? oldDmgArr[0]?.dice ?? null;
+    const oldAtkBonus = firstAction.attackBonus ?? firstAction.attack?.bonus ?? null;
+    const oldSaveDC  = firstAction.save?.dc ? `Save DC ${firstAction.save.dc}` : null;
+    const oldDmgType = oldDmgArr[0]?.damageType ?? null;
+
+    const atkBonus = attackRoll?.bonus ?? oldAtkBonus ?? '';
+    const dmg      = damageRolls[0]?.formula ?? oldDmg;
+    const saveDC   = saveRoll?.dc ? `Save DC ${saveRoll.dc}` : oldSaveDC;
+
+    const rawDmgType = damageRolls[0]?.damageType ?? oldDmgType;
     const dmgType    = rawDmgType
       ? rawDmgType.charAt(0).toUpperCase() + rawDmgType.slice(1)
       : null;
-    const dmg = damageRolls[0]?.formula ?? null;
 
     return {
       firstAction,
       actionList,
       hasActions:  actionList.length > 0,
       activation:  this.#resolveActivation(firstAction, sys),
-      atkBonus:    attackRoll?.bonus ?? '',
+      atkBonus,
       dmg,
       dmgType,
       dmgFull:     dmg ? (dmgType ? `${dmg} ${dmgType}` : dmg) : null,
-      saveDC:      saveRoll?.dc ? `Save DC ${saveRoll.dc}` : null,
+      saveDC,
     };
   }
 
@@ -405,9 +418,12 @@ export class A5eCharacterSheet extends ActorSheet {
     const equippedState = sys.equippedState ?? 1;
     const attuned       = sys.attuned ?? false;
     const needsAttune   = sys.requiresAttunement ?? false;
+    const atkBonusFmt = atkBonus !== '' && atkBonus !== null && !isNaN(Number(atkBonus))
+      ? sign(Number(atkBonus)) : null;
     return {
       id: item.id, name: item.name, img: item.img,
-      atkBonus: atkBonus ? sign(Number(atkBonus)) : '—',
+      atkBonus: atkBonusFmt,      // null → tag hidden; signed string → tag shown
+      atkBonusCell: atkBonusFmt ?? '—',  // for inventory table column
       dmg: dmg ?? '—', dmgFull,
       range, saveDC,
       equippedState,
