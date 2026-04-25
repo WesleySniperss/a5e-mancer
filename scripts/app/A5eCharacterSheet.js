@@ -103,14 +103,15 @@ export class A5eCharacterSheet extends ActorSheet {
         .map(([k, v]) => `${k.charAt(0).toUpperCase() + k.slice(1)}: ${v} ft.`) : [])
     };
 
-    /* Skills */
+    /* Skills — use A5e's computed bonus where available */
     const abilMap = Object.fromEntries(abilities.map(a => [a.abbr, a.mod]));
     const skills = SKILLS.map(({ key, label, ability }) => {
       const d       = sys.skills?.[key] ?? {};
       const abilMod = abilMap[ability] ?? 0;
       const profLvl = d.proficient ?? d.proficiency ?? 0;
       const mult    = [0, 0.5, 1, 2][Math.min(profLvl, 3)] ?? 0;
-      const bonus   = abilMod + Math.floor(profBonus * mult);
+      // Prefer A5e's derived total; fall back to manual computation
+      const bonus   = d.total ?? d.value ?? (abilMod + Math.floor(profBonus * mult));
       const expDie  = d.expertiseDice > 0 ? `+d${4 + (d.expertiseDice - 1) * 2}` : '';
       const profIcon = PROF_ICONS[Math.min(profLvl, 3)];
       return { key, label, ability, bonus, bonusStr: sign(bonus), profLvl, profIcon, expDie };
@@ -356,41 +357,63 @@ export class A5eCharacterSheet extends ActorSheet {
     return { action: 'Action', bonus: 'Bonus Action', reaction: 'Reaction' }[activation] ?? 'Action';
   }
 
+  /**
+   * Parse A5e action data from an item.
+   * A5e stores actions in system.actions as { [actionId]: ActionDataModel }
+   * Each action has rolls[] where each roll has a `type` field.
+   */
+  #parseActions(item) {
+    const sys = item.system ?? {};
+    const actionsObj = sys.actions ?? {};
+    // system.actions is an object keyed by ID (or EmbeddedCollection)
+    const actionList = actionsObj instanceof Map
+      ? [...actionsObj.values()]
+      : (Array.isArray(actionsObj) ? actionsObj : Object.values(actionsObj));
+    const firstAction = actionList[0] ?? {};
+
+    const rolls = Array.isArray(firstAction.rolls) ? firstAction.rolls : [];
+    const attackRoll  = rolls.find(r => r.type === 'attack');
+    const damageRolls = rolls.filter(r => r.type === 'damage');
+    const saveRoll    = rolls.find(r => r.type === 'savingThrow');
+
+    return {
+      firstAction,
+      actionList,
+      hasActions: actionList.length > 0,
+      activation:  this.#resolveActivation(firstAction, sys),
+      atkBonus:    attackRoll?.bonus ?? '',
+      dmg:         damageRolls[0]?.formula ?? null,
+      saveDC:      saveRoll?.dc ? `Save DC ${saveRoll.dc}` : null,
+    };
+  }
+
   #weapon(item) {
     const sys = item.system;
-    // A5e actions may be a plain object or an EmbeddedCollection — handle both
-    const actionsRaw = sys.actions ?? {};
-    const actions = actionsRaw.contents ?? Object.values(actionsRaw);
-    const firstAction = actions[0] ?? {};
-    const atkBonus = firstAction.attackBonus ?? firstAction.attack?.bonus ?? '';
-    const dmgArr   = firstAction.damage ?? firstAction.damages ?? [];
-    const dmg      = dmgArr[0]?.formula ?? dmgArr[0]?.dice ?? '—';
-    const activation = this.#resolveActivation(firstAction, sys);
-    AM.log(3, `weapon "${item.name}" activation="${activation}" equippedState=${sys.equippedState ?? 1}`);
+    const { firstAction, activation, atkBonus, dmg, saveDC } = this.#parseActions(item);
     const rng = sys.range ?? {};
     const rangeStr = rng.reach
       ? `${rng.reach} ft`
       : (rng.long ? `${rng.short ?? rng.value ?? 0}/${rng.long} ft` :
          rng.value ? `${rng.value} ${rng.units ?? 'ft'}` : null);
-    const saveDC = firstAction.save?.dc ? `Save DC ${firstAction.save.dc}` : null;
     // A5e equippedState: 0=notCarried, 1=carried, 2=equipped
-    const equippedState  = sys.equippedState ?? 1;
-    const attuned        = sys.attuned ?? false;
-    const needsAttune    = sys.requiresAttunement ?? false;
+    const equippedState = sys.equippedState ?? 1;
+    const attuned       = sys.attuned ?? false;
+    const needsAttune   = sys.requiresAttunement ?? false;
     return {
       id: item.id, name: item.name, img: item.img,
-      atkBonus: atkBonus ? sign(Number(atkBonus)) : '—', dmg,
+      atkBonus: atkBonus ? sign(Number(atkBonus)) : '—',
+      dmg: dmg ?? '—',
       range: rangeStr ?? '—',
       equippedState,
-      equipped:     equippedState === 2,
-      carried:      equippedState === 1,
-      notCarried:   equippedState === 0,
+      equipped:   equippedState === 2,
+      carried:    equippedState === 1,
+      notCarried: equippedState === 0,
       attuned, needsAttune,
       attuneProblem: needsAttune && !attuned,
       activation,
       summary: this.#summary(
         this.#actLabel(activation),
-        dmg !== '—' ? dmg : null,
+        dmg,
         rangeStr,
         saveDC
       ),
@@ -400,18 +423,12 @@ export class A5eCharacterSheet extends ActorSheet {
 
   #maneuver(item) {
     const sys = item.system;
+    const { activation, dmg, saveDC } = this.#parseActions(item);
     const tradition = this.#normTrad(sys.tradition ?? sys.combatTradition ?? '');
-    const actionsRaw = sys.actions ?? {};
-    const actions = actionsRaw.contents ?? Object.values(actionsRaw);
-    const firstAction = actions[0] ?? {};
-    const activation = this.#resolveActivation(firstAction, sys);
-    const degree    = sys.degree ?? sys.maneuverDegree ?? 1;
-    const exertion  = sys.exertionCost ?? sys.cost ?? null;
-    const dmgArr    = firstAction.damage ?? firstAction.damages ?? [];
-    const dmg       = dmgArr[0]?.formula ?? null;
-    const saveDC    = firstAction.save?.dc ? `Save DC ${firstAction.save.dc}` : null;
-    const rangeVal  = sys.range?.value;
-    const rangeStr  = rangeVal ? `${rangeVal} ${sys.range?.units ?? 'ft'}` : null;
+    const degree   = sys.degree ?? sys.maneuverDegree ?? 1;
+    const exertion = sys.exertionCost ?? sys.cost ?? null;
+    const rangeVal = sys.range?.value;
+    const rangeStr = rangeVal ? `${rangeVal} ${sys.range?.units ?? 'ft'}` : null;
     return {
       id: item.id, name: item.name, img: item.img,
       tradition: tradition || 'Other',
@@ -429,16 +446,10 @@ export class A5eCharacterSheet extends ActorSheet {
 
   #spell(item) {
     const sys = item.system;
-    const actionsRaw = sys.actions ?? {};
-    const actions = actionsRaw.contents ?? Object.values(actionsRaw);
-    const firstAction = actions[0] ?? {};
-    const activation = this.#resolveActivation(firstAction, sys);
+    const { activation, dmg, saveDC } = this.#parseActions(item);
     const level = sys.level ?? sys.spellLevel ?? 0;
-    const dmgArr = firstAction.damage ?? firstAction.damages ?? [];
-    const dmg    = dmgArr[0]?.formula ?? null;
-    const saveDC = firstAction.save?.dc ? `Save DC ${firstAction.save.dc}` : null;
     const rangeStr = sys.range?.value ? `${sys.range.value} ${sys.range.units ?? ''}`.trim() : null;
-    const conc   = sys.concentration ?? false;
+    const conc  = sys.concentration ?? false;
     return {
       id: item.id, name: item.name, img: item.img,
       level,
@@ -464,16 +475,9 @@ export class A5eCharacterSheet extends ActorSheet {
 
   #feature(item) {
     const sys = item.system ?? {};
-    const actionsRaw = sys.actions ?? {};
-    const actions = actionsRaw.contents ?? Object.values(actionsRaw);
-    const firstAction = actions[0] ?? {};
-    const activation = this.#resolveActivation(firstAction, sys);
-    const atkBonus = firstAction.attackBonus ?? firstAction.attack?.bonus ?? null;
-    const dmgArr = firstAction.damage ?? firstAction.damages ?? [];
-    const dmg    = dmgArr[0]?.formula ?? null;
-    const saveDC = firstAction.save?.dc ? `Save DC ${firstAction.save.dc}` : null;
-    const rangeVal = firstAction.range?.value ?? sys.range?.value;
-    const rangeStr = rangeVal ? `${rangeVal} ${firstAction.range?.units ?? sys.range?.units ?? 'ft'}` : null;
+    const { actionList, hasActions, activation, atkBonus, dmg, saveDC } = this.#parseActions(item);
+    const rangeVal = sys.range?.value;
+    const rangeStr = rangeVal ? `${rangeVal} ${sys.range?.units ?? 'ft'}` : null;
     return {
       id: item.id, name: item.name, img: item.img,
       type: item.type,
@@ -484,7 +488,7 @@ export class A5eCharacterSheet extends ActorSheet {
               ?? item.type.charAt(0).toUpperCase() + item.type.slice(1),
       desc: sys.description?.value ?? '',
       activation,
-      hasActions: actions.length > 0,
+      hasActions,
       isAbility: true,
       atkBonus: atkBonus ? sign(Number(atkBonus)) : null,
       dmg,
@@ -575,51 +579,33 @@ export class A5eCharacterSheet extends ActorSheet {
     if (!this.isEditable) return;
     const el = html instanceof jQuery ? html[0] : html;
 
-    /* Ability rolls — left-click: plain roll; right-click: A5e dialog */
+    /* Ability rolls — always use A5e's dialog */
     el.querySelectorAll('[data-action="ability-check"]').forEach(b => {
       b.addEventListener('click', (e) => {
         e.preventDefault();
         const id = b.dataset.ability;
-        this.#roll(`1d20 + @abilities.${id}.mod`, b.dataset.label ?? id);
-      });
-      b.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        const id = b.dataset.ability;
         if      (typeof this.actor.rollAbilityCheck === 'function') this.actor.rollAbilityCheck(id);
         else if (typeof this.actor.rollAbility      === 'function') this.actor.rollAbility(id);
-        else this.#roll(`1d20 + @abilities.${id}.mod`, b.dataset.label ?? id);
       });
     });
 
-    /* Save rolls — left-click: plain roll; right-click: A5e dialog */
+    /* Save rolls — always use A5e's dialog */
     el.querySelectorAll('[data-action="saving-throw"]').forEach(b => {
       b.addEventListener('click', (e) => {
         e.preventDefault();
-        const mod = parseInt(b.dataset.mod) || 0;
-        this.#roll(`1d20 + ${mod}`, b.dataset.label ?? `${b.dataset.ability?.toUpperCase()} Save`);
-      });
-      b.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
         const id = b.dataset.ability;
-        if      (typeof this.actor.rollSavingThrow  === 'function') this.actor.rollSavingThrow(id);
-        else if (typeof this.actor.rollAbilitySave  === 'function') this.actor.rollAbilitySave(id);
-        else this.#roll(`1d20 + @abilities.${id}.save`, `${id} Save`);
+        if      (typeof this.actor.rollSavingThrow === 'function') this.actor.rollSavingThrow(id);
+        else if (typeof this.actor.rollAbilitySave === 'function') this.actor.rollAbilitySave(id);
       });
     });
 
-    /* Skill rolls — left-click: plain roll; right-click: A5e dialog */
+    /* Skill rolls — always use A5e's dialog */
     el.querySelectorAll('[data-action="skill-check"]').forEach(b => {
       b.addEventListener('click', (e) => {
         e.preventDefault();
-        const id    = b.dataset.skill;
-        const bonus = parseInt(b.dataset.bonus) || 0;
-        this.#roll(`1d20 + ${bonus}`, b.dataset.label ?? id);
-      });
-      b.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
         const id = b.dataset.skill;
-        if (typeof this.actor.rollSkill === 'function') this.actor.rollSkill(id);
-        else this.#roll('1d20', b.dataset.label ?? id);
+        if      (typeof this.actor.rollSkillCheck === 'function') this.actor.rollSkillCheck(id);
+        else if (typeof this.actor.rollSkill      === 'function') this.actor.rollSkill(id);
       });
     });
 
@@ -1059,21 +1045,21 @@ export class A5eCharacterSheet extends ActorSheet {
 
   /**
    * Normalise activation type to one of: 'action' | 'bonus' | 'reaction' | 'other'
-   * a5e stores activation in actions[id].activation.type OR system.activation.type
+   * A5e stores it in action.activation.type with values like:
+   * 'action', 'bonusAction', 'reaction', 'free', 'legendary', 'lair', 'utility', 'special'
    */
   #resolveActivation(actionData, sys) {
     const raw = (
       actionData?.activation?.type ??
-      actionData?.activationType ??
       sys?.activation?.type ??
-      sys?.activationType ??
       ''
     ).toLowerCase();
 
-    if (raw.includes('bonus'))    return 'bonus';
-    if (raw.includes('reaction')) return 'reaction';
-    if (raw.includes('passive') || raw.includes('none') || raw.includes('special')) return 'other';
-    return 'action'; // 'action', 'standard', '', or anything else → main action
+    if (raw === 'bonusaction' || raw === 'bonus') return 'bonus';
+    if (raw === 'reaction') return 'reaction';
+    if (raw === 'free' || raw === 'utility' || raw === 'special' ||
+        raw === 'legendary' || raw === 'lair' || raw === 'passive' || raw === 'none') return 'other';
+    return 'action'; // 'action', '', or anything else → main action
   }
 
   async #openFeatPicker() {
