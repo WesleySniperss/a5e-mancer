@@ -576,38 +576,64 @@ export class A5eCharacterSheet extends ActorSheet {
   /* ── Listeners ────────────────────────────────────── */
   activateListeners(html) {
     super.activateListeners(html);
-    if (!this.isEditable) return;
     const el = html instanceof jQuery ? html[0] : html;
 
-    /* Ability rolls — always use A5e's dialog */
+    /* ── Roll listeners (work for all viewers, not just owners) ── */
+
+    /* Ability checks → A5e dialog */
     el.querySelectorAll('[data-action="ability-check"]').forEach(b => {
       b.addEventListener('click', (e) => {
         e.preventDefault();
         const id = b.dataset.ability;
-        if      (typeof this.actor.rollAbilityCheck === 'function') this.actor.rollAbilityCheck(id);
-        else if (typeof this.actor.rollAbility      === 'function') this.actor.rollAbility(id);
+        try {
+          if      (typeof this.actor.rollAbilityCheck === 'function') this.actor.rollAbilityCheck(id);
+          else if (typeof this.actor.rollAbility      === 'function') this.actor.rollAbility(id);
+        } catch(err) { AM.log(2, 'rollAbilityCheck error:', err); }
       });
     });
 
-    /* Save rolls — always use A5e's dialog */
+    /* Saving throws → A5e dialog */
     el.querySelectorAll('[data-action="saving-throw"]').forEach(b => {
       b.addEventListener('click', (e) => {
         e.preventDefault();
         const id = b.dataset.ability;
-        if      (typeof this.actor.rollSavingThrow === 'function') this.actor.rollSavingThrow(id);
-        else if (typeof this.actor.rollAbilitySave === 'function') this.actor.rollAbilitySave(id);
+        try {
+          if      (typeof this.actor.rollSavingThrow === 'function') this.actor.rollSavingThrow(id);
+          else if (typeof this.actor.rollAbilitySave === 'function') this.actor.rollAbilitySave(id);
+        } catch(err) { AM.log(2, 'rollSavingThrow error:', err); }
       });
     });
 
-    /* Skill rolls — always use A5e's dialog */
+    /* Skill checks → A5e dialog */
     el.querySelectorAll('[data-action="skill-check"]').forEach(b => {
       b.addEventListener('click', (e) => {
         e.preventDefault();
         const id = b.dataset.skill;
-        if      (typeof this.actor.rollSkillCheck === 'function') this.actor.rollSkillCheck(id);
-        else if (typeof this.actor.rollSkill      === 'function') this.actor.rollSkill(id);
+        try {
+          if      (typeof this.actor.rollSkillCheck === 'function') this.actor.rollSkillCheck(id);
+          else if (typeof this.actor.rollSkill      === 'function') this.actor.rollSkill(id);
+        } catch(err) { AM.log(2, 'rollSkillCheck error:', err); }
       });
     });
+
+    /* Item image click → A5e activation dialog (with adv/disadv/bonus selection) */
+    el.querySelectorAll('.am-item-row[data-item-id] .am-cs-ico').forEach(img => {
+      img.style.cursor = 'pointer';
+      img.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const row  = img.closest('[data-item-id]');
+        const item = row ? this.actor.items.get(row.dataset.itemId) : null;
+        if (!item) return;
+        try {
+          if (typeof item.activate === 'function') await item.activate();
+          else item.sheet.render(true);
+        } catch(err) { AM.log(2, 'img activate error:', err); }
+      });
+    });
+
+    if (!this.isEditable) return;
+
+    /* ── Edit-only listeners below ── */
 
     /* Item equip toggle — A5e equippedState: 0=notCarried,1=carried,2=equipped */
     el.querySelectorAll('[data-action="item-equip"]').forEach(b =>
@@ -630,19 +656,19 @@ export class A5eCharacterSheet extends ActorSheet {
       })
     );
 
-    /* Item use — try A5e's activate(), then generic fallbacks */
+    /* Use button — skip dialog, just roll with defaults */
     el.querySelectorAll('[data-action="item-use"]').forEach(b =>
       b.addEventListener('click', async (e) => {
         e.stopPropagation();
         const item = this.actor.items.get(b.dataset.id);
         if (!item) return;
         try {
-          if (typeof item.activate === 'function') { await item.activate(); return; }
-          if (typeof item.use      === 'function') { await item.use();      return; }
-          if (typeof item.roll     === 'function') { await item.roll();     return; }
+          if (typeof item.activate === 'function') { await item.activate(null, { skipRollDialog: true }); return; }
+          if (typeof item.use      === 'function') { await item.use({ configureDialog: false });          return; }
+          if (typeof item.roll     === 'function') { await item.roll();                                   return; }
           item.sheet.render(true);
         } catch(err) {
-          AM.log(2, 'item-use error, falling back to sheet:', err);
+          AM.log(2, 'item-use error:', err);
           item.sheet.render(true);
         }
       })
@@ -658,7 +684,7 @@ export class A5eCharacterSheet extends ActorSheet {
       })
     );
 
-    /* Right-click any item row → open A5e activation dialog (with adv/disadv modifiers) */
+    /* Right-click any item row → A5e activation dialog (with adv/disadv modifiers) */
     el.querySelectorAll('.am-item-row[data-item-id]').forEach(row =>
       row.addEventListener('contextmenu', async (e) => {
         e.preventDefault();
@@ -667,7 +693,6 @@ export class A5eCharacterSheet extends ActorSheet {
         try {
           if (typeof item.activate === 'function') { await item.activate(); return; }
           if (typeof item.use      === 'function') { await item.use();      return; }
-          if (typeof item.roll     === 'function') { await item.roll();     return; }
           item.sheet.render(true);
         } catch(err) {
           AM.log(2, 'contextmenu activate error:', err);
