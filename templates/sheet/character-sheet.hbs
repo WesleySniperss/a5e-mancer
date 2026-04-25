@@ -198,7 +198,7 @@
                         {{#if this.ritual}}<span class="am-cs-tag am-tag-r" title="Ritual">R</span>{{/if}}
                       {{/if}}
                     </div>
-                    {{#if this.summary}}<div class="am-act-summary am-cs-muted">{{this.summary}}</div>{{/if}}
+                    {{> am-item-props this}}
                   </div>
                   <div class="am-act-btns">
                     <button type="button" class="am-cs-use-btn" data-action="item-use" data-id="{{this.id}}">Use</button>
@@ -221,7 +221,7 @@
                       <span class="am-item-name">{{this.name}}</span>
                       {{#if this.atkBonus}}<span class="am-cs-tag am-tag-atk">{{this.atkBonus}}</span>{{/if}}
                     </div>
-                    {{#if this.summary}}<div class="am-act-summary am-cs-muted">{{this.summary}}</div>{{/if}}
+                    {{> am-item-props this}}
                   </div>
                   <div class="am-act-btns">
                     <button type="button" class="am-cs-use-btn" data-action="item-use" data-id="{{this.id}}">Use</button>
@@ -244,7 +244,7 @@
                       <span class="am-item-name">{{this.name}}</span>
                       {{#if this.atkBonus}}<span class="am-cs-tag am-tag-atk">{{this.atkBonus}}</span>{{/if}}
                     </div>
-                    {{#if this.summary}}<div class="am-act-summary am-cs-muted">{{this.summary}}</div>{{/if}}
+                    {{> am-item-props this}}
                   </div>
                   <div class="am-act-btns">
                     <button type="button" class="am-cs-use-btn" data-action="item-use" data-id="{{this.id}}">Use</button>
@@ -267,7 +267,7 @@
                       <span class="am-item-name">{{this.name}}</span>
                       {{#if this.atkBonus}}<span class="am-cs-tag am-tag-atk">{{this.atkBonus}}</span>{{/if}}
                     </div>
-                    {{#if this.summary}}<div class="am-act-summary am-cs-muted">{{this.summary}}</div>{{/if}}
+                    {{> am-item-props this}}
                   </div>
                   <div class="am-act-btns">
                     <button type="button" class="am-cs-use-btn" data-action="item-use" data-id="{{this.id}}">Use</button>
@@ -334,10 +334,14 @@
                 {{#each spellGroups.Cantrips}}
                   <div class="am-item-row am-cs-spell-row" data-item-id="{{this.id}}">
                     <img src="{{this.img}}" class="am-cs-ico" alt="" />
-                    <span class="am-item-name">{{this.name}}</span>
-                    {{#if this.concentration}}<span class="am-cs-tag am-tag-c" title="Concentration">C</span>{{/if}}
-                    {{#if this.ritual}}<span class="am-cs-tag am-tag-r" title="Ritual">R</span>{{/if}}
-                    <span class="am-cs-muted am-cs-school">{{this.school}}</span>
+                    <div class="am-act-info">
+                      <div class="am-act-name-row">
+                        <span class="am-item-name">{{this.name}}</span>
+                        {{#if this.concentration}}<span class="am-cs-tag am-tag-c" title="Concentration">C</span>{{/if}}
+                        {{#if this.ritual}}<span class="am-cs-tag am-tag-r" title="Ritual">R</span>{{/if}}
+                      </div>
+                      {{> am-item-props this}}
+                    </div>
                     <div class="am-cs-row-right">
                       <button type="button" class="am-cs-use-btn am-cast-btn" data-action="item-use" data-id="{{this.id}}">Cast</button>
                       {{> am-controls id=this.id}}
@@ -355,10 +359,14 @@
                   {{#each (lookup ../spellGroups this)}}
                     <div class="am-item-row am-cs-spell-row" data-item-id="{{this.id}}">
                       <img src="{{this.img}}" class="am-cs-ico" alt="" />
-                      <span class="am-item-name">{{this.name}}</span>
-                      {{#if this.concentration}}<span class="am-cs-tag am-tag-c" title="Concentration">C</span>{{/if}}
-                      {{#if this.ritual}}<span class="am-cs-tag am-tag-r" title="Ritual">R</span>{{/if}}
-                      <span class="am-cs-muted am-cs-school">{{this.school}}</span>
+                      <div class="am-act-info">
+                        <div class="am-act-name-row">
+                          <span class="am-item-name">{{this.name}}</span>
+                          {{#if this.concentration}}<span class="am-cs-tag am-tag-c" title="Concentration">C</span>{{/if}}
+                          {{#if this.ritual}}<span class="am-cs-tag am-tag-r" title="Ritual">R</span>{{/if}}
+                        </div>
+                        {{> am-item-props this}}
+                      </div>
                       <div class="am-cs-row-right">
                         <button type="button" class="am-cs-use-btn am-cast-btn" data-action="item-use" data-id="{{this.id}}">Cast</button>
                         {{> am-controls id=this.id}}
@@ -415,7 +423,7 @@
                             <span class="am-cs-tag am-ex-tag"><i class="fa-solid fa-bolt"></i>{{this.exertion}}</span>
                           {{/if}}
                         </div>
-                        {{#if this.summary}}<div class="am-act-summary am-cs-muted">{{this.summary}}</div>{{/if}}
+                        {{> am-item-props this}}
                       </div>
                       <div class="am-act-btns">
                         <button type="button" class="am-cs-use-btn" data-action="item-use" data-id="{{this.id}}">Use</button>

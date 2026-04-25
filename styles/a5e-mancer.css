@@ -4302,3 +4302,41 @@
   flex-shrink: 0;
 }
 
+/* ── Item property chips ──────────────────────────────────────── */
+.am-item-props {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+  margin-top: 0.15rem;
+}
+.am-item-props:empty { margin-top: 0; }
+
+.am-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.4rem;
+  border-radius: 2rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  white-space: nowrap;
+  line-height: 1.4;
+  opacity: 0.9;
+}
+
+.am-chip-dmg   { background: rgba(200, 60, 40, 0.15);  color: #c83c28; border: 1px solid rgba(200,60,40,0.3); }
+.am-chip-range { background: rgba(60, 120, 200, 0.12); color: #3c78c8; border: 1px solid rgba(60,120,200,0.3); }
+.am-chip-save  { background: rgba(180, 120, 20, 0.15); color: #b47814; border: 1px solid rgba(180,120,20,0.3); }
+.am-chip-dur   { background: rgba(120, 60, 200, 0.12); color: #783cc8; border: 1px solid rgba(120,60,200,0.3); }
+.am-chip-school{ background: rgba(20, 160, 140, 0.12); color: #149c8c; border: 1px solid rgba(20,160,140,0.3); }
+.am-chip-desc  {
+  background: rgba(120, 120, 120, 0.08);
+  color: var(--color-text-dark-secondary, #666);
+  border: 1px solid rgba(120,120,120,0.2);
+  border-radius: 0.25rem;
+  font-weight: 400;
+  max-width: 28ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+

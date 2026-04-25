@@ -365,7 +365,6 @@ export class A5eCharacterSheet extends ActorSheet {
   #parseActions(item) {
     const sys = item.system ?? {};
     const actionsObj = sys.actions ?? {};
-    // system.actions is an object keyed by ID (or EmbeddedCollection)
     const actionList = actionsObj instanceof Map
       ? [...actionsObj.values()]
       : (Array.isArray(actionsObj) ? actionsObj : Object.values(actionsObj));
@@ -376,34 +375,41 @@ export class A5eCharacterSheet extends ActorSheet {
     const damageRolls = rolls.filter(r => r.type === 'damage');
     const saveRoll    = rolls.find(r => r.type === 'savingThrow');
 
+    const rawDmgType = damageRolls[0]?.damageType ?? null;
+    const dmgType    = rawDmgType
+      ? rawDmgType.charAt(0).toUpperCase() + rawDmgType.slice(1)
+      : null;
+    const dmg = damageRolls[0]?.formula ?? null;
+
     return {
       firstAction,
       actionList,
-      hasActions: actionList.length > 0,
+      hasActions:  actionList.length > 0,
       activation:  this.#resolveActivation(firstAction, sys),
       atkBonus:    attackRoll?.bonus ?? '',
-      dmg:         damageRolls[0]?.formula ?? null,
+      dmg,
+      dmgType,
+      dmgFull:     dmg ? (dmgType ? `${dmg} ${dmgType}` : dmg) : null,
       saveDC:      saveRoll?.dc ? `Save DC ${saveRoll.dc}` : null,
     };
   }
 
   #weapon(item) {
     const sys = item.system;
-    const { firstAction, activation, atkBonus, dmg, saveDC } = this.#parseActions(item);
+    const { activation, atkBonus, dmg, dmgFull, saveDC } = this.#parseActions(item);
     const rng = sys.range ?? {};
-    const rangeStr = rng.reach
+    const range = rng.reach
       ? `${rng.reach} ft`
       : (rng.long ? `${rng.short ?? rng.value ?? 0}/${rng.long} ft` :
          rng.value ? `${rng.value} ${rng.units ?? 'ft'}` : null);
-    // A5e equippedState: 0=notCarried, 1=carried, 2=equipped
     const equippedState = sys.equippedState ?? 1;
     const attuned       = sys.attuned ?? false;
     const needsAttune   = sys.requiresAttunement ?? false;
     return {
       id: item.id, name: item.name, img: item.img,
       atkBonus: atkBonus ? sign(Number(atkBonus)) : '—',
-      dmg: dmg ?? '—',
-      range: rangeStr ?? '—',
+      dmg: dmg ?? '—', dmgFull,
+      range, saveDC,
       equippedState,
       equipped:   equippedState === 2,
       carried:    equippedState === 1,
@@ -411,73 +417,75 @@ export class A5eCharacterSheet extends ActorSheet {
       attuned, needsAttune,
       attuneProblem: needsAttune && !attuned,
       activation,
-      summary: this.#summary(
-        this.#actLabel(activation),
-        dmg,
-        rangeStr,
-        saveDC
-      ),
       desc: sys.description?.value ?? '',
     };
   }
 
   #maneuver(item) {
     const sys = item.system;
-    const { activation, dmg, saveDC } = this.#parseActions(item);
+    const { activation, dmgFull, saveDC } = this.#parseActions(item);
     const tradition = this.#normTrad(sys.tradition ?? sys.combatTradition ?? '');
     const degree   = sys.degree ?? sys.maneuverDegree ?? 1;
     const exertion = sys.exertionCost ?? sys.cost ?? null;
     const rangeVal = sys.range?.value;
-    const rangeStr = rangeVal ? `${rangeVal} ${sys.range?.units ?? 'ft'}` : null;
+    const range    = rangeVal ? `${rangeVal} ${sys.range?.units ?? 'ft'}` : null;
     return {
       id: item.id, name: item.name, img: item.img,
       tradition: tradition || 'Other',
       degree, exertion, activation,
+      range, dmgFull, saveDC,
       desc: sys.description?.value ?? '',
-      summary: this.#summary(
-        `${degree}° · ${this.#actLabel(activation)}`,
-        exertion ? `⚡${exertion}` : null,
-        rangeStr,
-        dmg,
-        saveDC
-      ),
     };
   }
 
   #spell(item) {
     const sys = item.system;
-    const { activation, dmg, saveDC } = this.#parseActions(item);
-    const level = sys.level ?? sys.spellLevel ?? 0;
-    const rangeStr = sys.range?.value ? `${sys.range.value} ${sys.range.units ?? ''}`.trim() : null;
-    const conc  = sys.concentration ?? false;
+    const { activation, dmgFull, saveDC } = this.#parseActions(item);
+    const level    = sys.level ?? sys.spellLevel ?? 0;
+    const range    = sys.range?.value ? `${sys.range.value} ${sys.range.units ?? ''}`.trim() : null;
+    const conc     = sys.concentration ?? false;
+
+    // Duration: e.g. "1 minute", "1 hour", "instantaneous"
+    const dur = sys.duration ?? {};
+    const duration = dur.value
+      ? `${dur.value} ${dur.units ?? ''}`.trim()
+      : (dur.units && dur.units !== 'instantaneous' && dur.units !== 'special' ? dur.units : null);
+
+    // School key may be in sys.schools.primary (A5e) or sys.school (legacy)
+    const schoolKey   = sys.schools?.primary ?? sys.school ?? '';
+    const schoolI18n  = CONFIG?.A5E?.spellSchools?.primary?.[schoolKey];
+    const schoolLabel = schoolI18n
+      ? game.i18n.localize(schoolI18n)
+      : (schoolKey ? schoolKey.charAt(0).toUpperCase() + schoolKey.slice(1) : '');
+
     return {
       id: item.id, name: item.name, img: item.img,
       level,
       levelLabel: level === 0 ? 'Cantrip' : `Level ${level}`,
-      school: sys.school ?? '',
+      school: schoolKey,
+      schoolLabel,
       ritual: sys.ritual ?? false,
       concentration: conc,
       prepared: sys.prepared !== false,
       activation,
-      castingTime: sys.castingTime ?? sys.activation?.type ?? '',
-      range: rangeStr ?? '',
+      range, duration, dmgFull, saveDC,
       desc: sys.description?.value ?? '',
-      summary: this.#summary(
-        level === 0 ? 'Cantrip' : `Level ${level}`,
-        this.#actLabel(activation),
-        rangeStr,
-        dmg,
-        saveDC,
-        conc ? 'Conc.' : null
-      ),
     };
   }
 
   #feature(item) {
     const sys = item.system ?? {};
-    const { actionList, hasActions, activation, atkBonus, dmg, saveDC } = this.#parseActions(item);
+    const { actionList, hasActions, activation, atkBonus, dmgFull, saveDC } = this.#parseActions(item);
     const rangeVal = sys.range?.value;
-    const rangeStr = rangeVal ? `${rangeVal} ${sys.range?.units ?? 'ft'}` : null;
+    const range    = rangeVal ? `${rangeVal} ${sys.range?.units ?? 'ft'}` : null;
+
+    // For purely descriptive features (no combat props), show a text snippet
+    const rawDesc  = sys.description?.value ?? '';
+    const hasCombatProps = !!(dmgFull || range || saveDC);
+    const shortDesc = !hasCombatProps && rawDesc
+      ? rawDesc.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 90)
+      : null;
+
     return {
       id: item.id, name: item.name, img: item.img,
       type: item.type,
@@ -486,18 +494,12 @@ export class A5eCharacterSheet extends ActorSheet {
                  destiny:'Destiny', feat:'Feat', naturalWeapon:'Heritage',
                  boon:'Other', knack:'Other', paragon:'Other' })[sys.featureType ?? item.type]
               ?? item.type.charAt(0).toUpperCase() + item.type.slice(1),
-      desc: sys.description?.value ?? '',
+      desc: rawDesc,
       activation,
       hasActions,
       isAbility: true,
       atkBonus: atkBonus ? sign(Number(atkBonus)) : null,
-      dmg,
-      summary: this.#summary(
-        this.#actLabel(activation),
-        rangeStr,
-        dmg,
-        saveDC
-      ),
+      dmgFull, range, saveDC, shortDesc,
     };
   }
 

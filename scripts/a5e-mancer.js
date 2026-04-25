@@ -103,6 +103,17 @@ Hooks.on('init', () => {
     '</div>'
   );
 
+  Handlebars.registerPartial('am-item-props',
+    '<div class="am-item-props">' +
+    '{{#if schoolLabel}}<span class="am-chip am-chip-school">{{schoolLabel}}</span>{{/if}}' +
+    '{{#if dmgFull}}<span class="am-chip am-chip-dmg">{{dmgFull}}</span>{{/if}}' +
+    '{{#if range}}<span class="am-chip am-chip-range">{{range}}</span>{{/if}}' +
+    '{{#if duration}}<span class="am-chip am-chip-dur">{{duration}}</span>{{/if}}' +
+    '{{#if saveDC}}<span class="am-chip am-chip-save">{{saveDC}}</span>{{/if}}' +
+    '{{#if shortDesc}}<span class="am-chip am-chip-desc">{{shortDesc}}</span>{{/if}}' +
+    '</div>'
+  );
+
   /* ── Sheet registration ── */
   Actors.registerSheet('a5e', A5eCharacterSheet, {
     types: ['character'],
