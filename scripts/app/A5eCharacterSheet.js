@@ -584,37 +584,43 @@ export class A5eCharacterSheet extends ActorSheet {
 
     /* Ability checks → A5e dialog */
     el.querySelectorAll('[data-action="ability-check"]').forEach(b => {
-      b.addEventListener('click', (e) => {
+      b.addEventListener('click', async (e) => {
         e.preventDefault();
+        e.stopPropagation();
         const id = b.dataset.ability;
         try {
-          if      (typeof this.actor.rollAbilityCheck === 'function') this.actor.rollAbilityCheck(id);
-          else if (typeof this.actor.rollAbility      === 'function') this.actor.rollAbility(id);
-        } catch(err) { AM.log(2, 'rollAbilityCheck error:', err); }
+          if      (typeof this.actor.rollAbilityCheck === 'function') await this.actor.rollAbilityCheck(id);
+          else if (typeof this.actor.rollAbility      === 'function') await this.actor.rollAbility(id);
+          else ui.notifications.warn(`A5e roll method not found on actor for ability: ${id}`);
+        } catch(err) { console.error('a5e-mancer | rollAbilityCheck:', err); ui.notifications.error(err.message); }
       });
     });
 
     /* Saving throws → A5e dialog */
     el.querySelectorAll('[data-action="saving-throw"]').forEach(b => {
-      b.addEventListener('click', (e) => {
+      b.addEventListener('click', async (e) => {
         e.preventDefault();
+        e.stopPropagation();
         const id = b.dataset.ability;
         try {
-          if      (typeof this.actor.rollSavingThrow === 'function') this.actor.rollSavingThrow(id);
-          else if (typeof this.actor.rollAbilitySave === 'function') this.actor.rollAbilitySave(id);
-        } catch(err) { AM.log(2, 'rollSavingThrow error:', err); }
+          if      (typeof this.actor.rollSavingThrow === 'function') await this.actor.rollSavingThrow(id);
+          else if (typeof this.actor.rollAbilitySave === 'function') await this.actor.rollAbilitySave(id);
+          else ui.notifications.warn(`A5e roll method not found on actor for save: ${id}`);
+        } catch(err) { console.error('a5e-mancer | rollSavingThrow:', err); ui.notifications.error(err.message); }
       });
     });
 
     /* Skill checks → A5e dialog */
     el.querySelectorAll('[data-action="skill-check"]').forEach(b => {
-      b.addEventListener('click', (e) => {
+      b.addEventListener('click', async (e) => {
         e.preventDefault();
+        e.stopPropagation();
         const id = b.dataset.skill;
         try {
-          if      (typeof this.actor.rollSkillCheck === 'function') this.actor.rollSkillCheck(id);
-          else if (typeof this.actor.rollSkill      === 'function') this.actor.rollSkill(id);
-        } catch(err) { AM.log(2, 'rollSkillCheck error:', err); }
+          if      (typeof this.actor.rollSkillCheck === 'function') await this.actor.rollSkillCheck(id);
+          else if (typeof this.actor.rollSkill      === 'function') await this.actor.rollSkill(id);
+          else ui.notifications.warn(`A5e roll method not found on actor for skill: ${id}`);
+        } catch(err) { console.error('a5e-mancer | rollSkillCheck:', err); ui.notifications.error(err.message); }
       });
     });
 

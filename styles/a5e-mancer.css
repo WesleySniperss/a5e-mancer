@@ -4305,11 +4305,13 @@
 /* ── Item property chips ──────────────────────────────────────── */
 .am-item-props {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.2rem;
-  margin-top: 0.15rem;
+  margin-top: 0.12rem;
+  overflow: hidden;
+  min-height: 0;
 }
-.am-item-props:empty { margin-top: 0; }
+.am-item-props:empty { display: none; }
 
 .am-chip {
   display: inline-flex;
