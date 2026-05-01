@@ -5,6 +5,9 @@ import { SpellDialog } from './SpellDialog.js';
 
 const MODULE_ID = 'a5e-mancer';
 
+/* Same gradient A5e uses for multi-level condition counters */
+const _SHEET_DUR_COLORS = { 1:'#919f00', 2:'#a09200', 3:'#af8300', 4:'#bd7100', 5:'#cb5c00', 6:'#d63f00', 7:'#e00006', 8:'#e00006', 9:'#e00006' };
+
 /* ── Ability & skill config ─────────────────────────── */
 const ABILITIES = [
   { key: 'str', label: 'Strength',      abbr: 'STR' },
@@ -40,6 +43,17 @@ const SKILLS = [
 
 const PROF_ICONS = ['○', '◑', '●', '◉'];
 
+/* A5e uses abbreviated keys in CONFIG.A5E.skills; system.skills uses long keys.
+   Map long → abbreviated so rollSkillCheck's dialog path can localise properly. */
+const A5E_SKILL_ABBR = {
+  acrobatics: 'acr', animalHandling: 'ani', arcana: 'arc', athletics: 'ath',
+  culture: 'cul', deception: 'dec', engineering: 'eng', history: 'his',
+  insight: 'ins', intimidation: 'itm', investigation: 'inv', medicine: 'med',
+  nature: 'nat', perception: 'prc', performance: 'prf', persuasion: 'per',
+  religion: 'rel', science: 'sci', sleightOfHand: 'slt', stealth: 'ste',
+  survival: 'sur'
+};
+
 /* ═══════════════════════════════════════════════════════ */
 export class A5eCharacterSheet extends ActorSheet {
 
@@ -50,7 +64,7 @@ export class A5eCharacterSheet extends ActorSheet {
       width: 960,
       height: 740,
       resizable: true,
-      tabs: [{ navSelector: '.am-cs-tabs', contentSelector: '.am-cs-tabcontent', initial: 'actions' }],
+      tabs: [{ navSelector: '.am-cs-tabs', contentSelector: '.am-cs-tabcontent', initial: 'favorites' }],
       dragDrop: [{ dragSelector: '.am-item-row', dropSelector: '.am-cs-tabcontent' }]
     });
   }
@@ -255,6 +269,7 @@ export class A5eCharacterSheet extends ActorSheet {
       }
     }
     const _stripHtml = h => h.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    const _durations = actor.getFlag?.('a5e-mancer', 'durations') ?? {};
     const statusConditions = [..._condMap.values()]
       .map(s => {
         const rawDesc = s.description ? game.i18n.localize(s.description)
@@ -265,10 +280,17 @@ export class A5eCharacterSheet extends ActorSheet {
           label:       game.i18n.localize(s.label ?? s.name),
           icon:        s.icon ?? s.img ?? 'icons/svg/mystery-man.svg',
           description: rawDesc ? _stripHtml(rawDesc) : '',
-          active:      activeCondIds.has(s.id)
+          active:      activeCondIds.has(s.id),
+          duration:    _durations[s.id] ?? null,
+          durationColor: _SHEET_DUR_COLORS[_durations[s.id]] ?? null
         };
       })
-      .sort((a, b) => a.label.localeCompare(b.label));
+      .sort((a, b) => {
+        const aGen = a.id.startsWith('generic');
+        const bGen = b.id.startsWith('generic');
+        if (aGen !== bGen) return aGen ? 1 : -1;
+        return a.label.localeCompare(b.label);
+      });
 
     /* Currency */
     const currency = sys.currency ?? sys.wealth ?? { gp: 0, sp: 0, cp: 0, ep: 0, pp: 0 };
@@ -317,28 +339,28 @@ export class A5eCharacterSheet extends ActorSheet {
           ...maneuvers.map(i => ({...i, isManeuver: true})),
           ...spells.map(i => ({...i, isSpell: true}))].forEach(() => {}),
 
-      // Actions tab — 4 sections: ATTACKS · ACTIONS · BONUS · REACTIONS
-      ...(()=>{
-        const equippedWeapons = weapons.filter(i => i.equipped);
-        const weaponsForActions = equippedWeapons.length ? equippedWeapons : weapons;
-        const wm = weaponsForActions.map(i => ({...i, isWeapon: true}));
-        const sm = spells.map(i => ({...i, isSpell: true})).filter(i => i.level===0 || i.prepared!==false);
-        // Only class features with actual A5e actions go into the actions tab
-        const activeFeatures = features.filter(f => f.featureType === 'class' && f.hasActions && f.activation !== 'other');
-        const fm = activeFeatures.map(f => ({...f, isFeature: true}));
+      // Actions tab — grouped by item (parent + child actions) + favorites
+      ...(() => {
+        const favoriteIds = new Set([
+          ...(actor.getFlag(MODULE_ID, 'favorites') ?? []),
+          ...items.filter(i => i.system?.favorite).map(i => i.id),
+        ]);
+        const actionItems = items.filter(i => {
+          if (i.type === 'object' && i.system?.objectType === 'weapon') return true;
+          if (i.type === 'maneuver') return true;
+          if (i.type === 'feature') {
+            const a = i.system?.actions ?? {};
+            const len = a instanceof Map ? a.size
+              : (a.contents?.length ?? Object.keys(a).length);
+            return len > 0;
+          }
+          return false;
+        });
+        const actionGroups = actionItems.map(i => this.#buildActionGroup(i, favoriteIds));
         return {
-          // Weapon attacks only (no spells — spells are in Magic tab)
-          attackActions: wm.filter(i => i.activation !== 'bonus' && i.activation !== 'reaction'),
-          // Class/heritage/background abilities that cost a main action
-          abilityActions: fm.filter(f => f.activation === 'action'),
-          bonusActions: [
-            ...wm.filter(i => i.activation === 'bonus'),
-            ...fm.filter(f => f.activation === 'bonus'),
-          ],
-          reactions: [
-            ...wm.filter(i => i.activation === 'reaction'),
-            ...fm.filter(f => f.activation === 'reaction'),
-          ],
+          actionGroups,
+          favorites: actionGroups.filter(g => g.starred),
+          hasActions: actionGroups.length > 0,
         };
       })(),
 
@@ -598,45 +620,140 @@ export class A5eCharacterSheet extends ActorSheet {
 
     /* ── Roll listeners (work for all viewers, not just owners) ── */
 
-    /* Ability checks → A5e dialog */
+    /* Ability left-click → instant roll; right-click → system dialog */
     el.querySelectorAll('[data-action="ability-check"]').forEach(b => {
       b.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
-        const id = b.dataset.ability;
+        const id    = b.dataset.ability;
+        const label = b.dataset.label ?? `${id} Check`;
         try {
-          if      (typeof this.actor.rollAbilityCheck === 'function') await this.actor.rollAbilityCheck(id);
+          if      (typeof this.actor.rollAbilityCheck === 'function') await this.actor.rollAbilityCheck(id, { skipRollDialog: true });
           else if (typeof this.actor.rollAbility      === 'function') await this.actor.rollAbility(id);
-          else ui.notifications.warn(`A5e roll method not found on actor for ability: ${id}`);
-        } catch(err) { console.error('a5e-mancer | rollAbilityCheck:', err); ui.notifications.error(err.message); }
+          else throw new Error('no-method');
+        } catch(err) {
+          console.warn('a5e-mancer | rollAbilityCheck fallback:', err.message);
+          const mod = parseInt(b.dataset.mod) || 0;
+          await this.#roll(`1d20 + ${mod}`, label);
+        }
+      });
+      b.addEventListener('contextmenu', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const id    = b.dataset.ability;
+        const label = b.dataset.label ?? `${id} Check`;
+        if (typeof this.actor.rollAbilityCheck !== 'function') {
+          const mod = parseInt(b.dataset.mod) || 0;
+          await this.#roll(`1d20 + ${mod}`, label);
+          return;
+        }
+        try {
+          await this.actor.rollAbilityCheck(id, { skipRollDialog: false });
+        } catch(_nativeErr) {
+          console.error('a5e-mancer | native ability check dialog failed, using fallback:', _nativeErr);
+          try {
+            const rollMode = await Dialog.wait({
+              title: label,
+              content: '',
+              buttons: {
+                dis:  { icon: '<i class="fa-solid fa-angles-down"></i>', label: 'Disadvantage', callback: () => CONFIG.A5E.ROLL_MODE.DISADVANTAGE },
+                norm: { icon: '<i class="fa-solid fa-dice-d20"></i>',   label: 'Normal',       callback: () => CONFIG.A5E.ROLL_MODE.NORMAL },
+                adv:  { icon: '<i class="fa-solid fa-angles-up"></i>',  label: 'Advantage',    callback: () => CONFIG.A5E.ROLL_MODE.ADVANTAGE }
+              },
+              default: 'norm'
+            });
+            if (rollMode != null)
+              await this.actor.rollAbilityCheck(id, { skipRollDialog: true, rollMode });
+          } catch { /* dialog cancelled */ }
+        }
       });
     });
 
-    /* Saving throws → A5e dialog */
+    /* Saving throw left-click → instant roll; right-click → system dialog */
     el.querySelectorAll('[data-action="saving-throw"]').forEach(b => {
       b.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
-        const id = b.dataset.ability;
+        const id    = b.dataset.ability;
+        const label = b.dataset.label ?? `${id} Save`;
         try {
-          if      (typeof this.actor.rollSavingThrow === 'function') await this.actor.rollSavingThrow(id);
+          if      (typeof this.actor.rollSavingThrow === 'function') await this.actor.rollSavingThrow(id, { skipRollDialog: true });
           else if (typeof this.actor.rollAbilitySave === 'function') await this.actor.rollAbilitySave(id);
-          else ui.notifications.warn(`A5e roll method not found on actor for save: ${id}`);
-        } catch(err) { console.error('a5e-mancer | rollSavingThrow:', err); ui.notifications.error(err.message); }
+          else throw new Error('no-method');
+        } catch(err) {
+          console.warn('a5e-mancer | rollSavingThrow fallback:', err.message);
+          const mod = parseInt(b.dataset.mod) || 0;
+          await this.#roll(`1d20 + ${mod}`, label);
+        }
+      });
+      b.addEventListener('contextmenu', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const id    = b.dataset.ability;
+        const label = b.dataset.label ?? `${id.toUpperCase()} Save`;
+        if (typeof this.actor.rollSavingThrow !== 'function') {
+          const mod = parseInt(b.dataset.mod) || 0;
+          await this.#roll(`1d20 + ${mod}`, label);
+          return;
+        }
+        // Try the native A5e dialog first; fall back to a simple roll-mode picker if it fails
+        try {
+          await this.actor.rollSavingThrow(id, { skipRollDialog: false });
+        } catch(_nativeErr) {
+          console.error('a5e-mancer | native save dialog failed, using fallback:', _nativeErr);
+          try {
+            const rollMode = await Dialog.wait({
+              title: label,
+              content: '',
+              buttons: {
+                dis:  { icon: '<i class="fa-solid fa-angles-down"></i>',  label: 'Disadvantage', callback: () => CONFIG.A5E.ROLL_MODE.DISADVANTAGE },
+                norm: { icon: '<i class="fa-solid fa-dice-d20"></i>',    label: 'Normal',       callback: () => CONFIG.A5E.ROLL_MODE.NORMAL },
+                adv:  { icon: '<i class="fa-solid fa-angles-up"></i>',   label: 'Advantage',    callback: () => CONFIG.A5E.ROLL_MODE.ADVANTAGE }
+              },
+              default: 'norm'
+            });
+            if (rollMode != null)
+              await this.actor.rollSavingThrow(id, { skipRollDialog: true, rollMode });
+          } catch { /* dialog cancelled */ }
+        }
       });
     });
 
-    /* Skill checks → A5e dialog */
+    /* Skill left-click → instant roll (no dialog) */
     el.querySelectorAll('[data-action="skill-check"]').forEach(b => {
       b.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
-        const id = b.dataset.skill;
+        const longKey = b.dataset.skill;
+        const label   = b.dataset.label ?? longKey;
         try {
-          if      (typeof this.actor.rollSkillCheck === 'function') await this.actor.rollSkillCheck(id);
-          else if (typeof this.actor.rollSkill      === 'function') await this.actor.rollSkill(id);
-          else ui.notifications.warn(`A5e roll method not found on actor for skill: ${id}`);
-        } catch(err) { console.error('a5e-mancer | rollSkillCheck:', err); ui.notifications.error(err.message); }
+          if      (typeof this.actor.rollSkillCheck === 'function') await this.actor.rollSkillCheck(longKey, { skipRollDialog: true });
+          else if (typeof this.actor.rollSkill      === 'function') await this.actor.rollSkill(longKey);
+          else throw new Error('no-method');
+        } catch(err) {
+          console.warn('a5e-mancer | rollSkillCheck click fallback:', err.message);
+          const bonus = parseInt(b.dataset.bonus) || 0;
+          await this.#roll(`1d20 + ${bonus}`, label);
+        }
+      });
+    });
+
+    /* Skill right-click → system dialog (uses abbreviated key for CONFIG.A5E.skills lookup) */
+    el.querySelectorAll('[data-action="skill-check"]').forEach(b => {
+      b.addEventListener('contextmenu', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const longKey  = b.dataset.skill;
+        const abbrKey  = A5E_SKILL_ABBR[longKey] ?? longKey;
+        try {
+          if      (typeof this.actor.rollSkillCheck === 'function') await this.actor.rollSkillCheck(abbrKey, { skipRollDialog: false });
+          else if (typeof this.actor.rollSkill      === 'function') await this.actor.rollSkill(abbrKey);
+          else throw new Error('no-method');
+        } catch(err) {
+          console.warn('a5e-mancer | rollSkillCheck contextmenu fallback:', err.message);
+          const bonus = parseInt(b.dataset.bonus) || 0;
+          await this.#roll(`1d20 + ${bonus}`, b.dataset.label ?? longKey);
+        }
       });
     });
 
@@ -695,6 +812,47 @@ export class A5eCharacterSheet extends ActorSheet {
           AM.log(2, 'item-use error:', err);
           item.sheet.render(true);
         }
+      })
+    );
+
+    /* Star / favorite toggle */
+    el.querySelectorAll('[data-action="item-star"]').forEach(b =>
+      b.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const id  = b.dataset.id;
+        const cur = new Set(this.actor.getFlag(MODULE_ID, 'favorites') ?? []);
+        if (cur.has(id)) cur.delete(id); else cur.add(id);
+        await this.actor.setFlag(MODULE_ID, 'favorites', [...cur]);
+      })
+    );
+
+    /* Use a specific named action on an item */
+    el.querySelectorAll('[data-action="item-action-use"]').forEach(b =>
+      b.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const item     = this.actor.items.get(b.dataset.id);
+        const actionId = b.dataset.actionId;
+        if (!item) return;
+        try {
+          if (typeof item.activate === 'function') {
+            await item.activate(actionId !== 'default' ? actionId : null, { skipRollDialog: true });
+            return;
+          }
+          if (typeof item.use  === 'function') { await item.use({ configureDialog: false }); return; }
+          if (typeof item.roll === 'function') { await item.roll(); return; }
+          item.sheet.render(true);
+        } catch(err) { AM.log(2, 'item-action-use:', err); item.sheet.render(true); }
+      })
+    );
+
+    /* Item uses input (current uses tracker on parent row) */
+    el.querySelectorAll('[data-action="item-uses"]').forEach(inp =>
+      inp.addEventListener('change', async (e) => {
+        const item = this.actor.items.get(inp.dataset.id);
+        const val  = parseInt(e.target.value);
+        if (item && !isNaN(val))
+          await item.update({ 'system.uses.current': val })
+            .catch(() => item.update({ 'system.uses.value': val }));
       })
     );
 
@@ -797,6 +955,34 @@ export class A5eCharacterSheet extends ActorSheet {
       })
     );
 
+    /* ── helper: activate a condition (no toggle, just enable) ─────────────── */
+    const _activateCond = async (id) => {
+      const existing = this.actor.effects.find(e =>
+        (e.conditionId === id) || (e.statuses?.has(id)) ||
+        (e.getFlag?.('core', 'statusId') === id)
+      );
+      if (existing) return; // already active
+      if (typeof this.actor.toggleStatusEffect === 'function') {
+        try { await this.actor.toggleStatusEffect(id, { active: true }); return; } catch {}
+      }
+      const def = (CONFIG.statusEffects ?? []).find(s => s.id === id);
+      if (!def) return;
+      await ActiveEffect.create({
+        name:     game.i18n.localize(def.label ?? def.name ?? id),
+        icon:     def.icon ?? def.img ?? 'icons/svg/mystery-man.svg',
+        statuses: [id],
+        flags:    { a5e: { conditionId: id } }
+      }, { parent: this.actor });
+    };
+
+    /* ── helper: clear duration flag for a condition ────────────────────────── */
+    const _clearDuration = async (id) => {
+      const durs = foundry.utils.deepClone(this.actor.getFlag?.('a5e-mancer', 'durations') ?? {});
+      if (durs[id] === undefined) return;
+      delete durs[id];
+      await this.actor.setFlag('a5e-mancer', 'durations', durs);
+    };
+
     /* Status condition toggles */
     el.querySelectorAll('[data-action="toggle-condition"]').forEach(btn =>
       btn.addEventListener('click', async () => {
@@ -812,6 +998,7 @@ export class A5eCharacterSheet extends ActorSheet {
 
         if (existing) {
           await existing.delete();
+          await _clearDuration(id);
           return;
         }
 
@@ -835,6 +1022,35 @@ export class A5eCharacterSheet extends ActorSheet {
         await ActiveEffect.create(effectData, { parent: this.actor });
       })
     );
+
+    /* ── Duration tracking: hover status button + press 1–9 ─────────────── */
+    if (this._condKeydownHandler) {
+      window.removeEventListener('keydown', this._condKeydownHandler);
+      this._condKeydownHandler = null;
+    }
+    let _hoveredCondBtn = null;
+    el.querySelectorAll('[data-action="toggle-condition"]').forEach(btn => {
+      btn.addEventListener('mouseenter', () => { _hoveredCondBtn = btn; });
+      btn.addEventListener('mouseleave', () => { if (_hoveredCondBtn === btn) _hoveredCondBtn = null; });
+    });
+    this._condKeydownHandler = async (ev) => {
+      if (!_hoveredCondBtn) return;
+      const n = parseInt(ev.key);
+      if (isNaN(n) || n < 1 || n > 9) return;
+      ev.preventDefault();
+      const id      = _hoveredCondBtn.dataset.id;
+      const isActive = _hoveredCondBtn.classList.contains('am-cs-status-active');
+      const durs    = foundry.utils.deepClone(this.actor.getFlag?.('a5e-mancer', 'durations') ?? {});
+      if (!isActive) await _activateCond(id);
+      // Same digit on already-active condition with same number → clear duration
+      if (isActive && durs[id] === n) {
+        delete durs[id];
+      } else {
+        durs[id] = n;
+      }
+      await this.actor.setFlag('a5e-mancer', 'durations', durs);
+    };
+    window.addEventListener('keydown', this._condKeydownHandler);
 
     /* Condition description popover — click icon to show desc in panel */
     const condDescPanel = el.querySelector('.am-cs-cond-desc-panel');
@@ -1076,6 +1292,83 @@ export class A5eCharacterSheet extends ActorSheet {
   }
 
   /* ── Private helpers ──────────────────────────────── */
+
+  #actCostLabel(activation) {
+    return { action: 'A', bonus: 'B', reaction: 'R', other: '' }[activation] ?? 'A';
+  }
+
+  #parseRollsFromAction(action) {
+    const rolls       = Array.isArray(action?.rolls) ? action.rolls : [];
+    const attackRoll  = rolls.find(r => r.type === 'attack');
+    const damageRolls = rolls.filter(r => r.type === 'damage');
+    const saveRoll    = rolls.find(r => r.type === 'savingThrow');
+    const oldDmgArr   = action?.damage ?? action?.damages ?? [];
+    const oldDmg      = oldDmgArr[0]?.formula ?? oldDmgArr[0]?.dice ?? null;
+    const oldAtkBonus = action?.attackBonus ?? action?.attack?.bonus ?? null;
+    const oldSaveDC   = action?.save?.dc ? `DC ${action.save.dc}` : null;
+    const oldDmgType  = oldDmgArr[0]?.damageType ?? null;
+    const atkRaw      = attackRoll?.bonus ?? oldAtkBonus ?? '';
+    const dmg         = damageRolls[0]?.formula ?? oldDmg;
+    const saveDC      = saveRoll?.dc ? `DC ${saveRoll.dc}` : oldSaveDC;
+    const rawType     = damageRolls[0]?.damageType ?? oldDmgType;
+    const dmgType     = rawType ? rawType.charAt(0).toUpperCase() + rawType.slice(1) : null;
+    const atkBonus    = atkRaw !== '' && !isNaN(Number(atkRaw)) ? sign(Number(atkRaw)) : null;
+    return { atkBonus, dmg, dmgFull: dmg ? (dmgType ? `${dmg} ${dmgType}` : dmg) : null, dmgType, saveDC };
+  }
+
+  #allActionsForItem(item) {
+    const sys        = item.system ?? {};
+    const actionsObj = sys.actions ?? {};
+    let entries;
+    if (actionsObj instanceof Map) {
+      entries = [...actionsObj.entries()];
+    } else if (actionsObj?.contents?.length) {
+      entries = actionsObj.contents.map(a => [a.id ?? a._id ?? foundry.utils.randomID(), a]);
+    } else if (Array.isArray(actionsObj)) {
+      entries = actionsObj.map((a, i) => [a.id ?? String(i), a]);
+    } else {
+      entries = Object.entries(actionsObj);
+    }
+    if (!entries.length) {
+      const activation = this.#resolveActivation({}, sys);
+      return [{ actionId: 'default', itemId: item.id, name: item.name,
+                activation, activationLabel: this.#actCostLabel(activation),
+                ...this.#parseRollsFromAction({}) }];
+    }
+    return entries.map(([actionId, action]) => {
+      const activation = this.#resolveActivation(action, action);
+      return { actionId, itemId: item.id,
+               name: action.name || item.name,
+               activation, activationLabel: this.#actCostLabel(activation),
+               ...this.#parseRollsFromAction(action) };
+    });
+  }
+
+  #buildActionGroup(item, favoriteIds) {
+    const sys           = item.system ?? {};
+    const uses          = sys.uses ?? {};
+    const isEquippable  = item.type === 'object';
+    const equippedState = isEquippable ? (sys.equippedState ?? 1) : null;
+    const starred       = favoriteIds.has(item.id) || !!(sys.favorite);
+    return {
+      id: item.id, name: item.name, img: item.img,
+      type: item.type,
+      isEquippable,
+      equippedState,
+      equipped:   equippedState === 2,
+      carried:    equippedState === 1,
+      notCarried: equippedState === 0,
+      attuned:    sys.attuned ?? false,
+      needsAttune: sys.requiresAttunement ?? false,
+      starred,
+      qty:  isEquippable ? (sys.quantity ?? 1) : null,
+      uses: { current: uses.current ?? uses.value ?? null,
+               max: uses.max ?? null, hasUses: !!(uses.max > 0) },
+      actions: this.#allActionsForItem(item),
+      desc: sys.description?.value ?? '',
+    };
+  }
+
   #calcProf(actor) {
     const lvl = actor.items.filter(i => i.type === 'class')
       .reduce((n, i) => n + (i.system?.levels ?? i.system?.level ?? 1), 0) || 1;
@@ -1219,6 +1512,14 @@ export class A5eCharacterSheet extends ActorSheet {
       const val = parseInt(e.target.value);
       if (!isNaN(val)) await this.actor.update(pathFn(val)).catch(() => {});
     });
+  }
+
+  async close(options = {}) {
+    if (this._condKeydownHandler) {
+      window.removeEventListener('keydown', this._condKeydownHandler);
+      this._condKeydownHandler = null;
+    }
+    return super.close(options);
   }
 }
 

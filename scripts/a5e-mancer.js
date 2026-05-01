@@ -65,6 +65,7 @@ Hooks.on('init', () => {
     console.error('a5e-mancer | init error:', e);
   }
 
+
   /* ── Handlebars partials ── */
   Handlebars.registerPartial('am-controls',
     '<div class="am-item-controls">' +
@@ -126,6 +127,22 @@ Hooks.on('init', () => {
     makeDefault: true,
     label: 'A5e Mancer NPC Sheet'
   });
+});
+
+/* ── Setup — runs after all system init hooks, safe to mutate CONFIG ──── */
+Hooks.once('setup', () => {
+  const DISARMED = {
+    id:          'disarmed',
+    label:       'Disarmed',
+    name:        'Disarmed',
+    icon:        'modules/a5e-mancer/assets/icons/disarmed.svg',
+    statuses:    ['disarmed'],
+    description: 'The creature cannot hold weapons or make weapon attacks. It drops any held weapons.'
+  };
+  // Only add if not already present (guard against double-registration on hot-reload)
+  if (!CONFIG.statusEffects.some(s => s.id === 'disarmed')) {
+    CONFIG.statusEffects.push(DISARMED);
+  }
 });
 
 /* ── Ready ──────────────────────────────────────────────── */
@@ -269,4 +286,209 @@ Hooks.on('renderActorSheet', (sheet, html) => {
                  windowHeader;
     area?.appendChild(lvlBtn);
   }
+});
+
+/* ── Re-render Token HUD when conditions change from outside the HUD ─── */
+/* A5e's Svelte component only reacts to system.attributes changes (multi-level
+   conditions like Strife/Fatigue). Regular ActiveEffect creation/deletion from
+   the character sheet doesn't update it — force a full re-render so fresh
+   _getActiveConditions() data is picked up. */
+Hooks.on('createActiveEffect', (effect) => {
+  if (!(effect.parent instanceof Actor)) return;
+  if (!effect.statuses?.size) return;
+  const hud = canvas?.hud?.token;
+  if (hud?.rendered && hud.object?.actor?.id === effect.parent.id) hud.render();
+  setTimeout(() => _updateEffectsPanelDurations(effect.parent), 100);
+});
+
+/* ── Auto-clear duration flags when a status effect is removed ───────── */
+/* Debounced: "clear all" deletes many effects simultaneously, causing race
+   conditions if each hook call reads/writes flags independently.
+   We wait 150ms for all deletions to settle, then reconcile once. */
+const _durationReconcileTimers = new Map();
+Hooks.on('deleteActiveEffect', (effect) => {
+  const actor = effect.parent;
+  if (!(actor instanceof Actor)) return;
+  if (!effect.statuses?.size) return;
+
+  /* Force Token HUD re-render so conditions show as inactive immediately */
+  const hud = canvas?.hud?.token;
+  if (hud?.rendered && hud.object?.actor?.id === actor.id) hud.render();
+  setTimeout(() => _updateEffectsPanelDurations(actor), 100);
+
+  if (!actor.isOwner) return;
+
+  clearTimeout(_durationReconcileTimers.get(actor.id));
+  _durationReconcileTimers.set(actor.id, setTimeout(async () => {
+    _durationReconcileTimers.delete(actor.id);
+    const activeStatuses = new Set([...(actor.statuses ?? [])]);
+    const durs = foundry.utils.deepClone(actor.getFlag?.('a5e-mancer', 'durations') ?? {});
+    let changed = false;
+    for (const id of Object.keys(durs)) {
+      if (!activeStatuses.has(id)) { delete durs[id]; changed = true; }
+    }
+    if (changed) await actor.setFlag('a5e-mancer', 'durations', durs);
+  }, 150));
+});
+
+/* ── Effects Panel: re-apply badges when selected token changes ──────── */
+Hooks.on('controlToken', (token, controlled) => {
+  if (!controlled) return;
+  setTimeout(() => _updateEffectsPanelDurations(token.actor), 100);
+});
+
+/* ── Effects Panel: re-apply badges when actor duration flags change ──── */
+Hooks.on('updateActor', (actor, changes) => {
+  if (!foundry.utils.hasProperty(changes, 'flags.a5e-mancer.durations')) return;
+  setTimeout(() => _updateEffectsPanelDurations(actor), 100);
+});
+
+/* ── Token HUD: duration tracking (hover status + press 1–9) ─────────── */
+/* A5e renders its Token HUD via Svelte 5 into TokenHUDA5e.
+   Each setFlag triggers a re-render → renderTokenHUDA5e fires again.
+   We keep ONE module-level handler and remove it before every re-registration
+   to prevent handler stacking and duplicate condition creation. */
+
+/* Multi-level conditions already have A5e's own counter — skip ours to avoid duplication */
+const _A5E_MULTILEVEL = new Set(['corruption', 'fatigue', 'exhaustion', 'inebriated', 'strife']);
+/* Same color gradient A5e uses for its level counters */
+const _DURATION_COLORS = { 1:'#919f00', 2:'#a09200', 3:'#af8300', 4:'#bd7100', 5:'#cb5c00', 6:'#d63f00', 7:'#e00006', 8:'#e00006', 9:'#e00006' };
+
+let _hudKeydownHandler = null;
+let _hudHoveredBtn    = null;
+
+/* ── Effects Panel (right sidebar): stamp duration badges onto items ──── */
+/* A5e's Svelte panel lives at article#a5e-effects-panel inside #ui-right.
+   Each item: img.a5e-effect-item__icon → root = img.parentElement.parentElement.
+   We set data-am-condition-id on the root so CSS can target it, then add
+   the am-duration-counter class + CSS vars matching A5e's counter style. */
+function _updateEffectsPanelDurations(actor) {
+  if (!actor) return;
+  /* Only stamp badges when this actor's token is the currently controlled one */
+  const controlled = canvas?.tokens?.controlled;
+  if (!controlled?.some(t => t.actor?.id === actor.id)) return;
+
+  const panel = document.querySelector('#a5e-effects-panel');
+  if (!panel) return;
+
+  const durs = actor.getFlag?.('a5e-mancer', 'durations') ?? {};
+
+  panel.querySelectorAll('img.a5e-effect-item__icon').forEach(img => {
+    const root = img.parentElement?.parentElement;
+    if (!root) return;
+
+    /* Match icon src to a status condition via CONFIG.statusEffects */
+    let condId = null;
+    for (const se of (CONFIG.statusEffects ?? [])) {
+      if (se.img && img.src?.endsWith(se.img)) { condId = se.id; break; }
+    }
+
+    /* Clear previous state first (Svelte may reuse nodes across re-renders) */
+    root.classList.remove('am-duration-counter');
+    root.style.removeProperty('--am-duration');
+    root.style.removeProperty('--am-duration-col');
+
+    if (!condId || _A5E_MULTILEVEL.has(condId)) return;
+
+    root.dataset.amConditionId = condId;
+
+    if (durs[condId] != null) {
+      root.classList.add('am-duration-counter');
+      root.style.setProperty('--am-duration', `'${durs[condId]}'`);
+      root.style.setProperty('--am-duration-col', _DURATION_COLORS[durs[condId]] ?? '#e00006');
+    }
+  });
+}
+
+Hooks.on('renderTokenHUDA5e', (hud, html) => {
+  /* Always tear down the previous handler before setting up a new one */
+  if (_hudKeydownHandler) {
+    window.removeEventListener('keydown', _hudKeydownHandler);
+    _hudKeydownHandler = null;
+  }
+  _hudHoveredBtn = null;
+
+  const actor = hud.object?.actor;
+  if (!actor) return;
+
+  const el   = (html instanceof jQuery) ? html[0] : html;
+  const durs = actor.getFlag?.('a5e-mancer', 'durations') ?? {};
+
+  /* A5e Svelte component renders: button.condition-container[data-status-id].
+     Skip multi-level conditions — A5e already shows their counter (fatigue-counter etc).
+     For the rest: add class + CSS vars, matching A5e's h3::before counter style. */
+  el.querySelectorAll('button.condition-container[data-status-id]').forEach(btn => {
+    const id = btn.dataset.statusId;
+
+    /* Reset counter state (Svelte may reuse DOM nodes across re-renders) */
+    btn.classList.remove('am-duration-counter');
+    btn.style.removeProperty('--am-duration');
+    btn.style.removeProperty('--am-duration-col');
+
+    if (_A5E_MULTILEVEL.has(id)) return; /* A5e shows this one — don't duplicate */
+
+    if (durs[id] != null) {
+      btn.classList.add('am-duration-counter');
+      btn.style.setProperty('--am-duration', `'${durs[id]}'`);
+      btn.style.setProperty('--am-duration-col', _DURATION_COLORS[durs[id]] ?? '#e00006');
+    }
+
+    /* Guard against duplicate listeners if Svelte reuses the same DOM node */
+    if (!btn.dataset.amHudInit) {
+      btn.dataset.amHudInit = '1';
+      btn.addEventListener('mouseenter', () => { _hudHoveredBtn = btn; });
+      btn.addEventListener('mouseleave', () => { if (_hudHoveredBtn === btn) _hudHoveredBtn = null; });
+    }
+  });
+
+  _hudKeydownHandler = async (ev) => {
+    if (!_hudHoveredBtn) return;
+    const n = parseInt(ev.key);
+    if (isNaN(n) || n < 1 || n > 9) return;
+    ev.preventDefault();
+
+    const id = _hudHoveredBtn.dataset.statusId;
+
+    /* Determine active state from actor data, not CSS class */
+    const isActive = actor.effects.some(e =>
+      e.statuses?.has(id) || e.getFlag?.('core', 'statusId') === id
+    );
+
+    if (!isActive) {
+      if (typeof actor.toggleStatusEffect === 'function') {
+        try { await actor.toggleStatusEffect(id, { active: true }); } catch {}
+      }
+    }
+
+    const currentDurs = foundry.utils.deepClone(actor.getFlag?.('a5e-mancer', 'durations') ?? {});
+    if (isActive && currentDurs[id] === n) {
+      delete currentDurs[id];
+    } else {
+      currentDurs[id] = n;
+    }
+
+    /* Update button in-place immediately; re-render will also fix it shortly */
+    const targetBtn = _hudHoveredBtn;
+    if (currentDurs[id] != null) {
+      targetBtn.classList.add('am-duration-counter');
+      targetBtn.style.setProperty('--am-duration', `'${currentDurs[id]}'`);
+      targetBtn.style.setProperty('--am-duration-col', _DURATION_COLORS[currentDurs[id]] ?? '#e00006');
+    } else {
+      targetBtn.classList.remove('am-duration-counter');
+      targetBtn.style.removeProperty('--am-duration');
+      targetBtn.style.removeProperty('--am-duration-col');
+    }
+
+    await actor.setFlag('a5e-mancer', 'durations', currentDurs);
+  };
+
+  window.addEventListener('keydown', _hudKeydownHandler);
+
+  Hooks.once('closeTokenHUDA5e', () => {
+    if (_hudKeydownHandler) {
+      window.removeEventListener('keydown', _hudKeydownHandler);
+      _hudKeydownHandler = null;
+    }
+    _hudHoveredBtn = null;
+  });
 });

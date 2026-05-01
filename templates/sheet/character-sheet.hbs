@@ -37,7 +37,7 @@
           <div class="am-cs-abl-name">{{this.abbr}}</div>
           <button class="am-cs-abl-mod" type="button"
             data-action="ability-check" data-ability="{{this.key}}"
-            data-label="{{this.label}} Check" title="Roll {{this.label}} Check">
+            data-mod="{{this.mod}}" data-label="{{this.label}} Check" title="Roll {{this.label}} Check">
             {{this.modStr}}
           </button>
           <input class="am-cs-abl-score" type="number"
@@ -163,7 +163,7 @@
     <main class="am-cs-main">
 
       <nav class="am-cs-tabs tabs" data-group="primary">
-        <a class="item active" data-tab="actions"    data-group="primary">ACTIONS</a>
+        <a class="item active" data-tab="favorites"  data-group="primary">FAVORITES</a>
         <a class="item"        data-tab="magic"      data-group="primary">MAGIC</a>
         <a class="item"        data-tab="martial"    data-group="primary">MARTIAL</a>
         <a class="item"        data-tab="inventory"  data-group="primary">INVENTORY</a>
@@ -173,125 +173,132 @@
 
       <div class="am-cs-tabcontent tab-content">
 
-        {{!-- ▸ ACTIONS ─────────────────────────────────────────────── --}}
-        <section class="tab active" data-tab="actions" data-group="primary">
+        {{!-- ▸ FAVORITES / ACTIONS ─────────────────────────────────────── --}}
+        <section class="tab active" data-tab="favorites" data-group="primary">
 
           {{#if resources.critRange}}
             <div class="am-cs-crit-note">Critical on: {{resources.critRange}}</div>
           {{/if}}
 
-          {{!-- Helper partial for one item row --}}
+          {{#if actionGroups.length}}
 
-          {{!-- ATTACKS (weapons + action-cost spells) --}}
-          {{#if attackActions.length}}
-            <div class="am-cs-act-section">
-              <div class="am-cs-act-head am-act-attacks">ATTACKS</div>
-              {{#each attackActions}}
-                <div class="am-item-row am-act-row" data-item-id="{{this.id}}">
+            {{!-- ── Starred items at top ────────────────────────────── --}}
+            {{#if favorites.length}}
+            <div class="am-fav-section">
+              <div class="am-fav-section-head">
+                <i class="fa-solid fa-star"></i> FAVORITES
+              </div>
+              {{#each favorites}}
+              <div class="am-action-group am-fav-group" data-item-id="{{this.id}}">
+                <div class="am-action-parent am-item-row" data-item-id="{{this.id}}">
+                  {{#if this.isEquippable}}
+                  <button type="button" class="am-cs-equip-btn am-cs-eq-state-{{this.equippedState}}"
+                    data-action="item-equip" data-id="{{this.id}}"
+                    title="{{#if this.equipped}}Equipped{{else}}Carried{{/if}}">
+                    <i class="fa-solid {{#if this.equipped}}fa-shield{{else}}fa-shield-halved{{/if}}"></i>
+                  </button>
+                  {{/if}}
                   <img src="{{this.img}}" class="am-cs-ico" alt="" />
-                  <div class="am-act-info">
-                    <div class="am-act-name-row">
-                      <span class="am-item-name">{{this.name}}</span>
-                      {{#if this.atkBonus}}<span class="am-cs-tag am-tag-atk">{{this.atkBonus}}</span>{{/if}}
-                      {{#if this.isSpell}}
-                        {{#if this.concentration}}<span class="am-cs-tag am-tag-c" title="Concentration">C</span>{{/if}}
-                        {{#if this.ritual}}<span class="am-cs-tag am-tag-r" title="Ritual">R</span>{{/if}}
-                      {{/if}}
-                    </div>
-                    {{> am-item-props this}}
+                  <span class="am-item-name am-action-parent-name">{{this.name}}</span>
+                  {{#if this.uses.hasUses}}
+                  <div class="am-action-uses">
+                    <input type="number" class="am-action-uses-inp"
+                      value="{{this.uses.current}}" min="0" max="{{this.uses.max}}"
+                      data-action="item-uses" data-id="{{this.id}}" />
+                    <span class="am-cs-muted">/{{this.uses.max}}</span>
                   </div>
+                  {{/if}}
+                  {{#if this.qty}}<span class="am-action-qty am-cs-muted">×{{this.qty}}</span>{{/if}}
+                  <button type="button" class="am-action-star am-action-starred"
+                    data-action="item-star" data-id="{{this.id}}" title="Remove from favorites">
+                    <i class="fa-solid fa-star"></i>
+                  </button>
+                  {{> am-controls id=this.id}}
+                </div>
+                {{#each this.actions}}
+                <div class="am-action-child am-item-row" data-item-id="{{this.itemId}}" data-action-id="{{this.actionId}}">
+                  {{#if this.activationLabel}}
+                  <span class="am-act-cost am-act-cost-{{this.activation}}">{{this.activationLabel}}</span>
+                  {{/if}}
+                  <span class="am-action-child-name am-item-name">{{this.name}}</span>
+                  {{#if this.atkBonus}}<span class="am-cs-tag am-tag-atk">{{this.atkBonus}}</span>{{/if}}
+                  {{#if this.dmgFull}}<span class="am-chip am-chip-dmg">{{this.dmgFull}}</span>{{/if}}
+                  {{#if this.saveDC}}<span class="am-chip am-chip-save">{{this.saveDC}}</span>{{/if}}
                   <div class="am-act-btns">
-                    <button type="button" class="am-cs-use-btn" data-action="item-use" data-id="{{this.id}}">Use</button>
-                    {{> am-controls id=this.id}}
+                    <button type="button" class="am-cs-use-btn"
+                      data-action="item-action-use"
+                      data-id="{{this.itemId}}"
+                      data-action-id="{{this.actionId}}">Use</button>
                   </div>
                 </div>
-              {{/each}}
+                {{/each}}
+              </div>
+            {{/each}}
             </div>
-          {{/if}}
+            <div class="am-fav-divider"></div>
+            {{/if}}
 
-          {{!-- ACTIONS (class/heritage abilities that cost an action) --}}
-          {{#if abilityActions.length}}
-            <div class="am-cs-act-section">
-              <div class="am-cs-act-head">ACTIONS</div>
-              {{#each abilityActions}}
-                <div class="am-item-row am-act-row" data-item-id="{{this.id}}">
+            {{!-- ── All items (star to pin) ────────────────────────── --}}
+            <div class="am-all-actions">
+              {{#if favorites.length}}
+              <div class="am-all-actions-head">ALL ACTIONS</div>
+              {{/if}}
+              {{#each actionGroups}}
+              <div class="am-action-group" data-item-id="{{this.id}}">
+                <div class="am-action-parent am-item-row" data-item-id="{{this.id}}">
+                  {{#if this.isEquippable}}
+                  <button type="button" class="am-cs-equip-btn am-cs-eq-state-{{this.equippedState}}"
+                    data-action="item-equip" data-id="{{this.id}}"
+                    title="{{#if this.equipped}}Equipped{{else}}Carried{{/if}}">
+                    <i class="fa-solid {{#if this.equipped}}fa-shield{{else}}fa-shield-halved{{/if}}"></i>
+                  </button>
+                  {{/if}}
                   <img src="{{this.img}}" class="am-cs-ico" alt="" />
-                  <div class="am-act-info">
-                    <div class="am-act-name-row">
-                      <span class="am-item-name">{{this.name}}</span>
-                      {{#if this.atkBonus}}<span class="am-cs-tag am-tag-atk">{{this.atkBonus}}</span>{{/if}}
-                    </div>
-                    {{> am-item-props this}}
+                  <span class="am-item-name am-action-parent-name">{{this.name}}</span>
+                  {{#if this.uses.hasUses}}
+                  <div class="am-action-uses">
+                    <input type="number" class="am-action-uses-inp"
+                      value="{{this.uses.current}}" min="0" max="{{this.uses.max}}"
+                      data-action="item-uses" data-id="{{this.id}}" />
+                    <span class="am-cs-muted">/{{this.uses.max}}</span>
                   </div>
+                  {{/if}}
+                  {{#if this.qty}}<span class="am-action-qty am-cs-muted">×{{this.qty}}</span>{{/if}}
+                  <button type="button"
+                    class="am-action-star {{#if this.starred}}am-action-starred{{/if}}"
+                    data-action="item-star" data-id="{{this.id}}"
+                    title="{{#if this.starred}}Remove from favorites{{else}}Add to favorites{{/if}}">
+                    <i class="fa-{{#if this.starred}}solid{{else}}regular{{/if}} fa-star"></i>
+                  </button>
+                  {{> am-controls id=this.id}}
+                </div>
+                {{#each this.actions}}
+                <div class="am-action-child am-item-row" data-item-id="{{this.itemId}}" data-action-id="{{this.actionId}}">
+                  {{#if this.activationLabel}}
+                  <span class="am-act-cost am-act-cost-{{this.activation}}">{{this.activationLabel}}</span>
+                  {{/if}}
+                  <span class="am-action-child-name am-item-name">{{this.name}}</span>
+                  {{#if this.atkBonus}}<span class="am-cs-tag am-tag-atk">{{this.atkBonus}}</span>{{/if}}
+                  {{#if this.dmgFull}}<span class="am-chip am-chip-dmg">{{this.dmgFull}}</span>{{/if}}
+                  {{#if this.saveDC}}<span class="am-chip am-chip-save">{{this.saveDC}}</span>{{/if}}
                   <div class="am-act-btns">
-                    <button type="button" class="am-cs-use-btn" data-action="item-use" data-id="{{this.id}}">Use</button>
-                    {{> am-controls id=this.id}}
+                    <button type="button" class="am-cs-use-btn"
+                      data-action="item-action-use"
+                      data-id="{{this.itemId}}"
+                      data-action-id="{{this.actionId}}">Use</button>
                   </div>
                 </div>
+                {{/each}}
+              </div>
               {{/each}}
             </div>
-          {{/if}}
 
-          {{!-- BONUS ACTIONS --}}
-          {{#if bonusActions.length}}
-            <div class="am-cs-act-section">
-              <div class="am-cs-act-head am-act-bonus">BONUS ACTIONS</div>
-              {{#each bonusActions}}
-                <div class="am-item-row am-act-row" data-item-id="{{this.id}}">
-                  <img src="{{this.img}}" class="am-cs-ico" alt="" />
-                  <div class="am-act-info">
-                    <div class="am-act-name-row">
-                      <span class="am-item-name">{{this.name}}</span>
-                      {{#if this.atkBonus}}<span class="am-cs-tag am-tag-atk">{{this.atkBonus}}</span>{{/if}}
-                    </div>
-                    {{> am-item-props this}}
-                  </div>
-                  <div class="am-act-btns">
-                    <button type="button" class="am-cs-use-btn" data-action="item-use" data-id="{{this.id}}">Use</button>
-                    {{> am-controls id=this.id}}
-                  </div>
-                </div>
-              {{/each}}
-            </div>
-          {{/if}}
-
-          {{!-- REACTIONS --}}
-          {{#if reactions.length}}
-            <div class="am-cs-act-section">
-              <div class="am-cs-act-head am-act-reaction">REACTIONS</div>
-              {{#each reactions}}
-                <div class="am-item-row am-act-row" data-item-id="{{this.id}}">
-                  <img src="{{this.img}}" class="am-cs-ico" alt="" />
-                  <div class="am-act-info">
-                    <div class="am-act-name-row">
-                      <span class="am-item-name">{{this.name}}</span>
-                      {{#if this.atkBonus}}<span class="am-cs-tag am-tag-atk">{{this.atkBonus}}</span>{{/if}}
-                    </div>
-                    {{> am-item-props this}}
-                  </div>
-                  <div class="am-act-btns">
-                    <button type="button" class="am-cs-use-btn" data-action="item-use" data-id="{{this.id}}">Use</button>
-                    {{> am-controls id=this.id}}
-                  </div>
-                </div>
-              {{/each}}
-            </div>
-          {{/if}}
-
-          {{#unless (or attackActions.length abilityActions.length bonusActions.length reactions.length)}}
+          {{else}}
             <div class="am-cs-empty">
               <i class="fa-solid fa-swords fa-2x"></i>
-              {{#if hasWeapons}}
-                <p>No equipped weapons. Go to <strong>Inventory</strong> and click
-                  <i class="fa-solid fa-shield"></i> to equip.</p>
-              {{else}}
-                <p>No combat actions yet.</p>
-              {{/if}}
+              <p>No combat actions. Add weapons, maneuvers, or features with actions.</p>
             </div>
-          {{/unless}}
-
-          {{!-- Description panel (right-click to populate) --}}
-          <div class="am-cs-desc-panel" style="display:none"></div>
+          {{/if}}
 
         </section>
 
@@ -725,12 +732,12 @@
         {{#each savingThrows}}
           <div class="am-cs-save">
             <span class="am-cs-prof-dot am-cs-prof-{{#if this.proficient}}2{{else}}0{{/if}}"></span>
-            <span class="am-cs-save-lbl">{{this.abbr}}</span>
-            <button type="button" class="am-cs-save-mod" data-action="saving-throw"
+            <button type="button" class="am-cs-save-lbl" data-action="saving-throw"
               data-ability="{{this.key}}" data-mod="{{this.mod}}" data-label="{{this.label}} Save"
-              title="{{this.label}} Save">
-              {{this.modStr}}
+              title="{{this.label}} Save — click to roll">
+              {{this.abbr}}
             </button>
+            <span class="am-cs-save-mod">{{this.modStr}}</span>
           </div>
         {{/each}}
       </div>
@@ -772,11 +779,13 @@
         <div class="am-cs-status-grid">
           {{#each statusConditions}}
             <button type="button"
-              class="am-cs-status-btn {{#if this.active}}am-cs-status-active{{/if}}"
+              class="am-cs-status-btn {{#if this.active}}am-cs-status-active{{/if}}{{#if this.duration}} am-duration-counter{{/if}}"
               data-action="toggle-condition"
               data-id="{{this.id}}"
               data-label="{{this.label}}"
               data-description="{{this.description}}"
+              data-duration="{{this.duration}}"
+              {{#if this.duration}}style="--am-duration: '{{this.duration}}'; --am-duration-col: {{this.durationColor}}"{{/if}}
               title="{{this.label}}{{#if this.description}} — {{this.description}}{{/if}}">
               <img src="{{this.icon}}" alt="{{this.label}}" />
               <span class="am-cs-status-lbl">{{this.label}}</span>
