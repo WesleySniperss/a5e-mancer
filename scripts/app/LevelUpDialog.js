@@ -6,23 +6,29 @@ import { ManeuverDialog } from './ManeuverDialog.js';
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
-/**
- * Level Up dialog for a5e characters.
- * Opens as a standalone ApplicationV2 window.
- */
 export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
   constructor(actor, options = {}) {
     super(options);
     this.actor = actor;
-    this._hpMethod = 'average';
+
+    // Levelup mode state
+    this._mode            = 'levelup'; // 'levelup' | 'multiclass'
+    this._hpMethod        = 'average';
     this._selectedClassId = null;
-    this._manualHP = null;
-    this._rolledHP = null;
-    this._featUuid = null;
-    this._knackUuid = null;
-    this._feats = [];
-    this._knacks = [];
+    this._manualHP        = null;
+    this._rolledHP        = null;
+    this._featUuid        = null;
+    this._knackUuid       = null;
+    this._feats           = [];
+    this._knacks          = [];
+
+    // Multiclass mode state
+    this._newClassUuid      = null;
+    this._newClassHitDie    = 8;
+    this._compendiumClasses = null; // null = not yet loaded
+
+    // Shared
     this._selectedManeuverUuids = [];
     this._selectedTraditions    = [];
     this._maneuverInfo          = null;
@@ -33,11 +39,11 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     tag: 'form',
     form: { handler: LevelUpDialog.formHandler, closeOnSubmit: true, submitOnChange: false },
     actions: {
-      rollHP:        LevelUpDialog.rollHP,
+      rollHP:         LevelUpDialog.rollHP,
       selectHPMethod: LevelUpDialog.selectHPMethod
     },
     classes: ['am-app', 'am-levelup-dialog'],
-    position: { width: 520, height: 'auto' },
+    position: { width: 540, height: 'auto' },
     window: { icon: 'fa-solid fa-arrow-up', resizable: false, minimizable: false }
   };
 
@@ -50,14 +56,73 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   async _prepareContext(_options) {
-    const classes  = LevelUpService.getActorClasses(this.actor);
-    const total    = LevelUpService.getTotalLevel(this.actor);
+    const classes = LevelUpService.getActorClasses(this.actor);
+    const total   = LevelUpService.getTotalLevel(this.actor);
 
-    // Default to first class
     if (!this._selectedClassId && classes.length) {
       this._selectedClassId = classes[0].id;
     }
 
+    /* ── Multiclass mode ───────────────────────────────────────────────── */
+    if (this._mode === 'multiclass') {
+      // Lazy-load available classes
+      if (!this._compendiumClasses) {
+        this._compendiumClasses = await LevelUpService.getCompendiumClasses();
+      }
+
+      const existingNames = new Set(classes.map(c => c.name.toLowerCase()));
+      const availableClasses = this._compendiumClasses
+        .filter(c => !existingNames.has(c.name.toLowerCase()))
+        .map(c => ({
+          ...c,
+          prereqs: LevelUpService.checkPrerequisites(this.actor, c.name),
+        }));
+
+      const newClass = this._newClassUuid
+        ? (availableClasses.find(c => c.uuid === this._newClassUuid) ?? null)
+        : null;
+
+      if (newClass) this._newClassHitDie = newClass.hitDie;
+
+      const newTotalLevel = total + 1;
+      const gainsKnack    = newTotalLevel >= 2 && newTotalLevel % 2 === 0;
+
+      if (gainsKnack && !this._knacks.length) {
+        this._knacks = await LevelUpService.getExplorationKnacks();
+      }
+
+      const maneuverInfo = newClass
+        ? this.#getManeuverInfo({ name: newClass.name }, 1, newTotalLevel)
+        : null;
+
+      const avgHP = Math.ceil((newClass?.hitDie ?? 8) / 2) + 1 + this.#getConMod();
+
+      return {
+        actor:                this.actor,
+        classes,
+        mode:                 'multiclass',
+        availableClasses,
+        newClass,
+        newTotalLevel,
+        hpMethod:             this._hpMethod,
+        avgHP,
+        rolledHP:             this._rolledHP !== null ? this._rolledHP + this.#getConMod() : null,
+        manualHP:             this._manualHP,
+        conMod:               this.#getConMod(),
+        knacks:               this._knacks,
+        info:                 { gainsASI: false, gainsKnack },
+        maneuverInfo,
+        selectedManeuverCount: this._selectedManeuverUuids.length,
+        selectedTraditions:    this._selectedTraditions,
+        // Unused in multiclass mode but kept for template safety
+        selectedClass: null,
+        newClassLevel: 1,
+        feats: [],
+        multiclass: true,
+      };
+    }
+
+    /* ── Level-up mode (existing class) ───────────────────────────────── */
     const selectedClass = classes.find(c => c.id === this._selectedClassId) ?? classes[0];
     const newClassLevel = selectedClass ? selectedClass.level + 1 : 1;
     const newTotalLevel = total + 1;
@@ -65,7 +130,6 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       ? LevelUpService.getLevelUpInfo(selectedClass, newClassLevel, newTotalLevel)
       : { gainsASI: false, gainsKnack: false, avgHP: 5, hitDie: 8 };
 
-    // Load feats/knacks if needed (lazy)
     if (info.gainsASI && !this._feats.length) {
       this._feats = await LevelUpService.getFeats();
     }
@@ -76,23 +140,26 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     const avgHP = info.avgHP + this.#getConMod();
 
     return {
-      actor:         this.actor,
+      actor:                this.actor,
       classes,
+      mode:                 'levelup',
       selectedClass,
       newClassLevel,
       newTotalLevel,
       info,
-      hpMethod:      this._hpMethod,
+      hpMethod:             this._hpMethod,
       avgHP,
-      rolledHP:      this._rolledHP !== null ? this._rolledHP + this.#getConMod() : null,
-      manualHP:      this._manualHP,
-      feats:         this._feats,
-      knacks:        this._knacks,
-      conMod:        this.#getConMod(),
-      multiclass:    classes.length > 1 || newTotalLevel === 1,
-      maneuverInfo:  this.#getManeuverInfo(selectedClass, newClassLevel, newTotalLevel),
+      rolledHP:             this._rolledHP !== null ? this._rolledHP + this.#getConMod() : null,
+      manualHP:             this._manualHP,
+      feats:                this._feats,
+      knacks:               this._knacks,
+      conMod:               this.#getConMod(),
+      multiclass:           classes.length > 1,
+      maneuverInfo:         this.#getManeuverInfo(selectedClass, newClassLevel, newTotalLevel),
       selectedManeuverCount: this._selectedManeuverUuids.length,
-      selectedTraditions:    this._selectedTraditions
+      selectedTraditions:    this._selectedTraditions,
+      availableClasses: [],
+      newClass: null,
     };
   }
 
@@ -119,17 +186,47 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   async _onRender(ctx, opts) {
-    // Class selector
+    /* ── Mode toggle ─────────────────────────────────────────────────── */
+    this.element.querySelectorAll('.lu-mode-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const newMode = btn.dataset.mode;
+        if (newMode === this._mode) return;
+        this._mode      = newMode;
+        this._rolledHP  = null;
+        this._featUuid  = null;
+        this._knackUuid = null;
+        this._selectedManeuverUuids = [];
+        this._selectedTraditions    = [];
+        await this.render(true);
+      });
+    });
+
+    /* ── Existing class selector (levelup mode) ──────────────────────── */
     const classSelect = this.element.querySelector('#lu-class-select');
     if (classSelect) {
       classSelect.addEventListener('change', async (e) => {
         this._selectedClassId = e.target.value;
         this._rolledHP = null;
+        this._feats    = [];
+        this._knacks   = [];
         await this.render(true);
       });
     }
 
-    // HP method radio
+    /* ── New class selector (multiclass mode) ────────────────────────── */
+    const newClassSelect = this.element.querySelector('#lu-new-class-select');
+    if (newClassSelect) {
+      newClassSelect.addEventListener('change', async (e) => {
+        this._newClassUuid = e.target.value || null;
+        this._rolledHP     = null;
+        this._hpMethod     = 'average';
+        this._selectedManeuverUuids = [];
+        this._selectedTraditions    = [];
+        await this.render(true);
+      });
+    }
+
+    /* ── HP method radio ─────────────────────────────────────────────── */
     this.element.querySelectorAll('[name="hp-method"]').forEach(radio => {
       radio.addEventListener('change', (e) => {
         this._hpMethod = e.target.value;
@@ -137,7 +234,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       });
     });
 
-    // Manual HP input
+    /* ── Manual HP input ─────────────────────────────────────────────── */
     const manualInput = this.element.querySelector('#lu-manual-hp');
     if (manualInput) {
       manualInput.addEventListener('input', (e) => {
@@ -145,7 +242,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       });
     }
 
-    // Feat/knack selectors
+    /* ── Feat selector ───────────────────────────────────────────────── */
     const featSelect = this.element.querySelector('#lu-feat-select');
     if (featSelect) {
       featSelect.addEventListener('change', async (e) => {
@@ -161,6 +258,8 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         }
       });
     }
+
+    /* ── Knack selector ──────────────────────────────────────────────── */
     const knackSelect = this.element.querySelector('#lu-knack-select');
     if (knackSelect) {
       knackSelect.addEventListener('change', async (e) => {
@@ -177,7 +276,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       });
     }
 
-    // Maneuver picker button
+    /* ── Maneuver picker ─────────────────────────────────────────────── */
     this.element.querySelector('.lu-open-maneuvers')?.addEventListener('click', async () => {
       const ctx  = await this._prepareContext({});
       const info = ctx.maneuverInfo;
@@ -196,15 +295,23 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     });
   }
 
+  /* ── Static actions ───────────────────────────────────────────────────── */
+
   static async rollHP(_event, _btn) {
     const dialog = AM.levelUpDialog;
     if (!dialog) return;
 
-    const classes = LevelUpService.getActorClasses(dialog.actor);
-    const cls = classes.find(c => c.id === dialog._selectedClassId) ?? classes[0];
-    if (!cls) return;
+    let hitDie;
+    if (dialog._mode === 'multiclass') {
+      hitDie = dialog._newClassHitDie;
+    } else {
+      const classes = LevelUpService.getActorClasses(dialog.actor);
+      const cls = classes.find(c => c.id === dialog._selectedClassId) ?? classes[0];
+      if (!cls) return;
+      hitDie = cls.hitDie;
+    }
 
-    const roll = new Roll(`1d${cls.hitDie}`);
+    const roll = new Roll(`1d${hitDie}`);
     await roll.evaluate();
 
     if (game.modules.get('dice-so-nice')?.active) {
@@ -218,29 +325,65 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     const resultEl = dialog.element.querySelector('#lu-roll-result');
     if (resultEl) {
       const conMod = dialog.#getConMod();
-      const total  = roll.total + conMod;
-      resultEl.textContent = `${roll.total} + ${conMod} CON = ${total} HP`;
+      resultEl.textContent = `${roll.total} + ${conMod} CON = ${roll.total + conMod} HP`;
     }
   }
 
-  static async formHandler(_event, _form, formData) {
+  static async formHandler(_event, _form, _formData) {
     const dialog = AM.levelUpDialog;
     if (!dialog) return;
 
-    const classes    = LevelUpService.getActorClasses(dialog.actor);
-    const cls        = classes.find(c => c.id === dialog._selectedClassId) ?? classes[0];
+    const conMod = dialog.#getConMod();
+
+    /* ── Multiclass submit ────────────────────────────────────────────── */
+    if (dialog._mode === 'multiclass') {
+      if (!dialog._newClassUuid) {
+        ui.notifications.warn(game.i18n.localize('am.levelup.multiclass-no-class'));
+        return;
+      }
+
+      const hitDie = dialog._newClassHitDie;
+      let hpGained = 0;
+      switch (dialog._hpMethod) {
+        case 'average': hpGained = Math.ceil(hitDie / 2) + 1 + conMod; break;
+        case 'roll':    hpGained = (dialog._rolledHP ?? 1) + conMod;    break;
+        case 'max':     hpGained = hitDie + conMod;                      break;
+        case 'manual':  hpGained = dialog._manualHP ?? 0;                break;
+      }
+      hpGained = Math.max(1, hpGained);
+
+      await LevelUpService.applyMulticlass(
+        dialog.actor,
+        dialog._newClassUuid,
+        hpGained,
+        dialog._knackUuid
+      );
+
+      if (dialog._selectedManeuverUuids.length || dialog._selectedTraditions.length) {
+        await ManeuverService.applyManeuversToActor(
+          dialog.actor,
+          dialog._selectedManeuverUuids,
+          dialog._selectedTraditions
+        );
+      }
+
+      AM.levelUpDialog = null;
+      return;
+    }
+
+    /* ── Normal level-up submit ───────────────────────────────────────── */
+    const classes = LevelUpService.getActorClasses(dialog.actor);
+    const cls     = classes.find(c => c.id === dialog._selectedClassId) ?? classes[0];
     if (!cls) return;
 
-    // Calculate HP gained
-    const conMod = dialog.#getConMod();
     let hpGained = 0;
     switch (dialog._hpMethod) {
       case 'average': hpGained = Math.ceil(cls.hitDie / 2) + 1 + conMod; break;
-      case 'roll':    hpGained = (dialog._rolledHP ?? 1) + conMod; break;
-      case 'max':     hpGained = cls.hitDie + conMod; break;
-      case 'manual':  hpGained = dialog._manualHP ?? 0; break;
+      case 'roll':    hpGained = (dialog._rolledHP ?? 1) + conMod;        break;
+      case 'max':     hpGained = cls.hitDie + conMod;                      break;
+      case 'manual':  hpGained = dialog._manualHP ?? 0;                    break;
     }
-    hpGained = Math.max(1, hpGained); // minimum 1 HP
+    hpGained = Math.max(1, hpGained);
 
     await LevelUpService.applyLevelUp(
       dialog.actor,
@@ -250,7 +393,6 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       dialog._knackUuid
     );
 
-    // Apply selected maneuvers
     if (dialog._selectedManeuverUuids.length || dialog._selectedTraditions.length) {
       await ManeuverService.applyManeuversToActor(
         dialog.actor,

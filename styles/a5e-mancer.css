@@ -632,6 +632,59 @@
 
 .lu-section { margin-block-end: var(--am-spacing-sm); }
 
+/* Mode toggle */
+.lu-mode-section { margin-block-end: 0; }
+.lu-mode-toggle {
+  display: flex;
+  gap: var(--am-spacing-xs);
+  background: rgba(0,0,0,0.1);
+  border-radius: var(--am-border-radius);
+  padding: 0.2rem;
+}
+.lu-mode-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: calc(var(--am-border-radius) - 2px);
+  border: 1px solid transparent;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  color: var(--color-text-secondary, inherit);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  &:hover { background: rgba(255,255,255,0.07); color: var(--color-text-primary, inherit); }
+  &.lu-mode-active {
+    background: rgba(212,175,55,0.15);
+    border-color: var(--am-gold);
+    color: var(--am-gold);
+  }
+}
+
+/* Prerequisite indicators */
+.lu-prereq {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  margin-block: 0.3rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--am-border-radius);
+}
+.lu-prereq-ok {
+  color: var(--am-success, #8fd693);
+  background: rgba(143,214,147,0.1);
+  border: 1px solid rgba(143,214,147,0.3);
+}
+.lu-prereq-fail {
+  color: var(--am-error, #ffb675);
+  background: rgba(255,182,117,0.1);
+  border: 1px solid rgba(255,182,117,0.3);
+}
+
 .lu-level-badge {
   display: flex;
   flex-wrap: wrap;
