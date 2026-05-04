@@ -2,7 +2,7 @@
   "id": "a5e-mancer",
   "title": "A5e Mancer",
   "description": "A full character creation wizard for Level Up: Advanced 5th Edition (a5e). Guides players through Heritage, Culture, Background, Destiny, Class, Abilities, and Biography.",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "authors": [
     {
       "name": "A5e Mancer"
@@ -47,5 +47,5 @@
   "bugs": "https://github.com/WesleySniperss/a5e-mancer/issues",
   "url": "https://github.com/WesleySniperss/a5e-mancer",
   "manifest": "https://raw.githubusercontent.com/WesleySniperss/a5e-mancer/master/module.json",
-  "download": "https://github.com/WesleySniperss/a5e-mancer/releases/download/v1.0.0/module.zip"
+  "download": "https://github.com/WesleySniperss/a5e-mancer/releases/download/v2.0.0/module.zip"
 }
