@@ -22,11 +22,20 @@ const HIT_DICE = {
   sorcerer: 6, warlock: 8, wizard: 6, adept: 8, psion: 6, scout: 8, trooper: 10
 };
 
-// ASI levels in a5e (same as 5e)
-const ASI_LEVELS = [4, 8, 12, 16, 19];
+// ASI levels by class (based on CLASS level, not total level).
+// Fighter gets extra ASIs at 6 and 14; Rogue gets an extra at 10.
+const CLASS_ASI_LEVELS = {
+  fighter:  [4, 6, 8, 12, 14, 16, 19],
+  rogue:    [4, 8, 10, 12, 16, 19],
+  _default: [4, 8, 12, 16, 19],
+};
 
-// Exploration Knack levels (every 2 levels starting at 2)
-const KNACK_LEVELS = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20];
+// Exploration Knack levels by class (based on CLASS level, every even class level).
+// Most classes follow the standard schedule; list overrides here if a class differs.
+const CLASS_KNACK_LEVELS = {
+  _default: [2, 4, 6, 8, 10, 12, 14, 16, 18, 20],
+  // e.g. someClass: [3, 6, 9, ...]
+};
 
 /**
  * Multiclass prerequisites per A5e (Level Up: Advanced 5e) rules.
@@ -88,11 +97,17 @@ export class LevelUpService {
 
   /**
    * Get what the actor gains at a given class + total level.
+   * Both ASI and Exploration Knack are based on CLASS level, not total level —
+   * each class has its own progression table.
    */
   static getLevelUpInfo(cls, newClassLevel, newTotalLevel) {
-    const gainsASI    = ASI_LEVELS.includes(newClassLevel);
-    const gainsKnack  = KNACK_LEVELS.includes(newTotalLevel);
-    const avgHP       = Math.ceil(cls.hitDie / 2) + 1;
+    const key        = cls.name?.toLowerCase() ?? '';
+    const asiLevels  = CLASS_ASI_LEVELS[key]   ?? CLASS_ASI_LEVELS._default;
+    const knackLevels = CLASS_KNACK_LEVELS[key] ?? CLASS_KNACK_LEVELS._default;
+
+    const gainsASI   = asiLevels.includes(newClassLevel);
+    const gainsKnack = knackLevels.includes(newClassLevel);
+    const avgHP      = Math.ceil(cls.hitDie / 2) + 1;
 
     return { gainsASI, gainsKnack, avgHP, hitDie: cls.hitDie, newClassLevel, newTotalLevel };
   }

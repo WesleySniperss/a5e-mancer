@@ -85,11 +85,9 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       if (newClass) this._newClassHitDie = newClass.hitDie;
 
       const newTotalLevel = total + 1;
-      const gainsKnack    = newTotalLevel >= 2 && newTotalLevel % 2 === 0;
-
-      if (gainsKnack && !this._knacks.length) {
-        this._knacks = await LevelUpService.getExplorationKnacks();
-      }
+      // Level 1 of a new class never grants an exploration knack —
+      // knacks come from that class's own even-level progression (class level 2+).
+      const gainsKnack = false;
 
       const maneuverInfo = newClass
         ? this.#getManeuverInfo({ name: newClass.name }, 1, newTotalLevel)
