@@ -14,6 +14,13 @@ export class AM {
   static equipmentData     = null;
   static creationManeuvers = null;
   static creationSpells    = null;
+  static allManeuversData  = null;   // Map<tradition, Map<degree, maneuver[]>>
+  static allSpellsData     = null;   // Map<level, spell[]>
+  static maneuverDescMap   = new Map();
+  static spellDescMap      = new Map();
+  static maneuverFilter    = { tradition: null };
+  static spellFilter       = { level: null, school: null };
+  static hpChoice          = { method: 'max', value: 0 };
   static app               = null;
   static levelUpDialog     = null;
 

@@ -58,11 +58,6 @@
       <span class="lu-badge">
         {{localize 'am.levelup.total-level'}}: {{newTotalLevel}}
       </span>
-      {{#if info.gainsKnack}}
-        <span class="lu-badge lu-badge-blue">
-          <i class="fa-solid fa-compass"></i> {{localize 'am.levelup.gains-knack'}}
-        </span>
-      {{/if}}
     </div>
   </section>
 
@@ -75,7 +70,6 @@
     <p class="am-hint">{{localize 'am.levelup.con-mod'}}: {{#if (gte conMod 0)}}+{{/if}}{{conMod}}</p>
 
     <div class="lu-hp-methods">
-
       <label class="lu-hp-method {{#if (eq hpMethod 'average')}}lu-selected{{/if}}">
         <input type="radio" name="hp-method" value="average" {{#if (eq hpMethod 'average')}}checked{{/if}} />
         <div class="lu-method-content">
@@ -83,7 +77,6 @@
           <span class="lu-method-value">{{avgHP}} HP</span>
         </div>
       </label>
-
       <label class="lu-hp-method {{#if (eq hpMethod 'roll')}}lu-selected{{/if}}">
         <input type="radio" name="hp-method" value="roll" {{#if (eq hpMethod 'roll')}}checked{{/if}} />
         <div class="lu-method-content">
@@ -99,7 +92,6 @@
           </div>
         </div>
       </label>
-
       <label class="lu-hp-method {{#if (eq hpMethod 'max')}}lu-selected{{/if}}">
         <input type="radio" name="hp-method" value="max" {{#if (eq hpMethod 'max')}}checked{{/if}} />
         <div class="lu-method-content">
@@ -107,29 +99,196 @@
           <span class="lu-method-value">{{newClass.hitDie}} + {{conMod}} CON HP</span>
         </div>
       </label>
-
       <label class="lu-hp-method {{#if (eq hpMethod 'manual')}}lu-selected{{/if}}">
         <input type="radio" name="hp-method" value="manual" {{#if (eq hpMethod 'manual')}}checked{{/if}} />
         <div class="lu-method-content">
           <span class="lu-method-title">{{localize 'am.levelup.hp-manual'}}</span>
           <input id="lu-manual-hp" type="number" name="manualHP"
             class="form-input lu-manual-input" min="1" placeholder="?"
-            {{#if (eq hpMethod 'manual')}}{{else}}disabled{{/if}} />
+            {{#unless (eq hpMethod 'manual')}}disabled{{/unless}} />
         </div>
       </label>
-
     </div>
   </section>
-  {{/if}}{{!-- /newClass --}}
 
-  {{!-- Exploration Knack (based on new total level) --}}
+  {{!-- Maneuvers (multiclass) --}}
+  {{#if maneuverInfo.newManeuversToLearn}}
+  <hr />
+  <section class="lu-section">
+    <h3><i class="fa-solid fa-swords"></i> {{localize 'am.maneuvers.section-title'}}</h3>
+    {{#if maneuverInfo.degreeUnlocked}}
+      <p class="am-hint">
+        <i class="fa-solid fa-arrow-up" style="color:var(--am-gold)"></i>
+        {{localize 'am.maneuvers.degree-unlocked' degree=maneuverInfo.degreeUnlocked}}
+      </p>
+    {{/if}}
+    <p>{{localize 'am.maneuvers.pick-prompt' n=maneuverInfo.newManeuversToLearn}}
+      <strong>({{localize 'am.maneuvers.max-degree' degree=maneuverInfo.maxDegree}})</strong>
+    </p>
+
+    <div class="am-selection-header">
+      <div class="am-counter-badge {{#if (gte selectedManeuverCount maneuverInfo.newManeuversToLearn)}}am-badge-success{{else}}am-badge-pending{{/if}}">
+        <i class="fa-solid fa-swords"></i>
+        {{selectedManeuverCount}}/{{maneuverInfo.newManeuversToLearn}}
+      </div>
+    </div>
+
+    {{#if maneuversLoaded}}
+      <div class="am-filter-pills" role="toolbar">
+        {{#each inlineTraditions}}
+          <button type="button"
+                  class="am-filter-pill {{#if this.active}}am-pill-active{{/if}} {{#if this.used}}am-pill-used{{/if}}"
+                  data-action="luFilterManeuverTradition"
+                  data-tradition="{{this.key}}">
+            {{this.label}}
+            {{#if this.used}}<i class="fa-solid fa-check am-pill-check"></i>{{/if}}
+          </button>
+        {{else}}
+          <p class="am-hint">{{localize 'am.app.maneuvers.no-traditions'}}</p>
+        {{/each}}
+      </div>
+      {{#if maneuverFilterTradition}}
+        {{#if visibleManeuvers.length}}
+          <div class="am-card-grid am-inline-card-grid" role="list">
+            {{#each visibleManeuvers}}
+              <button type="button"
+                      class="am-card {{#if this.isSelected}}am-card-selected{{/if}}"
+                      role="listitem"
+                      data-action="luToggleManeuver"
+                      data-uuid="{{this.uuid}}"
+                      data-tradition="{{this.tradition}}"
+                      data-name="{{this.name}}">
+                <img class="am-card-img" src="{{this.img}}" alt="" loading="lazy">
+                <span class="am-card-name">{{this.name}}</span>
+                <div class="am-card-meta">
+                  <span class="am-degree-pip">{{this.degree}}°</span>
+                  {{#if this.exertion}}
+                    <span class="am-ex-cost"><i class="fa-solid fa-bolt"></i>{{this.exertion}}</span>
+                  {{/if}}
+                </div>
+              </button>
+            {{/each}}
+          </div>
+        {{else}}
+          <p class="am-hint">{{localize 'am.maneuvers.none-found'}}</p>
+        {{/if}}
+        <div class="am-inline-description overflow-vert-only">
+          <p class="am-hint am-inline-desc-hint">{{localize 'am.app.hover-for-description'}}</p>
+        </div>
+      {{else}}
+        <p class="am-hint am-filter-prompt">
+          <i class="fa-solid fa-hand-pointer"></i>
+          {{localize 'am.app.maneuvers.select-tradition-hint'}}
+        </p>
+      {{/if}}
+    {{else}}
+      <p class="am-loading"><i class="fas fa-spinner fa-spin"></i> {{localize 'am.app.loading'}}</p>
+    {{/if}}
+  </section>
+  {{/if}}
+
+  {{!-- Spells (multiclass) --}}
+  {{#if spellInfo}}
+  <hr />
+  <section class="lu-section">
+    <h3><i class="fa-solid fa-sparkles"></i> {{localize 'am.levelup.spells-title'}}</h3>
+    <p class="am-hint">{{localize 'am.levelup.spells-hint'}}</p>
+
+    <div class="am-selection-header">
+      {{#if spellInfo.cantrips}}
+        <div class="am-counter-badge {{#if (gte selectedCantripCount spellInfo.cantrips)}}am-badge-success{{else}}am-badge-pending{{/if}}">
+          <i class="fa-solid fa-sparkles"></i>
+          {{localize 'am.app.spells.cantrips'}}: {{selectedCantripCount}}/{{spellInfo.cantrips}}
+        </div>
+      {{/if}}
+      {{#if (eq spellInfo.type 'known')}}
+        <div class="am-counter-badge {{#if (gte selectedSpellCount spellInfo.spellsKnown)}}am-badge-success{{else}}am-badge-pending{{/if}}">
+          <i class="fa-solid fa-book-sparkles"></i>
+          {{localize 'am.app.spells.spells-label'}}: {{selectedSpellCount}}/{{spellInfo.spellsKnown}}
+        </div>
+      {{/if}}
+    </div>
+
+    {{#if spellsLoaded}}
+      {{#if spellLevelPills.length}}
+        <div class="am-filter-pills" role="toolbar">
+          <button type="button"
+                  class="am-filter-pill {{#if spellLevelAllActive}}am-pill-active{{/if}}"
+                  data-action="luFilterSpellLevel" data-level="">
+            {{localize 'am.app.spells.filter-all'}}
+          </button>
+          {{#each spellLevelPills}}
+            <button type="button"
+                    class="am-filter-pill {{#if this.active}}am-pill-active{{/if}}"
+                    data-action="luFilterSpellLevel"
+                    data-level="{{this.level}}">
+              {{this.label}}
+            </button>
+          {{/each}}
+        </div>
+      {{/if}}
+      {{#if spellSchoolPills.length}}
+        <div class="am-filter-pills am-filter-pills-sm" role="toolbar">
+          <button type="button"
+                  class="am-filter-pill {{#if spellSchoolAllActive}}am-pill-active{{/if}}"
+                  data-action="luFilterSpellSchool" data-school="">
+            {{localize 'am.app.spells.filter-all-schools'}}
+          </button>
+          {{#each spellSchoolPills}}
+            <button type="button"
+                    class="am-filter-pill {{#if this.active}}am-pill-active{{/if}}"
+                    data-action="luFilterSpellSchool"
+                    data-school="{{this.key}}">
+              {{this.label}}
+            </button>
+          {{/each}}
+        </div>
+      {{/if}}
+      {{#if visibleSpells.length}}
+        <div class="am-card-grid am-inline-card-grid am-spell-inline-grid" role="list">
+          {{#each visibleSpells}}
+            <button type="button"
+                    class="am-card {{#if this.isSelected}}am-card-selected am-card-selected-spell{{/if}}"
+                    role="listitem"
+                    data-action="luToggleSpell"
+                    data-uuid="{{this.uuid}}"
+                    data-level="{{this.level}}"
+                    data-name="{{this.name}}">
+              <img class="am-card-img" src="{{this.img}}" alt="" loading="lazy">
+              <span class="am-card-name">{{this.name}}</span>
+              <div class="am-card-meta">
+                {{#if this.isCantrip}}
+                  <span class="am-level-pip am-cantrip-pip">C</span>
+                {{else}}
+                  <span class="am-level-pip">{{this.level}}</span>
+                {{/if}}
+                {{#if this.concentration}}
+                  <span class="am-conc-tag" title="Concentration">C</span>
+                {{/if}}
+              </div>
+            </button>
+          {{/each}}
+        </div>
+      {{else}}
+        <p class="am-hint">{{localize 'am.spells.none-found'}}</p>
+      {{/if}}
+      <div class="am-inline-description overflow-vert-only">
+        <p class="am-hint am-inline-desc-hint">{{localize 'am.app.hover-for-description'}}</p>
+      </div>
+    {{else}}
+      <p class="am-loading"><i class="fas fa-spinner fa-spin"></i> {{localize 'am.app.loading'}}</p>
+    {{/if}}
+  </section>
+  {{/if}}
+
+  {{!-- Exploration Knack (multiclass, based on new total level) --}}
   {{#if info.gainsKnack}}
   <hr />
   <section class="lu-section">
-    <h3><i class="fa-solid fa-compass"></i> {{localize 'am.levelup.knack-title'}}</h3>
+    <h3><i class="fa-solid fa-compass"></i> {{knackLabel}}</h3>
     <p class="am-hint">{{localize 'am.levelup.knack-hint'}}</p>
     <div class="form-row flex items-center gap-sm mb-sm">
-      <label for="lu-knack-select">{{localize 'am.levelup.knack-label'}}</label>
+      <label for="lu-knack-select">{{knackLabel}}</label>
       <select id="lu-knack-select" name="knackUuid" class="form-select">
         <option value="">{{localize 'am.levelup.knack-placeholder'}}</option>
         {{#each knacks}}
@@ -141,41 +300,7 @@
   </section>
   {{/if}}
 
-  {{!-- Maneuvers (if new class grants them at level 1) --}}
-  {{#if maneuverInfo.newManeuversToLearn}}
-  <hr />
-  <section class="lu-section">
-    <h3><i class="fa-solid fa-swords"></i> {{localize 'am.maneuvers.section-title'}}</h3>
-    {{#if maneuverInfo.degreeUnlocked}}
-      <p class="am-hint">
-        <i class="fa-solid fa-arrow-up" style="color:var(--am-gold)"></i>
-        {{localize 'am.maneuvers.degree-unlocked' degree=maneuverInfo.degreeUnlocked}}
-      </p>
-    {{/if}}
-    <p>
-      {{localize 'am.maneuvers.pick-prompt' n=maneuverInfo.newManeuversToLearn}}
-      <strong>({{localize 'am.maneuvers.max-degree' degree=maneuverInfo.maxDegree}})</strong>
-    </p>
-    <div class="flex items-center gap-sm">
-      <button type="button" class="lu-open-maneuvers">
-        <i class="fa-solid fa-swords"></i>
-        {{localize 'am.maneuvers.open-picker'}}
-      </button>
-      {{#if selectedManeuverCount}}
-        <span class="lu-badge lu-badge-gold">
-          <i class="fa-solid fa-check"></i>
-          {{localize 'am.maneuvers.selected-count' n=selectedManeuverCount}}
-        </span>
-      {{/if}}
-    </div>
-    {{#if selectedTraditions.length}}
-      <p class="am-hint">
-        {{localize 'am.maneuvers.traditions-label'}}:
-        {{#each selectedTraditions}}<strong>{{this}}</strong>{{#unless @last}}, {{/unless}}{{/each}}
-      </p>
-    {{/if}}
-  </section>
-  {{/if}}
+  {{/if}}{{!-- /newClass --}}
 
   {{!-- ═══════════════════════════════════════════════════ LEVEL-UP MODE --}}
   {{else}}
@@ -228,19 +353,15 @@
     <p class="am-hint">{{localize 'am.levelup.con-mod'}}: {{#if (gte conMod 0)}}+{{/if}}{{conMod}}</p>
 
     <div class="lu-hp-methods">
-
       <label class="lu-hp-method {{#if (eq hpMethod 'average')}}lu-selected{{/if}}">
-        <input type="radio" name="hp-method" value="average"
-          {{#if (eq hpMethod 'average')}}checked{{/if}} />
+        <input type="radio" name="hp-method" value="average" {{#if (eq hpMethod 'average')}}checked{{/if}} />
         <div class="lu-method-content">
           <span class="lu-method-title">{{localize 'am.levelup.hp-average'}}</span>
           <span class="lu-method-value">{{avgHP}} HP</span>
         </div>
       </label>
-
       <label class="lu-hp-method {{#if (eq hpMethod 'roll')}}lu-selected{{/if}}">
-        <input type="radio" name="hp-method" value="roll"
-          {{#if (eq hpMethod 'roll')}}checked{{/if}} />
+        <input type="radio" name="hp-method" value="roll" {{#if (eq hpMethod 'roll')}}checked{{/if}} />
         <div class="lu-method-content">
           <span class="lu-method-title">{{localize 'am.levelup.hp-roll'}}</span>
           <div class="flex items-center gap-sm">
@@ -254,27 +375,22 @@
           </div>
         </div>
       </label>
-
       <label class="lu-hp-method {{#if (eq hpMethod 'max')}}lu-selected{{/if}}">
-        <input type="radio" name="hp-method" value="max"
-          {{#if (eq hpMethod 'max')}}checked{{/if}} />
+        <input type="radio" name="hp-method" value="max" {{#if (eq hpMethod 'max')}}checked{{/if}} />
         <div class="lu-method-content">
           <span class="lu-method-title">{{localize 'am.levelup.hp-max'}}</span>
           <span class="lu-method-value">{{selectedClass.hitDie}} + {{conMod}} CON HP</span>
         </div>
       </label>
-
       <label class="lu-hp-method {{#if (eq hpMethod 'manual')}}lu-selected{{/if}}">
-        <input type="radio" name="hp-method" value="manual"
-          {{#if (eq hpMethod 'manual')}}checked{{/if}} />
+        <input type="radio" name="hp-method" value="manual" {{#if (eq hpMethod 'manual')}}checked{{/if}} />
         <div class="lu-method-content">
           <span class="lu-method-title">{{localize 'am.levelup.hp-manual'}}</span>
           <input id="lu-manual-hp" type="number" name="manualHP"
             class="form-input lu-manual-input" min="1" placeholder="?"
-            {{#if (eq hpMethod 'manual')}}{{else}}disabled{{/if}} />
+            {{#unless (eq hpMethod 'manual')}}disabled{{/unless}} />
         </div>
       </label>
-
     </div>
   </section>
 
@@ -302,10 +418,10 @@
   {{#if info.gainsKnack}}
   <hr />
   <section class="lu-section">
-    <h3><i class="fa-solid fa-compass"></i> {{localize 'am.levelup.knack-title'}}</h3>
+    <h3><i class="fa-solid fa-compass"></i> {{knackLabel}}</h3>
     <p class="am-hint">{{localize 'am.levelup.knack-hint'}}</p>
     <div class="form-row flex items-center gap-sm mb-sm">
-      <label for="lu-knack-select">{{localize 'am.levelup.knack-label'}}</label>
+      <label for="lu-knack-select">{{knackLabel}}</label>
       <select id="lu-knack-select" name="knackUuid" class="form-select">
         <option value="">{{localize 'am.levelup.knack-placeholder'}}</option>
         {{#each knacks}}
@@ -317,7 +433,7 @@
   </section>
   {{/if}}
 
-  {{!-- Maneuvers --}}
+  {{!-- Maneuvers (level-up mode) --}}
   {{#if maneuverInfo.newManeuversToLearn}}
   <hr />
   <section class="lu-section">
@@ -328,27 +444,73 @@
         {{localize 'am.maneuvers.degree-unlocked' degree=maneuverInfo.degreeUnlocked}}
       </p>
     {{/if}}
-    <p>
-      {{localize 'am.maneuvers.pick-prompt' n=maneuverInfo.newManeuversToLearn}}
+    <p>{{localize 'am.maneuvers.pick-prompt' n=maneuverInfo.newManeuversToLearn}}
       <strong>({{localize 'am.maneuvers.max-degree' degree=maneuverInfo.maxDegree}})</strong>
     </p>
-    <div class="flex items-center gap-sm">
-      <button type="button" class="lu-open-maneuvers">
+
+    <div class="am-selection-header">
+      <div class="am-counter-badge {{#if (gte selectedManeuverCount maneuverInfo.newManeuversToLearn)}}am-badge-success{{else}}am-badge-pending{{/if}}">
         <i class="fa-solid fa-swords"></i>
-        {{localize 'am.maneuvers.open-picker'}}
-      </button>
-      {{#if selectedManeuverCount}}
-        <span class="lu-badge lu-badge-gold">
-          <i class="fa-solid fa-check"></i>
-          {{localize 'am.maneuvers.selected-count' n=selectedManeuverCount}}
-        </span>
+        {{selectedManeuverCount}}/{{maneuverInfo.newManeuversToLearn}}
+      </div>
+      {{#if selectedTraditions.length}}
+        <div class="am-counter-badge am-badge-info">
+          <i class="fa-solid fa-book"></i>
+          {{selectedTraditions.length}} {{localize 'am.app.maneuvers.traditions-label'}}
+        </div>
       {{/if}}
     </div>
-    {{#if selectedTraditions.length}}
-      <p class="am-hint">
-        {{localize 'am.maneuvers.traditions-label'}}:
-        {{#each selectedTraditions}}<strong>{{this}}</strong>{{#unless @last}}, {{/unless}}{{/each}}
-      </p>
+
+    {{#if maneuversLoaded}}
+      <div class="am-filter-pills" role="toolbar">
+        {{#each inlineTraditions}}
+          <button type="button"
+                  class="am-filter-pill {{#if this.active}}am-pill-active{{/if}} {{#if this.used}}am-pill-used{{/if}}"
+                  data-action="luFilterManeuverTradition"
+                  data-tradition="{{this.key}}">
+            {{this.label}}
+            {{#if this.used}}<i class="fa-solid fa-check am-pill-check"></i>{{/if}}
+          </button>
+        {{else}}
+          <p class="am-hint">{{localize 'am.app.maneuvers.no-traditions'}}</p>
+        {{/each}}
+      </div>
+      {{#if maneuverFilterTradition}}
+        {{#if visibleManeuvers.length}}
+          <div class="am-card-grid am-inline-card-grid" role="list">
+            {{#each visibleManeuvers}}
+              <button type="button"
+                      class="am-card {{#if this.isSelected}}am-card-selected{{/if}}"
+                      role="listitem"
+                      data-action="luToggleManeuver"
+                      data-uuid="{{this.uuid}}"
+                      data-tradition="{{this.tradition}}"
+                      data-name="{{this.name}}">
+                <img class="am-card-img" src="{{this.img}}" alt="" loading="lazy">
+                <span class="am-card-name">{{this.name}}</span>
+                <div class="am-card-meta">
+                  <span class="am-degree-pip">{{this.degree}}°</span>
+                  {{#if this.exertion}}
+                    <span class="am-ex-cost"><i class="fa-solid fa-bolt"></i>{{this.exertion}}</span>
+                  {{/if}}
+                </div>
+              </button>
+            {{/each}}
+          </div>
+        {{else}}
+          <p class="am-hint">{{localize 'am.maneuvers.none-found'}}</p>
+        {{/if}}
+        <div class="am-inline-description overflow-vert-only">
+          <p class="am-hint am-inline-desc-hint">{{localize 'am.app.hover-for-description'}}</p>
+        </div>
+      {{else}}
+        <p class="am-hint am-filter-prompt">
+          <i class="fa-solid fa-hand-pointer"></i>
+          {{localize 'am.app.maneuvers.select-tradition-hint'}}
+        </p>
+      {{/if}}
+    {{else}}
+      <p class="am-loading"><i class="fas fa-spinner fa-spin"></i> {{localize 'am.app.loading'}}</p>
     {{/if}}
   </section>
   {{/if}}

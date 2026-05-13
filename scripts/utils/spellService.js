@@ -89,17 +89,21 @@ export function getSecondarySchoolsForClass(className) {
 
 export class SpellService {
 
+  static _dynamicSpellInfo = null;
+  static _dynamicIsSpellcaster = false;
+
   /**
    * Check if a class is a spellcaster (checks hardcoded table + cached dynamic lookups).
    */
   static isSpellcaster(className) {
-    return !!CLASS_SPELL_TABLES[className?.toLowerCase()] || !!this._dynamicSpellInfo;
+    return !!CLASS_SPELL_TABLES[className?.toLowerCase()] || this._dynamicIsSpellcaster;
   }
 
   /**
    * Get spell info for a class at level 1.
    * First checks the hardcoded table, then falls back to cached dynamic info
    * populated by loadClassSpellInfo().
+   * Returns null for classes that don't get spells until a higher level.
    */
   static getClassSpellInfo(className) {
     return CLASS_SPELL_TABLES[className?.toLowerCase()] ?? this._dynamicSpellInfo ?? null;
@@ -107,14 +111,16 @@ export class SpellService {
 
   /**
    * Dynamically load spellcasting info from a class compendium item.
-   * Call this when the class changes so getClassSpellInfo can return data
-   * for classes not in the hardcoded table (e.g. Witch, Psion, etc.)
+   * Sets _dynamicIsSpellcaster=true for any spellcasting class, even half-casters
+   * that don't get spells at level 1. _dynamicSpellInfo is only set for classes
+   * that get spells at level 1.
    *
    * @param {string} classUuid
-   * @returns {Promise<object|null>} spell info or null if not a caster
+   * @returns {Promise<object|null>} spell info or null if not a level-1 caster
    */
   static async loadClassSpellInfo(classUuid) {
     this._dynamicSpellInfo = null;
+    this._dynamicIsSpellcaster = false;
     if (!classUuid) return null;
 
     try {
@@ -124,14 +130,17 @@ export class SpellService {
       const casting = item.system?.spellcasting;
       if (!casting?.casterType || casting.casterType === 'none') return null;
 
-      // Determine cantrips and spells known at level 1 based on caster type
+      // Mark as a spellcaster regardless of when spells start
+      this._dynamicIsSpellcaster = true;
+
       const casterType = casting.casterType;
       const isFullCaster = ['fullCaster', 'warlockA5e', 'warlock5e', 'elementalist'].includes(casterType);
+      const hasSpellsAtOne = isFullCaster
+        || casterType === 'halfCasterWithFirstLevel'
+        || casterType === 'psion'
+        || casterType === 'wielder';
 
-      // Full casters get spells at level 1, half casters typically at level 2
-      // Exception: halfCasterWithFirstLevel gets spells at 1
-      const hasSpellsAtOne = isFullCaster || casterType === 'halfCasterWithFirstLevel' || casterType === 'psion' || casterType === 'wielder';
-
+      // Half-casters (ranger, herald archetype variants) get spells at level 2+ — no level-1 picker
       if (!hasSpellsAtOne) return null;
 
       const isPrepared = ['halfCaster', 'halfCasterWithFirstLevel'].includes(casterType) && !isFullCaster;

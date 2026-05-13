@@ -1,60 +1,58 @@
-{{!-- A5e Mancer Footer --}}
+{{!-- A5e Mancer Sidebar Footer --}}
 <footer>
   <div class="am-footer-container">
 
-    {{!-- Previous --}}
-    <div class="am-footer-left">
-      {{#if navigationButtons}}
+    {{!-- Submit / Create Character (last tab only) --}}
+    {{#if isLastTab}}
+      {{#if canCreateActor}}
+        <button type="submit" data-action="submit" class="am-footer-submit am-sidebar-submit">
+          <i class="fa-solid fa-wand-magic-sparkles"></i>
+          <span>{{localize 'am.app.submit'}}</span>
+        </button>
+      {{/if}}
+    {{/if}}
+
+    {{!-- Prev / Next navigation --}}
+    {{#if navigationButtons}}
+      <div class="am-sidebar-nav-row">
         {{#unless isFirstTab}}
           <button type="button" data-action="previousTab" class="am-nav-prev"
-            data-tooltip='{{localize "am.app.nav.previous"}}'>
+            data-tooltip='{{previousTabName}}'>
             <i class="fas fa-chevron-left"></i>
-            <span>{{localize "am.app.nav.previous-format" tabName=previousTabName}}</span>
           </button>
         {{/unless}}
-      {{/if}}
-    </div>
+        {{#unless isLastTab}}
+          <button type="button" data-action="nextTab" class="am-nav-next"
+            data-tooltip='{{nextTabName}}'>
+            <i class="fas fa-chevron-right"></i>
+          </button>
+        {{/unless}}
+      </div>
+    {{/if}}
 
-    {{!-- Middle actions --}}
-    <div class="am-footer-middle">
+    {{!-- Utility actions: icon-only with tooltips --}}
+    <div class="am-sidebar-util-row">
       {{#if randomizeButton}}
         <button type="button" data-action="randomize" class="am-footer-randomize"
           data-tooltip='{{localize "am.app.randomize"}}'>
           <i class="fa-solid fa-shuffle"></i>
-          <span>{{localize 'am.app.randomize'}}</span>
         </button>
       {{/if}}
 
       <button type="submit" data-action="saveOptions" class="am-footer-save"
         data-tooltip='{{localize "am.app.save-description"}}'>
-        <span>{{localize 'am.app.save'}}</span>
+        <i class="fa-solid fa-floppy-disk"></i>
       </button>
 
       <button type="button" data-action="resetOptions" class="am-footer-reset"
         data-tooltip='{{localize "am.app.reset-description"}}'>
-        <span>{{localize 'am.app.reset'}}</span>
+        <i class="fa-solid fa-rotate-left"></i>
       </button>
 
       <button type="cancel" data-action="nosubmit" class="am-app-footer-cancel"
         data-tooltip='{{localize "am.app.cancel-description"}}'>
-        <span>{{localize 'am.app.cancel'}}</span>
+        <i class="fa-solid fa-xmark"></i>
       </button>
-    </div>
-
-    {{!-- Next / Submit --}}
-    <div class="am-footer-right">
-      {{#if isLastTab}}
-        {{#if canCreateActor}}
-          <button type="submit" data-action="submit" class="am-footer-submit">
-            <span>{{localize 'am.app.submit'}}</span>
-          </button>
-        {{/if}}
-      {{else if navigationButtons}}
-        <button type="button" data-action="nextTab" class="am-nav-next">
-          <span>{{localize "am.app.nav.next-format" tabName=nextTabName}}</span>
-          <i class="fas fa-chevron-right"></i>
-        </button>
-      {{/if}}
     </div>
 
   </div>

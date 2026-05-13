@@ -102,9 +102,11 @@
               name="abilities[{{this.key}}]"
               class="ability-score form-input text-center" data-dtype="Number"
               placeholder="—" min="3" max="20" />
-            <i class="fa-solid fa-dice-d6 fa-xl roll-die" style="cursor:pointer"
-               data-action="rollStat" data-index="{{@index}}" role="button"
-               aria-label="{{localize 'am.app.abilities.roll'}} {{this.label}}"></i>
+            <button type="button" class="am-roll-stat-btn"
+              data-action="rollStat" data-index="{{@index}}"
+              data-tooltip="{{localize 'am.app.abilities.roll'}} {{this.label}}">
+              <i class="fa-solid fa-dice"></i>
+            </button>
             <small class="ability-full-label">{{this.label}}</small>
           </div>
         {{/each}}

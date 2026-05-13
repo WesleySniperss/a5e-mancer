@@ -170,6 +170,19 @@ export class LevelUpService {
     const classDoc = await fromUuid(classUuid);
     if (!classDoc) { AM.log(1, 'Multiclass: class not found', classUuid); return false; }
 
+    // Prevent adding a class the actor already has
+    const alreadyHasClass = actor.items.some(i =>
+      i.type === 'class' && (
+        (i._stats?.compendiumSource ?? i.flags?.core?.sourceId) === classUuid ||
+        i.name.toLowerCase() === classDoc.name.toLowerCase()
+      )
+    );
+    if (alreadyHasClass) {
+      AM.log(2, `Multiclass aborted: actor already has ${classDoc.name}`);
+      ui.notifications.warn(`${classDoc.name} is already one of this character's classes.`);
+      return false;
+    }
+
     const data = classDoc.toObject();
     // Force level 1 regardless of what the compendium item says
     if (data.system?.classLevels !== undefined)     data.system.classLevels = 1;
@@ -190,15 +203,20 @@ export class LevelUpService {
       if (Object.keys(updates).length) await actor.update(updates);
     }
 
-    // Add exploration knack
+    // Add exploration knack (skip if already present)
     if (knackUuid) {
       try {
-        const knackItem = await fromUuid(knackUuid);
-        if (knackItem) {
-          const kd = knackItem.toObject();
-          kd._stats = kd._stats || {};
-          kd._stats.compendiumSource = knackUuid;
-          await actor.createEmbeddedDocuments('Item', [kd]);
+        const alreadyHasKnack = actor.items.some(i =>
+          (i._stats?.compendiumSource ?? i.flags?.core?.sourceId) === knackUuid
+        );
+        if (!alreadyHasKnack) {
+          const knackItem = await fromUuid(knackUuid);
+          if (knackItem) {
+            const kd = knackItem.toObject();
+            kd._stats = kd._stats || {};
+            kd._stats.compendiumSource = knackUuid;
+            await actor.createEmbeddedDocuments('Item', [kd]);
+          }
         }
       } catch (err) { AM.log(2, 'Error adding knack on multiclass:', err); }
     }
@@ -242,30 +260,44 @@ export class LevelUpService {
       AM.log(3, `Added ${hpGained} HP`);
     }
 
-    // 3. Add feat / ASI item
+    // 3. Add feat / ASI item (skip if already present)
     if (featUuid) {
       try {
-        const featItem = await fromUuid(featUuid);
-        if (featItem) {
-          const data = featItem.toObject();
-          data._stats = data._stats || {};
-          data._stats.compendiumSource = featUuid;
-          await actor.createEmbeddedDocuments('Item', [data]);
-          AM.log(3, `Added feat: ${featItem.name}`);
+        const alreadyHasFeat = actor.items.some(i =>
+          (i._stats?.compendiumSource ?? i.flags?.core?.sourceId) === featUuid
+        );
+        if (!alreadyHasFeat) {
+          const featItem = await fromUuid(featUuid);
+          if (featItem) {
+            const data = featItem.toObject();
+            data._stats = data._stats || {};
+            data._stats.compendiumSource = featUuid;
+            await actor.createEmbeddedDocuments('Item', [data]);
+            AM.log(3, `Added feat: ${featItem.name}`);
+          }
+        } else {
+          AM.log(2, `Feat already exists, skipping: ${featUuid}`);
         }
       } catch (err) { AM.log(2, 'Error adding feat:', err); }
     }
 
-    // 4. Add exploration knack
+    // 4. Add exploration knack (skip if already present)
     if (knackUuid) {
       try {
-        const knackItem = await fromUuid(knackUuid);
-        if (knackItem) {
-          const data = knackItem.toObject();
-          data._stats = data._stats || {};
-          data._stats.compendiumSource = knackUuid;
-          await actor.createEmbeddedDocuments('Item', [data]);
-          AM.log(3, `Added knack: ${knackItem.name}`);
+        const alreadyHasKnack = actor.items.some(i =>
+          (i._stats?.compendiumSource ?? i.flags?.core?.sourceId) === knackUuid
+        );
+        if (!alreadyHasKnack) {
+          const knackItem = await fromUuid(knackUuid);
+          if (knackItem) {
+            const data = knackItem.toObject();
+            data._stats = data._stats || {};
+            data._stats.compendiumSource = knackUuid;
+            await actor.createEmbeddedDocuments('Item', [data]);
+            AM.log(3, `Added knack: ${knackItem.name}`);
+          }
+        } else {
+          AM.log(2, `Knack already exists, skipping: ${knackUuid}`);
         }
       } catch (err) { AM.log(2, 'Error adding knack:', err); }
     }
@@ -301,24 +333,72 @@ export class LevelUpService {
     return results.sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  static async getExplorationKnacks() {
-    const results = [];
-    const packs = game.packs.filter(p => p.metadata.type === 'Item');
+  /**
+   * Get exploration knacks (or the class-equivalent feature) for a given class.
+   * Uses system.featureType === 'knack' + system.classes to filter correctly.
+   * Falls back to a name-based search if the featureType index yields nothing.
+   *
+   * @param {string|null} className - Class name to filter for (e.g. "Fighter"). null = all.
+   */
+  static async getExplorationKnacks(className = null) {
+    const classKey = className?.toLowerCase().replace(/\s*\(.*\)\s*/, '').trim() ?? null;
+    const results  = [];
+    const packs    = game.packs.filter(p => p.metadata.type === 'Item');
+
     for (const pack of packs) {
       try {
-        const index = await pack.getIndex({ fields: ['name', 'type', 'img'] });
+        const index = await pack.getIndex({ fields: ['name', 'type', 'img', 'system'] });
         for (const entry of index) {
-          if (entry.type === 'feature' &&
-            entry.name.toLowerCase().includes('knack')) {
-            results.push({
-              name: entry.name,
-              uuid: `Compendium.${pack.collection}.${entry._id}`,
-              img:  entry.img
-            });
+          if (entry.type !== 'feature') continue;
+          if (entry.system?.featureType !== 'knack') continue;
+
+          if (classKey) {
+            // system.classes may be a string, array, or object keyed by class slug
+            const raw = entry.system?.classes ?? entry.system?.classIdentifier ?? '';
+            let matches = false;
+            if (Array.isArray(raw)) {
+              matches = raw.some(c => c.toLowerCase().includes(classKey) || classKey.includes(c.toLowerCase()));
+            } else if (raw && typeof raw === 'object') {
+              matches = Object.keys(raw).some(k => k.toLowerCase().includes(classKey) || classKey.includes(k.toLowerCase()));
+            } else if (typeof raw === 'string' && raw) {
+              const ck = raw.toLowerCase();
+              matches = ck.includes(classKey) || classKey.includes(ck);
+            }
+            if (!matches) continue;
           }
+
+          results.push({
+            name: entry.name,
+            uuid: `Compendium.${pack.collection}.${entry._id}`,
+            img:  entry.img
+          });
         }
       } catch {}
     }
+
+    // Fallback: if featureType filtering found nothing, search by name
+    if (!results.length) {
+      const nameHint = classKey
+        ? (CONFIG.A5E?.knackTypes?.[classKey] ?? null)
+        : null;
+      for (const pack of packs) {
+        try {
+          const index = await pack.getIndex({ fields: ['name', 'type', 'img'] });
+          for (const entry of index) {
+            if (entry.type !== 'feature') continue;
+            const lname = entry.name.toLowerCase();
+            if (nameHint ? lname.includes(nameHint.toLowerCase()) : lname.includes('knack')) {
+              results.push({
+                name: entry.name,
+                uuid: `Compendium.${pack.collection}.${entry._id}`,
+                img:  entry.img
+              });
+            }
+          }
+        } catch {}
+      }
+    }
+
     return results.sort((a, b) => a.name.localeCompare(b.name));
   }
 }

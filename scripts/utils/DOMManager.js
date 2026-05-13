@@ -1,12 +1,14 @@
 import { AM } from '../a5e-mancer.js';
 import { DocumentService } from './documentService.js';
 import { EquipmentService } from './equipmentService.js';
+import { ManeuverService } from './maneuverService.js';
 import { SpellService } from './spellService.js';
 
 const ITEM_TYPES = ['heritage', 'culture', 'background', 'destiny', 'class'];
 
 export class DOMManager {
-  static #listeners = [];
+  static #listeners  = [];
+  static #descCache  = new Map(); // uuid → enriched HTML
 
   static async initialize(form) {
     this.cleanup();
@@ -18,15 +20,45 @@ export class DOMManager {
       const handler = (e) => this.#onDropdownChange(type, e.target, form);
       dropdown.addEventListener('change', handler);
       this.#listeners.push({ el: dropdown, type: 'change', fn: handler });
-      if (dropdown.value) {
-        const raw  = dropdown.value;
-        const uuid = this.#extractUuid(raw);
-        // Ensure AM.SELECTED is populated from existing dropdown value
+      {
+        const raw  = dropdown.value || '';
+        // Fallback to AM.SELECTED when detail view re-renders (dropdown loses its value
+        // because no option has the `selected` attribute in the Handlebars template)
+        const uuid = this.#extractUuid(raw) || AM.SELECTED[type]?.uuid || null;
         if (!AM.SELECTED[type]?.uuid && uuid) {
           AM.SELECTED[type] = { value: raw, id: raw.split(' ')[0], uuid };
         }
+        // Restore dropdown.value so formData includes the right value at submit time
+        if (!raw && AM.SELECTED[type]?.value) {
+          dropdown.value = AM.SELECTED[type].value;
+        }
         if (uuid) this.#loadDescription(type, uuid, form);
+        // Highlight the selected card when the card browser is visible
+        const effectiveRaw = dropdown.value;
+        if (effectiveRaw) {
+          const grid = form.querySelector(`.am-card-grid[data-type="${type}"]`);
+          if (grid) {
+            grid.querySelectorAll('.am-card').forEach(c => {
+              c.classList.toggle('am-card-selected', c.dataset.value === effectiveRaw);
+            });
+          }
+        }
       }
+    }
+
+    // ── Card search inputs ────────────────────────────────
+    for (const input of form.querySelectorAll('.am-card-search')) {
+      const type = input.dataset.for;
+      const fn = () => {
+        const q = input.value.toLowerCase().trim();
+        const grid = form.querySelector(`.am-card-grid[data-type="${type}"]`);
+        if (!grid) return;
+        grid.querySelectorAll('.am-card').forEach(card => {
+          card.hidden = !!(q && !card.dataset.name.toLowerCase().includes(q));
+        });
+      };
+      input.addEventListener('input', fn);
+      this.#listeners.push({ el: input, type: 'input', fn });
     }
 
     // ── Heritage Gift radio buttons (dynamic) ────────────
@@ -111,6 +143,35 @@ export class DOMManager {
       this.#listeners.push({ el, type: 'input', fn });
     }
 
+    // ── Inline card description hover ────────────────────
+    for (const grid of form.querySelectorAll('.am-inline-card-grid')) {
+      const panel = grid.closest('.lu-section, fieldset')?.querySelector('.am-inline-description');
+      if (!panel) continue;
+      const hintHtml = `<p class="am-hint am-inline-desc-hint">${game.i18n.localize('am.app.hover-for-description')}</p>`;
+      if (!panel.innerHTML.trim()) panel.innerHTML = hintHtml;
+
+      const onMouseover = async (e) => {
+        const card = e.target.closest('.am-card[data-uuid]');
+        if (!card) return;
+        const uuid = card.dataset.uuid;
+        if (this.#descCache.has(uuid)) {
+          panel.innerHTML = this.#descCache.get(uuid);
+        } else {
+          panel.innerHTML = `<p class="am-loading"><i class="fas fa-spinner fa-spin"></i></p>`;
+          const html = await DocumentService.getEnrichedDescription(uuid);
+          const content = html || `<p class="am-hint">${game.i18n.localize('am.app.no-description')}</p>`;
+          this.#descCache.set(uuid, content);
+          if (panel.isConnected) panel.innerHTML = content;
+        }
+      };
+      const onMouseleave = () => { panel.innerHTML = hintHtml; };
+
+      grid.addEventListener('mouseover', onMouseover);
+      grid.addEventListener('mouseleave', onMouseleave);
+      this.#listeners.push({ el: grid, type: 'mouseover', fn: onMouseover });
+      this.#listeners.push({ el: grid, type: 'mouseleave', fn: onMouseleave });
+    }
+
     this.updateTabIndicators(form);
     this.updateReviewTab(form);
     this.updateProgressBar(form);
@@ -130,6 +191,23 @@ export class DOMManager {
     const uuid = this.#extractUuid(raw);
     AM.SELECTED[type] = { value: raw, id: raw.split(' ')[0], uuid: uuid || '' };
 
+    // Look up name + img from the loaded doc list (covers randomize and savedOptions restore;
+    // cardSelect overwrites these immediately after the dispatch anyway)
+    if (uuid) {
+      for (const group of (AM.documents?.[type] ?? [])) {
+        const doc = group.docs?.find(d => d.uuid === uuid);
+        if (doc) { AM.SELECTED[type].name = doc.name; AM.SELECTED[type].img = doc.img; break; }
+      }
+    }
+
+    // Sync card grid selection state (covers randomize + savedOptions restore)
+    const grid = form.querySelector(`.am-card-grid[data-type="${type}"]`);
+    if (grid) {
+      grid.querySelectorAll('.am-card').forEach(c => {
+        c.classList.toggle('am-card-selected', !!raw && c.dataset.value === raw);
+      });
+    }
+
     if (uuid) {
       await this.#loadDescription(type, uuid, form);
       // Side effects per type
@@ -144,14 +222,23 @@ export class DOMManager {
 
     this.updateTabIndicators(form);
     this.updateReviewTab(form);
+
+    // Re-render the card-browser tab to switch to detail view after selection
+    if (uuid) await AM.app?.render(false, { parts: [type] });
   }
 
   static async #loadDescription(type, uuid, form) {
     const panel = form.querySelector(`#${type}-description`);
     if (!panel) return;
-    panel.innerHTML = `<p class="am-loading"><i class="fas fa-spinner fa-spin"></i> ${game.i18n.localize('am.app.loading')}</p>`;
+    // Skip loading spinner if the panel already has content (e.g. pre-rendered by detail view template)
+    if (!panel.innerHTML.trim()) {
+      panel.innerHTML = `<p class="am-loading"><i class="fas fa-spinner fa-spin"></i> ${game.i18n.localize('am.app.loading')}</p>`;
+    }
     const html = await DocumentService.getEnrichedDescription(uuid);
-    panel.innerHTML = html || `<p>${game.i18n.localize('am.app.no-description')}</p>`;
+    const content = html || `<p>${game.i18n.localize('am.app.no-description')}</p>`;
+    panel.innerHTML = content;
+    // Cache for the detail-view template so re-renders avoid the loading flash
+    if (AM.SELECTED[type]) AM.SELECTED[type].descriptionHtml = content;
   }
 
   /* ── Heritage Gift ──────────────────────────────────── */
@@ -204,20 +291,45 @@ export class DOMManager {
     if (!AM.equipmentData) AM.equipmentData = {};
     AM.equipmentData.class         = await EquipmentService.loadStartingEquipment(uuid, 'class');
     AM.equipmentData.wealthFormula = await EquipmentService.getStartingWealthFormula(uuid);
-    // Load dynamic spell info for classes not in the hardcoded table
     await SpellService.loadClassSpellInfo(uuid);
-    // Reset maneuver/spell selections when class changes
+
+    // Extract hit die from class item (needed for HP picker in class tab detail view)
+    try {
+      const classItem = await fromUuid(uuid);
+      if (classItem && AM.SELECTED.class) {
+        AM.SELECTED.class.hitDie = classItem.system?.hitDice ?? classItem.system?.hitDie ?? '';
+      }
+    } catch {}
+
+    // Reset selections and inline browser state when class changes
     AM.creationManeuvers = null;
     AM.creationSpells    = null;
+    AM.allManeuversData  = null;
+    AM.allSpellsData     = null;
+    AM.maneuverFilter    = { tradition: null };
+    AM.spellFilter       = { level: null, school: null };
+    AM.hpChoice          = { method: 'max', value: 0 };
+
+    // Background-load compendium data; re-render tabs when each finishes
+    ManeuverService.loadAllManeuvers().then(data => {
+      AM.allManeuversData = data;
+      AM.app?.render(false, { parts: ['maneuvers'] });
+    });
+    const spellInfo = SpellService.getClassSpellInfo(AM.SELECTED.class?.name ?? '');
+    SpellService.loadSpells(null, spellInfo?.maxLevel ?? 1).then(data => {
+      AM.allSpellsData = data;
+      AM.app?.render(false, { parts: ['spells'] });
+    });
+
     if (AM.app) {
-        await AM.app.render(false, { parts: ['equipment', 'maneuvers', 'spells'] });
-        const newForm = AM.app.element;
-        newForm?.querySelectorAll('.am-equipment-option-btn').forEach(btn => {
-          const fn = () => this.#onEquipmentChoice(btn, newForm);
-          btn.addEventListener('click', fn);
-          this.#listeners.push({ el: btn, type: 'click', fn });
-        });
-      }
+      await AM.app.render(false, { parts: ['equipment', 'maneuvers', 'spells'] });
+      const newForm = AM.app.element;
+      newForm?.querySelectorAll('.am-equipment-option-btn').forEach(btn => {
+        const fn = () => this.#onEquipmentChoice(btn, newForm);
+        btn.addEventListener('click', fn);
+        this.#listeners.push({ el: btn, type: 'click', fn });
+      });
+    }
   }
 
   static async #onBackgroundChanged(uuid, form) {
@@ -271,6 +383,33 @@ export class DOMManager {
     this.#updatePortraitSrc(form);
     this.#updateBioPreview(form);
     this.#updateDestinyNarrativePreview(form);
+    this.#updateHpReview(panel);
+  }
+
+  static #updateHpReview(panel) {
+    if (!panel) return;
+    const row = panel.querySelector('.review-hp-row');
+    const el  = panel.querySelector('.review-hp');
+    if (!row || !el) return;
+
+    const hitDie = AM.SELECTED.class?.hitDie ?? '';
+    const hitNum = parseInt(hitDie.replace('d', '')) || 0;
+    if (!hitNum || !AM.SELECTED.class?.uuid) { row.style.display = 'none'; return; }
+
+    const method = AM.hpChoice?.method ?? 'max';
+    let label, value;
+    if (method === 'max') {
+      label = game.i18n.localize('am.app.class.hp-max');
+      value = hitNum;
+    } else if (method === 'avg') {
+      label = game.i18n.localize('am.app.class.hp-avg');
+      value = Math.floor(hitNum / 2) + 1;
+    } else {
+      label = game.i18n.localize('am.app.class.hp-roll');
+      value = AM.hpChoice?.value || '?';
+    }
+    el.textContent = `${label} — ${value} + CON mod`;
+    row.style.display = '';
   }
 
   static updateAbilitiesSummary(form) {
@@ -304,6 +443,20 @@ export class DOMManager {
       abilities:   () => {
         const inputs = form.querySelectorAll('[name^="abilities["]');
         return inputs.length > 0 && [...inputs].every(el => el.value && el.value !== '');
+      },
+      maneuvers:   () => {
+        const className = AM.SELECTED.class?.name ?? '';
+        const info = className ? ManeuverService.getClassManeuverInfo(className, 1) : null;
+        if (!info) return true; // no maneuvers for this class
+        return (AM.creationManeuvers?.uuids?.length ?? 0) >= info.maneuversKnown;
+      },
+      spells:      () => {
+        const className = AM.SELECTED.class?.name ?? '';
+        const info = className ? SpellService.getClassSpellInfo(className) : null;
+        if (!info) return true; // no spells for this class
+        const cantripsDone = (AM.creationSpells?.cantrips?.length ?? 0) >= (info.cantrips ?? 0);
+        const spellsDone   = info.type !== 'known' || (AM.creationSpells?.spells?.length ?? 0) >= (info.spellsKnown ?? 0);
+        return cantripsDone && spellsDone;
       },
       equipment:   () => true, // optional
       biography:   () => true, // optional
@@ -396,6 +549,10 @@ export class DOMManager {
   }
 
   static #getSelectedName(type, form) {
+    // Prefer the selected card's data-name (always present and trimmed)
+    const selectedCard = form.querySelector(`.am-card-grid[data-type="${type}"] .am-card.am-card-selected`);
+    if (selectedCard?.dataset.name) return selectedCard.dataset.name;
+    // Fall back to the hidden select's selected option text
     const dd  = form.querySelector(`#${type}-dropdown`);
     const opt = dd?.options[dd?.selectedIndex];
     return opt?.textContent?.trim() || '';

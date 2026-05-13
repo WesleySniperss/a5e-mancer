@@ -40,48 +40,98 @@
 
         <hr />
 
-        {{!-- Status --}}
-        <div class="am-spell-selection-status flex gap-sm flex-wrap">
+        {{!-- Selection counters --}}
+        <div class="am-selection-header">
           {{#if spellInfo.cantrips}}
             <div class="am-counter-badge {{#if (gte selectedCantripCount spellInfo.cantrips)}}am-badge-success{{else}}am-badge-pending{{/if}}">
               <i class="fa-solid fa-sparkles"></i>
-              {{localize 'am.app.spells.cantrips'}}:
-              {{selectedCantripCount}}/{{spellInfo.cantrips}}
+              {{localize 'am.app.spells.cantrips'}}: {{selectedCantripCount}}/{{spellInfo.cantrips}}
             </div>
           {{/if}}
           {{#if (eq spellInfo.type 'known')}}
             <div class="am-counter-badge {{#if (gte selectedSpellCount spellInfo.spellsKnown)}}am-badge-success{{else}}am-badge-pending{{/if}}">
               <i class="fa-solid fa-book-sparkles"></i>
-              {{localize 'am.app.spells.spells-label'}}:
-              {{selectedSpellCount}}/{{spellInfo.spellsKnown}}
+              {{localize 'am.app.spells.spells-label'}}: {{selectedSpellCount}}/{{spellInfo.spellsKnown}}
             </div>
           {{/if}}
         </div>
 
-        <div class="flex items-center gap-sm mt-sm">
-          <button type="button" class="am-open-spells" data-action="openSpellPicker">
-            <i class="fa-solid fa-sparkles"></i>
-            {{#if (or selectedCantripCount selectedSpellCount)}}
-              {{localize 'am.app.spells.change-selection'}}
-            {{else}}
-              {{localize 'am.app.spells.open-picker'}}
-            {{/if}}
-          </button>
-        </div>
+        {{#if spellsLoaded}}
 
-        {{!-- Preview --}}
-        {{#if selectedSpellNames.length}}
-          <div class="am-selected-preview mt-sm">
-            <h4>{{localize 'am.app.spells.your-spells'}}</h4>
-            <ul class="am-preview-list">
-              {{#each selectedSpellNames}}
-                <li>
-                  <i class="fa-solid fa-sparkles am-preview-icon"></i>
-                  {{this}}
-                </li>
+          {{!-- Level filter pills --}}
+          {{#if spellLevelPills.length}}
+            <div class="am-filter-pills" role="toolbar" aria-label="Filter by spell level">
+              <button type="button"
+                      class="am-filter-pill {{#if spellLevelAllActive}}am-pill-active{{/if}}"
+                      data-action="filterSpellLevel" data-level="">
+                {{localize 'am.app.spells.filter-all'}}
+              </button>
+              {{#each spellLevelPills}}
+                <button type="button"
+                        class="am-filter-pill {{#if this.active}}am-pill-active{{/if}}"
+                        data-action="filterSpellLevel"
+                        data-level="{{this.level}}">
+                  {{this.label}}
+                </button>
               {{/each}}
-            </ul>
+            </div>
+          {{/if}}
+
+          {{!-- School filter pills (smaller) --}}
+          {{#if spellSchoolPills.length}}
+            <div class="am-filter-pills am-filter-pills-sm" role="toolbar" aria-label="Filter by school">
+              <button type="button"
+                      class="am-filter-pill {{#if spellSchoolAllActive}}am-pill-active{{/if}}"
+                      data-action="filterSpellSchool" data-school="">
+                {{localize 'am.app.spells.filter-all-schools'}}
+              </button>
+              {{#each spellSchoolPills}}
+                <button type="button"
+                        class="am-filter-pill {{#if this.active}}am-pill-active{{/if}}"
+                        data-action="filterSpellSchool"
+                        data-school="{{this.key}}">
+                  {{this.label}}
+                </button>
+              {{/each}}
+            </div>
+          {{/if}}
+
+          {{!-- Spell cards --}}
+          {{#if visibleSpells.length}}
+            <div class="am-card-grid am-inline-card-grid am-spell-inline-grid" data-type="spell-inline" role="list">
+              {{#each visibleSpells}}
+                <button type="button"
+                        class="am-card {{#if this.isSelected}}am-card-selected am-card-selected-spell{{/if}}"
+                        role="listitem"
+                        data-action="toggleSpell"
+                        data-uuid="{{this.uuid}}"
+                        data-level="{{this.level}}"
+                        data-name="{{this.name}}"
+                        data-tooltip="{{this.name}}">
+                  <img class="am-card-img" src="{{this.img}}" alt="" loading="lazy">
+                  <span class="am-card-name">{{this.name}}</span>
+                  <div class="am-card-meta">
+                    {{#if this.isCantrip}}
+                      <span class="am-level-pip am-cantrip-pip">C</span>
+                    {{else}}
+                      <span class="am-level-pip">{{this.level}}</span>
+                    {{/if}}
+                    {{#if this.concentration}}
+                      <span class="am-conc-tag" title="Concentration">C</span>
+                    {{/if}}
+                  </div>
+                </button>
+              {{/each}}
+            </div>
+          {{else}}
+            <p class="am-hint">{{localize 'am.spells.none-found'}}</p>
+          {{/if}}
+          <div class="am-inline-description overflow-vert-only">
+            <p class="am-hint am-inline-desc-hint">{{localize 'am.app.hover-for-description'}}</p>
           </div>
+
+        {{else}}
+          <p class="am-loading"><i class="fas fa-spinner fa-spin"></i> {{localize 'am.app.loading'}}</p>
         {{/if}}
 
         {{!-- Hidden form inputs --}}
@@ -96,8 +146,13 @@
 
         <div class="am-info-placeholder">
           <i class="fa-solid fa-circle-info fa-2x" style="opacity:0.5"></i>
-          <p>{{localize 'am.app.spells.class-no-spells'}}</p>
-          <p class="am-hint">{{localize 'am.app.spells.class-no-spells-hint'}}</p>
+          {{#if isSpellcaster}}
+            <p>{{localize 'am.app.spells.class-spells-later'}}</p>
+            <p class="am-hint">{{localize 'am.app.spells.class-spells-later-hint'}}</p>
+          {{else}}
+            <p>{{localize 'am.app.spells.class-no-spells'}}</p>
+            <p class="am-hint">{{localize 'am.app.spells.class-no-spells-hint'}}</p>
+          {{/if}}
         </div>
 
       {{/if}}

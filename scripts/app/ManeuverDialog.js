@@ -27,9 +27,9 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     this.allowedTraditions = options.allowedTraditions ?? [];
     this.onConfirm         = options.onConfirm ?? null;
 
-    // State
+    // State — restore previous selections so re-opening can't duplicate picks
     this._allManeuvers     = new Map(); // tradition → Map<degree, maneuver[]>
-    this._selectedUuids    = new Set();
+    this._selectedUuids    = new Set(options.initialSelectedUuids ?? []);
     this._activeTradition  = null;
     this._activeDegree     = null;
     this._searchText       = '';

@@ -2,10 +2,8 @@ import { AM } from '../a5e-mancer.js';
 import {
   ActorCreationService, CharacterArtPicker, DOMManager,
   EquipmentService, FormValidation, SavedOptions, StatRoller,
-  ManeuverService, CLASS_MANEUVER_TABLES
+  ManeuverService, CLASS_MANEUVER_TABLES, getTraditions
 } from '../utils/index.js';
-import { ManeuverDialog } from './ManeuverDialog.js';
-import { SpellDialog } from './SpellDialog.js';
 import { SpellService, CLASS_SPELL_TABLES } from '../utils/spellService.js';
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -36,16 +34,23 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
       randomize:              A5eMancer.randomizeAll,
       randomizeCharacterName: A5eMancer.randomizeName,
       randomizeTabContent:    A5eMancer.randomizeTabContent,
+      cardSelect:             A5eMancer.cardSelect,
+      clearCardSelection:     A5eMancer.clearCardSelection,
       rollDestinyTable:       A5eMancer.rollDestinyTable,
       toggleEquipmentChoice:  A5eMancer.toggleEquipmentChoice,
-      openManeuverPicker:     A5eMancer.openManeuverPicker,
-      openSpellPicker:        A5eMancer.openSpellPicker
+      setHpMethod:             A5eMancer.setHpMethod,
+      rollHpDie:               A5eMancer.rollHpDie,
+      filterManeuverTradition: A5eMancer.filterManeuverTradition,
+      toggleManeuver:          A5eMancer.toggleManeuver,
+      filterSpellLevel:        A5eMancer.filterSpellLevel,
+      filterSpellSchool:       A5eMancer.filterSpellSchool,
+      toggleSpell:             A5eMancer.toggleSpell
     },
     classes: ['am-app'],
-    position: { height: 'auto', width: 'auto', top: 100 },
+    position: { height: 700, width: 1100, top: 60 },
     window: {
       icon: 'fa-solid fa-hat-wizard',
-      resizable: false,
+      resizable: true,
       minimizable: true
     }
   };
@@ -98,6 +103,26 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
       const currentIndex = TAB_ORDER.indexOf(this.tabGroups['a5e-mancer-tabs']);
 
       switch (partId) {
+        case 'class': {
+          context.selectedItem = A5eMancer.#buildSelectedItem('class');
+          if (context.selectedItem) {
+            const hitDie = AM.SELECTED.class?.hitDie ?? '';
+            const hitNum = parseInt(hitDie.replace('d', '')) || 0;
+            context.hitDie    = hitDie;
+            context.hitDieNum = hitNum;
+            context.hitDieAvg = hitNum > 0 ? Math.floor(hitNum / 2) + 1 : 0;
+            context.hpChoice  = AM.hpChoice;
+          }
+          break;
+        }
+
+        case 'heritage':
+        case 'culture':
+        case 'background':
+        case 'destiny':
+          context.selectedItem = A5eMancer.#buildSelectedItem(partId);
+          break;
+
         case 'start':
           context.playerCustomizationEnabled = game.settings.get(AM.ID, 'enablePlayerCustomization');
           context.tokenCustomizationEnabled  = game.settings.get(AM.ID, 'enableTokenCustomization');
@@ -111,37 +136,51 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
           break;
 
         case 'maneuvers': {
-          const cls = AM.SELECTED.class?.uuid
-            ? (() => { const dd = null; return AM.SELECTED.class; })()
-            : null;
           const className = A5eMancer.#getSelectedClassName();
-          const _maneuverInfo = className ? ManeuverService.getClassManeuverInfo(className, 1) : null;
-          console.warn('a5e-mancer DEBUG maneuvers |',
-            'AM.SELECTED.class:', JSON.stringify(AM.SELECTED.class),
-            '| className:', JSON.stringify(className),
-            '| maneuverInfo:', JSON.stringify(_maneuverInfo),
-            '| CLASS_MANEUVER_TABLES keys:', Object.keys(CLASS_MANEUVER_TABLES));
-          context.classSelected    = !!AM.SELECTED.class?.uuid;
-          context.maneuverInfo     = className
-            ? ManeuverService.getClassManeuverInfo(className, 1)
-            : null;
-          context.selectedManeuverUuids  = AM.creationManeuvers?.uuids ?? [];
-          context.selectedTraditions     = AM.creationManeuvers?.traditions ?? [];
-          context.selectedManeuverNames  = AM.creationManeuvers?.names ?? [];
+          const classKey  = className?.toLowerCase() ?? '';
+          context.classSelected         = !!AM.SELECTED.class?.uuid;
+          context.maneuverInfo          = classKey ? ManeuverService.getClassManeuverInfo(className, 1) : null;
+          context.isManeuverClass       = classKey ? !!CLASS_MANEUVER_TABLES[classKey] : false;
+          context.selectedManeuverUuids = AM.creationManeuvers?.uuids ?? [];
+          context.selectedTraditions    = AM.creationManeuvers?.traditions ?? [];
+          context.selectedManeuverNames = AM.creationManeuvers?.names ?? [];
+          context.maneuversLoaded       = !!AM.allManeuversData;
+          if (context.maneuverInfo && AM.allManeuversData) {
+            context.inlineTraditions = A5eMancer.#buildTraditionPills(
+              AM.allManeuversData, context.selectedTraditions, AM.maneuverFilter.tradition
+            );
+            context.visibleManeuvers = A5eMancer.#filterManeuvers(
+              AM.allManeuversData, context.maneuverInfo.maxDegree,
+              AM.maneuverFilter.tradition, context.selectedManeuverUuids
+            );
+            context.maneuverFilterTradition = AM.maneuverFilter.tradition ?? '';
+          }
           break;
         }
 
         case 'spells': {
           const className = A5eMancer.#getSelectedClassName();
-          context.classSelected      = !!AM.SELECTED.class?.uuid;
-          context.spellInfo          = className
-            ? SpellService.getClassSpellInfo(className)
-            : null;
+          const classKey  = className?.toLowerCase() ?? '';
+          context.classSelected        = !!AM.SELECTED.class?.uuid;
+          context.spellInfo            = classKey ? SpellService.getClassSpellInfo(className) : null;
+          context.isSpellcaster        = classKey ? (!!CLASS_SPELL_TABLES[classKey] || SpellService._dynamicIsSpellcaster) : false;
           context.selectedCantripUuids = AM.creationSpells?.cantrips ?? [];
           context.selectedSpellUuids   = AM.creationSpells?.spells ?? [];
           context.selectedCantripCount = (AM.creationSpells?.cantrips ?? []).length;
           context.selectedSpellCount   = (AM.creationSpells?.spells ?? []).length;
           context.selectedSpellNames   = AM.creationSpells?.names ?? [];
+          context.spellsLoaded         = !!AM.allSpellsData;
+          if (context.spellInfo && AM.allSpellsData) {
+            const result = A5eMancer.#filterSpells(
+              AM.allSpellsData, context.spellInfo, AM.spellFilter,
+              AM.creationSpells?.cantrips ?? [], AM.creationSpells?.spells ?? []
+            );
+            context.visibleSpells        = result.spells;
+            context.spellLevelPills      = result.levelPills;
+            context.spellSchoolPills     = result.schoolPills;
+            context.spellLevelAllActive  = result.levelAllActive;
+            context.spellSchoolAllActive = result.schoolAllActive;
+          }
           break;
         }
 
@@ -154,11 +193,13 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
         case 'abilities': {
           const method = StatRoller.getDiceRollingMethod();
           context.diceRollMethod  = method;
-          context.abilities       = StatRoller.buildAbilitiesContext();
+          // For point buy always start at MIN (8) so budget shows 27/27
+          const pbScore = method === 'pointBuy' ? AM.ABILITY_SCORES.MIN : AM.ABILITY_SCORES.DEFAULT;
+          context.abilities       = StatRoller.buildAbilitiesContext(pbScore);
           context.standardArray   = StatRoller.getStandardArrayValues();
           context.totalPoints     = StatRoller.getTotalPoints();
           context.pointsSpent     = StatRoller.calculateTotalPointsSpent(
-            context.abilities.map(() => AM.ABILITY_SCORES.DEFAULT)
+            context.abilities.map(a => a.currentScore)
           );
           context.remainingPoints = context.totalPoints - context.pointsSpent;
           context.allowedMethods  = game.settings.get(AM.ID, 'allowedMethods');
@@ -196,19 +237,19 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!this.tabGroups[group]) this.tabGroups[group] = 'start';
 
     const icons = {
-      start:       'fa-solid fa-play-circle',
+      start:       'fa-solid fa-door-open',
       heritage:    'fa-solid fa-dna',
-      heritageGift:'fa-solid fa-gift',
-      culture:     'fa-solid fa-landmark',
+      heritageGift:'fa-solid fa-gem',
+      culture:     'fa-solid fa-city',
       background:  'fa-solid fa-scroll',
-      destiny:     'fa-solid fa-star',
+      destiny:     'fa-solid fa-compass',
       class:       'fa-solid fa-chess-rook',
-      abilities:   'fa-solid fa-fist-raised',
+      abilities:   'fa-solid fa-hand-fist',
       maneuvers:   'fa-solid fa-swords',
-      spells:      'fa-solid fa-sparkles',
+      spells:      'fa-solid fa-wand-magic-sparkles',
       equipment:   'fa-solid fa-shield-halved',
       biography:   'fa-solid fa-book-open',
-      finalize:    'fa-solid fa-flag-checkered'
+      finalize:    'fa-solid fa-circle-check'
     };
     const nonTabs = ['header', 'tabs', 'footer'];
 
@@ -310,6 +351,49 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     if (input) { input.value = name; input.dispatchEvent(new Event('input', { bubbles: true })); }
   }
 
+  static cardSelect(_event, btn) {
+    const type  = btn.dataset.type;
+    const value = btn.dataset.value;
+    const form  = AM.app?.element;
+    if (!form || !type || !value) return;
+
+    // Immediately update card visual state for snappy feedback
+    const grid = btn.closest('.am-card-grid');
+    if (grid) {
+      grid.querySelectorAll('.am-card').forEach(c => c.classList.remove('am-card-selected'));
+      btn.classList.add('am-card-selected');
+    }
+
+    // Sync the hidden select — this triggers DOMManager's full change pipeline
+    // (description load, side-effects for heritage/class/background, tab indicators, review tab)
+    const select = form.querySelector(`#${type}-dropdown`);
+    if (select) {
+      select.value = value;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      // DOMManager#onDropdownChange runs synchronously up to its first await and overwrites
+      // AM.SELECTED[type] — we add name + img back after the dispatch returns.
+      const sel = AM.SELECTED[type];
+      if (sel) {
+        sel.name = btn.dataset.name ?? '';
+        sel.img  = btn.querySelector('img')?.src ?? '';
+        delete sel.browsing;
+      }
+    }
+  }
+
+  static clearCardSelection(_event, btn) {
+    const type = btn.dataset.type;
+    const sel = AM.SELECTED[type];
+    if (sel) sel.browsing = true;
+    AM.app?.render(false, { parts: [type] });
+  }
+
+  static #buildSelectedItem(type) {
+    const sel = AM.SELECTED[type];
+    if (!sel?.uuid || sel.browsing) return null;
+    return { name: sel.name ?? '', img: sel.img ?? '', descriptionHtml: sel.descriptionHtml ?? '' };
+  }
+
   static async randomizeTabContent(_event, btn) {
     const forTab = btn.dataset.for;
     const app = AM.app;
@@ -369,38 +453,72 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /**
-   * Tries to extract the Nth entry from a named roll table in an HTML description.
-   * Looks for <table> elements preceded by headings containing keywords.
+   * Extracts the Nth entry from a roll table in an HTML description.
+   *
+   * A5e destiny items have two roll tables: a d4 "Source of Motivation" and a
+   * d6 "Goals" table. Rather than relying on heading keywords (which vary across
+   * items), we identify tables by their entry count:
+   *   – destinyMotivation: prefer the table/list closest to 4 entries
+   *   – destinyGoals:      prefer the table/list closest to 6 entries
+   *   – backstory:         use the first table/list found (d6, from background)
+   *
+   * Both <table> (numeric first column OR positional) and <ol>/<ul> are supported.
    */
   static #extractTableEntry(html, fieldName, n) {
     if (!html) return null;
     const div = document.createElement('div');
     div.innerHTML = html;
 
-    // Keywords to look for depending on which field we're rolling for
-    const keywords = fieldName === 'destinyMotivation'
-      ? ['motivation', 'inspir', 'source']
-      : fieldName === 'destinyGoals'
-        ? ['goal', 'quest', 'objective', 'purpose']
-        : ['backstory', 'background', 'history', 'origin', 'event'];
-
-    // Find a table preceded by a heading matching keywords
-    const tables = div.querySelectorAll('table');
-    for (const table of tables) {
-      let prev = table.previousElementSibling;
-      const heading = prev?.textContent?.toLowerCase() ?? '';
-      if (!keywords.some(k => heading.includes(k))) continue;
-
-      // Get the nth row (skip header row if present)
-      const rows = table.querySelectorAll('tr');
-      for (const row of rows) {
-        const cells = row.querySelectorAll('td');
-        if (cells.length < 2) continue;
-        const rollCell = cells[0].textContent.trim();
-        const rollNum  = parseInt(rollCell);
-        if (rollNum === n) return cells[1].textContent.trim();
+    // Gather all tables and lists with at least 2 entries, in DOM order
+    const rollTables = [...div.querySelectorAll('table, ol, ul')].map(el => {
+      if (el.tagName === 'TABLE') {
+        const rows = [...el.querySelectorAll('tr')].filter(r => r.querySelector('td'));
+        return rows.length >= 2 ? { el, count: rows.length, rows, type: 'table' } : null;
       }
+      const items = [...el.querySelectorAll('li')];
+      return items.length >= 2 ? { el, count: items.length, items, type: 'list' } : null;
+    }).filter(Boolean);
+
+    if (rollTables.length === 0) return null;
+
+    // Pick the most appropriate table based on expected entry count
+    const targetCount = fieldName === 'destinyGoals' ? 6
+                      : fieldName === 'destinyMotivation' ? 4
+                      : 6; // backstory uses d6
+
+    // Sort candidates by how close their count is to targetCount; prefer exact match
+    const sorted = [...rollTables].sort((a, b) =>
+      Math.abs(a.count - targetCount) - Math.abs(b.count - targetCount)
+    );
+
+    // If two tables are equally close (e.g., both at 4 entries), prefer the one
+    // that comes SECOND for goals (goals table follows motivation table in the HTML)
+    let target = sorted[0];
+    if (fieldName === 'destinyGoals' && rollTables.length >= 2) {
+      const firstClose = rollTables.find(t => Math.abs(t.count - 4) <= 1);
+      const secondClose = rollTables.filter(t => t !== firstClose)
+                                    .find(t => Math.abs(t.count - 6) <= 2);
+      if (secondClose) target = secondClose;
     }
+
+    // Extract Nth entry from the chosen table
+    if (target.type === 'table') {
+      for (const row of target.rows) {
+        const cells = row.querySelectorAll('td');
+        // Numeric first column (1, 2, 3…)
+        if (cells.length >= 2 && parseInt(cells[0].textContent.trim()) === n)
+          return cells[1].textContent.trim();
+      }
+      // Fallback: positional (header row may exist, skip non-td rows already filtered)
+      const row = target.rows[n - 1];
+      if (row) {
+        const cells = row.querySelectorAll('td');
+        return cells[cells.length - 1]?.textContent.trim() ?? null;
+      }
+    } else {
+      return target.items[n - 1]?.textContent.trim() ?? null;
+    }
+
     return null;
   }
 
@@ -549,53 +667,211 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     return '';
   }
 
-  static async openManeuverPicker(_event, _btn) {
-    const app = AM.app;
-    if (!app) return;
-    const className = A5eMancer.#getSelectedClassName();
-    const info = ManeuverService.getClassManeuverInfo(className, 1);
-    if (!info) return;
+  /* ── HP picker (class tab) ────────────────────────────── */
 
-    const traditions = AM.creationManeuvers?.traditions ?? [];
-    new ManeuverDialog(null, {
-      slotsAvailable:    info.maneuversKnown,
-      maxDegree:         info.maxDegree,
-      allowedTraditions: traditions,
-      onConfirm: async (uuids, newTraditions) => {
-        // Fetch names for preview
-        const names = [];
-        for (const uuid of uuids) {
-          try { const i = await fromUuid(uuid); if (i) names.push(i.name); } catch {}
-        }
-        names.sort((a, b) => a.localeCompare(b));
-        AM.creationManeuvers = { uuids, traditions: newTraditions, names };
-        app.render(false, { parts: ['maneuvers'] });
-      }
-    }).render(true);
+  static setHpMethod(_event, btn) {
+    const method = btn.dataset.method;
+    if (!['max', 'avg', 'roll'].includes(method)) return;
+    AM.hpChoice = { method, value: method === 'roll' ? (AM.hpChoice.value || 0) : 0 };
+    AM.app?.render(false, { parts: ['class'] });
   }
 
-  static async openSpellPicker(_event, _btn) {
-    const app = AM.app;
-    if (!app) return;
+  static rollHpDie() {
+    const hitDie = AM.SELECTED.class?.hitDie ?? '';
+    const num = parseInt(hitDie.replace('d', '')) || 0;
+    if (!num) return;
+    AM.hpChoice = { method: 'roll', value: 1 + Math.floor(Math.random() * num) };
+    AM.app?.render(false, { parts: ['class'] });
+  }
+
+  /* ── Inline maneuver browser ──────────────────────────── */
+
+  static filterManeuverTradition(_event, btn) {
+    AM.maneuverFilter = { tradition: btn.dataset.tradition || null };
+    AM.app?.render(false, { parts: ['maneuvers'] });
+  }
+
+  static toggleManeuver(_event, btn) {
+    const uuid      = btn.dataset.uuid;
+    const tradition = btn.dataset.tradition;
+    if (!uuid) return;
+
     const className = A5eMancer.#getSelectedClassName();
-    const info = SpellService.getClassSpellInfo(className);
+    const info      = ManeuverService.getClassManeuverInfo(className, 1);
     if (!info) return;
 
-    new SpellDialog(null, {
-      className,
-      cantripsToChoose: info.cantrips ?? 0,
-      spellsToChoose:   info.spellsKnown ?? 0,
-      maxSpellLevel:    info.maxLevel ?? 1,
-      onConfirm: async (cantripUuids, spellUuids) => {
-        const names = [];
-        for (const uuid of [...cantripUuids, ...spellUuids]) {
-          try { const i = await fromUuid(uuid); if (i) names.push(i.name); } catch {}
+    const uuids      = [...(AM.creationManeuvers?.uuids ?? [])];
+    const traditions = [...(AM.creationManeuvers?.traditions ?? [])];
+    const names      = [...(AM.creationManeuvers?.names ?? [])];
+    const manName    = btn.dataset.name ?? '';
+    const idx        = uuids.indexOf(uuid);
+
+    if (idx >= 0) {
+      uuids.splice(idx, 1);
+      const ni = names.indexOf(manName);
+      if (ni >= 0) names.splice(ni, 1);
+      if (tradition) {
+        const tradMap = AM.allManeuversData?.get(tradition);
+        const stillUsing = tradMap
+          ? uuids.some(u => [...tradMap.values()].flat().some(m => m.uuid === u))
+          : false;
+        if (!stillUsing) {
+          const ti = traditions.indexOf(tradition);
+          if (ti >= 0) traditions.splice(ti, 1);
         }
-        names.sort((a, b) => a.localeCompare(b));
-        AM.creationSpells = { cantrips: cantripUuids, spells: spellUuids, names };
-        app.render(false, { parts: ['spells'] });
       }
-    }).render(true);
+    } else {
+      if (uuids.length >= info.maneuversKnown) {
+        ui.notifications.warn(game.i18n.format('am.maneuvers.slots-full', { n: info.maneuversKnown }));
+        return;
+      }
+      if (tradition && !traditions.includes(tradition) && traditions.length >= info.traditions) {
+        ui.notifications.warn(game.i18n.format('am.app.maneuvers.tradition-limit', { n: info.traditions }));
+        return;
+      }
+      if (tradition && !traditions.includes(tradition)) traditions.push(tradition);
+      uuids.push(uuid);
+      if (manName) names.push(manName);
+    }
+
+    AM.creationManeuvers = { uuids, traditions, names: [...names].sort() };
+    AM.app?.render(false, { parts: ['maneuvers'] });
+  }
+
+  static #buildTraditionPills(allData, selectedTraditions, activeTradition) {
+    const traditions = getTraditions();
+    return traditions
+      .filter(t => {
+        const tradMap = allData?.get(t.key);
+        return tradMap && [...tradMap.values()].some(arr => arr.length > 0);
+      })
+      .map(t => ({
+        key:   t.key,
+        label: t.label,
+        active: t.key === activeTradition,
+        used:  selectedTraditions.includes(t.key),
+        count: [...(allData.get(t.key)?.values() ?? [])].reduce((s, arr) => s + arr.length, 0)
+      }));
+  }
+
+  static #filterManeuvers(allData, maxDegree, traditionFilter, selectedUuids) {
+    if (!allData || !traditionFilter) return [];
+    const tradMap = allData.get(traditionFilter);
+    if (!tradMap) return [];
+    const result = [];
+    for (const [degree, maneuvers] of tradMap) {
+      if (degree > maxDegree) continue;
+      for (const m of maneuvers) {
+        result.push({ ...m, isSelected: selectedUuids.includes(m.uuid) });
+      }
+    }
+    return result.sort((a, b) => a.degree - b.degree || a.name.localeCompare(b.name));
+  }
+
+  /* ── Inline spell browser ─────────────────────────────── */
+
+  static filterSpellLevel(_event, btn) {
+    const raw   = btn.dataset.level;
+    const level = raw === '' ? null : parseInt(raw);
+    AM.spellFilter = { ...AM.spellFilter, level: isNaN(level) ? null : level };
+    AM.app?.render(false, { parts: ['spells'] });
+  }
+
+  static filterSpellSchool(_event, btn) {
+    AM.spellFilter = { ...AM.spellFilter, school: btn.dataset.school || null };
+    AM.app?.render(false, { parts: ['spells'] });
+  }
+
+  static toggleSpell(_event, btn) {
+    const uuid  = btn.dataset.uuid;
+    const level = parseInt(btn.dataset.level ?? '0');
+    if (!uuid) return;
+
+    const className = A5eMancer.#getSelectedClassName();
+    const info      = SpellService.getClassSpellInfo(className);
+    if (!info) return;
+
+    const isCantrip = level === 0;
+    const cantrips  = [...(AM.creationSpells?.cantrips ?? [])];
+    const spells    = [...(AM.creationSpells?.spells ?? [])];
+    const names     = [...(AM.creationSpells?.names ?? [])];
+    const spellName = btn.dataset.name ?? '';
+
+    if (isCantrip) {
+      const idx = cantrips.indexOf(uuid);
+      if (idx >= 0) {
+        cantrips.splice(idx, 1);
+        const ni = names.indexOf(spellName); if (ni >= 0) names.splice(ni, 1);
+      } else {
+        if (cantrips.length >= (info.cantrips ?? 0)) {
+          ui.notifications.warn(game.i18n.format('am.spells.cantrips-full', { n: info.cantrips }));
+          return;
+        }
+        cantrips.push(uuid);
+        if (spellName) names.push(spellName);
+      }
+    } else {
+      const idx = spells.indexOf(uuid);
+      if (idx >= 0) {
+        spells.splice(idx, 1);
+        const ni = names.indexOf(spellName); if (ni >= 0) names.splice(ni, 1);
+      } else {
+        if (info.type === 'known' && spells.length >= (info.spellsKnown ?? 0)) {
+          ui.notifications.warn(game.i18n.format('am.spells.spells-full', { n: info.spellsKnown }));
+          return;
+        }
+        spells.push(uuid);
+        if (spellName) names.push(spellName);
+      }
+    }
+
+    AM.creationSpells = { cantrips, spells, names: [...names].sort() };
+    AM.app?.render(false, { parts: ['spells'] });
+  }
+
+  static #filterSpells(allData, spellInfo, filter, selectedCantrips, selectedSpells) {
+    const maxLevel    = spellInfo?.maxLevel ?? 1;
+    const filterLevel = filter.level ?? null;
+    const filterSchool = filter.school ?? null;
+    const levelsSet   = new Set();
+    const schoolsMap  = new Map();
+    const spells      = [];
+
+    for (const [level, levelSpells] of allData) {
+      if (level > maxLevel || levelSpells.length === 0) continue;
+      levelsSet.add(level);
+      for (const spell of levelSpells) {
+        if (spell.school && !schoolsMap.has(spell.school))
+          schoolsMap.set(spell.school, spell.schoolLabel || spell.school);
+      }
+    }
+
+    for (const [level, levelSpells] of allData) {
+      if (level > maxLevel) continue;
+      if (filterLevel !== null && filterLevel !== level) continue;
+      for (const spell of levelSpells) {
+        if (filterSchool && spell.school !== filterSchool) continue;
+        const isCantrip  = level === 0;
+        const isSelected = isCantrip
+          ? selectedCantrips.includes(spell.uuid)
+          : selectedSpells.includes(spell.uuid);
+        spells.push({ ...spell, isSelected, isCantrip });
+      }
+    }
+
+    const levelPills = [...levelsSet].sort((a, b) => a - b).map(level => ({
+      level,
+      label: level === 0
+        ? game.i18n.localize('am.spells.cantrip')
+        : game.i18n.format('am.spells.level-n', { n: level }),
+      active: filterLevel === level
+    }));
+
+    const schoolPills = [...schoolsMap.entries()]
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([key, label]) => ({ key, label, active: filterSchool === key }));
+
+    return { spells, levelPills, schoolPills, levelAllActive: filterLevel === null, schoolAllActive: !filterSchool };
   }
 
   static async formHandler(event, _form, formData) {

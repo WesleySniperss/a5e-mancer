@@ -22,6 +22,9 @@ export class ActorCreationService {
       const uuids = this.#extractItemUuids(fd);
       await this.#addItemsToActor(actor, uuids);
 
+      // Apply HP choice (avg/roll) after class item sets base HP
+      await this.#applyHpChoice(actor, fd);
+
       // Add Heritage Gift if selected
       await this.#addHeritageGift(actor, fd);
 
@@ -63,7 +66,9 @@ export class ActorCreationService {
   }
 
   static #validateSelections(fd) {
-    if (!fd['class']) {
+    // AM.SELECTED is the authoritative store; fd[type] may be empty when the hidden
+    // select loses its value after a partial re-render of the detail view template.
+    if (!fd['class'] && !AM.SELECTED.class?.uuid) {
       ui.notifications.warn('am.errors.select-class', { localize: true }); return false;
     }
     if (!fd['character-name']?.trim()) {
@@ -77,10 +82,15 @@ export class ActorCreationService {
   static #extractItemUuids(fd) {
     const result = {};
     for (const type of ['heritage', 'culture', 'background', 'destiny', 'class']) {
-      const raw = fd[type];
-      if (!raw) continue;
+      // Prefer form data value; fall back to AM.SELECTED when the hidden select
+      // has lost its value after a partial re-render of the detail view template.
+      const raw = fd[type] || AM.SELECTED[type]?.value || '';
+      if (!raw) {
+        if (AM.SELECTED[type]?.uuid) result[type] = AM.SELECTED[type].uuid;
+        continue;
+      }
       const m = raw.match(/\[([^\]]+)\]/);
-      result[type] = m ? m[1] : null;
+      result[type] = m ? m[1] : (AM.SELECTED[type]?.uuid || null);
     }
     return result;
   }
@@ -256,6 +266,35 @@ export class ActorCreationService {
     if (!gold || gold <= 0) return;
     await EquipmentService.applyWealthToActor(actor, gold);
     AM.log(3, `Applied ${gold} gp starting wealth`);
+  }
+
+  /* ── HP choice ──────────────────────────────────────── */
+
+  static async #applyHpChoice(actor, fd) {
+    const method = fd.hpMethod || 'max';
+    if (method === 'max') return; // A5e grants full hit die at level 1 by default
+
+    const hitDie = AM.SELECTED.class?.hitDie ?? '';
+    const hitNum = parseInt(hitDie.replace('d', '')) || 0;
+    if (!hitNum) return;
+
+    const baseHp = method === 'roll'
+      ? (parseInt(fd.hpRollResult) || Math.floor(hitNum / 2) + 1)
+      : Math.floor(hitNum / 2) + 1; // avg
+
+    const conScore = actor.system?.abilities?.con?.value ?? 10;
+    const conMod   = Math.floor((conScore - 10) / 2);
+    const totalHp  = Math.max(1, baseHp + conMod);
+
+    try {
+      await actor.update({
+        'system.attributes.hp.value': totalHp,
+        'system.attributes.hp.max':   totalHp
+      });
+      AM.log(3, `HP choice (${method}): ${baseHp} + ${conMod} CON = ${totalHp}`);
+    } catch (err) {
+      AM.log(2, 'HP choice update failed:', err);
+    }
   }
 
   /* ── Biography ──────────────────────────────────────── */

@@ -6,42 +6,110 @@
     <p>Your class defines your character's adventuring role, primary abilities, and how they grow in power. A5e classes are fully compatible with standard 5e classes but include expanded options like Archetypes and Exploration Knacks.</p>
     <hr />
 
-    {{!-- Dropdown --}}
-    <div class="form-row flex items-center gap-sm mb-sm">
-      <label for="class-dropdown">{{localize 'am.app.class.select-label'}}</label>
-      <select id="class-dropdown" name="class" class="form-select" data-dtype="String"
-        aria-required="true" aria-describedby="class-description">
-        <option value="">{{localize 'am.app.class.select-placeholder'}}</option>
-
-        {{#each classDocs}}
-          {{#if this.folderName}}
-            <optgroup label="{{this.folderName}}">
-              {{#each this.docs}}
-                <option value="{{this.id}} ({{this.packId}}) [{{this.uuid}}]">
-                  {{this.name}}
-                </option>
-              {{/each}}
-            </optgroup>
-          {{else}}
-            {{#each this.docs}}
-              <option value="{{this.id}} ({{this.packId}}) [{{this.uuid}}]">
-                {{this.name}}
-              </option>
-            {{/each}}
-          {{/if}}
-        {{else}}
-          <option>{{localize 'am.app.class.none'}}</option>
+    <select id="class-dropdown" name="class" data-dtype="String"
+      aria-required="true" aria-describedby="class-description" style="display:none">
+      <option value="">{{localize 'am.app.class.select-placeholder'}}</option>
+      {{#each classDocs}}
+        {{#each this.docs}}
+          <option value="{{this.id}} ({{this.packId}}) [{{this.uuid}}]">{{this.name}}</option>
         {{/each}}
-      </select>
-      <button type="button" data-action="randomizeTabContent" data-for="class"
-        class="select-button" data-tooltip="{{localize 'am.app.randomize'}}">
-        <i class="fa-solid fa-shuffle"></i>
-      </button>
-    </div>
+      {{/each}}
+    </select>
 
-    {{!-- Description panel --}}
-    <div id="class-description" class="am-description-panel overflow-vert-only"
-         role="region" aria-live="polite" aria-atomic="true">
-    </div>
+    {{#if selectedItem}}
+      {{!-- ── DETAIL VIEW ── --}}
+      <div class="am-detail-view">
+        <div class="am-detail-header">
+          <img class="am-detail-img" src="{{selectedItem.img}}" alt="{{selectedItem.name}}">
+          <div class="am-detail-meta">
+            <div class="am-detail-name">{{selectedItem.name}}</div>
+            <button type="button" class="am-change-btn" data-action="clearCardSelection" data-type="class">
+              <i class="fa-solid fa-rotate-left"></i> {{localize 'am.app.change-selection'}}
+            </button>
+          </div>
+        </div>
+
+        <div id="class-description" class="am-description-panel overflow-vert-only"
+             role="region" aria-live="polite" aria-atomic="true">{{{selectedItem.descriptionHtml}}}</div>
+
+        {{#if hitDie}}
+          <div class="am-hp-picker">
+            <h4 class="am-hp-picker-title">{{localize 'am.app.class.hp-title'}} <span class="am-hp-die-label">({{hitDie}})</span></h4>
+            <p class="am-hint">{{localize 'am.app.class.hp-hint'}}</p>
+            <div class="am-hp-method-row">
+              <button type="button"
+                      class="am-hp-method-btn {{#if (eq hpChoice.method 'max')}}am-hp-active{{/if}}"
+                      data-action="setHpMethod" data-method="max">
+                <i class="fa-solid fa-arrow-up"></i>
+                {{localize 'am.app.class.hp-max'}} ({{hitDieNum}})
+              </button>
+              <button type="button"
+                      class="am-hp-method-btn {{#if (eq hpChoice.method 'avg')}}am-hp-active{{/if}}"
+                      data-action="setHpMethod" data-method="avg">
+                <i class="fa-solid fa-equals"></i>
+                {{localize 'am.app.class.hp-avg'}} ({{hitDieAvg}})
+              </button>
+              <button type="button"
+                      class="am-hp-method-btn {{#if (eq hpChoice.method 'roll')}}am-hp-active{{/if}}"
+                      data-action="setHpMethod" data-method="roll">
+                <i class="fa-solid fa-dice"></i>
+                {{localize 'am.app.class.hp-roll'}}
+              </button>
+            </div>
+            {{#if (eq hpChoice.method 'roll')}}
+              <div class="am-hp-roll-row">
+                <button type="button" data-action="rollHpDie" class="am-hp-roll-btn">
+                  <i class="fa-solid fa-dice-d10"></i> {{localize 'am.app.class.hp-roll-btn'}}
+                </button>
+                {{#if hpChoice.value}}
+                  <span class="am-hp-roll-result">= <strong>{{hpChoice.value}}</strong></span>
+                {{/if}}
+              </div>
+            {{/if}}
+          </div>
+
+          <input type="hidden" name="hpMethod" value="{{hpChoice.method}}">
+          {{#if hpChoice.value}}
+            <input type="hidden" name="hpRollResult" value="{{hpChoice.value}}">
+          {{/if}}
+
+          <p class="am-hint am-archetype-note">
+            <i class="fa-solid fa-info-circle"></i> {{localize 'am.app.class.archetype-note'}}
+          </p>
+        {{/if}}
+      </div>
+    {{else}}
+      {{!-- ── CARD BROWSER ── --}}
+      <div class="am-card-browser">
+        <div class="am-card-search-row">
+          <input type="text" class="am-card-search form-input" data-for="class"
+            placeholder="{{localize 'am.app.class.search-placeholder'}}"
+            autocomplete="off" aria-label="Search class">
+          <button type="button" data-action="randomizeTabContent" data-for="class"
+            class="am-shuffle-btn" data-tooltip="{{localize 'am.app.randomize'}}">
+            <i class="fa-solid fa-shuffle"></i>
+          </button>
+        </div>
+
+        <div class="am-card-grid" data-type="class" role="list">
+          {{#each classDocs}}
+            {{#each this.docs}}
+              <button type="button" class="am-card" role="listitem"
+                data-action="cardSelect"
+                data-type="class"
+                data-value="{{this.id}} ({{this.packId}}) [{{this.uuid}}]"
+                data-name="{{this.name}}"
+                data-tooltip="{{this.name}}">
+                <img class="am-card-img" src="{{this.img}}" alt="" loading="lazy">
+                <span class="am-card-name">{{this.name}}</span>
+              </button>
+            {{/each}}
+          {{else}}
+            <p class="am-hint">{{localize 'am.app.class.none'}}</p>
+          {{/each}}
+        </div>
+      </div>
+    {{/if}}
+
   </fieldset>
 </div>

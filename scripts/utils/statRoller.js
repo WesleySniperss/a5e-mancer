@@ -46,7 +46,7 @@ export class StatRoller {
    * Build the abilities context array used by the template.
    * A5e abilities: str, dex, con, int, wis, cha (same keys as 5e).
    */
-  static buildAbilitiesContext() {
+  static buildAbilitiesContext(initialScore) {
     const ABILITIES = [
       { key: 'str', label: 'Strength',     abbreviation: 'STR' },
       { key: 'dex', label: 'Dexterity',    abbreviation: 'DEX' },
@@ -56,10 +56,10 @@ export class StatRoller {
       { key: 'cha', label: 'Charisma',     abbreviation: 'CHA' }
     ];
 
-    const defaultScore = AM.ABILITY_SCORES.DEFAULT;
+    const score = initialScore ?? AM.ABILITY_SCORES.DEFAULT;
     return ABILITIES.map(a => ({
       ...a,
-      currentScore: defaultScore,
+      currentScore: score,
       fullKey: game.i18n.localize(`A5E.Ability${a.key.charAt(0).toUpperCase()}${a.key.slice(1)}`) || a.label
     }));
   }

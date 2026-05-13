@@ -6,42 +6,62 @@
     <p>Your background describes your character's life before adventuring — their occupation, social standing, and the experiences that shaped their skills and outlook. Choose a background that fits your character's pre-adventure story.</p>
     <hr />
 
-    {{!-- Dropdown --}}
-    <div class="form-row flex items-center gap-sm mb-sm">
-      <label for="background-dropdown">{{localize 'am.app.background.select-label'}}</label>
-      <select id="background-dropdown" name="background" class="form-select" data-dtype="String"
-        aria-required="true" aria-describedby="background-description">
-        <option value="">{{localize 'am.app.background.select-placeholder'}}</option>
-
-        {{#each backgroundDocs}}
-          {{#if this.folderName}}
-            <optgroup label="{{this.folderName}}">
-              {{#each this.docs}}
-                <option value="{{this.id}} ({{this.packId}}) [{{this.uuid}}]">
-                  {{this.name}}
-                </option>
-              {{/each}}
-            </optgroup>
-          {{else}}
-            {{#each this.docs}}
-              <option value="{{this.id}} ({{this.packId}}) [{{this.uuid}}]">
-                {{this.name}}
-              </option>
-            {{/each}}
-          {{/if}}
-        {{else}}
-          <option>{{localize 'am.app.background.none'}}</option>
+    <select id="background-dropdown" name="background" data-dtype="String"
+      aria-required="true" aria-describedby="background-description" style="display:none">
+      <option value="">{{localize 'am.app.background.select-placeholder'}}</option>
+      {{#each backgroundDocs}}
+        {{#each this.docs}}
+          <option value="{{this.id}} ({{this.packId}}) [{{this.uuid}}]">{{this.name}}</option>
         {{/each}}
-      </select>
-      <button type="button" data-action="randomizeTabContent" data-for="background"
-        class="select-button" data-tooltip="{{localize 'am.app.randomize'}}">
-        <i class="fa-solid fa-shuffle"></i>
-      </button>
-    </div>
+      {{/each}}
+    </select>
 
-    {{!-- Description panel --}}
-    <div id="background-description" class="am-description-panel overflow-vert-only"
-         role="region" aria-live="polite" aria-atomic="true">
-    </div>
+    {{#if selectedItem}}
+      {{!-- ── DETAIL VIEW ── --}}
+      <div class="am-detail-view">
+        <div class="am-detail-header">
+          <img class="am-detail-img" src="{{selectedItem.img}}" alt="{{selectedItem.name}}">
+          <div class="am-detail-meta">
+            <div class="am-detail-name">{{selectedItem.name}}</div>
+            <button type="button" class="am-change-btn" data-action="clearCardSelection" data-type="background">
+              <i class="fa-solid fa-rotate-left"></i> {{localize 'am.app.change-selection'}}
+            </button>
+          </div>
+        </div>
+        <div id="background-description" class="am-description-panel overflow-vert-only"
+             role="region" aria-live="polite" aria-atomic="true">{{{selectedItem.descriptionHtml}}}</div>
+      </div>
+    {{else}}
+      {{!-- ── CARD BROWSER ── --}}
+      <div class="am-card-browser">
+        <div class="am-card-search-row">
+          <input type="text" class="am-card-search form-input" data-for="background"
+            placeholder="{{localize 'am.app.background.search-placeholder'}}"
+            autocomplete="off" aria-label="Search background">
+          <button type="button" data-action="randomizeTabContent" data-for="background"
+            class="am-shuffle-btn" data-tooltip="{{localize 'am.app.randomize'}}">
+            <i class="fa-solid fa-shuffle"></i>
+          </button>
+        </div>
+
+        <div class="am-card-grid" data-type="background" role="list">
+          {{#each backgroundDocs}}
+            {{#each this.docs}}
+              <button type="button" class="am-card" role="listitem"
+                data-action="cardSelect"
+                data-type="background"
+                data-value="{{this.id}} ({{this.packId}}) [{{this.uuid}}]"
+                data-name="{{this.name}}"
+                data-tooltip="{{this.name}}">
+                <img class="am-card-img" src="{{this.img}}" alt="" loading="lazy">
+                <span class="am-card-name">{{this.name}}</span>
+              </button>
+            {{/each}}
+          {{else}}
+            <p class="am-hint">{{localize 'am.app.background.none'}}</p>
+          {{/each}}
+        </div>
+      </div>
+    {{/if}}
   </fieldset>
 </div>

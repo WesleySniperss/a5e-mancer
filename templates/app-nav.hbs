@@ -1,19 +1,29 @@
-{{!-- A5e Mancer Navigation Tabs --}}
-<nav class="a5e-mancer-tabs tabs" role="tablist" aria-label="{{localize 'am.app.tabs'}}">
-  {{#each tabs as |tab|}}
-    <a class="item {{tab.cssClass}}"
-       data-action="tab"
-       data-tab="{{tab.id}}"
-       data-group="{{tab.group}}"
-       data-tooltip="{{tab.label}}"
-       id="tab-{{tab.id}}"
-       role="tab"
-       aria-label="{{tab.label}}"
-       aria-controls="{{tab.id}}-panel"
-       aria-selected="{{#if tab.cssClass}}true{{else}}false{{/if}}"
-       tabindex="{{#if tab.cssClass}}0{{else}}-1{{/if}}">
-      <i class="{{tab.icon}}" aria-hidden="true"></i>
-      <span>{{tab.label}}</span>
-    </a>
-  {{/each}}
-</nav>
+{{!-- A5e Mancer Sidebar Navigation --}}
+<div class="am-app-nav-wrapper">
+  <div class="am-sidebar-brand">
+    <i class="fa-solid fa-hat-wizard am-sidebar-icon"></i>
+    <div>
+      <div class="am-sidebar-title">A5e Mancer</div>
+      <div class="am-sidebar-sub">Character Builder</div>
+    </div>
+  </div>
+
+  <nav class="a5e-mancer-tabs tabs" role="tablist" aria-label="{{localize 'am.app.tabs'}}">
+    {{#each tabs as |tab|}}
+      <a class="item {{tab.cssClass}}"
+         data-action="tab"
+         data-tab="{{tab.id}}"
+         data-group="{{tab.group}}"
+         id="tab-{{tab.id}}"
+         role="tab"
+         aria-label="{{tab.label}}"
+         aria-controls="{{tab.id}}-panel"
+         aria-selected="{{#if tab.cssClass}}true{{else}}false{{/if}}"
+         tabindex="{{#if tab.cssClass}}0{{else}}-1{{/if}}">
+        <i class="{{tab.icon}} am-step-icon" aria-hidden="true"></i>
+        <span class="am-step-label">{{tab.label}}</span>
+        <span class="am-step-dot"></span>
+      </a>
+    {{/each}}
+  </nav>
+</div>
