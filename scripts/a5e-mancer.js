@@ -164,102 +164,33 @@ Hooks.once('ready', async () => {
 });
 
 /* ── Actors sidebar button ──────────────────────────────── */
-Hooks.on('renderActorDirectory', (_app, html) => {
-  console.log('a5e-mancer | renderActorDirectory hook fired');
-  console.log('a5e-mancer | _app:', _app);
-  console.log('a5e-mancer | html type:', typeof html, html instanceof HTMLElement ? 'HTMLElement' : (html instanceof jQuery ? 'jQuery' : html?.constructor?.name));
-  console.log('a5e-mancer | html:', html);
+function _injectActorDirButton() {
+  if (!game.settings.get(AM.ID, 'enable')) return;
+  if (document.querySelector('.am-actortab-button')) return;
 
-  if (!game.settings.get(AM.ID, 'enable')) {
-    console.log('a5e-mancer | Module disabled in settings, skipping button injection');
-    return;
-  }
-
-  // html can be jQuery object (v12) or plain HTMLElement (v13)
-  const root = (html instanceof jQuery) ? html[0] : html;
-
-  // Build a list of candidate roots: the hook element, the app element, and the DOM node
-  const appEl = _app?.element;
-  const domEl = document.getElementById('actors');
-  const candidates = [root, appEl, domEl].filter(Boolean);
-  console.log('a5e-mancer | Candidate roots:', { root, appElement: appEl, domElement: domEl });
-  console.log('a5e-mancer | root outerHTML (first 500):', root?.outerHTML?.substring(0, 500));
-  if (appEl && appEl !== root) console.log('a5e-mancer | appElement outerHTML (first 500):', appEl?.outerHTML?.substring(0, 500));
-  if (domEl && domEl !== root && domEl !== appEl) console.log('a5e-mancer | domElement outerHTML (first 500):', domEl?.outerHTML?.substring(0, 500));
-
-  // Already injected?
-  for (const el of candidates) {
-    if (el?.querySelector?.('.am-actortab-button')) {
-      console.log('a5e-mancer | Button already injected, skipping');
-      return;
-    }
-  }
-
-  // Locate the header action bar by looking for known action buttons first,
-  // then falling back to container class selectors.
-  let header = null;
-  const actionSelectors = [
-    '[data-action="createDocument"]',   // V13 "Create Actor"
-    '[data-action="create"]',           // alternate
-    '[data-action="createFolder"]',     // V13 "Create Folder"
-    '[data-action="create-folder"]',    // V12 "Create Folder"
-  ];
-  const containerSelectors = [
-    '.header-actions', '.action-buttons', '.directory-header', 'header',
-  ];
-
-  for (const el of candidates) {
-    if (!el?.querySelector) continue;
-    console.log('a5e-mancer | Searching candidate:', el.tagName, el.id || '', el.className || '');
-    // Strategy 1: find a known action button and use its parent as the header
-    for (const sel of actionSelectors) {
-      const actionBtn = el.querySelector(sel);
-      if (actionBtn) {
-        console.log('a5e-mancer | Found action button with selector:', sel, actionBtn);
-        header = actionBtn.parentElement;
-        break;
-      }
-    }
-    if (header) break;
-    // Strategy 2: find the header container directly
-    for (const sel of containerSelectors) {
-      const found = el.querySelector(sel);
-      if (found) {
-        console.log('a5e-mancer | Found header container with selector:', sel, found);
-        header = found;
-        break;
-      }
-    }
-    if (header) break;
-  }
-
-  if (!header) {
-    console.warn('a5e-mancer | Could not find Actors Directory header to inject button');
-    console.warn('a5e-mancer | Dumping full candidate innerHTML for debugging:');
-    for (const el of candidates) {
-      console.warn('a5e-mancer |  -', el.tagName, el.id, '→', el.innerHTML?.substring(0, 1000));
-    }
-    return;
-  }
-
-  console.log('a5e-mancer | Injecting button into header:', header);
+  // v13: tab has data-tab="actors"; v12: element has id="actors"
+  const header = document.querySelector(
+    '[data-tab="actors"] .header-actions, [data-tab="actors"] .action-buttons, ' +
+    '.actor-directory .header-actions, .actor-directory .action-buttons, ' +
+    '#actors .header-actions, #actors .action-buttons'
+  );
+  if (!header) return;
 
   const btn = document.createElement('button');
-  btn.type  = 'button';
+  btn.type      = 'button';
   btn.className = 'am-actortab-button';
-  btn.title = game.i18n.localize('am.actortab-button.hint');
-  btn.innerHTML =
-    '<i class="fa-solid fa-hat-wizard" style="color:var(--user-color)"></i> ' +
-    game.i18n.localize('am.actortab-button.name');
-
+  btn.title     = game.i18n.localize('am.actortab-button.hint');
+  btn.innerHTML = `<i class="fa-solid fa-hat-wizard" style="color:var(--user-color)"></i> ${game.i18n.localize('am.actortab-button.name')}`;
   btn.addEventListener('click', () => {
     if (AM.app) { AM.app.close(); AM.app = null; }
     AM.app = new A5eMancer();
     AM.app.render(true);
   });
-
   header.appendChild(btn);
-});
+}
+
+Hooks.on('renderActorDirectory', () => requestAnimationFrame(_injectActorDirButton));
+Hooks.on('ready', () => setTimeout(_injectActorDirButton, 300));
 
 /* ── Level Up button on character sheet ──────────────────── */
 Hooks.on('renderActorSheet', (sheet, html) => {
