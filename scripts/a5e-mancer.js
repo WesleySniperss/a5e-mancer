@@ -168,13 +168,30 @@ function _injectActorDirButton() {
   if (!game.settings.get(AM.ID, 'enable')) return;
   if (document.querySelector('.am-actortab-button')) return;
 
-  // v13: tab has data-tab="actors"; v12: element has id="actors"
-  const header = document.querySelector(
-    '[data-tab="actors"] .header-actions, [data-tab="actors"] .action-buttons, ' +
-    '.actor-directory .header-actions, .actor-directory .action-buttons, ' +
-    '#actors .header-actions, #actors .action-buttons'
+  // Primary: find the "Create Actor" button and inject into its parent container.
+  // This is the most version-agnostic approach — works in v12 and v13 regardless of
+  // whether the container uses .header-actions, .action-buttons, or bare <header>.
+  const createBtn = document.querySelector(
+    '#sidebar [data-action="createDocument"], ' +
+    '.actor-directory [data-action="createDocument"], ' +
+    '#actors [data-action="createDocument"]'
   );
-  if (!header) return;
+
+  // Fallback: look for common container class names used across Foundry versions
+  const header = createBtn?.parentElement ?? document.querySelector(
+    '[data-tab="actors"] .header-actions, [data-tab="actors"] .action-buttons, ' +
+    '[data-tab="actors"] .directory-header,   [data-tab="actors"] header, ' +
+    '.actor-directory .header-actions,        .actor-directory .action-buttons, ' +
+    '.actor-directory .directory-header, ' +
+    '#actors .header-actions, #actors .action-buttons, ' +
+    '#actors .directory-header, #actors header'
+  );
+
+  if (!header) {
+    AM.log(2, 'A5e Mancer: could not find actors header to inject button. Sidebar HTML:',
+      document.querySelector('#sidebar')?.innerHTML?.slice(0, 600) ?? '(no #sidebar)');
+    return;
+  }
 
   const btn = document.createElement('button');
   btn.type      = 'button';
@@ -189,8 +206,12 @@ function _injectActorDirButton() {
   header.appendChild(btn);
 }
 
+// Fire on actors directory render (v12 + v13 compatible — ignore params, query DOM directly)
 Hooks.on('renderActorDirectory', () => requestAnimationFrame(_injectActorDirButton));
-Hooks.on('ready', () => setTimeout(_injectActorDirButton, 300));
+// Fire when the user switches sidebar tabs (actors tab might not render until first visit)
+Hooks.on('changeSidebarTab',    () => requestAnimationFrame(_injectActorDirButton));
+// Fallback: try at increasing delays after game ready in case hooks don't fire
+Hooks.on('ready', () => [100, 500, 1500, 3000].forEach(ms => setTimeout(_injectActorDirButton, ms)));
 
 /* ── Level Up button on character sheet ──────────────────── */
 Hooks.on('renderActorSheet', (sheet, html) => {
