@@ -1,7 +1,7 @@
 export { DocumentService } from './documentService.js';
 export { ActorCreationService } from './actorCreationService.js';
 export { DOMManager } from './DOMManager.js';
-export { StatRoller } from './statRoller.js';
+export { StatRoller } from './StatRoller.js';
 export { FormValidation } from './formValidation.js';
 export { SavedOptions } from './savedOptions.js';
 export { ProgressBar } from './progress.js';
