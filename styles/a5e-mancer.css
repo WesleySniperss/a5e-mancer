@@ -1080,13 +1080,45 @@
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
 
-  &:hover { background: rgba(0,0,0,0.04); }
+  &:hover { background: rgba(212,175,55,0.05); }
   &.lu-selected {
     border-color: var(--am-gold);
     background: rgba(212,175,55,0.08);
   }
 
-  input[type="radio"] { flex-shrink: 0; }
+  /* Hide native radio, show custom gold dot */
+  input[type="radio"] {
+    appearance: none;
+    -webkit-appearance: none;
+    flex-shrink: 0;
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid var(--am-gold-border);
+    border-radius: 50%;
+    background: transparent;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    position: relative;
+
+    &::after {
+      content: '';
+      display: block;
+      width: 0.45rem;
+      height: 0.45rem;
+      border-radius: 50%;
+      background: var(--am-gold);
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0);
+      transition: transform 0.12s;
+    }
+
+    &:checked {
+      border-color: var(--am-gold);
+      &::after { transform: translate(-50%, -50%) scale(1); }
+    }
+  }
 }
 
 .lu-method-content {
