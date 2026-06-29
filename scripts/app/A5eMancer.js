@@ -557,6 +557,102 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
 
     // 4. Randomize ability scores based on the active method
     await A5eMancer.#randomizeAbilities(app.element);
+
+    // 5. Roll the destiny/background narrative fields (motivation, goals, backstory)
+    for (const rb of form.querySelectorAll('[data-action="rollDestinyTable"]')) {
+      rb.click();
+      await new Promise(r => setTimeout(r, 50));
+    }
+
+    // 6. Equipment: roll starting wealth + pick a random option in each choice group
+    form.querySelector('[data-action="rollWealth"]')?.click();
+    for (const group of form.querySelectorAll('.am-equipment-choice-group')) {
+      const opts = [...group.querySelectorAll('[data-action="toggleEquipmentChoice"]')];
+      if (opts.length) opts[Math.floor(Math.random() * opts.length)].click();
+    }
+
+    // 7. Random class maneuvers + spells (respecting quotas). Re-render ONLY those
+    //    parts — a full render would wipe the name/ability/narrative/wealth values
+    //    we just set directly in the DOM (they live in inputs, not the render context).
+    await A5eMancer.#randomizeManeuvers();
+    await A5eMancer.#randomizeSpells();
+    await app.render(false, { parts: ['maneuvers', 'spells'] });
+  }
+
+  /** Fisher–Yates shuffle (in place); returns the array. */
+  static #shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  /** Pick random valid maneuvers for the selected class (quota + allowed traditions + degree). */
+  static async #randomizeManeuvers() {
+    const className = A5eMancer.#getSelectedClassName();
+    const info = className ? ManeuverService.getClassManeuverInfo(className, 1) : null;
+    if (!info) return;
+
+    if (!AM.allManeuversData) {
+      try { AM.allManeuversData = await ManeuverService.loadAllManeuvers(); } catch { return; }
+    }
+    const data = AM.allManeuversData;
+    if (!data) return;
+
+    // Traditions with at least one maneuver at/under the class's max degree…
+    let tradKeys = [...data.keys()].filter(key => {
+      const tradMap = data.get(key);
+      return tradMap && [...tradMap.entries()].some(([deg, arr]) => deg <= info.maxDegree && arr.length);
+    });
+    // …restricted to those the class may choose from.
+    if (Array.isArray(info.allowedTraditions)) {
+      tradKeys = tradKeys.filter(k => info.allowedTraditions.includes(k));
+    }
+    if (!tradKeys.length) return;
+
+    const chosenTraditions = A5eMancer.#shuffle(tradKeys).slice(0, info.traditions);
+    const pool = [];
+    for (const t of chosenTraditions) {
+      for (const [deg, arr] of data.get(t)) {
+        if (deg <= info.maxDegree) pool.push(...arr.map(m => ({ uuid: m.uuid, name: m.name, tradition: t })));
+      }
+    }
+    const picks = A5eMancer.#shuffle(pool).slice(0, info.maneuversKnown);
+    AM.creationManeuvers = {
+      uuids:      picks.map(p => p.uuid),
+      traditions: [...new Set(picks.map(p => p.tradition))],
+      names:      picks.map(p => p.name).sort()
+    };
+  }
+
+  /** Pick random valid cantrips + spells for the selected class (respecting quotas). */
+  static async #randomizeSpells() {
+    const className = A5eMancer.#getSelectedClassName();
+    const info = className ? SpellService.getClassSpellInfo(className) : null;
+    if (!info) return;
+
+    const maxLevel = info.maxLevel ?? 1;
+    if (!AM.allSpellsData) {
+      try { AM.allSpellsData = await SpellService.loadSpells(null, maxLevel); } catch { return; }
+    }
+    const data = AM.allSpellsData;
+    if (!data) return;
+
+    const cantrips = A5eMancer.#shuffle([...(data.get(0) ?? [])]).slice(0, info.cantrips ?? 0);
+
+    const spellPool = [];
+    for (let lvl = 1; lvl <= maxLevel; lvl++) spellPool.push(...(data.get(lvl) ?? []));
+    A5eMancer.#shuffle(spellPool);
+    // 'known' casters pick exactly spellsKnown; 'prepared' (spellsKnown = -1) get a sensible handful.
+    const want = info.type === 'known' ? (info.spellsKnown ?? 0) : Math.min(spellPool.length, 4);
+    const spells = spellPool.slice(0, Math.max(0, want));
+
+    AM.creationSpells = {
+      cantrips: cantrips.map(s => s.uuid),
+      spells:   spells.map(s => s.uuid),
+      names:    [...cantrips, ...spells].map(s => s.name).sort()
+    };
   }
 
   static async #randomizeAbilities(form) {

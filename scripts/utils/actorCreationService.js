@@ -3,6 +3,7 @@ import { DocumentService } from './documentService.js';
 import { EquipmentService } from './equipmentService.js';
 import { ManeuverService } from './maneuverService.js';
 import { SpellService } from './spellService.js';
+import { applyItemIcon } from '../data/a5eIcons.js';
 
 export class ActorCreationService {
 
@@ -165,6 +166,7 @@ export class ActorCreationService {
     }
     // Create one-at-a-time so A5e's grant system (skills, proficiencies) fires per item
     for (const data of itemDatas) {
+      applyItemIcon(data);
       await actor.createEmbeddedDocuments('Item', [data]);
     }
     if (itemDatas.length) AM.log(3, `Added ${itemDatas.length} items`);
@@ -181,6 +183,7 @@ export class ActorCreationService {
       const data = item.toObject();
       data._stats = data._stats || {};
       data._stats.compendiumSource = uuid;
+      applyItemIcon(data);
       await actor.createEmbeddedDocuments('Item', [data]);
       AM.log(3, `Added heritage gift: ${item.name}`);
     } catch (err) {
@@ -254,6 +257,7 @@ export class ActorCreationService {
     }
 
     if (itemsToCreate.length) {
+      itemsToCreate.forEach(applyItemIcon);
       await actor.createEmbeddedDocuments('Item', itemsToCreate);
       AM.log(3, `Added ${itemsToCreate.length} equipment items`);
     }

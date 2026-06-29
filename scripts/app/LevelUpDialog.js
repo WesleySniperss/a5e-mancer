@@ -56,8 +56,8 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       luToggleSpell:             LevelUpDialog.luToggleSpell,
     },
     classes: ['am-app', 'am-levelup-dialog'],
-    position: { width: 540, height: 'auto' },
-    window: { icon: 'fa-solid fa-arrow-up', resizable: false, minimizable: false }
+    position: { width: 680, height: 760 },
+    window: { icon: 'fa-solid fa-arrow-up', resizable: true, minimizable: false }
   };
 
   static PARTS = {
@@ -188,7 +188,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     if (this._allManeuversData) {
       const actorTraditions = ManeuverService.getActorTraditions?.(this.actor) ?? [];
       const allUsed = [...new Set([...actorTraditions, ...this._selectedTraditions])];
-      context.inlineTraditions      = LevelUpDialog.#buildTraditionPills(this._allManeuversData, allUsed, this._maneuverFilter.tradition);
+      context.inlineTraditions      = LevelUpDialog.#buildTraditionPills(this._allManeuversData, allUsed, this._maneuverFilter.tradition, maneuverInfo.allowedTraditions);
       context.visibleManeuvers      = LevelUpDialog.#filterManeuvers(this._allManeuversData, maneuverInfo.maxDegree, this._maneuverFilter.tradition, this._selectedManeuverUuids);
       context.maneuverFilterTradition = this._maneuverFilter.tradition ?? '';
     } else if (!this._loadingManeuvers) {
@@ -253,8 +253,10 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
   /* ── Private static browser helpers ─────────────────────────────────── */
 
-  static #buildTraditionPills(allData, usedTraditions, activeTradition) {
+  static #buildTraditionPills(allData, usedTraditions, activeTradition, allowedTraditions = null) {
     return getTraditions()
+      // Restrict to the traditions this class may choose from (null = any).
+      .filter(t => !allowedTraditions || allowedTraditions.includes(t.key))
       .filter(t => {
         const tradMap = allData?.get(t.key);
         return tradMap && [...tradMap.values()].some(arr => arr.length > 0);

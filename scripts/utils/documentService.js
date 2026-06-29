@@ -1,9 +1,17 @@
 import { AM } from '../a5e-mancer.js';
+import { classKey } from '../data/a5eClassData.js';
+import { CLASS_DESCRIPTIONS, HERITAGE_DESCRIPTIONS } from '../data/a5eDescriptions.js';
 
 /**
  * A5e item types we need for character creation and how to find them in compendiums.
  */
 const A5E_TYPES = ['heritage', 'culture', 'background', 'destiny', 'class'];
+
+/**
+ * Narrative fallbacks scraped from a5e.tools, keyed by item type → lowercase base name.
+ * Used when a compendium item ships without a description.
+ */
+const FALLBACK_DESCRIPTIONS = { class: CLASS_DESCRIPTIONS, heritage: HERITAGE_DESCRIPTIONS };
 
 export class DocumentService {
 
@@ -126,12 +134,25 @@ export class DocumentService {
     try {
       const doc = await fromUuid(uuid);
       if (!doc) return '';
-      const raw = doc.system?.description?.value ?? doc.system?.description ?? '';
+      let raw = doc.system?.description?.value ?? doc.system?.description ?? '';
+      // Fall back to a bundled narrative description when the compendium item has none.
+      if (!raw || !String(raw).trim()) raw = DocumentService.fallbackDescription(doc);
       return await TextEditor.enrichHTML(raw, { async: true, relativeTo: doc });
     } catch (err) {
       AM.log(2, `Error loading description for ${uuid}:`, err);
       return '';
     }
+  }
+
+  /**
+   * Look up a bundled narrative description for an item that lacks one.
+   * @param {Item} doc
+   * @returns {string} HTML string ('' if no fallback exists)
+   */
+  static fallbackDescription(doc) {
+    const map = FALLBACK_DESCRIPTIONS[doc?.type];
+    if (!map || !doc?.name) return '';
+    return map[classKey(doc.name)] ?? '';
   }
 
   /**

@@ -1,4 +1,5 @@
 import { AM } from '../a5e-mancer.js';
+import { iconForItem, applyItemIcon } from '../data/a5eIcons.js';
 
 /**
  * Fallback tradition keys (camelCase, matching system data) used when CONFIG.A5E is unavailable.
@@ -35,43 +36,62 @@ export function getTraditions() {
 export const TRADITIONS = TRADITION_KEYS;
 
 /**
- * Which classes get combat maneuvers and their progression table.
- * Format: { traditions: n, maneuversKnown: [by level], maxDegree: [by level] }
+ * Combat-maneuver progression per class. Verified by parsing each class's table on
+ * a5e.tools (the "Maneuvers Known" + "Maneuver Degree" columns) and the "Combat
+ * Maneuvers" feature text for the tradition list. In A5e every maneuver class gains
+ * proficiency in TWO combat traditions; `allowedTraditions` lists which traditions
+ * the class may choose (camelCase keys matching CONFIG.A5E.maneuverTraditions), or
+ * null when the class may pick ANY tradition.
  *
- * Classes confirmed to get maneuvers in a5e:
- *   Fighter, Berserker (Barbarian), Ranger, Herald (Paladin), Rogue (some archetypes)
- *   Warlord, Marshal — full maneuver classes
+ * Arrays are indexed by CLASS level (index 0 unused / padding):
+ *   maneuversKnown[lvl] — cumulative maneuvers known at that level
+ *   maxDegree[lvl]      — highest maneuver degree the class can select
  */
 export const CLASS_MANEUVER_TABLES = {
-  // Fighter: 2 traditions at 1st, gains more with Maneuver Specialization
   fighter: {
-    traditions: 2,
-    maneuversKnown: [0, 2, 3, 4, 4, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13],
-    maxDegree:      [0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5]
+    traditions: 2, allowedTraditions: null, // any tradition of your choice
+    maneuversKnown: [0, 3, 4, 4, 5, 6, 7, 7, 8, 9, 10, 10, 11, 12, 13, 13, 14, 15, 16, 16, 17],
+    maxDegree:      [0, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 5]
   },
-  // Berserker (Barbarian equivalent)
   berserker: {
-    traditions: 1,
-    maneuversKnown: [0, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 6, 7, 7, 7, 8, 8, 8, 9, 9, 9],
-    maxDegree:      [0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5]
+    traditions: 2, allowedTraditions: ['adamantMountain', 'mirrorsGlint', 'rapidCurrent', 'temperedIron', 'toothAndClaw'],
+    maneuversKnown: [0, 0, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11],
+    maxDegree:      [0, 0, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 4, 4, 4, 4, 4, 5, 5, 5, 5]
   },
-  // Ranger
   ranger: {
-    traditions: 1,
-    maneuversKnown: [0, 0, 0, 2, 2, 3, 3, 4, 4, 5, 5, 5, 6, 6, 6, 7, 7, 7, 8, 8, 8],
-    maxDegree:      [0, 0, 0, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5]
+    traditions: 2, allowedTraditions: ['bitingZephyr', 'mirrorsGlint', 'rapidCurrent', 'razorsEdge', 'spiritedSteed', 'unendingWheel'],
+    maneuversKnown: [0, 0, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11],
+    maxDegree:      [0, 0, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5]
   },
-  // Herald (Paladin equivalent)
   herald: {
-    traditions: 1,
-    maneuversKnown: [0, 0, 0, 2, 2, 3, 3, 4, 4, 5, 5, 5, 6, 6, 6, 7, 7, 7, 8, 8, 8],
-    maxDegree:      [0, 0, 0, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5]
+    traditions: 2, allowedTraditions: ['sanguineKnot', 'spiritedSteed', 'temperedIron'],
+    maneuversKnown: [0, 0, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6, 7, 7, 7, 8, 8],
+    maxDegree:      [0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4]
   },
-  // Warlord — all maneuvers, full progression
-  warlord: {
-    traditions: 2,
-    maneuversKnown: [0, 2, 3, 4, 4, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13],
-    maxDegree:      [0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5]
+  marshal: {
+    traditions: 2, allowedTraditions: ['bitingZephyr', 'mirrorsGlint', 'mistAndShade', 'rapidCurrent', 'razorsEdge', 'sanguineKnot', 'spiritedSteed', 'unendingWheel'],
+    maneuversKnown: [0, 0, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11],
+    maxDegree:      [0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 5]
+  },
+  adept: {
+    traditions: 2, allowedTraditions: ['mirrorsGlint', 'rapidCurrent', 'razorsEdge', 'unendingWheel'],
+    maneuversKnown: [0, 0, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10],
+    maxDegree:      [0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5]
+  },
+  rogue: {
+    traditions: 2, allowedTraditions: ['bitingZephyr', 'mistAndShade', 'rapidCurrent'],
+    maneuversKnown: [0, 0, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6, 7, 7, 7, 8, 8],
+    maxDegree:      [0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4]
+  },
+  psyknight: {
+    traditions: 2, allowedTraditions: ['aceStarfighter', 'blazingStarglaive', 'mindfulBody', 'mirrorsGlint', 'rapidCurrent', 'razorsEdge', 'toothAndClaw'],
+    maneuversKnown: [0, 0, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11],
+    maxDegree:      [0, 0, 1, 1, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 5]
+  },
+  trooper: {
+    traditions: 2, allowedTraditions: null, // any tradition of your choice
+    maneuversKnown: [0, 0, 2, 2, 3, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10],
+    maxDegree:      [0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4]
   }
 };
 
@@ -121,7 +141,7 @@ export class ManeuverService {
           const maneuver = {
             id:              entry._id,
             name:            entry.name,
-            img:             entry.img,
+            img:             iconForItem(entry.name, 'maneuver') ?? entry.img,
             uuid:            `Compendium.${pack.collection}.${entry._id}`,
             tradition,                 // camelCase key for filtering
             traditionLabel:  labelOf(tradition), // localized for display
@@ -166,6 +186,7 @@ export class ManeuverService {
     if (maneuversKnown === 0) return null;
     return {
       traditions:  table.traditions,
+      allowedTraditions: table.allowedTraditions ?? null, // null = any tradition
       maneuversKnown,
       maxDegree:   table.maxDegree[lvl] ?? 0
     };
@@ -223,6 +244,7 @@ export class ManeuverService {
         const data = item.toObject();
         data._stats = data._stats || {};
         data._stats.compendiumSource = uuid;
+        applyItemIcon(data);
         itemDatas.push(data);
       } catch (err) {
         AM.log(2, `Error fetching maneuver ${uuid}:`, err);

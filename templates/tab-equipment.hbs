@@ -59,7 +59,7 @@
           <ul class="am-equipment-fixed">
             {{#each classEquipment.fixed}}
               <li>
-                <i class="fa-solid fa-check-circle" style="color:var(--am-success)"></i>
+                <img class="am-equip-icon" src="{{this.img}}" alt="" loading="lazy">
                 <span>{{#if this.qty}}{{this.qty}}× {{/if}}{{this.name}}</span>
                 {{#if this.isContainer}}
                   <details class="am-pack-contents">
@@ -84,7 +84,7 @@
               {{#each this.options}}
                 <div class="am-equipment-option {{#if (eq @index 0)}}am-selected{{/if}}">
                   <button type="button" class="am-equipment-option-btn" data-idx="{{@index}}">
-                    <i class="fa-solid fa-shield-halved"></i>
+                    <img class="am-equip-icon" src="{{this.img}}" alt="" loading="lazy">
                     <span>{{#if this.qty}}{{this.qty}}× {{/if}}{{this.name}}</span>
                   </button>
                 </div>
@@ -133,7 +133,7 @@
           <ul class="am-equipment-fixed">
             {{#each backgroundEquipment.fixed}}
               <li>
-                <i class="fa-solid fa-check-circle" style="color:var(--am-success)"></i>
+                <img class="am-equip-icon" src="{{this.img}}" alt="" loading="lazy">
                 <span>{{#if this.qty}}{{this.qty}}× {{/if}}{{this.name}}</span>
                 {{#if this.isContainer}}
                   <details class="am-pack-contents">

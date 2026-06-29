@@ -1,3 +1,8 @@
 .claude/
 *.local.json
 node_modules/
+
+# Build artifact (attached to GitHub Releases, not committed)
+module.zip
+# Crash dumps / junk
+*.stackdump

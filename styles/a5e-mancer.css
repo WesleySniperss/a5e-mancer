@@ -867,6 +867,14 @@
   }
 }
 
+/* Item icon shown beside starting-equipment entries */
+.am-equip-icon {
+  width: 1.4rem;
+  height: 1.4rem;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
 .am-pack-contents {
   margin-block-start: 0.2rem;
   margin-inline-start: 1.2rem;
@@ -946,14 +954,22 @@
     max-height: calc(100vh - 5rem) !important;
   }
 
-  /* Smaller card grid so the description panel stays visible */
+  /* Card grid + description share the now-wider window comfortably */
   .am-inline-card-grid {
-    max-height: 14rem;
+    max-height: 18rem;
+  }
+  .am-inline-description {
+    max-height: 10rem;
   }
 
-  /* Taller description panel since card grid is shorter */
-  .am-inline-description {
-    max-height: 12rem;
+  /* Red window close (✕) cross */
+  .window-header [data-action="close"] {
+    color: #e0563f;
+    transition: color 0.15s, text-shadow 0.15s;
+    &:hover {
+      color: #ff7a63;
+      text-shadow: 0 0 8px rgba(224, 86, 63, 0.55);
+    }
   }
 }
 
@@ -975,10 +991,51 @@
 .am-levelup-content {
   display: flex;
   flex-direction: column;
-  gap: var(--am-spacing-sm);
+  gap: var(--am-spacing-md);
+
+  /* Sections become even, self-contained panels — the <hr> separators between
+     them are then redundant, so hide them for a cleaner, level look. */
+  hr { display: none; }
 }
 
-.lu-section { margin-block-end: var(--am-spacing-sm); }
+.lu-section {
+  margin-block-end: 0;
+
+  /* Themed panel for every content section (except the mode toggle) */
+  &:not(.lu-mode-section) {
+    background: var(--am-bg-panel);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--am-border-radius);
+    padding: var(--am-spacing-sm) var(--am-spacing-md) var(--am-spacing-md);
+  }
+
+  /* Consistent, themed section headings */
+  h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin: 0 0 var(--am-spacing-sm);
+    padding-block-end: 0.4rem;
+    border: none;
+    border-block-end: 1px solid var(--am-gold-border);
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--am-gold);
+    i { color: var(--am-gold); }
+  }
+
+  /* Align every label + control row on a shared grid so controls line up */
+  .form-row {
+    display: grid;
+    grid-template-columns: minmax(6rem, max-content) 1fr;
+    align-items: center;
+    gap: var(--am-spacing-sm);
+
+    > label { font-weight: 600; color: var(--am-text-dim); margin: 0; }
+  }
+  .form-select,
+  .form-input { width: 100%; }
+}
 
 /* Mode toggle */
 .lu-mode-section { margin-block-end: 0; }
@@ -1028,9 +1085,33 @@
   border: 1px solid rgba(143,214,147,0.3);
 }
 .lu-prereq-fail {
-  color: var(--am-error, #ffb675);
-  background: rgba(255,182,117,0.1);
-  border: 1px solid rgba(255,182,117,0.3);
+  color: #ff6b52;
+  background: rgba(224, 86, 63, 0.1);
+  border: 1px solid rgba(224, 86, 63, 0.35);
+}
+
+/* Callout for options whose selection opens the a5e system's own window */
+.lu-system-note {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0.5rem 0 0;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: var(--am-accent);
+  background: rgba(88, 130, 170, 0.12);
+  border: 1px solid rgba(88, 130, 170, 0.32);
+  border-radius: var(--am-border-radius);
+
+  i { flex-shrink: 0; }
+}
+
+/* Never let an empty description/hint panel show as a stray empty box */
+.am-levelup-content .am-description-panel:empty,
+.am-levelup-content .lu-item-description:empty,
+.am-levelup-content .am-inline-description:empty {
+  display: none;
 }
 
 .lu-level-badge {
@@ -1065,17 +1146,17 @@
 }
 
 .lu-hp-methods {
-  display: flex;
-  flex-direction: column;
-  gap: var(--am-spacing-xs);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--am-spacing-sm);
 }
 
 .lu-hp-method {
   display: flex;
   align-items: center;
   gap: var(--am-spacing-sm);
-  padding: var(--am-spacing-xs) var(--am-spacing-sm);
-  border: 2px solid transparent;
+  padding: var(--am-spacing-sm);
+  border: 2px solid var(--am-gold-border);
   border-radius: var(--am-border-radius);
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
@@ -1159,7 +1240,10 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-block-start: var(--am-spacing-sm);
+  gap: var(--am-spacing-sm);
+  padding-block-start: var(--am-spacing-md);
+  margin-block-start: var(--am-spacing-xs);
+  border-block-start: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .lu-submit {

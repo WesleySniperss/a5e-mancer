@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <g fill="#f1f1f1">
+    <!-- Sword blade -->
+    <path d="M90 422 L110 402 L340 110 L390 80 L420 80 L420 110 L390 160 L160 390 Z"/>
+    <!-- Crossguard -->
+    <path d="M200 300 L155 255 Q148 245 155 238 L168 225 Q178 218 188 225 L215 252 L252 215 L225 188 Q218 178 225 168 L238 155 Q245 148 255 155 L300 200 L248 252 Z"/>
+    <!-- Grip pommel -->
+    <ellipse cx="75" cy="437" rx="28" ry="28"/>
+    <!-- Grip line -->
+    <rect x="88" y="392" width="16" height="50" rx="8" transform="rotate(-45 96 417)"/>
+
+    <!-- Impact/knock lines around the hilt area (showing it was knocked away) -->
+    <path d="M390 350 L420 380" stroke="#f1f1f1" stroke-width="20" stroke-linecap="round" fill="none"/>
+    <path d="M410 320 L450 320" stroke="#f1f1f1" stroke-width="20" stroke-linecap="round" fill="none"/>
+    <path d="M380 385 L380 425" stroke="#f1f1f1" stroke-width="20" stroke-linecap="round" fill="none"/>
+    <path d="M350 310 L375 285" stroke="#f1f1f1" stroke-width="20" stroke-linecap="round" fill="none"/>
+    <path d="M415 350 L440 325" stroke="#f1f1f1" stroke-width="20" stroke-linecap="round" fill="none"/>
+  </g>
+</svg>

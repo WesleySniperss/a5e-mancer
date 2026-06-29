@@ -1,4 +1,11 @@
 import { AM } from '../a5e-mancer.js';
+import { iconForItem } from '../data/a5eIcons.js';
+
+/** Resolve an equipment item's display icon (site override → compendium → default). */
+function equipImg(doc) {
+  if (!doc) return 'icons/svg/item-bag.svg';
+  return iconForItem(doc.name, doc.type) ?? doc.img ?? 'icons/svg/item-bag.svg';
+}
 
 /**
  * Handles starting equipment and wealth for a5e character creation.
@@ -188,6 +195,7 @@ export class EquipmentService {
           fixed.push({
             name:      doc?.name ?? 'Unknown Item',
             uuid:      entryUuid,
+            img:       equipImg(doc),
             qty,
             isContainer,
             contents:  isContainer ? await this.#getContainerContents(doc) : null
@@ -212,6 +220,7 @@ export class EquipmentService {
             opts.push({
               name:      doc?.name ?? 'Unknown Item',
               uuid:      entryUuid,
+              img:       equipImg(doc),
               qty,
               isContainer,
               contents:  isContainer ? await this.#getContainerContents(doc) : null

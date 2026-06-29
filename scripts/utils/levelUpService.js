@@ -1,5 +1,7 @@
 import { AM } from '../a5e-mancer.js';
 import { DocumentService } from './documentService.js';
+import { A5E_CLASS_DATA, classKey as classKeyOf } from '../data/a5eClassData.js';
+import { iconForItem, applyItemIcon } from '../data/a5eIcons.js';
 
 /**
  * Handles levelling up a character in a5e.
@@ -8,34 +10,32 @@ import { DocumentService } from './documentService.js';
  *  1. Choose class to level up (or new class for multiclass)
  *  2. Choose HP method: roll hit die, take average, or enter manually
  *  3. Gain class features for the new level (auto-applied from compendium)
- *  4. At levels 4/8/12/16/19: gain ASI or Feat
- *  5. Every 2 levels: gain Exploration Knack
+ *  4. At levels 4/8/12/16/19: gain ASI or Feat (universal in A5e — all classes)
+ *  5. Gain the class's knack-equivalent on its own schedule. EVERY A5e class has a
+ *     knack-type feature, but named differently per class (Soldiering Knack, Skill
+ *     Trick, Developed Talent, Sign of Faith, …) and gained at different levels.
+ *     Names + cadences live in A5E_CLASS_DATA (verified from a5e.tools).
  *  6. Proficiency bonus updates automatically from total level
  *
  * In Foundry a5e the actor stores class items in actor.items (type='class').
  * The class item has system.classLevels (current level in that class).
  */
 
+// Hit dice — authoritative A5e values come from A5E_CLASS_DATA (verified against
+// a5e.tools). The few 5e-only names below are non-A5e fallbacks (A5e replaces them
+// with Berserker/Adept/Herald) kept only so homebrew/imports don't break.
+// This map is a LAST-RESORT fallback: getActorClasses reads the compendium first.
 const HIT_DICE = {
-  artificer: 8, barbarian: 12, berserker: 12, bard: 8, cleric: 8, druid: 8,
-  fighter: 10, herald: 10, monk: 8, marshal: 8, paladin: 10, ranger: 10, rogue: 8,
-  sorcerer: 6, warlock: 8, wizard: 6, adept: 8, psion: 6, scout: 8, trooper: 10
+  barbarian: 12, monk: 8, paladin: 10,
+  ...Object.fromEntries(Object.entries(A5E_CLASS_DATA).map(([k, v]) => [k, v.hitDie])),
 };
 
-// ASI levels by class (based on CLASS level, not total level).
-// Fighter gets extra ASIs at 6 and 14; Rogue gets an extra at 10.
-const CLASS_ASI_LEVELS = {
-  fighter:  [4, 6, 8, 12, 14, 16, 19],
-  rogue:    [4, 8, 10, 12, 16, 19],
-  _default: [4, 8, 12, 16, 19],
-};
-
-// Exploration Knack levels by class (based on CLASS level, every even class level).
-// Most classes follow the standard schedule; list overrides here if a class differs.
-const CLASS_KNACK_LEVELS = {
-  _default: [2, 4, 6, 8, 10, 12, 14, 16, 18, 20],
-  // e.g. someClass: [3, 6, 9, ...]
-};
+// ASI levels (based on CLASS level, not total level).
+// In A5e (unlike D&D 5e) the schedule is UNIVERSAL: every class gains an ASI/Feat
+// at 4, 8, 12, 16, 19 — there are NO class-specific extras. Verified against the
+// official Fighter/Rogue/Wizard tables on a5e.tools: the 5e Fighter +6/+14 and
+// Rogue +10 ASIs do not exist in A5e (those levels grant other features instead).
+const ASI_LEVELS = [4, 8, 12, 16, 19];
 
 /**
  * Multiclass prerequisites per A5e (Level Up: Advanced 5e) rules.
@@ -56,8 +56,11 @@ const CLASS_PREREQUISITES = {
   monk:       { and: [['dex', 13], ['wis', 13]] },
   paladin:    { and: [['str', 13], ['cha', 13]] },
   psion:      { and: [['int', 13]] },
+  psyknight:  { and: [['wis', 13]] },
   ranger:     { and: [['dex', 13], ['wis', 13]] },
   rogue:      { and: [['dex', 13]] },
+  savant:     { and: [['int', 13]] },
+  scientist:  { and: [['int', 13]] },
   scout:      { or:  [['cha', 13], ['dex', 13]] },
   sorcerer:   { and: [['cha', 13]] },
   trooper:    { and: [['con', 13]] },
@@ -80,7 +83,7 @@ export class LevelUpService {
         hitDie:   i.system?.hp?.hitDiceSize
                   ?? i.system?.hitDice?.denomination
                   ?? i.system?.hitDie
-                  ?? HIT_DICE[i.name.toLowerCase()]
+                  ?? HIT_DICE[classKeyOf(i.name)]
                   ?? 8,
         img:      i.img,
         uuid:     i.getFlag('core', 'sourceId') ?? i.flags?.core?.sourceId ?? null
@@ -101,15 +104,15 @@ export class LevelUpService {
    * each class has its own progression table.
    */
   static getLevelUpInfo(cls, newClassLevel, newTotalLevel) {
-    const key        = cls.name?.toLowerCase() ?? '';
-    const asiLevels  = CLASS_ASI_LEVELS[key]   ?? CLASS_ASI_LEVELS._default;
-    const knackLevels = CLASS_KNACK_LEVELS[key] ?? CLASS_KNACK_LEVELS._default;
+    const knack      = A5E_CLASS_DATA[classKeyOf(cls.name)]?.knack ?? null;
+    const knackLevels = knack?.levels ?? [];
 
-    const gainsASI   = asiLevels.includes(newClassLevel);
+    const gainsASI   = ASI_LEVELS.includes(newClassLevel);
     const gainsKnack = knackLevels.includes(newClassLevel);
+    const knackName  = knack?.name ?? null;
     const avgHP      = Math.ceil(cls.hitDie / 2) + 1;
 
-    return { gainsASI, gainsKnack, avgHP, hitDie: cls.hitDie, newClassLevel, newTotalLevel };
+    return { gainsASI, gainsKnack, knackName, avgHP, hitDie: cls.hitDie, newClassLevel, newTotalLevel };
   }
 
   /**
@@ -154,7 +157,7 @@ export class LevelUpService {
             uuid:   `Compendium.${pack.collection}.${entry._id}`,
             img:    entry.img,
             hitDie: entry.system?.hp?.hitDiceSize
-                    ?? HIT_DICE[entry.name.toLowerCase()]
+                    ?? HIT_DICE[classKeyOf(entry.name)]
                     ?? 8,
           });
         }
@@ -215,6 +218,7 @@ export class LevelUpService {
             const kd = knackItem.toObject();
             kd._stats = kd._stats || {};
             kd._stats.compendiumSource = knackUuid;
+            applyItemIcon(kd);
             await actor.createEmbeddedDocuments('Item', [kd]);
           }
         }
@@ -272,6 +276,7 @@ export class LevelUpService {
             const data = featItem.toObject();
             data._stats = data._stats || {};
             data._stats.compendiumSource = featUuid;
+            applyItemIcon(data);
             await actor.createEmbeddedDocuments('Item', [data]);
             AM.log(3, `Added feat: ${featItem.name}`);
           }
@@ -293,6 +298,7 @@ export class LevelUpService {
             const data = knackItem.toObject();
             data._stats = data._stats || {};
             data._stats.compendiumSource = knackUuid;
+            applyItemIcon(data);
             await actor.createEmbeddedDocuments('Item', [data]);
             AM.log(3, `Added knack: ${knackItem.name}`);
           }
@@ -323,7 +329,7 @@ export class LevelUpService {
             results.push({
               name: entry.name,
               uuid: `Compendium.${pack.collection}.${entry._id}`,
-              img:  entry.img,
+              img:  iconForItem(entry.name, entry.type) ?? entry.img,
               type: entry.type
             });
           }
@@ -334,70 +340,63 @@ export class LevelUpService {
   }
 
   /**
-   * Get exploration knacks (or the class-equivalent feature) for a given class.
-   * Uses system.featureType === 'knack' + system.classes to filter correctly.
-   * Falls back to a name-based search if the featureType index yields nothing.
+   * Get the knack-equivalent features a class can pick (Soldiering Knacks, Skill
+   * Tricks, Elective Studies, Signs of Faith, …). Every A5e class has these but they
+   * are named per class via CONFIG.A5E.knackTypes and are not always tagged
+   * featureType==='knack' in the compendium — so matching is tiered and degrades
+   * gracefully so the picker is never empty when a knack is actually due.
    *
    * @param {string|null} className - Class name to filter for (e.g. "Fighter"). null = all.
    */
   static async getExplorationKnacks(className = null) {
-    const classKey = className?.toLowerCase().replace(/\s*\(.*\)\s*/, '').trim() ?? null;
-    const results  = [];
-    const packs    = game.packs.filter(p => p.metadata.type === 'Item');
+    const key   = className ? classKeyOf(className) : null;
+    const packs = game.packs.filter(p => p.metadata.type === 'Item');
 
-    for (const pack of packs) {
-      try {
-        const index = await pack.getIndex({ fields: ['name', 'type', 'img', 'system'] });
-        for (const entry of index) {
-          if (entry.type !== 'feature') continue;
-          if (entry.system?.featureType !== 'knack') continue;
+    // Singular/plural-tolerant stem so "Elective Study" matches "Elective Studies".
+    const norm = s => (s ?? '').toLowerCase().replace(/[^a-z]/g, '');
+    const fold = s => norm(s).replace(/(ies|es|s|y)$/, '');
+    const knackName = key ? (CONFIG.A5E?.knackTypes?.[key] ?? null) : null;
+    const knackStem = knackName ? fold(knackName) : null;            // e.g. "electivestud"
 
-          if (classKey) {
-            // system.classes may be a string, array, or object keyed by class slug
-            const raw = entry.system?.classes ?? entry.system?.classIdentifier ?? '';
-            let matches = false;
-            if (Array.isArray(raw)) {
-              matches = raw.some(c => c.toLowerCase().includes(classKey) || classKey.includes(c.toLowerCase()));
-            } else if (raw && typeof raw === 'object') {
-              matches = Object.keys(raw).some(k => k.toLowerCase().includes(classKey) || classKey.includes(k.toLowerCase()));
-            } else if (typeof raw === 'string' && raw) {
-              const ck = raw.toLowerCase();
-              matches = ck.includes(classKey) || classKey.includes(ck);
-            }
-            if (!matches) continue;
-          }
+    const nameIsClassKnack = (name) => !!knackStem && fold(name).includes(knackStem);
 
-          results.push({
-            name: entry.name,
-            uuid: `Compendium.${pack.collection}.${entry._id}`,
-            img:  entry.img
-          });
-        }
-      } catch {}
-    }
+    const classMatches = (entry) => {
+      if (!key) return true;
+      const raw   = entry.system?.classes ?? entry.system?.classIdentifier ?? '';
+      const cands = Array.isArray(raw) ? raw
+                  : (raw && typeof raw === 'object') ? Object.keys(raw)
+                  : (typeof raw === 'string' && raw) ? [raw] : [];
+      if (cands.some(c => { const ck = norm(c); return ck && (ck.includes(key) || key.includes(ck)); })) return true;
+      return nameIsClassKnack(entry.name);            // item name embeds this class's knack name
+    };
 
-    // Fallback: if featureType filtering found nothing, search by name
-    if (!results.length) {
-      const nameHint = classKey
-        ? (CONFIG.A5E?.knackTypes?.[classKey] ?? null)
-        : null;
+    const isKnackType = (e) => (e.system?.featureType ?? '').toLowerCase() === 'knack';
+
+    // Collect features matching a predicate, deduped by uuid.
+    const collect = async (predicate) => {
+      const out = [], seen = new Set();
       for (const pack of packs) {
         try {
-          const index = await pack.getIndex({ fields: ['name', 'type', 'img'] });
+          const index = await pack.getIndex({ fields: ['name', 'type', 'img', 'system'] });
           for (const entry of index) {
-            if (entry.type !== 'feature') continue;
-            const lname = entry.name.toLowerCase();
-            if (nameHint ? lname.includes(nameHint.toLowerCase()) : lname.includes('knack')) {
-              results.push({
-                name: entry.name,
-                uuid: `Compendium.${pack.collection}.${entry._id}`,
-                img:  entry.img
-              });
-            }
+            if (entry.type !== 'feature' || !predicate(entry)) continue;
+            const uuid = `Compendium.${pack.collection}.${entry._id}`;
+            if (seen.has(uuid)) continue;
+            seen.add(uuid);
+            out.push({ name: entry.name, uuid, img: iconForItem(entry.name, 'feature') ?? entry.img });
           }
         } catch {}
       }
-    }
+      return out;
+    };
+
+    // Tier 1: tagged as a knack AND belongs to this class.
+    let results = await collect(e => isKnackType(e) && classMatches(e));
+    // Tier 2: name embeds this class's knack name, whatever the featureType
+    //         (covers classes whose picks aren't tagged 'knack', e.g. Wizard Elective Studies).
+    if (!results.length && knackStem) results = await collect(e => nameIsClassKnack(e.name));
+    // Tier 3: any knack-typed feature, so the picker is never empty when one is due.
+    if (!results.length)              results = await collect(isKnackType);
 
     return results.sort((a, b) => a.name.localeCompare(b.name));
   }
