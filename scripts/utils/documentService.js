@@ -134,9 +134,25 @@ export class DocumentService {
     try {
       const doc = await fromUuid(uuid);
       if (!doc) return '';
-      let raw = doc.system?.description?.value ?? doc.system?.description ?? '';
-      // Fall back to a bundled narrative description when the compendium item has none.
-      if (!raw || !String(raw).trim()) raw = DocumentService.fallbackDescription(doc);
+      let raw = String(doc.system?.description?.value ?? doc.system?.description ?? '');
+
+      // Blend in the bundled narrative for classes/heritages: the a5e compendium
+      // descriptions are purely mechanical (level table / traits), so the narrative
+      // is PREPENDED rather than used only when the description is empty.
+      const narrative = DocumentService.fallbackDescription(doc);
+      if (narrative) {
+        if (!raw.trim()) {
+          raw = narrative;
+        } else {
+          const strip = s => s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+          const probe = strip(narrative).slice(0, 60);
+          // Skip if the compendium text already begins with this narrative
+          if (probe && !strip(raw).includes(probe)) {
+            raw = `${narrative}\n<hr>\n${raw}`;
+          }
+        }
+      }
+
       return await TextEditor.enrichHTML(raw, { async: true, relativeTo: doc });
     } catch (err) {
       AM.log(2, `Error loading description for ${uuid}:`, err);

@@ -565,9 +565,10 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     // 6. Equipment: roll starting wealth + pick a random option in each choice group
+    //    (the option buttons are wired by DOMManager click listeners, not data-action)
     form.querySelector('[data-action="rollWealth"]')?.click();
     for (const group of form.querySelectorAll('.am-equipment-choice-group')) {
-      const opts = [...group.querySelectorAll('[data-action="toggleEquipmentChoice"]')];
+      const opts = [...group.querySelectorAll('.am-equipment-option-btn')];
       if (opts.length) opts[Math.floor(Math.random() * opts.length)].click();
     }
 

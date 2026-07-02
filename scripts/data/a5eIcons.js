@@ -790,15 +790,28 @@ function keywordIcon(name) {
 }
 
 /**
+ * Item types whose compendium art must never be replaced:
+ * - spells keep their richer per-spell art (the site has none);
+ * - origin items (class, heritage, culture, …) have curated art, and their NAMES
+ *   would falsely keyword-match ("Berserker" → rage, "Dragonborn" → dragon, …).
+ */
+const NEVER_OVERRIDE_TYPES = new Set(['spell', 'class', 'archetype', 'heritage', 'culture', 'background', 'destiny']);
+
+/** Ability-like types that may take a thematic keyword icon when no exact match. */
+const KEYWORD_TYPES = new Set(['feature', 'feat', 'maneuver']);
+
+/**
  * Resolve the site icon for an item. Returns a local asset path, or null to keep
- * the item's existing image. Tries an exact name match first, then a thematic
- * keyword match (gives most abilities/maneuvers an evocative icon).
- *
- * Spells are intentionally NEVER overridden: they keep their richer compendium art.
+ * the item's existing image. Tries an exact name match first (weapons, gear,
+ * maneuvers, features), then — for ability-like items only — a thematic keyword
+ * match so most features/maneuvers get an evocative icon.
  */
 export function iconForItem(name, type) {
-  if ((type ?? '').toLowerCase() === 'spell') return null;
-  return ICON_BY_NAME[iconKey(name)] ?? keywordIcon(name);
+  const t = (type ?? '').toLowerCase();
+  if (NEVER_OVERRIDE_TYPES.has(t)) return null;
+  const exact = ICON_BY_NAME[iconKey(name)];
+  if (exact) return exact;
+  return KEYWORD_TYPES.has(t) ? keywordIcon(name) : null;
 }
 
 /**
