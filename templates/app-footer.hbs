@@ -49,7 +49,9 @@
         <i class="fa-solid fa-rotate-left"></i>
       </button>
 
-      <button type="cancel" data-action="nosubmit" class="am-app-footer-cancel"
+      {{!-- type MUST be "button": an invalid type is treated as "submit" and would
+            run the creation form handler — Cancel could actually create the actor --}}
+      <button type="button" data-action="nosubmit" class="am-app-footer-cancel"
         data-tooltip='{{localize "am.app.cancel-description"}}'>
         <i class="fa-solid fa-xmark"></i>
       </button>

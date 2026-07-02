@@ -1251,6 +1251,23 @@
   padding: 0.4rem 1.2rem;
 }
 
+/* Secondary/dismiss styling for the Cancel button, echoing the red close cross */
+.lu-cancel {
+  padding: 0.4rem 1rem;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: var(--am-border-radius);
+  color: var(--am-text-dim);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+
+  &:hover {
+    color: #ff7a63;
+    border-color: rgba(224, 86, 63, 0.55);
+    background: rgba(224, 86, 63, 0.08);
+  }
+}
+
 /* Level Up button on character sheet */
 .am-levelup-btn {
   display: inline-flex;

@@ -48,6 +48,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     tag: 'form',
     form: { handler: LevelUpDialog.formHandler, closeOnSubmit: true, submitOnChange: false },
     actions: {
+      luCancel:                  LevelUpDialog.luCancel,
       rollHP:                    LevelUpDialog.rollHP,
       luFilterManeuverTradition: LevelUpDialog.luFilterManeuverTradition,
       luToggleManeuver:          LevelUpDialog.luToggleManeuver,
@@ -582,6 +583,19 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     dialog._selectedCantripUuids = cantrips;
     dialog._selectedSpellUuids   = spells;
     dialog.render(false);
+  }
+
+  /* ── Static action: cancel ──────────────────────────────────────────── */
+
+  /**
+   * Close without applying anything. The button must be type="button": an invalid
+   * type (the old type="cancel") is treated as "submit" by browsers and would run
+   * the form handler — i.e. Cancel would actually apply the level-up.
+   */
+  static luCancel(_event, _btn) {
+    const dialog = AM.levelUpDialog;
+    AM.levelUpDialog = null;
+    dialog?.close();
   }
 
   /* ── Static actions: HP ─────────────────────────────────────────────── */

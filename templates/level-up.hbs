@@ -525,7 +525,7 @@
 
   {{!-- Footer --}}
   <div class="lu-footer flex justify-between items-center">
-    <button type="cancel" class="lu-cancel" onclick="this.closest('.application')._element?.[0]?.dispatchEvent(new Event('close'))">
+    <button type="button" class="lu-cancel" data-action="luCancel">
       {{localize 'am.app.cancel'}}
     </button>
     <button type="submit" data-action="submit" class="am-footer-submit lu-submit">
