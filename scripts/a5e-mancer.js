@@ -142,6 +142,9 @@ Hooks.once('setup', () => {
     id:          'disarmed',
     label:       'Disarmed',
     name:        'Disarmed',
+    // v13 reads `img`; keep `icon` for v12 compat. The effects-panel duration
+    // matcher also matches on `img`, so without it disarmed gets no badge.
+    img:         'modules/a5e-mancer/assets/icons/disarmed.svg',
     icon:        'modules/a5e-mancer/assets/icons/disarmed.svg',
     statuses:    ['disarmed'],
     description: 'The creature cannot hold weapons or make weapon attacks. It drops any held weapons.'
@@ -161,6 +164,24 @@ Hooks.once('ready', async () => {
     game.settings.set(AM.ID, 'customStandardArray', StatRoller.getDefaultStandardArray());
   globalThis.a5eMancer = { AM };
   Hooks.callAll('a5eMancer.Ready');
+});
+
+/* ── VTools toolbar hub button ──────────────────────────── */
+/* vtools.ready fires during setup; esmodules evaluate before any hook fires,
+   so this top-level registration is always in place in time. */
+Hooks.once('vtools.ready', () => {
+  if (typeof VTools === 'undefined') return;
+  if (!game.settings.get(AM.ID, 'enable')) return;
+  VTools.register({
+    name:    'a5e-mancer',
+    title:   game.i18n.localize('am.actortab-button.hint'),
+    icon:    'fas fa-hat-wizard',
+    onClick: () => {
+      if (AM.app) { AM.app.close(); AM.app = null; }
+      AM.app = new A5eMancer();
+      AM.app.render(true);
+    }
+  });
 });
 
 /* ── Actors sidebar button ──────────────────────────────── */
