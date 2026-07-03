@@ -790,16 +790,11 @@ function keywordIcon(name) {
 }
 
 /**
- * Item types whose compendium art must never be replaced:
- * - spells keep their richer per-spell art (the site has none);
- * - origin items (class, heritage, culture, …) have curated art, and their NAMES
- *   would falsely keyword-match ("Berserker" → rage, "Dragonborn" → dragon, …).
- * These protections apply only to items that HAVE art — a placeholder image is
- * always fair game (see isPlaceholderImg / the currentImg parameter).
+ * Ability-like types that may take a thematic keyword icon when there is no exact
+ * site match. Other types (spells, gear, origin items like class/heritage) keep
+ * their standard compendium art instead of a keyword guess — origin NAMES would
+ * falsely keyword-match ("Berserker" → rage, "Dragonborn" → dragon, …).
  */
-const NEVER_OVERRIDE_TYPES = new Set(['spell', 'class', 'archetype', 'heritage', 'culture', 'background', 'destiny']);
-
-/** Ability-like types that may take a thematic keyword icon when no exact match. */
 const KEYWORD_TYPES = new Set(['feature', 'feat', 'maneuver']);
 
 /** Foundry's generic stand-in images — an item showing one has no real art. */
@@ -812,20 +807,20 @@ export function isPlaceholderImg(img) {
 
 /**
  * Resolve the site icon for an item. Returns a local asset path, or null to keep
- * the item's existing image.
+ * the item's existing image. Policy ("site art wherever the site has it"):
  *
- * - Exact name match first (weapons, gear, maneuvers, features), then — for
- *   ability-like items — a thematic keyword match.
- * - When `currentImg` is provided and is a placeholder, protections are waived:
- *   ANY item (spells and origin items included) gets exact-or-keyword art,
- *   because a thematic icon always beats an empty bag.
+ * 1. Placeholder image (empty / item-bag / mystery-man) → exact-or-keyword icon,
+ *    any type — a thematic icon always beats an empty bag.
+ * 2. Exact name match → the site genuinely has this item's icon; it wins for
+ *    EVERY type (spells and origin items included).
+ * 3. No exact match → thematic keyword icon for ability-like items only;
+ *    everything else keeps its standard compendium art.
  */
 export function iconForItem(name, type, currentImg = undefined) {
   const t = (type ?? '').toLowerCase();
   if (currentImg !== undefined && isPlaceholderImg(currentImg)) {
     return ICON_BY_NAME[iconKey(name)] ?? keywordIcon(name);
   }
-  if (NEVER_OVERRIDE_TYPES.has(t)) return null;
   const exact = ICON_BY_NAME[iconKey(name)];
   if (exact) return exact;
   return KEYWORD_TYPES.has(t) ? keywordIcon(name) : null;

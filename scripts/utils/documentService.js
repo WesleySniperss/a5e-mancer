@@ -80,7 +80,7 @@ export class DocumentService {
           docs.push({
             id:          entry._id,
             name:        entry.name,
-            // Origin items keep their art; site icon only fills a placeholder
+            // Exact site match or placeholder fill; keyword guesses never touch origin items
             img:         iconForItem(entry.name, type, entry.img ?? '') ?? entry.img,
             uuid:        `Compendium.${pack.collection}.${entry._id}`,
             packId:      pack.collection,

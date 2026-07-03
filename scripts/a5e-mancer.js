@@ -4,7 +4,7 @@ import { LevelUpDialog } from './app/LevelUpDialog.js';
 import { A5eCharacterSheet } from './app/A5eCharacterSheet.js';
 import { A5eNPCSheet } from './app/A5eNPCSheet.js';
 import { DocumentService, StatRoller } from './utils/index.js';
-import { iconForItem, isPlaceholderImg } from './data/a5eIcons.js';
+import { iconForItem } from './data/a5eIcons.js';
 
 export class AM {
   static ID   = 'a5e-mancer';
@@ -166,36 +166,36 @@ Hooks.once('ready', async () => {
   globalThis.a5eMancer = { AM };
   Hooks.callAll('a5eMancer.Ready');
 
-  /* One-time world migration: give site icons to items that have no real art
-     (empty img or Foundry's item-bag / mystery-man placeholders). Touches
-     nothing that already has an icon. GM only, marked done via world setting. */
-  if (game.user.isGM && (game.settings.get(AM.ID, 'iconFillMigration') ?? 0) < 1) {
+  /* One-time world migration (v2): bring existing items in line with the icon
+     policy — site icon wherever the site has one (exact match; keyword for
+     ability-like items; anything for placeholder art), standard art elsewhere.
+     GM only, marked done via world setting. */
+  if (game.user.isGM && (game.settings.get(AM.ID, 'iconFillMigration') ?? 0) < 2) {
     try {
-      let filled = 0;
+      let changed = 0;
+      const iconOf = (item) => iconForItem(item.name, item.type, item.img ?? '');
       for (const actor of game.actors) {
         const updates = [];
         for (const item of actor.items) {
-          if (!isPlaceholderImg(item.img)) continue;
-          const icon = iconForItem(item.name, item.type, item.img ?? '');
-          if (icon) updates.push({ _id: item.id, img: icon });
+          const icon = iconOf(item);
+          if (icon && icon !== item.img) updates.push({ _id: item.id, img: icon });
         }
         if (updates.length) {
           await actor.updateEmbeddedDocuments('Item', updates);
-          filled += updates.length;
+          changed += updates.length;
         }
       }
       for (const item of game.items) {
-        if (!isPlaceholderImg(item.img)) continue;
-        const icon = iconForItem(item.name, item.type, item.img ?? '');
-        if (icon) { await item.update({ img: icon }); filled++; }
+        const icon = iconOf(item);
+        if (icon && icon !== item.img) { await item.update({ img: icon }); changed++; }
       }
-      await game.settings.set(AM.ID, 'iconFillMigration', 1);
-      if (filled) {
-        AM.log(3, `Icon fill migration: ${filled} placeholder icons replaced`);
-        ui.notifications.info(`A5e Mancer: added icons to ${filled} items that had none.`);
+      await game.settings.set(AM.ID, 'iconFillMigration', 2);
+      if (changed) {
+        AM.log(3, `Icon migration v2: ${changed} item icons updated`);
+        ui.notifications.info(`A5e Mancer: updated icons on ${changed} items.`);
       }
     } catch (err) {
-      AM.log(1, 'Icon fill migration failed:', err);
+      AM.log(1, 'Icon migration failed:', err);
     }
   }
 });

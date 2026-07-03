@@ -205,7 +205,7 @@ export class SpellService {
           byLevel.get(level)?.push({
             id:              entry._id,
             name:            entry.name,
-            // Spells keep their compendium art; site icon only fills a placeholder
+            // Site icon when the site has this exact spell (or art is a placeholder)
             img:             iconForItem(entry.name, 'spell', entry.img ?? '') ?? entry.img,
             uuid:            `Compendium.${pack.collection}.${entry._id}`,
             level,
@@ -263,7 +263,7 @@ export class SpellService {
         const data = item.toObject();
         data._stats = data._stats || {};
         data._stats.compendiumSource = uuid;
-        applyItemIcon(data); // fills placeholder art only (spells are never overridden)
+        applyItemIcon(data); // exact site match or placeholder fill; keyword guesses never touch spells
         // Assign to the actor's spellbook
         if (spellBookId) {
           data.system = data.system || {};
