@@ -794,20 +794,37 @@ function keywordIcon(name) {
  * - spells keep their richer per-spell art (the site has none);
  * - origin items (class, heritage, culture, …) have curated art, and their NAMES
  *   would falsely keyword-match ("Berserker" → rage, "Dragonborn" → dragon, …).
+ * These protections apply only to items that HAVE art — a placeholder image is
+ * always fair game (see isPlaceholderImg / the currentImg parameter).
  */
 const NEVER_OVERRIDE_TYPES = new Set(['spell', 'class', 'archetype', 'heritage', 'culture', 'background', 'destiny']);
 
 /** Ability-like types that may take a thematic keyword icon when no exact match. */
 const KEYWORD_TYPES = new Set(['feature', 'feat', 'maneuver']);
 
+/** Foundry's generic stand-in images — an item showing one has no real art. */
+const PLACEHOLDER_IMGS = new Set(['', 'icons/svg/item-bag.svg', 'icons/svg/mystery-man.svg']);
+
+/** True when an item's image is empty or one of Foundry's default placeholders. */
+export function isPlaceholderImg(img) {
+  return PLACEHOLDER_IMGS.has((img ?? '').trim());
+}
+
 /**
  * Resolve the site icon for an item. Returns a local asset path, or null to keep
- * the item's existing image. Tries an exact name match first (weapons, gear,
- * maneuvers, features), then — for ability-like items only — a thematic keyword
- * match so most features/maneuvers get an evocative icon.
+ * the item's existing image.
+ *
+ * - Exact name match first (weapons, gear, maneuvers, features), then — for
+ *   ability-like items — a thematic keyword match.
+ * - When `currentImg` is provided and is a placeholder, protections are waived:
+ *   ANY item (spells and origin items included) gets exact-or-keyword art,
+ *   because a thematic icon always beats an empty bag.
  */
-export function iconForItem(name, type) {
+export function iconForItem(name, type, currentImg = undefined) {
   const t = (type ?? '').toLowerCase();
+  if (currentImg !== undefined && isPlaceholderImg(currentImg)) {
+    return ICON_BY_NAME[iconKey(name)] ?? keywordIcon(name);
+  }
   if (NEVER_OVERRIDE_TYPES.has(t)) return null;
   const exact = ICON_BY_NAME[iconKey(name)];
   if (exact) return exact;
@@ -816,13 +833,14 @@ export function iconForItem(name, type) {
 
 /**
  * Override an item-data object's `img` in place with the matching site icon.
- * No-op when nothing matches, so existing compendium art is preserved.
+ * No-op when nothing matches, so existing compendium art is preserved
+ * (placeholder images are treated as missing art and always filled).
  * @param {object} data An item's toObject()/index entry ({ name, type, img }).
  * @returns {object} the same object, for chaining.
  */
 export function applyItemIcon(data) {
   if (!data) return data;
-  const icon = iconForItem(data.name, data.type);
+  const icon = iconForItem(data.name, data.type, data.img ?? '');
   if (icon) data.img = icon;
   return data;
 }

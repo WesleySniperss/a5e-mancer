@@ -1,6 +1,7 @@
 import { AM } from '../a5e-mancer.js';
 import { classKey } from '../data/a5eClassData.js';
 import { CLASS_DESCRIPTIONS, HERITAGE_DESCRIPTIONS } from '../data/a5eDescriptions.js';
+import { iconForItem } from '../data/a5eIcons.js';
 
 /**
  * A5e item types we need for character creation and how to find them in compendiums.
@@ -79,7 +80,8 @@ export class DocumentService {
           docs.push({
             id:          entry._id,
             name:        entry.name,
-            img:         entry.img,
+            // Origin items keep their art; site icon only fills a placeholder
+            img:         iconForItem(entry.name, type, entry.img ?? '') ?? entry.img,
             uuid:        `Compendium.${pack.collection}.${entry._id}`,
             packId:      pack.collection,
             packName:    pack.metadata.label,

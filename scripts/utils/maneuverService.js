@@ -141,7 +141,7 @@ export class ManeuverService {
           const maneuver = {
             id:              entry._id,
             name:            entry.name,
-            img:             iconForItem(entry.name, 'maneuver') ?? entry.img,
+            img:             iconForItem(entry.name, 'maneuver', entry.img ?? '') ?? entry.img,
             uuid:            `Compendium.${pack.collection}.${entry._id}`,
             tradition,                 // camelCase key for filtering
             traditionLabel:  labelOf(tradition), // localized for display

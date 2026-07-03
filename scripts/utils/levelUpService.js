@@ -329,7 +329,7 @@ export class LevelUpService {
             results.push({
               name: entry.name,
               uuid: `Compendium.${pack.collection}.${entry._id}`,
-              img:  iconForItem(entry.name, entry.type) ?? entry.img,
+              img:  iconForItem(entry.name, entry.type, entry.img ?? '') ?? entry.img,
               type: entry.type
             });
           }
@@ -383,7 +383,7 @@ export class LevelUpService {
             const uuid = `Compendium.${pack.collection}.${entry._id}`;
             if (seen.has(uuid)) continue;
             seen.add(uuid);
-            out.push({ name: entry.name, uuid, img: iconForItem(entry.name, 'feature') ?? entry.img });
+            out.push({ name: entry.name, uuid, img: iconForItem(entry.name, 'feature', entry.img ?? '') ?? entry.img });
           }
         } catch {}
       }

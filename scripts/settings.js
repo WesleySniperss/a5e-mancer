@@ -10,6 +10,11 @@ export function registerSettings() {
     default: true, type: Boolean, scope: 'client', config: true, requiresReload: true
   });
 
+  // One-time world migration marker: fill placeholder item icons with site icons
+  game.settings.register(AM.ID, 'iconFillMigration', {
+    scope: 'world', config: false, type: Number, default: 0
+  });
+
   game.settings.register(AM.ID, 'loggingLevel', {
     name: 'am.settings.logger.name', hint: 'am.settings.logger.hint',
     scope: 'client', config: true, type: String,

@@ -1,4 +1,5 @@
 import { AM } from '../a5e-mancer.js';
+import { iconForItem, applyItemIcon } from '../data/a5eIcons.js';
 
 /**
  * Spell slot tables and known spells for a5e classes.
@@ -204,7 +205,8 @@ export class SpellService {
           byLevel.get(level)?.push({
             id:              entry._id,
             name:            entry.name,
-            img:             entry.img,
+            // Spells keep their compendium art; site icon only fills a placeholder
+            img:             iconForItem(entry.name, 'spell', entry.img ?? '') ?? entry.img,
             uuid:            `Compendium.${pack.collection}.${entry._id}`,
             level,
             school,           // primary school key
@@ -261,6 +263,7 @@ export class SpellService {
         const data = item.toObject();
         data._stats = data._stats || {};
         data._stats.compendiumSource = uuid;
+        applyItemIcon(data); // fills placeholder art only (spells are never overridden)
         // Assign to the actor's spellbook
         if (spellBookId) {
           data.system = data.system || {};

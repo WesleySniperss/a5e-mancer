@@ -4,6 +4,7 @@ import { LevelUpDialog } from './app/LevelUpDialog.js';
 import { A5eCharacterSheet } from './app/A5eCharacterSheet.js';
 import { A5eNPCSheet } from './app/A5eNPCSheet.js';
 import { DocumentService, StatRoller } from './utils/index.js';
+import { iconForItem, isPlaceholderImg } from './data/a5eIcons.js';
 
 export class AM {
   static ID   = 'a5e-mancer';
@@ -164,6 +165,39 @@ Hooks.once('ready', async () => {
     game.settings.set(AM.ID, 'customStandardArray', StatRoller.getDefaultStandardArray());
   globalThis.a5eMancer = { AM };
   Hooks.callAll('a5eMancer.Ready');
+
+  /* One-time world migration: give site icons to items that have no real art
+     (empty img or Foundry's item-bag / mystery-man placeholders). Touches
+     nothing that already has an icon. GM only, marked done via world setting. */
+  if (game.user.isGM && (game.settings.get(AM.ID, 'iconFillMigration') ?? 0) < 1) {
+    try {
+      let filled = 0;
+      for (const actor of game.actors) {
+        const updates = [];
+        for (const item of actor.items) {
+          if (!isPlaceholderImg(item.img)) continue;
+          const icon = iconForItem(item.name, item.type, item.img ?? '');
+          if (icon) updates.push({ _id: item.id, img: icon });
+        }
+        if (updates.length) {
+          await actor.updateEmbeddedDocuments('Item', updates);
+          filled += updates.length;
+        }
+      }
+      for (const item of game.items) {
+        if (!isPlaceholderImg(item.img)) continue;
+        const icon = iconForItem(item.name, item.type, item.img ?? '');
+        if (icon) { await item.update({ img: icon }); filled++; }
+      }
+      await game.settings.set(AM.ID, 'iconFillMigration', 1);
+      if (filled) {
+        AM.log(3, `Icon fill migration: ${filled} placeholder icons replaced`);
+        ui.notifications.info(`A5e Mancer: added icons to ${filled} items that had none.`);
+      }
+    } catch (err) {
+      AM.log(1, 'Icon fill migration failed:', err);
+    }
+  }
 });
 
 /* ── VTools toolbar hub button ──────────────────────────── */

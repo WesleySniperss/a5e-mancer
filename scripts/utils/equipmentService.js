@@ -4,7 +4,7 @@ import { iconForItem } from '../data/a5eIcons.js';
 /** Resolve an equipment item's display icon (site override → compendium → default). */
 function equipImg(doc) {
   if (!doc) return 'icons/svg/item-bag.svg';
-  return iconForItem(doc.name, doc.type) ?? doc.img ?? 'icons/svg/item-bag.svg';
+  return iconForItem(doc.name, doc.type, doc.img ?? '') ?? doc.img ?? 'icons/svg/item-bag.svg';
 }
 
 /**
