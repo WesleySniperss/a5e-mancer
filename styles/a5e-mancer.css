@@ -689,10 +689,15 @@
 }
 
 /* ── Unified red icon styling ─────────────────────────────────────────────
-   Every item icon in the module's UI is tinted to the same red monochrome as
-   the bundled site SVGs (#c0392b), so compendium art (webp/png) and site icons
-   read as one set. Portraits (.am-cs-portrait etc.) are deliberately excluded.
-   Recipe: flatten to grayscale, sepia as a tint base, rotate to red, saturate. */
+   Every item icon in the module's UI is pushed toward one visual language:
+   1) a DUOTONE red tint — grayscale, then contrast crush so midtones flatten
+      into a poster-like two-tone, then sepia→hue-rotate lands on the site red
+      (#c0392b). Flat site SVGs and painted compendium webp/png converge.
+   2) an identical dark tile behind every icon (inset ring, small radius) so
+      transparent glyphs and opaque art sit in the same "chip".
+   Portraits (.am-cs-portrait etc.) are deliberately excluded.
+   box-shadow is used instead of border to avoid fighting existing
+   `border: none !important` rules and to keep layout untouched. */
 .am-card-img,
 .am-cs-ico,
 .am-item-img-sm,
@@ -702,7 +707,12 @@
 .am-maneuver-img,
 .am-maneuver-img-sm,
 .am-ico {
-  filter: grayscale(1) sepia(1) saturate(4) hue-rotate(-32deg) brightness(0.95);
+  filter: grayscale(1) brightness(1.12) contrast(1.6) sepia(1) saturate(4.5) hue-rotate(-32deg);
+  background: #17100e;
+  box-shadow: inset 0 0 0 1px rgba(192, 57, 43, 0.3);
+  border-radius: 5px;
+  padding: 2px;
+  object-fit: contain;
 }
 
 .am-card-name {
