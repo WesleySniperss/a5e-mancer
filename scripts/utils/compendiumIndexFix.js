@@ -70,6 +70,19 @@ export async function enrichCompendiumIndexes() {
 
       const fresh = await pack.getIndex({ fields: [...fields] });
       for (const entry of fresh) {
+        // Data shim: pack data never populates system.featType (always "" —
+        // verified across every shipped pack), so the browser's "Feat Type"
+        // filter could never match anything. A feat that belongs to no synergy
+        // chain IS a basic feat, so tag it as such in the INDEX only (the
+        // database is untouched). Synergy-tier values (first/second/third)
+        // cannot be derived from the data and stay unset.
+        if (entry.type === 'feature'
+            && entry.system?.featureType === 'feat'
+            && !entry.system.featType
+            && !entry.system.synergy) {
+          entry.system.featType = 'basic';
+        }
+
         const existing = pack.index.get(entry._id);
         entry.uuid = pack.getUuid(entry._id);
         pack.index.set(entry._id, existing ? foundry.utils.mergeObject(existing, entry) : entry);
