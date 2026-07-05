@@ -70,17 +70,20 @@ export async function enrichCompendiumIndexes() {
 
       const fresh = await pack.getIndex({ fields: [...fields] });
       for (const entry of fresh) {
-        // Data shim: pack data never populates system.featType (always "" —
-        // verified across every shipped pack), so the browser's "Feat Type"
-        // filter could never match anything. A feat that belongs to no synergy
-        // chain IS a basic feat, so tag it as such in the INDEX only (the
-        // database is untouched). Synergy-tier values (first/second/third)
-        // cannot be derived from the data and stay unset.
-        if (entry.type === 'feature'
-            && entry.system?.featureType === 'feat'
-            && !entry.system.featType
-            && !entry.system.synergy) {
-          entry.system.featType = 'basic';
+        // Data shims (INDEX only — the database is untouched). Real pack data,
+        // verified by dumping the LevelDB: only the ~27 synergy feats carry
+        // featType/asi/featClasses; the ~596 basic feats have none of them, so
+        // the browser's "Feat Type: Basic" and "ASI: None" chips could never
+        // match anything. Tag the gaps with their semantic defaults:
+        if (entry.type === 'feature' && entry.system?.featureType === 'feat') {
+          // A feat outside any synergy chain IS a basic feat.
+          if (!entry.system.featType && !entry.system.synergy) {
+            entry.system.featType = 'basic';
+          }
+          // No recorded ASI → matches the filter's explicit "None" option.
+          if (!Array.isArray(entry.system.asi) || !entry.system.asi.length) {
+            entry.system.asi = ['none'];
+          }
         }
 
         const existing = pack.index.get(entry._id);
