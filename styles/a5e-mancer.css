@@ -715,6 +715,14 @@
   object-fit: contain;
 }
 
+/* Bundled site icons are ALREADY the target red — running them through the
+   duotone pipeline darkens them to a muddy gray-brown (grayscale drops flat
+   #c0392b to ~33% gray). Exempt them; they keep the tile from the rule above.
+   Matched by src substring so it survives CDN URL rewriting (e.g. The Forge). */
+img[src*="a5e-mancer/assets/icons/"] {
+  filter: none;
+}
+
 .am-card-name {
   font-size: 0.73rem;
   font-weight: 600;
