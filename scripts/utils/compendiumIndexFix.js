@@ -113,11 +113,40 @@ export async function enrichCompendiumIndexes() {
       if (!fields.size) return;
 
       const fresh = await pack.getIndex({ fields: [...fields] });
+
+      /* Data shims (INDEX only — the database is untouched). Real pack data,
+         verified by dumping the LevelDB: only the ~27 synergy feats carry
+         featType/asi; system.prerequisite however IS recorded as free text on
+         most feats (122 of 625 have none). Tag the gaps with semantic defaults. */
+
+      // Pre-pass: map of feat name → prerequisite, for series-chain resolution.
+      const featPrereqs = new Map();
+      for (const e of fresh) {
+        if (e.type === 'feature' && e.system?.featureType === 'feat') {
+          featPrereqs.set(e.name.toLowerCase(), (e.system.prerequisite ?? '').trim());
+        }
+      }
+      // "Officer Training feat, 3 levels in marshal" → "Officer Training"
+      const prereqFeatName = (prereq) => {
+        for (const seg of (prereq ?? '').split(/[,;]/)) {
+          const m = seg.trim().match(/^(?:and\s+|or\s+)?(.*?)\s+feats?$/i);
+          if (m && m[1]) return m[1].trim();
+        }
+        return null;
+      };
+      // Walk prerequisites upward to the feat that starts the series.
+      const chainRoot = (name, prereq, depth = 0) => {
+        const parent = prereqFeatName(prereq);
+        if (!parent || depth > 6) return name;
+        const parentPrereq = featPrereqs.get(parent.toLowerCase());
+        return parentPrereq === undefined ? parent : chainRoot(parent, parentPrereq, depth + 1);
+      };
+      const classKeys = new Map(
+        Object.keys(CONFIG.A5E?.classes ?? {}).map(k => [k.toLowerCase(), k])
+      );
+      const chainRoots = new Set();
+
       for (const entry of fresh) {
-        // Data shims (INDEX only — the database is untouched). Real pack data,
-        // verified by dumping the LevelDB: only the ~27 synergy feats carry
-        // featType/asi; system.prerequisite however IS recorded as free text on
-        // most feats (122 of 625 have none). Tag the gaps with semantic defaults:
         if (entry.type === 'feature' && entry.system?.featureType === 'feat') {
           const prereq = (entry.system.prerequisite ?? '').trim();
 
@@ -131,12 +160,26 @@ export async function enrichCompendiumIndexes() {
 
           // Recover class prerequisites ("3 levels in marshal, 3 levels in
           // rogue") so the "A5E Class Prerequisites" filter covers these feats.
+          // Values must be the CONFIG.A5E.classes keys the filter compares with.
           if (!Array.isArray(entry.system.featClasses) || !entry.system.featClasses.length) {
             const classes = [];
-            const re = /\blevels?\s+in\s+([a-z]+)/gi;
+            const re = /\blevels?\s+in\s+([a-z]+(?:\s+[a-z]+)?)/gi;
             let m;
-            while ((m = re.exec(prereq))) classes.push(m[1].toLowerCase());
+            while ((m = re.exec(prereq))) {
+              const two = m[1].toLowerCase().replace(/\s+/g, '');
+              const one = m[1].toLowerCase().split(/\s+/)[0];
+              const key = classKeys.get(two) ?? classKeys.get(one);
+              if (key) classes.push(key);
+            }
             if (classes.length) entry.system.featClasses = classes;
+          }
+
+          // Series feats (prerequisite names another feat) → tag the whole
+          // series with its root feat's name so the Synergy Chain filter can
+          // list and select it like the official synergy chains.
+          if (!entry.system.synergy && prereqFeatName(prereq)) {
+            entry.system.synergy = chainRoot(entry.name, prereq);
+            chainRoots.add(entry.system.synergy);
           }
 
           // No recorded ASI → recover it from the description text; feats that
@@ -151,6 +194,15 @@ export async function enrichCompendiumIndexes() {
         entry.uuid = pack.getUuid(entry._id);
         pack.index.set(entry._id, existing ? foundry.utils.mergeObject(existing, entry) : entry);
       }
+
+      // The roots themselves carry no feat-prerequisite, so the loop above
+      // could not tag them — do it now so a chain selection includes its root.
+      if (chainRoots.size) {
+        for (const e of pack.index.values()) {
+          if (e.type !== 'feature' || e.system?.featureType !== 'feat') continue;
+          if (!e.system.synergy && chainRoots.has(e.name)) e.system.synergy = e.name;
+        }
+      }
       enriched++;
     } catch (err) {
       AM.log(2, `Index enrichment failed for ${pack?.collection}:`, err);
@@ -158,5 +210,28 @@ export async function enrichCompendiumIndexes() {
   });
 
   await Promise.allSettled(jobs);
+
+  // The system collects CONFIG.A5E.synergies from indexes at its own ready hook,
+  // BEFORE this async enrichment finishes — re-collect so the browser's Synergy
+  // Chain filter also lists the series chains derived above.
+  try {
+    const synergies = new Set(Object.keys(CONFIG.A5E?.synergies ?? {}));
+    for (const pack of game.packs) {
+      if (pack.metadata.type !== 'Item') continue;
+      for (const e of pack.index.values()) {
+        if (e.type !== 'feature' || e.system?.featureType !== 'feat') continue;
+        const s = (e.system.synergy ?? '').trim();
+        if (s) synergies.add(s);
+      }
+    }
+    if (CONFIG.A5E) {
+      CONFIG.A5E.synergies = Object.fromEntries(
+        [...synergies].sort((a, b) => a.localeCompare(b)).map(s => [s, s])
+      );
+    }
+  } catch (err) {
+    AM.log(2, 'Synergy list rebuild failed:', err);
+  }
+
   AM.log(3, `Compendium index fix: enriched ${enriched} packs for browser filters`);
 }
