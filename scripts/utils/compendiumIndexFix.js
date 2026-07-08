@@ -116,14 +116,29 @@ export async function enrichCompendiumIndexes() {
       for (const entry of fresh) {
         // Data shims (INDEX only — the database is untouched). Real pack data,
         // verified by dumping the LevelDB: only the ~27 synergy feats carry
-        // featType/asi/featClasses; the ~596 basic feats have none of them, so
-        // the browser's "Feat Type: Basic" and "ASI: None" chips could never
-        // match anything. Tag the gaps with their semantic defaults:
+        // featType/asi; system.prerequisite however IS recorded as free text on
+        // most feats (122 of 625 have none). Tag the gaps with semantic defaults:
         if (entry.type === 'feature' && entry.system?.featureType === 'feat') {
-          // A feat outside any synergy chain IS a basic feat.
-          if (!entry.system.featType && !entry.system.synergy) {
+          const prereq = (entry.system.prerequisite ?? '').trim();
+
+          // "Basic" = no synergy chain AND no prerequisite of any kind. Feats
+          // whose prerequisite names another feat (289 of them) are series
+          // followups; another 187 require levels/proficiencies — none of those
+          // should surface under the Basic chip.
+          if (!entry.system.featType && !entry.system.synergy && !prereq) {
             entry.system.featType = 'basic';
           }
+
+          // Recover class prerequisites ("3 levels in marshal, 3 levels in
+          // rogue") so the "A5E Class Prerequisites" filter covers these feats.
+          if (!Array.isArray(entry.system.featClasses) || !entry.system.featClasses.length) {
+            const classes = [];
+            const re = /\blevels?\s+in\s+([a-z]+)/gi;
+            let m;
+            while ((m = re.exec(prereq))) classes.push(m[1].toLowerCase());
+            if (classes.length) entry.system.featClasses = classes;
+          }
+
           // No recorded ASI → recover it from the description text; feats that
           // genuinely grant no increase match the filter's explicit "None" option.
           if (!Array.isArray(entry.system.asi) || !entry.system.asi.length) {

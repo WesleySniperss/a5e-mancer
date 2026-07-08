@@ -206,24 +206,6 @@ Hooks.once('ready', async () => {
   }
 });
 
-/* ── VTools toolbar hub button ──────────────────────────── */
-/* vtools.ready fires during setup; esmodules evaluate before any hook fires,
-   so this top-level registration is always in place in time. */
-Hooks.once('vtools.ready', () => {
-  if (typeof VTools === 'undefined') return;
-  if (!game.settings.get(AM.ID, 'enable')) return;
-  VTools.register({
-    name:    'a5e-mancer',
-    title:   game.i18n.localize('am.actortab-button.hint'),
-    icon:    'fas fa-hat-wizard',
-    onClick: () => {
-      if (AM.app) { AM.app.close(); AM.app = null; }
-      AM.app = new A5eMancer();
-      AM.app.render(true);
-    }
-  });
-});
-
 /* ── Actors sidebar button ──────────────────────────────── */
 function _injectActorDirButton() {
   if (!game.settings.get(AM.ID, 'enable')) return;
