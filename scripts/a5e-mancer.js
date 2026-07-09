@@ -5,7 +5,7 @@ import { A5eCharacterSheet } from './app/A5eCharacterSheet.js';
 import { A5eNPCSheet } from './app/A5eNPCSheet.js';
 import { DocumentService, StatRoller } from './utils/index.js';
 import { iconForItem } from './data/a5eIcons.js';
-import { enrichCompendiumIndexes } from './utils/compendiumIndexFix.js';
+import { installCompendiumFilterFix } from './utils/compendiumIndexFix.js';
 
 export class AM {
   static ID   = 'a5e-mancer';
@@ -159,8 +159,10 @@ Hooks.once('setup', () => {
 
 /* ── Compendium browser filter fix ──────────────────────── */
 /* Pure system bugfix (no module UI involved), so it runs even when the module's
-   `enable` setting is off. See compendiumIndexFix.js for the why. */
-Hooks.once('ready', () => { enrichCompendiumIndexes(); });
+   `enable` setting is off. Only INSTALLS a lazy trigger here — the actual index
+   enrichment runs the first time the browser is opened, keeping it off the
+   world-load critical path. See compendiumIndexFix.js. */
+Hooks.once('ready', () => { installCompendiumFilterFix(); });
 
 /* ── Ready ──────────────────────────────────────────────── */
 Hooks.once('ready', async () => {

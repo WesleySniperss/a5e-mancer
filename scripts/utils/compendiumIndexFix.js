@@ -210,7 +210,55 @@ export async function enrichCompendiumIndexes() {
   });
 
   await Promise.allSettled(jobs);
+  await rebuildSynergyConfig();
+  AM.log(3, `Compendium index fix: enriched ${enriched} packs for browser filters`);
+}
 
+/**
+ * Enrich exactly once per session, lazily. Returns the shared promise so callers
+ * awaiting a second time resolve instantly.
+ */
+let _enrichPromise = null;
+export function ensureCompendiumFiltersEnriched() {
+  if (!_enrichPromise) {
+    _enrichPromise = enrichCompendiumIndexes().catch((err) => {
+      AM.log(1, 'Compendium index enrichment failed:', err);
+    });
+  }
+  return _enrichPromise;
+}
+
+/**
+ * Wire the enrichment to run the FIRST time the a5e compendium browser is opened,
+ * instead of on every world load. This keeps `getIndex` (which re-reads each pack's
+ * LevelDB, description field included) off the critical load path — it was making
+ * world load noticeably slower. The one-time cost is paid, invisibly, the first
+ * time the user actually opens the browser.
+ */
+export function installCompendiumFilterFix() {
+  try {
+    const Browser = game.a5e?.compendium?.applicationClass;
+    if (Browser?.prototype && !Browser.__amFilterFix) {
+      Browser.__amFilterFix = true;
+      const originalRender = Browser.prototype.render;
+      Browser.prototype.render = async function amEnrichThenRender(...args) {
+        await ensureCompendiumFiltersEnriched();
+        return originalRender.apply(this, args);
+      };
+      return;
+    }
+  } catch (err) {
+    AM.log(2, 'Could not patch compendium browser; using render hook fallback:', err);
+  }
+  // Fallback if the system's application class isn't exposed as expected:
+  // enrich on first render, then refresh the browser so filters pick it up.
+  Hooks.on('renderCompendiumBrowser', (app) => {
+    ensureCompendiumFiltersEnriched().then(() => app?.render?.(false));
+  });
+}
+
+/** Rebuild CONFIG.A5E.synergies from (now enriched) indexes for the filter list. */
+async function rebuildSynergyConfig() {
   // The system collects CONFIG.A5E.synergies from indexes at its own ready hook,
   // BEFORE this async enrichment finishes — re-collect so the browser's Synergy
   // Chain filter also lists the series chains derived above.
@@ -232,6 +280,4 @@ export async function enrichCompendiumIndexes() {
   } catch (err) {
     AM.log(2, 'Synergy list rebuild failed:', err);
   }
-
-  AM.log(3, `Compendium index fix: enriched ${enriched} packs for browser filters`);
 }
