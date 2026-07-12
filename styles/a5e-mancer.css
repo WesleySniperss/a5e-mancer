@@ -3883,8 +3883,8 @@ img[src*="a5e-mancer/assets/icons/"] {
 .am-cs-header {
   display: flex;
   align-items: stretch;
-  gap: 0.8rem;
-  padding: 0.65rem 0.9rem;
+  gap: 0.55rem;
+  padding: 0.65rem 0.85rem;
   background: linear-gradient(180deg, #0e0c08 0%, #18160f 55%, #1c1a14 100%);
   border-bottom: 2px solid var(--cs-border);
   flex-shrink: 0;
@@ -3953,11 +3953,12 @@ img[src*="a5e-mancer/assets/icons/"] {
 .am-cs-chip-sep { color: var(--cs-muted); font-size: 0.65rem; }
 
 .am-cs-abilities {
-  display: flex; gap: 0.35rem; align-items: center; flex: 1; justify-content: center;
+  display: flex; gap: 0.3rem; align-items: center; flex: 1 1 auto; min-width: 0;
+  justify-content: center; flex-wrap: nowrap;
 }
 .am-cs-abl {
   display: flex; flex-direction: column; align-items: center;
-  gap: 0.18rem; min-width: 3.7rem;
+  gap: 0.18rem; min-width: 3.25rem; flex: 0 1 auto;
   background: linear-gradient(180deg, var(--cs-bg3) 0%, var(--cs-bg2) 100%);
   border: 1px solid var(--cs-border);
   border-radius: var(--cs-radius);
@@ -3973,15 +3974,15 @@ img[src*="a5e-mancer/assets/icons/"] {
   background: var(--cs-bg2);
   border: 2px solid var(--cs-border);
   border-radius: 50%; color: var(--cs-gold);
-  font-size: 1.1rem; font-weight: 700;
+  font-size: 1.05rem; font-weight: 700;
   cursor: pointer; padding: 0;
-  width: 2.5rem; height: 2.5rem;
+  width: 2.3rem; height: 2.3rem;
   display: flex; align-items: center; justify-content: center; line-height: 1;
   transition: all 0.15s;
   &:hover { background: var(--cs-gold); color: var(--cs-bg2); border-color: var(--cs-gold); box-shadow: 0 0 8px rgba(200,168,74,0.4); }
 }
 .am-cs-abl-score {
-  width: 2.8rem; text-align: center;
+  width: 2.5rem; text-align: center;
   background: transparent;
   border: 1px solid var(--cs-border2); border-radius: 3px;
   color: var(--cs-text2); font-size: 0.78rem; font-weight: 600; padding: 0.06rem 0;
@@ -3990,7 +3991,7 @@ img[src*="a5e-mancer/assets/icons/"] {
 
 .am-cs-hp-block {
   display: flex; flex-direction: column;
-  gap: 0.22rem; min-width: 10rem; flex-shrink: 0; justify-content: center;
+  gap: 0.22rem; width: 9rem; flex-shrink: 0; justify-content: center;
 }
 .am-cs-hp-label {
   font-size: 0.6rem; font-weight: 700; letter-spacing: 0.08em;
@@ -4021,7 +4022,17 @@ img[src*="a5e-mancer/assets/icons/"] {
   &:hover { background: rgba(200,168,74,0.04); }
 }
 .am-cs-stat-lbl { font-size: 0.56rem; font-weight: 700; letter-spacing: 0.07em; color: var(--cs-muted); text-transform: uppercase; white-space: nowrap; }
-.am-cs-stat-val { font-size: 1.05rem; font-weight: 700; color: var(--cs-text); display: flex; align-items: center; gap: 0.15rem; }
+.am-cs-stat-val { font-size: 1.05rem; font-weight: 700; color: var(--cs-text); display: flex; align-items: center; justify-content: center; gap: 0.15rem; }
+/* AC (and any editable stat value) is an <input>: reset the browser's default
+   white box to the sheet theme so it matches the read-only stat values. */
+input.am-cs-stat-val {
+  display: block; width: 3rem; margin: 0 auto; padding: 0.05rem 0;
+  background: transparent; color: var(--cs-text); text-align: center;
+  border: 1px solid var(--cs-border2); border-radius: 3px;
+  -moz-appearance: textfield;
+  &:hover { border-color: var(--cs-gold-dim); }
+  &:focus { outline: none; border-color: var(--cs-gold); }
+}
 .am-cs-stat-inline { font-size: 1.05rem; font-weight: 700; color: var(--cs-text); background: transparent; border: none; border-bottom: 1px solid var(--cs-border2); width: 2.8rem; text-align: center; &:focus { outline: none; border-bottom-color: var(--cs-gold); } }
 .am-cs-unit { font-size: 0.62rem; color: var(--cs-muted); margin-left: 0.1rem; }
 .am-cs-insp-btn {
