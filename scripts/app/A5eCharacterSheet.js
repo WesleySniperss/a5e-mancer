@@ -454,6 +454,9 @@ export class A5eCharacterSheet extends ActorSheet {
       notCarried: equippedState === 0,
       attuned, needsAttune,
       attuneProblem: needsAttune && !attuned,
+      damagedState: sys.damagedState ?? 0,
+      damaged:      (sys.damagedState ?? 0) === 1,
+      broken:       (sys.damagedState ?? 0) === 2,
       activation,
       desc: sys.description?.value ?? '',
     };
@@ -588,6 +591,9 @@ export class A5eCharacterSheet extends ActorSheet {
       notCarried:   equippedState === 0,
       attuned, needsAttune,
       attuneProblem: needsAttune && !attuned,
+      damagedState: sys.damagedState ?? 0,
+      damaged:      (sys.damagedState ?? 0) === 1,
+      broken:       (sys.damagedState ?? 0) === 2,
     };
   }
 
@@ -776,24 +782,40 @@ export class A5eCharacterSheet extends ActorSheet {
 
     /* ── Edit-only listeners below ── */
 
-    /* Item equip toggle — A5e equippedState: 0=notCarried,1=carried,2=equipped */
+    /* Item equip toggle — delegate to the system's own 3-state cycle
+       (stashed → carried → equipped) so its rules apply: only one armor +
+       one underarmor may be equipped, max two shields, with the system's
+       own warnings. Raw updates bypassed all of that. */
     el.querySelectorAll('[data-action="item-equip"]').forEach(b =>
       b.addEventListener('click', async () => {
         const item = this.actor.items.get(b.dataset.id);
         if (!item) return;
-        const cur  = item.system?.equippedState ?? 1;
-        // Toggle between carried(1) and equipped(2); skip notCarried
-        const next = cur === 2 ? 1 : 2;
-        await item.update({ 'system.equippedState': next });
+        if (typeof item.toggleEquippedState === 'function') {
+          await item.toggleEquippedState();
+        } else {
+          const cur = item.system?.equippedState ?? 1;
+          await item.update({ 'system.equippedState': (cur + 1) % 3 });
+        }
       })
     );
 
-    /* Item attunement toggle */
+    /* Item attunement toggle — system method, like the original sheet */
     el.querySelectorAll('[data-action="item-attune"]').forEach(b =>
       b.addEventListener('click', async () => {
         const item = this.actor.items.get(b.dataset.id);
         if (!item) return;
-        await item.update({ 'system.attuned': !(item.system?.attuned ?? false) });
+        if (typeof item.toggleAttunement === 'function') await item.toggleAttunement();
+        else await item.update({ 'system.attuned': !(item.system?.attuned ?? false) });
+      })
+    );
+
+    /* Damaged-state cycle (intact → damaged → broken), as on the original sheet */
+    el.querySelectorAll('[data-action="item-damage"]').forEach(b =>
+      b.addEventListener('click', async () => {
+        const item = this.actor.items.get(b.dataset.id);
+        if (!item) return;
+        if (typeof item.toggleDamagedState === 'function') await item.toggleDamagedState();
+        else await item.update({ 'system.damagedState': ((item.system?.damagedState ?? 0) + 1) % 3 });
       })
     );
 
