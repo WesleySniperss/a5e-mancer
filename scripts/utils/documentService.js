@@ -155,7 +155,10 @@ export class DocumentService {
         }
       }
 
-      return await TextEditor.enrichHTML(raw, { async: true, relativeTo: doc });
+      // v14: the global TextEditor is a deprecation shim → use the namespaced
+      // implementation when present, falling back to the global for v12.
+      const TE = foundry.applications?.ux?.TextEditor?.implementation ?? TextEditor;
+      return await TE.enrichHTML(raw, { relativeTo: doc });
     } catch (err) {
       AM.log(2, `Error loading description for ${uuid}:`, err);
       return '';

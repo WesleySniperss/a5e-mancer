@@ -622,7 +622,7 @@ export class A5eCharacterSheet extends ActorSheet {
   /* ── Listeners ────────────────────────────────────── */
   activateListeners(html) {
     super.activateListeners(html);
-    const el = html instanceof jQuery ? html[0] : html;
+    const el = html?.jquery ? html[0] : html;
 
     /* ── Roll listeners (work for all viewers, not just owners) ── */
 
@@ -658,16 +658,7 @@ export class A5eCharacterSheet extends ActorSheet {
         } catch(_nativeErr) {
           console.error('a5e-mancer | native ability check dialog failed, using fallback:', _nativeErr);
           try {
-            const rollMode = await Dialog.wait({
-              title: label,
-              content: '',
-              buttons: {
-                dis:  { icon: '<i class="fa-solid fa-angles-down"></i>', label: 'Disadvantage', callback: () => CONFIG.A5E.ROLL_MODE.DISADVANTAGE },
-                norm: { icon: '<i class="fa-solid fa-dice-d20"></i>',   label: 'Normal',       callback: () => CONFIG.A5E.ROLL_MODE.NORMAL },
-                adv:  { icon: '<i class="fa-solid fa-angles-up"></i>',  label: 'Advantage',    callback: () => CONFIG.A5E.ROLL_MODE.ADVANTAGE }
-              },
-              default: 'norm'
-            });
+            const rollMode = await A5eCharacterSheet.#rollModeDialog(label);
             if (rollMode != null)
               await this.actor.rollAbilityCheck(id, { skipRollDialog: true, rollMode });
           } catch { /* dialog cancelled */ }
@@ -708,16 +699,7 @@ export class A5eCharacterSheet extends ActorSheet {
         } catch(_nativeErr) {
           console.error('a5e-mancer | native save dialog failed, using fallback:', _nativeErr);
           try {
-            const rollMode = await Dialog.wait({
-              title: label,
-              content: '',
-              buttons: {
-                dis:  { icon: '<i class="fa-solid fa-angles-down"></i>',  label: 'Disadvantage', callback: () => CONFIG.A5E.ROLL_MODE.DISADVANTAGE },
-                norm: { icon: '<i class="fa-solid fa-dice-d20"></i>',    label: 'Normal',       callback: () => CONFIG.A5E.ROLL_MODE.NORMAL },
-                adv:  { icon: '<i class="fa-solid fa-angles-up"></i>',   label: 'Advantage',    callback: () => CONFIG.A5E.ROLL_MODE.ADVANTAGE }
-              },
-              default: 'norm'
-            });
+            const rollMode = await A5eCharacterSheet.#rollModeDialog(label);
             if (rollMode != null)
               await this.actor.rollSavingThrow(id, { skipRollDialog: true, rollMode });
           } catch { /* dialog cancelled */ }
@@ -927,8 +909,10 @@ export class A5eCharacterSheet extends ActorSheet {
       b.addEventListener('click', async () => {
         const item = this.actor.items.get(b.dataset.id);
         if (!item) return;
-        if (await Dialog.confirm({ title: 'Delete', content: `<p>Delete <b>${item.name}</b>?</p>` }))
-          await item.delete();
+        if (await foundry.applications.api.DialogV2.confirm({
+          window: { title: 'Delete' },
+          content: `<p>Delete <b>${item.name}</b>?</p>`,
+        })) await item.delete();
       })
     );
 
@@ -1485,40 +1469,65 @@ export class A5eCharacterSheet extends ActorSheet {
       </div>
     `;
 
-    const d = new Dialog({
-      title: 'Add Feat',
+    const actor = this.actor;
+    foundry.applications.api.DialogV2.wait({
+      window: { title: 'Add Feat' },
       content,
-      buttons: { close: { label: 'Close' } },
-      default: 'close',
-      render: (html) => {
-        // Search
-        html.find('.am-fp-search').on('input', function() {
-          const q = this.value.toLowerCase();
-          html.find('.am-feat-picker-row').each(function() {
-            const name = $(this).find('.am-fp-name').text().toLowerCase();
-            $(this).toggle(name.includes(q));
+      position: { width: 480, height: 540 },
+      rejectClose: false,
+      buttons: [{ action: 'close', label: 'Close', default: true }],
+      // v14 DialogV2: render(event, dialog); dialog.element is the root HTMLElement.
+      render: (_event, dialog) => {
+        const root = dialog.element;
+
+        const search = root.querySelector('.am-fp-search');
+        search?.addEventListener('input', () => {
+          const q = search.value.toLowerCase();
+          root.querySelectorAll('.am-feat-picker-row').forEach(row => {
+            const name = row.querySelector('.am-fp-name')?.textContent.toLowerCase() ?? '';
+            row.style.display = name.includes(q) ? '' : 'none';
           });
         });
-        // Add button
-        html.find('.am-fp-add-btn').on('click', async function() {
-          const uuid = $(this).data('uuid');
-          try {
-            const item = await fromUuid(uuid);
-            if (item) {
-              await Item.create(item.toObject(), { parent: this.actor });
-              $(this).text('✓ Added').addClass('am-added');
+
+        root.querySelectorAll('.am-fp-add-btn').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            try {
+              const item = await fromUuid(btn.dataset.uuid);
+              if (item) {
+                await Item.create(item.toObject(), { parent: actor });
+                btn.textContent = '✓ Added';
+                btn.classList.add('am-added');
+              }
+            } catch (err) {
+              ui.notifications.error('Could not add feat: ' + err.message);
             }
-          } catch (err) {
-            ui.notifications.error('Could not add feat: ' + err.message);
-          }
-        }.bind(this));
-      }
-    }, { width: 480, height: 540 });
-    d.render(true);
+          });
+        });
+      },
+    });
   }
 
   #normTrad(raw) {
     return raw.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  /**
+   * Fallback advantage/normal/disadvantage picker (v14 DialogV2), used only when
+   * the system's own roll dialog throws. Resolves to a CONFIG.A5E.ROLL_MODE value,
+   * or null if dismissed. DialogV2 button `icon` is a class string, not HTML.
+   */
+  static #rollModeDialog(title) {
+    const RM = CONFIG.A5E.ROLL_MODE;
+    return foundry.applications.api.DialogV2.wait({
+      window: { title },
+      content: '',
+      rejectClose: false,
+      buttons: [
+        { action: 'dis',  label: 'Disadvantage', icon: 'fa-solid fa-angles-down', callback: () => RM.DISADVANTAGE },
+        { action: 'norm', label: 'Normal',       icon: 'fa-solid fa-dice-d20', default: true, callback: () => RM.NORMAL },
+        { action: 'adv',  label: 'Advantage',    icon: 'fa-solid fa-angles-up', callback: () => RM.ADVANTAGE },
+      ],
+    });
   }
 
   async #roll(formula, label) {

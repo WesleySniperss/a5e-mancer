@@ -268,7 +268,9 @@ Hooks.on('renderActorSheet', (sheet, html) => {
   if (sheet instanceof A5eCharacterSheet || sheet instanceof A5eNPCSheet) return;
   if (actor.type !== 'character') return;
 
-  const el = (html instanceof jQuery) ? html[0] : html;
+  // v14-safe: don't reference the jQuery global (a deprecation shim); jQuery
+  // objects carry a `.jquery` version string, plain HTMLElements do not.
+  const el = html?.jquery ? html[0] : html;
   if (!el || el.querySelector('.am-levelup-btn')) return;
 
   const lvlBtn = document.createElement('button');
@@ -415,7 +417,7 @@ Hooks.on('renderTokenHUDA5e', (hud, html) => {
   const actor = hud.object?.actor;
   if (!actor) return;
 
-  const el   = (html instanceof jQuery) ? html[0] : html;
+  const el   = html?.jquery ? html[0] : html;
   const durs = actor.getFlag?.('a5e-mancer', 'durations') ?? {};
 
   /* A5e Svelte component renders: button.condition-container[data-status-id].

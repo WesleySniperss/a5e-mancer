@@ -213,7 +213,7 @@ export class A5eNPCSheet extends ActorSheet {
   activateListeners(html) {
     super.activateListeners(html);
     if (!this.isEditable) return;
-    const el = html instanceof jQuery ? html[0] : html;
+    const el = html?.jquery ? html[0] : html;
 
     /* Ability rolls */
     el.querySelectorAll('[data-action="ability-check"]').forEach(b =>
@@ -248,8 +248,10 @@ export class A5eNPCSheet extends ActorSheet {
     el.querySelectorAll('[data-action="item-delete"]').forEach(b =>
       b.addEventListener('click', async () => {
         const item = this.actor.items.get(b.dataset.id);
-        if (item && await Dialog.confirm({ title: 'Delete', content: `<p>Delete <b>${item.name}</b>?</p>` }))
-          await item.delete();
+        if (item && await foundry.applications.api.DialogV2.confirm({
+          window: { title: 'Delete' },
+          content: `<p>Delete <b>${item.name}</b>?</p>`,
+        })) await item.delete();
       })
     );
 
