@@ -303,3 +303,51 @@
 .ct-beyond20-icon {
     vertical-align: middle;
 }
+
+/* ------------------------------------------------- apply damage / healing */
+
+/* A5e Mancer adds these: a compact button row on each Beyond20 damage/healing
+   line that spends the rolled total on the selected token(s) through the a5e
+   system's own applyDamage / applyHealing. */
+.beyond20-message .a5e-mancer-apply {
+    display: inline-flex;
+    gap: 3px;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+.beyond20-message .a5e-mancer-apply__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 20px;
+    padding: 0 5px;
+    margin: 0;
+    line-height: 1;
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    background: #9c3940;
+    border: 1px solid #7a2c31;
+    border-radius: 3px;
+    box-shadow: 0 0 2px rgba(0, 0, 0, 0.4) inset;
+    cursor: pointer;
+    transition: background 0.1s ease, transform 0.05s ease;
+    flex: 0 0 auto;
+    width: auto;
+}
+
+.beyond20-message .a5e-mancer-apply__btn:hover {
+    background: #c0392b;
+    box-shadow: 0 0 4px rgba(192, 57, 43, 0.6);
+}
+
+.beyond20-message .a5e-mancer-apply__btn:active {
+    transform: translateY(1px);
+}
+
+.beyond20-message .a5e-mancer-apply__btn i {
+    margin: 0;
+    font-size: 12px;
+}

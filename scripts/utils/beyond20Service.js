@@ -109,8 +109,11 @@ export class Beyond20Service {
    */
   static _repairCards(root) {
     if (!root?.querySelectorAll) return;
-    for (const header of root.querySelectorAll('.beyond20-message .beyond20-header'))
-      this._repairHeader(header);
+    for (const card of root.querySelectorAll('.beyond20-message')) {
+      const header = card.querySelector('.beyond20-header');
+      if (header) this._repairHeader(header);
+      this._wireDamageControls(card);
+    }
   }
 
   static _repairHeader(header) {
@@ -136,6 +139,132 @@ export class Beyond20Service {
     }
 
     for (const node of strays) node.remove();
+  }
+
+  /* ============================================================
+     Apply damage / healing to selected tokens
+
+     Beyond20 rolls damage but has no way to spend it on a target. These controls
+     hook each damage/healing line up to the a5e system's own Actor#applyDamage /
+     Actor#applyHealing, using the same target resolution the system's damage card
+     uses: the controlled tokens, or the user's assigned character as a fallback.
+     Reusing those methods means temp HP, the Fatigue-safe clamping, cascading
+     scrolling numbers and the a5e.actorDamaged/Healed hooks all behave natively.
+     ============================================================ */
+
+  static _wireDamageControls(card) {
+    if (!card || card.dataset.a5eMancerDmg) return;
+    card.dataset.a5eMancerDmg = '1';
+
+    // Healing lines heal; every other damage total is applied as damage. Beyond20
+    // marks healing with .beyond20-healing; a "Healing" label covers the rest.
+    const lines = card.querySelectorAll('.beyond20-total-damage, .beyond20-healing');
+    for (const line of lines) {
+      const amount = this._readAmount(line);
+      if (amount === null) continue;
+      const heal = line.classList.contains('beyond20-healing') || /heal/i.test(line.textContent);
+      line.appendChild(heal ? this._healButtons(amount) : this._damageButtons(amount));
+    }
+  }
+
+  /** Pull the rolled total off a damage line. Beyond20 always renders the total in
+   *  a .beyond20-roll-value span; the formula and per-die results live in a hidden
+   *  tooltip, so read the span directly rather than the line's textContent (which
+   *  would include those hidden numbers). */
+  static _readAmount(line) {
+    const el = line.querySelector('.beyond20-roll-value');
+    const text = (el?.textContent ?? '').trim();
+    let n = parseFloat(text);
+    if (!Number.isFinite(n)) {
+      // No total span (unusual layout): fall back to the label text only, i.e. the
+      // bit before the tooltip, and take its last number.
+      const label = line.querySelector('b')?.nextSibling?.textContent ?? '';
+      const m = label.match(/-?\d+(?:\.\d+)?/g);
+      n = m?.length ? parseFloat(m[m.length - 1]) : NaN;
+    }
+    return Number.isFinite(n) ? n : null;
+  }
+
+  static _damageButtons(amount) {
+    const group = this._group();
+    group.append(
+      this._btn(`<i class="fa-solid fa-heart-crack"></i>`, `Apply ${amount} damage`,
+        () => this._apply(amount, {})),
+      this._btn('½', `Apply ${Math.floor(amount / 2)} damage (half)`,
+        () => this._apply(amount, { multiplier: 0.5 })),
+      this._btn('×2', `Apply ${amount * 2} damage (double)`,
+        () => this._apply(amount, { multiplier: 2 })),
+      this._btn(`<i class="fa-solid fa-heart-circle-plus"></i>`, `Heal ${amount}`,
+        () => this._apply(amount, { heal: true }))
+    );
+    return group;
+  }
+
+  static _healButtons(amount) {
+    const group = this._group();
+    group.append(
+      this._btn(`<i class="fa-solid fa-heart-circle-plus"></i>`, `Heal ${amount}`,
+        () => this._apply(amount, { heal: true })),
+      this._btn(`<i class="fa-solid fa-heart-circle-bolt"></i>`, `Grant ${amount} temporary HP`,
+        () => this._apply(amount, { heal: true, temp: true }))
+    );
+    return group;
+  }
+
+  static _group() {
+    const span = document.createElement('span');
+    span.className = 'a5e-mancer-apply';
+    return span;
+  }
+
+  static _btn(inner, tooltip, onClick) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'a5e-mancer-apply__btn';
+    b.dataset.tooltip = tooltip;
+    b.setAttribute('aria-label', tooltip);
+    b.innerHTML = inner;
+    b.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      onClick();
+    });
+    return b;
+  }
+
+  /**
+   * Apply an amount to the resolved targets via the a5e system's own methods.
+   * @param {number} amount
+   * @param {{multiplier?: number, heal?: boolean, temp?: boolean}} opts
+   */
+  static async _apply(amount, { multiplier = 1, heal = false, temp = false } = {}) {
+    const actors = this._applyTargets();
+    if (!actors.length) {
+      ui.notifications.warn('Beyond20: select a token (or assign a character) to apply this to.');
+      return;
+    }
+    for (const actor of actors) {
+      try {
+        if (heal) {
+          if (typeof actor.applyHealing !== 'function') continue;
+          await actor.applyHealing(Math.floor(amount), temp ? 'temporaryHealing' : 'healing');
+        } else {
+          if (typeof actor.applyDamage !== 'function') continue;
+          await actor.applyDamage(Math.floor(amount * multiplier), null);
+        }
+      } catch (err) {
+        AM.log(1, `Beyond20 bridge: apply to ${actor?.name} failed`, err);
+      }
+    }
+  }
+
+  /** Same resolution as the a5e damage card: controlled tokens, else the user's
+   *  assigned character. */
+  static _applyTargets() {
+    const controlled = canvas?.tokens?.controlled ?? [];
+    if (controlled.length) return controlled.map(t => t.actor).filter(Boolean);
+    const own = game.user?.character;
+    return own ? [own] : [];
   }
 
   /* ============================================================
