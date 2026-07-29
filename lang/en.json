@@ -171,6 +171,8 @@
   "am.settings.token-customization.hint": "Let players configure basic token display settings.",
   "am.settings.randomize.name": "Enable Randomise Button",
   "am.settings.randomize.hint": "Shows a Randomise button that generates a random name.",
+  "am.settings.beyond20.name": "Beyond20 Support",
+  "am.settings.beyond20.hint": "Makes rolls sent from D&D Beyond by the Beyond20 extension work correctly in A5e: styles the chat cards, syncs hit points to the derived maximum, and maps conditions and Exhaustion onto A5e's conditions and Fatigue track.",
   "am.settings.ability-scores.default.name": "Default Ability Score",
   "am.settings.ability-scores.default.hint": "Starting value for ability scores in Point Buy.",
   "am.settings.ability-scores.min.name": "Minimum Ability Score",

@@ -3,7 +3,7 @@ import { A5eMancer } from './app/A5eMancer.js';
 import { LevelUpDialog } from './app/LevelUpDialog.js';
 import { A5eCharacterSheet } from './app/A5eCharacterSheet.js';
 import { A5eNPCSheet } from './app/A5eNPCSheet.js';
-import { DocumentService, StatRoller } from './utils/index.js';
+import { DocumentService, StatRoller, Beyond20Service } from './utils/index.js';
 import { iconForItem } from './data/a5eIcons.js';
 import { installCompendiumFilterFix } from './utils/compendiumIndexFix.js';
 
@@ -163,6 +163,15 @@ Hooks.once('setup', () => {
    enrichment runs the first time the browser is opened, keeping it off the
    world-load critical path. See compendiumIndexFix.js. */
 Hooks.once('ready', () => { installCompendiumFilterFix(); });
+
+/* ── Beyond20 bridge ────────────────────────────────────── */
+/* Installed early and independently of document loading: the extension can
+   dispatch its events as soon as the page is up, and we do not want to miss a
+   roll while the compendium indexes are still being read. */
+Hooks.once('ready', () => {
+  if (!game.settings.get(AM.ID, 'enable')) return;
+  Beyond20Service.init();
+});
 
 /* ── Ready ──────────────────────────────────────────────── */
 Hooks.once('ready', async () => {

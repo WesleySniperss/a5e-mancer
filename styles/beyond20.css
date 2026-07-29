@@ -1,0 +1,305 @@
+/* Beyond20 chat card styles.
+ *
+ * The Beyond20 browser extension renders its own chat cards, but ships their
+ * stylesheet inside a separate, optional Foundry module ("beyond20"). Without
+ * that module every card renders unstyled: the roll tooltips never get
+ * display:none so their contents spill inline into the card, the dice cells
+ * lose their boxes, and the header collapses. That is the visual mess you get
+ * when rolling from D&D Beyond into a bare Foundry install.
+ *
+ * These rules restore the intended look. Every selector is scoped under
+ * .beyond20-* so nothing here can reach a5e's own chat cards.
+ */
+
+/* ---------------------------------------------------------------- layout */
+
+.beyond20-message {
+    font-family: "Signika", "Roboto", sans-serif;
+    overflow: visible;
+}
+
+.beyond20-message .message-content {
+    /* Foundry sets overflow:hidden, which clips the hover tooltips */
+    overflow: visible;
+}
+
+.chat-message .message-content:has(> .beyond20-message) {
+    overflow: visible;
+}
+
+.chat-message:has(.beyond20-message) {
+    overflow: visible;
+}
+
+.beyond20-header {
+    display: flex;
+    flex-direction: row;
+}
+
+.beyond20-header .beyond20-character-avatar {
+    margin-top: 0.5rem;
+    margin-bottom: auto;
+    margin-right: 5px;
+    margin-left: 5px;
+    border: 1px solid black;
+    aspect-ratio: 1/1;
+    object-fit: cover;
+}
+
+.beyond20-message details {
+    flex-grow: 1;
+}
+
+.beyond20-message details summary,
+.beyond20-message .beyond20-title {
+    flex: 1;
+    font-style: normal;
+    margin: 2px 0;
+    line-height: 36px;
+    font-family: "Modesto Condensed", "Roboto Condensed", "Palatino Linotype", serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: #4b4a44;
+    padding-top: 3px;
+    border-top: 2px groove #fff;
+    border-bottom: 2px groove #fff;
+}
+
+.beyond20-message .beyond20-description,
+.beyond20-message details table {
+    border: none;
+    width: 100%;
+    padding: 4px;
+    border-spacing: 0;
+    border-collapse: collapse;
+    background-color: initial;
+}
+
+.beyond20-message table td:first-child {
+    font-weight: bold;
+}
+
+.beyond20-roll-result,
+.beyond20-roller-error {
+    /* Anchors the absolutely positioned tooltip to this row */
+    position: relative;
+    overflow: visible;
+    padding: 0 5px;
+}
+
+/* ------------------------------------------------------------ roll cells */
+
+.beyond20-roll-cells,
+.beyond20-roll-dice-rolls {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    margin-bottom: 0.2em;
+    padding: 0;
+}
+
+.beyond20-roll-cell,
+.beyond20-roll-die-result {
+    flex: 1 0 auto;
+    margin: 1px;
+    line-height: 24px;
+    text-align: center;
+    background: rgba(0, 0, 0, 0.1);
+    border: 1px solid #999;
+    border-radius: 3px;
+    box-shadow: 0 0 2px #fff inset;
+    font-size: 20px;
+    font-weight: bold;
+    font-family: "Signika", "Roboto", serif;
+}
+
+.beyond20-roll-total {
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.beyond20-roll-detail-crit      { color: darkgreen; font-weight: bold; }
+.beyond20-roll-detail-fail      { color: darkred;   font-weight: bold; }
+.beyond20-roll-detail-crit-fail { color: darkblue;  font-weight: bold; }
+.beyond20-roll-detail-normal    { color: black; }
+
+.beyond20-roll-detail-discarded {
+    color: grey;
+    text-decoration: line-through;
+    opacity: 0.5;
+}
+
+/* ---------------------------------------------------------------- damage */
+
+.beyond20-total-damage {
+    font-size: 1.05em;
+    font-weight: bold;
+    border-radius: 3px;
+    line-height: 24px;
+    text-align: center;
+    box-shadow: rgb(255, 255, 255) 0 0 2px inset;
+    background: rgba(0, 0, 0, 0.1);
+    border: 1px solid #999;
+    margin-bottom: 3px;
+    position: relative;
+}
+
+.beyond20-critical-damage {
+    border-left: 2px solid #9c3940;
+    padding-left: 3px;
+}
+
+.beyond20-total-damage.beyond20-critical-damage {
+    border: 1px solid #9c3940;
+    border-radius: 3px;
+    margin-bottom: 2px;
+    box-shadow: rgb(208 53 53) 0 0 2px inset;
+    padding: 0 5px;
+}
+
+.beyond20-healing {
+    font-size: 1.05em;
+    font-weight: bold;
+    border-radius: 3px;
+    line-height: 24px;
+    text-align: center;
+    margin-bottom: 3px;
+    border: 1px solid rgb(0 125 10);
+    background: rgb(40 255 0 / 10%);
+    box-shadow: 0 0 2px #0b6900c2 inset;
+}
+
+.beyond20-conditional-damage {
+    font-style: italic;
+    opacity: 0.85;
+    border-left: 2px dashed #666;
+    padding-left: 3px;
+}
+
+.beyond20-combined-damage {
+    border: 2px solid #7b4fb8;
+    border-radius: 4px;
+    padding: 2px 8px;
+    margin-top: 4px;
+    background: rgba(123, 79, 184, 0.1);
+}
+
+.beyond20-total-damage.beyond20-conditional-total {
+    border: 2px solid #2a9d8f;
+    border-radius: 4px;
+    padding: 2px 8px;
+    margin-top: 4px;
+    background: rgba(42, 157, 143, 0.1);
+}
+
+/* --------------------------------------------------------------- tooltip */
+
+.beyond20-tooltip {
+    overflow: visible;
+}
+
+/* Without this the tooltip body is always visible and dumps the whole dice
+   breakdown into the middle of the card. */
+.beyond20-tooltip .beyond20-tooltip-content {
+    display: none;
+    background: url(/ui/parchment.jpg) repeat;
+    background-color: #f5f2ec;
+    text-align: left;
+    border-radius: 6px;
+    padding: 5px 10px;
+    margin: 10px;
+    width: 90%;
+    top: -50%;
+    left: 0;
+    border: 2px solid #6f6c66;
+    position: absolute;
+    z-index: 1;
+}
+
+.beyond20-message span.dice-roll.beyond20-tooltip-content {
+    background-color: #f9f9f9;
+}
+
+.beyond20-tooltip:hover .beyond20-tooltip-content {
+    display: block;
+    transform: translate(0, -100%);
+    font-size: initial;
+}
+
+.beyond20-tooltip-content .dice-tooltip {
+    display: block;
+}
+
+/* Kept scoped on purpose. Beyond20's own stylesheet declares these globally,
+   which restyles a5e's native roll cards too. */
+.beyond20-message .dice-tooltip .part-header {
+    font-size: initial;
+}
+
+.beyond20-message .dice-roll .dice-formula {
+    margin: 0.3em 0;
+    font-weight: normal;
+}
+
+.beyond20-message .dice-formula.beyond20-roll-formula {
+    line-height: 24px;
+    text-align: center;
+    background: rgba(0, 0, 0, 0.1);
+    border: 1px solid #999;
+    border-radius: 3px;
+    box-shadow: 0 0 2px #fff inset;
+    margin: 5px 0;
+    font-weight: bold;
+}
+
+/* ----------------------------------------------------------- misc / form */
+
+.beyond20-query-prefix {
+    padding: 5px;
+}
+
+.beyond20-form-row {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin: 3px 0;
+}
+
+.beyond20-form-row > * {
+    flex: 2;
+}
+
+.beyond20-button-roll-damages {
+    font-family: "Signika", "Roboto", sans-serif;
+    font-size: 12px;
+    width: 100%;
+    height: 24px;
+    line-height: 20px;
+    margin: 2px 0;
+    background: rgba(0, 0, 0, 0.1);
+    border: 2px groove #eeede0;
+    border-radius: 3px;
+    margin-top: 2px;
+}
+
+.beyond20-roll-dice-formula {
+    text-align: center;
+    font-size: 18px;
+    margin: auto;
+}
+
+/* The inline "roll this formula" icon Beyond20 injects into descriptions.
+   Beyond20 rewrites its src to the extension URL when the message renders, so
+   it resolves here; it just needs sizing down to match the text. */
+.beyond20-message img.ct-beyond20-custom-icon {
+    height: 10px;
+}
+
+.beyond20-message .ct-beyond20-custom-roll {
+    cursor: pointer;
+    text-decoration: underline dotted;
+}
+
+.ct-beyond20-icon {
+    vertical-align: middle;
+}

@@ -10,3 +10,4 @@ export { EquipmentService } from './equipmentService.js';
 export { LevelUpService } from './levelUpService.js';
 export { ManeuverService, getTraditions, TRADITIONS, CLASS_MANEUVER_TABLES } from './maneuverService.js';
 export { SpellService, getSpellSchools, CLASS_SPELL_TABLES } from './spellService.js';
+export { Beyond20Service } from './beyond20Service.js';

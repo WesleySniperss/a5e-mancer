@@ -37,6 +37,13 @@ export function registerSettings() {
     scope: 'world', config: true, type: Boolean, default: false
   });
 
+  // Client-scoped: the Beyond20 extension is installed per browser, so whether
+  // the bridge is wanted is a per-user question, not a world setting.
+  game.settings.register(AM.ID, 'enableBeyond20', {
+    name: 'am.settings.beyond20.name', hint: 'am.settings.beyond20.hint',
+    scope: 'client', config: true, type: Boolean, default: true, requiresReload: true
+  });
+
   game.settings.register(AM.ID, 'enableRandomize', {
     name: 'am.settings.randomize.name', hint: 'am.settings.randomize.hint',
     scope: 'world', config: true, type: Boolean, default: true
