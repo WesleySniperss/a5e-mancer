@@ -40,6 +40,7 @@ export class Beyond20Service {
   static FATIGUE_MAX = 7;
 
   static _listeners = [];
+  static _renderHook = null;
 
   static get enabled() {
     try { return game.settings.get(AM.ID, 'enableBeyond20') !== false; }
@@ -59,6 +60,15 @@ export class Beyond20Service {
     this._listen('Beyond20_UpdateConditions', (_request, name, conditions, exhaustion) =>
       this._onUpdateConditions(name, conditions, exhaustion));
 
+    // Repair Beyond20's chat cards as they render (see _repairCards). v13+ passes
+    // a native element to renderChatMessageHTML.
+    this._renderHook = Hooks.on('renderChatMessageHTML', (_msg, html) => {
+      try { this._repairCards(html?.jquery ? html[0] : html); }
+      catch (err) { AM.log(1, 'Beyond20 bridge: card repair failed', err); }
+    });
+    // Cards already on screen (rendered before we installed) need one pass too.
+    try { this._repairCards(document); } catch { /* pre-canvas, ignore */ }
+
     AM.log(3, 'Beyond20 bridge installed',
       game.beyond20?.loaded ? '(extension detected)' : '(extension not loaded yet)');
   }
@@ -77,6 +87,55 @@ export class Beyond20Service {
     for (const [eventName, handler] of this._listeners)
       document.removeEventListener(eventName, handler, false);
     this._listeners = [];
+    if (this._renderHook !== null) {
+      Hooks.off('renderChatMessageHTML', this._renderHook);
+      this._renderHook = null;
+    }
+  }
+
+  /* ============================================================
+     Chat card repair
+     ============================================================ */
+
+  /**
+   * Foundry v13+ runs every chat message's content through TextEditor.enrichHTML
+   * before display. On Beyond20's cards that pass splits the avatar <img>: the
+   * query string of the D&D Beyond avatar URL is ejected as a bare text node
+   * (…&auto=webp" title="…" width="37" height="37">), which then sits as an
+   * anonymous flex item inside .beyond20-header and collapses the title into a
+   * vertical sliver. We stitch the URL back onto the <img> and drop the debris.
+   *
+   * @param {ParentNode} root  A message element, the chat log, or `document`.
+   */
+  static _repairCards(root) {
+    if (!root?.querySelectorAll) return;
+    for (const header of root.querySelectorAll('.beyond20-message .beyond20-header'))
+      this._repairHeader(header);
+  }
+
+  static _repairHeader(header) {
+    // Beyond20's template only ever puts <img>/<details>/<span> directly in the
+    // header, so any non-whitespace bare text node here is enrichment debris.
+    const strays = [];
+    for (const node of header.childNodes)
+      if (node.nodeType === 3 /* TEXT_NODE */ && node.textContent.trim()) strays.push(node);
+    if (!strays.length) return;
+
+    const img = header.querySelector('img.beyond20-character-avatar');
+    if (img) {
+      const leak = strays[0].textContent;
+      const q = leak.indexOf('"');
+      const tail = q >= 0 ? leak.slice(0, q) : '';
+      const base = img.getAttribute('src') || '';
+      // Only stitch when the src looks truncated (ends at '?'/param) and the tail
+      // reads as the rest of a URL query — never inject anything tag-like.
+      if (tail && /^[\w=&%.\-+]+$/.test(tail) && /[?&=]$/.test(base))
+        img.setAttribute('src', base + tail);
+      // A CSP-blocked or missing avatar should vanish, not show a broken icon.
+      img.addEventListener('error', () => { img.style.display = 'none'; }, { once: true });
+    }
+
+    for (const node of strays) node.remove();
   }
 
   /* ============================================================
