@@ -142,15 +142,57 @@ export class Beyond20Service {
     if (!card || card.dataset.a5eMancerDmg) return;
     card.dataset.a5eMancerDmg = '1';
 
-    // Healing lines heal; every other damage total is applied as damage. Beyond20
-    // marks healing with .beyond20-healing; a "Healing" label covers the rest.
-    const lines = card.querySelectorAll('.beyond20-total-damage, .beyond20-healing');
-    for (const line of lines) {
+    // Attach controls to the FINAL total(s) only — not to every sub-total line.
+    for (const line of this._finalDamageLines(card)) {
       const amount = this._readAmount(line);
-      if (amount === null) continue;
-      const heal = line.classList.contains('beyond20-healing') || /heal/i.test(line.textContent);
-      line.appendChild(heal ? this._healButtons(amount) : this._damageButtons(amount));
+      if (amount !== null) line.appendChild(this._damageButtons(amount));
     }
+    for (const line of this._finalHealingLines(card)) {
+      const amount = this._readAmount(line);
+      if (amount !== null) line.appendChild(this._healButtons(amount));
+    }
+  }
+
+  /** True if a line represents healing rather than damage. Beyond20 tags per-roll
+   *  healing lines with .beyond20-healing but labels the healing *total* "Healing"
+   *  / "Temp HP" with no class, so check both. */
+  static _isHealing(el) {
+    if (el.classList.contains('beyond20-healing')) return true;
+    const label = el.querySelector('b')?.textContent ?? '';
+    return /heal|temp\s*hp|temporary/i.test(label);
+  }
+
+  /**
+   * The single damage total a player would actually apply. Beyond20's layers, in
+   * order of preference:
+   *   1. a "Combined" grand total (regular + critical [+ conditional]) — the one
+   *      the screenshot shows as "Combined: 60";
+   *   2. the regular damage total(s) (multi-component hit, no crit to combine);
+   *   3. the primary per-roll damage line (single-component hit renders no totals).
+   */
+  static _finalDamageLines(card) {
+    let d = [...card.querySelectorAll('.beyond20-combined-damage')];
+
+    if (!d.length) d = [...card.querySelectorAll('.beyond20-total-damage')].filter(el =>
+      !el.classList.contains('beyond20-critical-damage') &&
+      !el.classList.contains('beyond20-conditional-total'));
+
+    if (!d.length) {
+      const rolls = [...card.querySelectorAll('.beyond20-roll-damage')].filter(el =>
+        !el.classList.contains('beyond20-conditional-damage'));
+      // Prefer the line flagged as the roll's total; else the first damage line.
+      const primary = rolls.find(el => el.querySelector('.beyond20-roll-total')) ?? rolls[0];
+      d = primary ? [primary] : [];
+    }
+
+    return d.filter(el => !this._isHealing(el));
+  }
+
+  /** Healing total(s), preferred over per-roll healing breakdown lines. */
+  static _finalHealingLines(card) {
+    const totals = [...card.querySelectorAll('.beyond20-total-damage')].filter(el => this._isHealing(el));
+    if (totals.length) return totals;
+    return [...card.querySelectorAll('.beyond20-roll-damage')].filter(el => this._isHealing(el));
   }
 
   /** Pull the rolled total off a damage line. Beyond20 always renders the total in
