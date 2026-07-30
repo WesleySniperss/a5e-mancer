@@ -18,6 +18,13 @@
     overflow: visible;
 }
 
+/* D&D Beyond images (the character portrait, inline roll icons) are frequently
+   blocked or broken inside Foundry and add nothing here — hide them all so a
+   broken-image icon can never appear. The avatar element is also removed in JS. */
+.beyond20-message img {
+    display: none !important;
+}
+
 .beyond20-message .message-content {
     /* Foundry sets overflow:hidden, which clips the hover tooltips */
     overflow: visible;

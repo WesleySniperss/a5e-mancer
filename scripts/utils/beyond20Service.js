@@ -98,12 +98,12 @@ export class Beyond20Service {
      ============================================================ */
 
   /**
-   * Foundry v13+ runs every chat message's content through TextEditor.enrichHTML
-   * before display. On Beyond20's cards that pass splits the avatar <img>: the
-   * query string of the D&D Beyond avatar URL is ejected as a bare text node
-   * (…&auto=webp" title="…" width="37" height="37">), which then sits as an
-   * anonymous flex item inside .beyond20-header and collapses the title into a
-   * vertical sliver. We stitch the URL back onto the <img> and drop the debris.
+   * D&D Beyond avatar URLs are routinely blocked/broken inside Foundry, and
+   * Foundry's chat enrichment mangles the <img> into visible text
+   * (…&auto=webp" title="…" width="37" height="37">) that squishes the card. We
+   * don't want the portrait at all, so we strip the avatar element and the text
+   * debris it leaves behind. (styles/beyond20.css also hides every image in a
+   * Beyond20 card, so nothing can flash before this runs.)
    *
    * @param {ParentNode} root  A message element, the chat log, or `document`.
    */
@@ -117,28 +117,14 @@ export class Beyond20Service {
   }
 
   static _repairHeader(header) {
-    // Beyond20's template only ever puts <img>/<details>/<span> directly in the
-    // header, so any non-whitespace bare text node here is enrichment debris.
-    const strays = [];
-    for (const node of header.childNodes)
-      if (node.nodeType === 3 /* TEXT_NODE */ && node.textContent.trim()) strays.push(node);
-    if (!strays.length) return;
+    // Drop the avatar entirely.
+    header.querySelector('img.beyond20-character-avatar')?.remove();
 
-    const img = header.querySelector('img.beyond20-character-avatar');
-    if (img) {
-      const leak = strays[0].textContent;
-      const q = leak.indexOf('"');
-      const tail = q >= 0 ? leak.slice(0, q) : '';
-      const base = img.getAttribute('src') || '';
-      // Only stitch when the src looks truncated (ends at '?'/param) and the tail
-      // reads as the rest of a URL query — never inject anything tag-like.
-      if (tail && /^[\w=&%.\-+]+$/.test(tail) && /[?&=]$/.test(base))
-        img.setAttribute('src', base + tail);
-      // A CSP-blocked or missing avatar should vanish, not show a broken icon.
-      img.addEventListener('error', () => { img.style.display = 'none'; }, { once: true });
-    }
-
-    for (const node of strays) node.remove();
+    // Remove enrichment debris: any non-whitespace bare text node directly under
+    // the header. Beyond20 only ever puts <img>/<details>/<span> here, so bare
+    // text is always the leaked tail of the mangled avatar <img>.
+    for (const node of [...header.childNodes])
+      if (node.nodeType === 3 /* TEXT_NODE */ && node.textContent.trim()) node.remove();
   }
 
   /* ============================================================
