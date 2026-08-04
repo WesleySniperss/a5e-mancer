@@ -1,7 +1,7 @@
 import { AM } from '../a5e-mancer.js';
 import { DocumentService } from './documentService.js';
 import { A5E_CLASS_DATA, classKey as classKeyOf } from '../data/a5eClassData.js';
-import { iconForItem, applyItemIcon } from '../data/a5eIcons.js';
+import { iconForItem } from '../data/a5eIcons.js';
 
 /**
  * Handles levelling up a character in a5e.
@@ -168,8 +168,12 @@ export class LevelUpService {
 
   /**
    * Apply a multiclass entry: add new class at level 1 + HP.
+   *
+   * As with applyLevelUp, the new class's level-1 features, knack and
+   * proficiencies are applied by a5e's grant engine when the class item is
+   * created on the actor — we don't add them here.
    */
-  static async applyMulticlass(actor, classUuid, hpGained, knackUuid = null) {
+  static async applyMulticlass(actor, classUuid, hpGained) {
     const classDoc = await fromUuid(classUuid);
     if (!classDoc) { AM.log(1, 'Multiclass: class not found', classUuid); return false; }
 
@@ -206,25 +210,6 @@ export class LevelUpService {
       if (Object.keys(updates).length) await actor.update(updates);
     }
 
-    // Add exploration knack (skip if already present)
-    if (knackUuid) {
-      try {
-        const alreadyHasKnack = actor.items.some(i =>
-          (i._stats?.compendiumSource ?? i.flags?.core?.sourceId) === knackUuid
-        );
-        if (!alreadyHasKnack) {
-          const knackItem = await fromUuid(knackUuid);
-          if (knackItem) {
-            const kd = knackItem.toObject();
-            kd._stats = kd._stats || {};
-            kd._stats.compendiumSource = knackUuid;
-            applyItemIcon(kd);
-            await actor.createEmbeddedDocuments('Item', [kd]);
-          }
-        }
-      } catch (err) { AM.log(2, 'Error adding knack on multiclass:', err); }
-    }
-
     ui.notifications.info(
       game.i18n.format('am.levelup.multiclass-success', { class: classDoc.name }),
       { permanent: false }
@@ -234,15 +219,24 @@ export class LevelUpService {
 
   /**
    * Apply the level up to the actor.
+   *
+   * Class features, the class knack, ability-score increases and proficiencies are
+   * NOT added here: the a5e system's own grant engine applies them. Bumping
+   * system.classLevels fires the class item's _preUpdate, which calls
+   * actor.grants.createLeveledGrants() and opens a5e's grant-selection dialog for
+   * the new level (class features incl. the class-specific knack, and the ASI/feat
+   * choice). Adding them again from here produced the duplicate / wrong-class
+   * knacks players saw, so we only handle HP + the things a5e's grants don't:
+   * maneuvers and spells (applied by the dialog after this returns).
    */
-  static async applyLevelUp(actor, classItemId, hpGained, featUuid = null, knackUuid = null) {
+  static async applyLevelUp(actor, classItemId, hpGained) {
     const classItem = actor.items.get(classItemId);
     if (!classItem) { AM.log(1, 'Class item not found:', classItemId); return false; }
 
     const currentLevel = classItem.system?.classLevels ?? classItem.system?.levels ?? classItem.system?.level ?? 1;
     const newLevel     = currentLevel + 1;
 
-    // 1. Update class level
+    // 1. Update class level. This triggers a5e's grant engine (features/knack/ASI).
     const levelUpdatePath = classItem.system?.classLevels !== undefined
       ? 'system.classLevels'
       : classItem.system?.levels !== undefined
@@ -264,49 +258,8 @@ export class LevelUpService {
       AM.log(3, `Added ${hpGained} HP`);
     }
 
-    // 3. Add feat / ASI item (skip if already present)
-    if (featUuid) {
-      try {
-        const alreadyHasFeat = actor.items.some(i =>
-          (i._stats?.compendiumSource ?? i.flags?.core?.sourceId) === featUuid
-        );
-        if (!alreadyHasFeat) {
-          const featItem = await fromUuid(featUuid);
-          if (featItem) {
-            const data = featItem.toObject();
-            data._stats = data._stats || {};
-            data._stats.compendiumSource = featUuid;
-            applyItemIcon(data);
-            await actor.createEmbeddedDocuments('Item', [data]);
-            AM.log(3, `Added feat: ${featItem.name}`);
-          }
-        } else {
-          AM.log(2, `Feat already exists, skipping: ${featUuid}`);
-        }
-      } catch (err) { AM.log(2, 'Error adding feat:', err); }
-    }
-
-    // 4. Add exploration knack (skip if already present)
-    if (knackUuid) {
-      try {
-        const alreadyHasKnack = actor.items.some(i =>
-          (i._stats?.compendiumSource ?? i.flags?.core?.sourceId) === knackUuid
-        );
-        if (!alreadyHasKnack) {
-          const knackItem = await fromUuid(knackUuid);
-          if (knackItem) {
-            const data = knackItem.toObject();
-            data._stats = data._stats || {};
-            data._stats.compendiumSource = knackUuid;
-            applyItemIcon(data);
-            await actor.createEmbeddedDocuments('Item', [data]);
-            AM.log(3, `Added knack: ${knackItem.name}`);
-          }
-        } else {
-          AM.log(2, `Knack already exists, skipping: ${knackUuid}`);
-        }
-      } catch (err) { AM.log(2, 'Error adding knack:', err); }
-    }
+    // Class features, the knack and the ASI/feat are applied by a5e's grant engine
+    // (triggered by the classLevels update above) — see the method doc comment.
 
     ui.notifications.info(
       game.i18n.format('am.levelup.success', { class: classItem.name, level: newLevel }),

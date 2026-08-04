@@ -1304,21 +1304,52 @@ img[src*="a5e-mancer/assets/icons/"] {
 }
 
 /* Level Up button on character sheet */
-.am-levelup-btn {
+/* Level-up "class features" heads-up (grants handled by a5e itself). */
+.lu-grants-note .lu-grants-list {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.lu-grants-note .lu-grants-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  opacity: 0.9;
+}
+.lu-grants-note .lu-grants-list li i { color: #4a934a; }
+
+/* Level-up control injected into a foreign actor sheet's window header. It rides
+   Foundry's native .header-control sizing (small, icon-only) and just adds an
+   a5e-flavoured crimson tint so it reads as part of the system UI. */
+.am-levelup-btn.header-control {
+  color: #9c3940;
+  opacity: 0.9;
+  transition: color 0.12s ease, background 0.12s ease, opacity 0.12s ease;
+}
+.am-levelup-btn.header-control:hover {
+  color: #fff;
+  background: #9c3940;
+  opacity: 1;
+}
+/* When the sheet header isn't an AppV2 control strip, fall back to a compact chip. */
+.am-levelup-btn:not(.header-control) {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  font-size: 0.85rem;
-  padding: 0.2rem 0.5rem;
-  border-radius: var(--am-border-radius);
-  background: rgba(212,175,55,0.15);
-  border: 1px solid var(--am-gold);
-  color: var(--am-gold);
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  font-size: 0.8rem;
+  border-radius: 3px;
+  background: rgba(156, 57, 64, 0.12);
+  border: 1px solid #9c3940;
+  color: #9c3940;
   cursor: pointer;
-  transition: background 0.15s;
-
-  &:hover { background: rgba(212,175,55,0.3); }
 }
+.am-levelup-btn:not(.header-control):hover { background: #9c3940; color: #fff; }
 
 /* ==========================================================================
    Maneuver Dialog

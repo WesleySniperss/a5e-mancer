@@ -284,9 +284,10 @@ Hooks.on('renderActorSheet', (sheet, html) => {
 
   const lvlBtn = document.createElement('button');
   lvlBtn.type = 'button';
-  lvlBtn.className = 'am-levelup-btn';
-  lvlBtn.title = game.i18n.localize('am.levelup.button-hint');
-  lvlBtn.innerHTML = '<i class="fa-solid fa-arrow-up"></i> ' + game.i18n.localize('am.levelup.button');
+  // Icon-only, sized to sit inline with Foundry's native window header controls.
+  lvlBtn.className = 'am-levelup-btn header-control icon fa-solid fa-angles-up';
+  lvlBtn.dataset.tooltip = game.i18n.localize('am.levelup.button-hint');
+  lvlBtn.setAttribute('aria-label', game.i18n.localize('am.levelup.button'));
   lvlBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); AM.openLevelUp(actor); });
 
   // Insert before the first system control icon (minimize/close) in the window header

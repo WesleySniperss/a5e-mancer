@@ -281,24 +281,14 @@
   </section>
   {{/if}}
 
-  {{!-- Exploration Knack (multiclass, based on new total level) --}}
-  {{#if info.gainsKnack}}
+  {{!-- The new class's level-1 features, knack and proficiencies are applied by
+        a5e's grant engine when the class is added. --}}
   <hr />
-  <section class="lu-section">
-    <h3><i class="fa-solid fa-compass"></i> {{knackLabel}}</h3>
-    <p class="am-hint">{{localize 'am.levelup.knack-hint'}}</p>
-    <div class="form-row flex items-center gap-sm mb-sm">
-      <label for="lu-knack-select">{{knackLabel}}</label>
-      <select id="lu-knack-select" name="knackUuid" class="form-select">
-        <option value="">{{localize 'am.levelup.knack-placeholder'}}</option>
-        {{#each knacks}}
-          <option value="{{this.uuid}}">{{this.name}}</option>
-        {{/each}}
-      </select>
-    </div>
-    <div id="lu-knack-description" class="lu-item-description am-description-panel overflow-vert-only"></div>
+  <section class="lu-section lu-grants-note">
+    <p class="am-hint">
+      <i class="fa-solid fa-circle-info"></i> {{localize 'am.levelup.features-note-multiclass'}}
+    </p>
   </section>
-  {{/if}}
 
   {{/if}}{{!-- /newClass --}}
 
@@ -394,46 +384,20 @@
     </div>
   </section>
 
-  {{!-- ASI / Feat --}}
-  {{#if info.gainsASI}}
+  {{!-- Class features, knack & ASI/feat: a5e's own grant engine handles these when
+        the class level changes, so we only tell the player what's coming. --}}
+  {{#if grantsFeatures}}
   <hr />
-  <section class="lu-section">
-    <h3><i class="fa-solid fa-star"></i> {{localize 'am.levelup.asi-title'}}</h3>
-    <p class="am-hint">{{localize 'am.levelup.asi-hint'}}</p>
-    <div class="form-row flex items-center gap-sm mb-sm">
-      <label for="lu-feat-select">{{localize 'am.levelup.feat-label'}}</label>
-      <select id="lu-feat-select" name="featUuid" class="form-select">
-        <option value="">{{localize 'am.levelup.feat-placeholder'}}</option>
-        {{#each feats}}
-          <option value="{{this.uuid}}">{{this.name}}</option>
-        {{/each}}
-      </select>
-    </div>
-    <p class="lu-system-note">
-      <i class="fa-solid fa-up-right-from-square"></i>
-      {{localize 'am.levelup.system-window-note'}}
+  <section class="lu-section lu-grants-note">
+    <h3><i class="fa-solid fa-wand-magic-sparkles"></i> {{localize 'am.levelup.features-title'}}</h3>
+    <p class="am-hint">
+      <i class="fa-solid fa-circle-info"></i> {{localize 'am.levelup.features-note'}}
     </p>
-    <div id="lu-feat-description" class="lu-item-description am-description-panel overflow-vert-only"></div>
-    <p class="am-hint">{{localize 'am.levelup.asi-note'}}</p>
-  </section>
-  {{/if}}
-
-  {{!-- Exploration Knack --}}
-  {{#if info.gainsKnack}}
-  <hr />
-  <section class="lu-section">
-    <h3><i class="fa-solid fa-compass"></i> {{knackLabel}}</h3>
-    <p class="am-hint">{{localize 'am.levelup.knack-hint'}}</p>
-    <div class="form-row flex items-center gap-sm mb-sm">
-      <label for="lu-knack-select">{{knackLabel}}</label>
-      <select id="lu-knack-select" name="knackUuid" class="form-select">
-        <option value="">{{localize 'am.levelup.knack-placeholder'}}</option>
-        {{#each knacks}}
-          <option value="{{this.uuid}}">{{this.name}}</option>
-        {{/each}}
-      </select>
-    </div>
-    <div id="lu-knack-description" class="lu-item-description am-description-panel overflow-vert-only"></div>
+    <ul class="lu-grants-list">
+      <li><i class="fa-solid fa-check"></i> {{localize 'am.levelup.features-classfeatures'}}</li>
+      {{#if info.gainsKnack}}<li><i class="fa-solid fa-check"></i> {{localize 'am.levelup.features-knack'}}</li>{{/if}}
+      {{#if info.gainsASI}}<li><i class="fa-solid fa-check"></i> {{localize 'am.levelup.features-asi'}}</li>{{/if}}
+    </ul>
   </section>
   {{/if}}
 

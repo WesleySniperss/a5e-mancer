@@ -18,10 +18,6 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     this._selectedClassId = null;
     this._manualHP        = null;
     this._rolledHP        = null;
-    this._featUuid        = null;
-    this._knackUuid       = null;
-    this._feats           = [];
-    this._knacks          = [];
 
     // Multiclass mode state
     this._newClassUuid      = null;
@@ -115,7 +111,6 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         rolledHP:             this._rolledHP !== null ? this._rolledHP + this.#getConMod() : null,
         manualHP:             this._manualHP,
         conMod:               this.#getConMod(),
-        knacks:               this._knacks,
         info:                 { gainsASI: false, gainsKnack: false },
         maneuverInfo,
         selectedManeuverCount: this._selectedManeuverUuids.length,
@@ -142,16 +137,12 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       ? LevelUpService.getLevelUpInfo(selectedClass, newClassLevel, newTotalLevel)
       : { gainsASI: false, gainsKnack: false, avgHP: 5, hitDie: 8 };
 
-    if (info.gainsASI && !this._feats.length)   this._feats  = await LevelUpService.getFeats();
-    if (info.gainsKnack && !this._knacks.length) this._knacks = await LevelUpService.getExplorationKnacks(selectedClass?.name ?? null);
-
     const avgHP       = info.avgHP + this.#getConMod();
     const maneuverInfo = this.#getManeuverInfo(selectedClass, newClassLevel, newTotalLevel);
 
-    const classKey   = selectedClass?.name?.toLowerCase().replace(/\s*\(.*\)\s*/, '').trim();
-    const knackLabel = (classKey && CONFIG.A5E?.knackTypes?.[classKey])
-      ? CONFIG.A5E.knackTypes[classKey]
-      : game.i18n.localize('am.levelup.knack-title');
+    // The class's knack, features and ASI/feat are granted by a5e itself when the
+    // level changes, so we only surface a heads-up that its dialog will appear.
+    const grantsFeatures = true;
 
     const context = {
       actor:                this.actor,
@@ -161,13 +152,11 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       newClassLevel,
       newTotalLevel,
       info,
+      grantsFeatures,
       hpMethod:             this._hpMethod,
       avgHP,
       rolledHP:             this._rolledHP !== null ? this._rolledHP + this.#getConMod() : null,
       manualHP:             this._manualHP,
-      feats:                this._feats,
-      knacks:               this._knacks,
-      knackLabel,
       conMod:               this.#getConMod(),
       multiclass:           classes.length > 1,
       maneuverInfo,
@@ -334,8 +323,6 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         if (newMode === this._mode) return;
         this._mode      = newMode;
         this._rolledHP  = null;
-        this._featUuid  = null;
-        this._knackUuid = null;
         this.#resetSelections();
         await this.render(true);
       });
@@ -347,8 +334,6 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       classSelect.addEventListener('change', async (e) => {
         this._selectedClassId = e.target.value;
         this._rolledHP = null;
-        this._feats    = [];
-        this._knacks   = [];
         this.#resetSelections();
         await this.render(true);
       });
@@ -379,34 +364,6 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     if (manualInput) {
       manualInput.addEventListener('input', (e) => {
         this._manualHP = parseInt(e.target.value) || 0;
-      });
-    }
-
-    /* ── Feat selector ── */
-    const featSelect = this.element.querySelector('#lu-feat-select');
-    if (featSelect) {
-      featSelect.addEventListener('change', async (e) => {
-        this._featUuid = e.target.value || null;
-        const panel = this.element.querySelector('#lu-feat-description');
-        if (panel) {
-          panel.innerHTML = this._featUuid
-            ? (await DocumentService.getEnrichedDescription(this._featUuid) || '')
-            : '';
-        }
-      });
-    }
-
-    /* ── Knack selector ── */
-    const knackSelect = this.element.querySelector('#lu-knack-select');
-    if (knackSelect) {
-      knackSelect.addEventListener('change', async (e) => {
-        this._knackUuid = e.target.value || null;
-        const panel = this.element.querySelector('#lu-knack-description');
-        if (panel) {
-          panel.innerHTML = this._knackUuid
-            ? (await DocumentService.getEnrichedDescription(this._knackUuid) || '')
-            : '';
-        }
       });
     }
 
@@ -660,7 +617,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       hpGained = Math.max(1, hpGained);
 
       const success = await LevelUpService.applyMulticlass(
-        dialog.actor, dialog._newClassUuid, hpGained, dialog._knackUuid
+        dialog.actor, dialog._newClassUuid, hpGained
       );
       if (!success) return;
 
@@ -692,7 +649,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     hpGained = Math.max(1, hpGained);
 
     await LevelUpService.applyLevelUp(
-      dialog.actor, cls.id, hpGained, dialog._featUuid, dialog._knackUuid
+      dialog.actor, cls.id, hpGained
     );
 
     if (dialog._selectedManeuverUuids.length || dialog._selectedTraditions.length) {

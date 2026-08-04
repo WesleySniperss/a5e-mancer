@@ -291,10 +291,17 @@ export class ActorCreationService {
     const totalHp  = Math.max(1, baseHp + conMod);
 
     try {
-      await actor.update({
-        'system.attributes.hp.value': totalHp,
-        'system.attributes.hp.max':   totalHp
-      });
+      const hp = actor.system?.attributes?.hp;
+      const update = { 'system.attributes.hp.value': totalHp };
+      // a5e derives hp.max from baseMax + bonus, so writing hp.max is inert —
+      // set baseMax (minus any prepared bonus) so the chosen maximum actually sticks.
+      if (hp?.baseMax !== undefined) {
+        const bonus = (Number(hp.max) || 0) - (Number(hp.baseMax) || 0);
+        update['system.attributes.hp.baseMax'] = Math.max(1, totalHp - bonus);
+      } else {
+        update['system.attributes.hp.max'] = totalHp;
+      }
+      await actor.update(update);
       AM.log(3, `HP choice (${method}): ${baseHp} + ${conMod} CON = ${totalHp}`);
     } catch (err) {
       AM.log(2, 'HP choice update failed:', err);
