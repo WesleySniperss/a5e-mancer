@@ -325,14 +325,16 @@ export class LevelUpService {
       try {
         const index = await pack.getIndex({ fields: ['name', 'type', 'img', 'system'] });
         for (const entry of index) {
-          if (entry.type === 'feat' || entry.type === 'feature') {
-            results.push({
-              name: entry.name,
-              uuid: `Compendium.${pack.collection}.${entry._id}`,
-              img:  iconForItem(entry.name, entry.type, entry.img ?? '') ?? entry.img,
-              type: entry.type
-            });
-          }
+          // A5e has no 'feat' item type — feats are features tagged
+          // featureType === 'feat'. Without this filter the ASI picker fills with
+          // every class/heritage/culture feature in the compendiums (thousands).
+          if (entry.type !== 'feature' || entry.system?.featureType !== 'feat') continue;
+          results.push({
+            name: entry.name,
+            uuid: `Compendium.${pack.collection}.${entry._id}`,
+            img:  iconForItem(entry.name, entry.type, entry.img ?? '') ?? entry.img,
+            type: entry.type
+          });
         }
       } catch {}
     }

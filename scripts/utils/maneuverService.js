@@ -222,12 +222,14 @@ export class ManeuverService {
    */
   static getActorTraditions(actor) {
     const sys = actor.system;
-    // Possible paths in different a5e versions
-    const raw = sys?.proficiencies?.combatTraditions
+    // A5e stores known combat traditions at system.proficiencies.traditions
+    // (an ArrayField of camelCase tradition keys). The others are version fallbacks.
+    const raw = sys?.proficiencies?.traditions
+      ?? sys?.proficiencies?.combatTraditions
       ?? sys?.combatTraditions
       ?? sys?.maneuvers?.traditions
       ?? [];
-    return Array.isArray(raw) ? raw : [];
+    return Array.isArray(raw) ? raw : [...(raw ?? [])];
   }
 
   /**
@@ -256,21 +258,17 @@ export class ManeuverService {
       AM.log(3, `Added ${itemDatas.length} maneuvers`);
     }
 
-    // Update tradition proficiencies if actor has that field
+    // Update tradition proficiencies. A5e reads them from
+    // system.proficiencies.traditions (ArrayField of tradition keys); writing
+    // anywhere else leaves the sheet showing no traditions.
     if (newTraditions.length) {
       const existing = this.getActorTraditions(actor);
       const merged   = [...new Set([...existing, ...newTraditions])];
-      const paths = [
-        'system.proficiencies.combatTraditions',
-        'system.combatTraditions',
-        'system.maneuvers.traditions'
-      ];
-      for (const path of paths) {
-        try {
-          await actor.update({ [path]: merged });
-          AM.log(3, `Updated traditions at ${path}`);
-          break;
-        } catch {}
+      try {
+        await actor.update({ 'system.proficiencies.traditions': merged });
+        AM.log(3, 'Updated combat traditions');
+      } catch (err) {
+        AM.log(2, 'Could not update combat traditions:', err);
       }
     }
   }
