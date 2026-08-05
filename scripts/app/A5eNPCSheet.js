@@ -61,7 +61,7 @@ export class A5eNPCSheet extends ActorSheet {
 
     /* HP */
     const hp    = sys.attributes?.hp ?? {};
-    const hpPct = hp.max ? Math.round(Math.clamped((hp.value ?? 0) / hp.max, 0, 1) * 100) : 0;
+    const hpPct = hp.max ? Math.round(Math.min(Math.max((hp.value ?? 0) / hp.max, 0), 1) * 100) : 0;
     const hpColor = hpPct < 25 ? '#e05040' : hpPct < 50 ? '#e09020' : '#4a9a4a';
 
     /* Speed strings */

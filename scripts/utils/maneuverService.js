@@ -217,6 +217,76 @@ export class ManeuverService {
   }
 
   /**
+   * Identifiers for every maneuver the actor already has, so no picker can offer
+   * one twice. Foundry v12 replaced flags.core.sourceId with _stats.compendiumSource;
+   * reading only the old path silently returned an empty set and every known
+   * maneuver stayed selectable. The lowercased name is a fallback for items that
+   * were imported or hand-made and carry no source at all.
+   * @returns {Set<string>} compendium UUIDs and lowercased names
+   */
+  static getActorManeuverKeys(actor) {
+    const keys = new Set();
+    if (!actor) return keys;
+    for (const item of actor.items) {
+      if (item.type !== 'maneuver') continue;
+      const src = item._stats?.compendiumSource ?? item.flags?.core?.sourceId ?? '';
+      if (src) keys.add(src);
+      keys.add(item.name.toLowerCase());
+    }
+    return keys;
+  }
+
+  /** True when this maneuver is already on the actor (by source UUID or name). */
+  static isKnown(knownKeys, maneuver) {
+    if (!knownKeys?.size || !maneuver) return false;
+    return knownKeys.has(maneuver.uuid) || knownKeys.has((maneuver.name ?? '').toLowerCase());
+  }
+
+  /**
+   * What the actor is entitled to across all their maneuver classes, at their
+   * current levels — the totals the class tables promise, not an open bar.
+   * @returns {{maneuversKnown:number, traditions:number, maxDegree:number,
+   *            allowedTraditions:string[]|null, knownCount:number,
+   *            remainingManeuvers:number, remainingTraditions:number}|null}
+   */
+  static getActorEntitlement(actor) {
+    if (!actor) return null;
+
+    let maneuversKnown = 0, traditions = 0, maxDegree = 0;
+    let allowedTraditions = [];
+    let anyClassAllowsAll = false;
+    let found = false;
+
+    for (const item of actor.items) {
+      if (item.type !== 'class') continue;
+      const level = item.system?.classLevels ?? item.system?.levels ?? item.system?.level ?? 1;
+      const info  = this.getClassManeuverInfo(item.name, level);
+      if (!info) continue;
+      found = true;
+      maneuversKnown += info.maneuversKnown;
+      traditions     += info.traditions;
+      maxDegree       = Math.max(maxDegree, info.maxDegree);
+      if (info.allowedTraditions === null) anyClassAllowsAll = true;
+      else allowedTraditions.push(...info.allowedTraditions);
+    }
+    if (!found) return null;
+
+    const knownCount      = actor.items.filter(i => i.type === 'maneuver').length;
+    const knownTraditions = this.getActorTraditions(actor).length;
+
+    return {
+      maneuversKnown,
+      traditions,
+      maxDegree,
+      allowedTraditions: anyClassAllowsAll ? null : [...new Set(allowedTraditions)],
+      knownCount,
+      knownTraditions,
+      remainingManeuvers:  Math.max(0, maneuversKnown - knownCount),
+      remainingTraditions: Math.max(0, traditions - knownTraditions)
+    };
+  }
+
+  /**
    * Get combat traditions the actor is proficient in.
    * Tries several possible data paths.
    */
@@ -234,20 +304,30 @@ export class ManeuverService {
 
   /**
    * Add selected maneuvers to actor and update tradition proficiencies.
+   *
+   * Skips anything the actor already has. Without this, a maneuver picked in one
+   * window and then offered again by a later one (level-up → a5e's own grant
+   * dialog → sheet management) landed on the sheet twice.
    */
   static async applyManeuversToActor(actor, maneuverUuids, newTraditions = []) {
     if (!maneuverUuids.length && !newTraditions.length) return;
 
+    const known = this.getActorManeuverKeys(actor);
+
     const itemDatas = [];
     for (const uuid of maneuverUuids) {
+      if (known.has(uuid)) continue;                 // exact source match
       try {
         const item = await fromUuid(uuid);
         if (!item) continue;
+        if (known.has(item.name.toLowerCase())) continue; // name fallback
         const data = item.toObject();
         data._stats = data._stats || {};
         data._stats.compendiumSource = uuid;
         applyItemIcon(data);
         itemDatas.push(data);
+        known.add(uuid);
+        known.add(item.name.toLowerCase());          // also blocks within-batch dupes
       } catch (err) {
         AM.log(2, `Error fetching maneuver ${uuid}:`, err);
       }

@@ -152,18 +152,24 @@
           <div class="am-card-grid am-inline-card-grid" role="list">
             {{#each visibleManeuvers}}
               <button type="button"
-                      class="am-card {{#if this.isSelected}}am-card-selected{{/if}}"
+                      class="am-card {{#if this.isSelected}}am-card-selected{{/if}} {{#if this.alreadyKnown}}am-card-known{{/if}}"
                       role="listitem"
                       data-action="luToggleManeuver"
                       data-uuid="{{this.uuid}}"
                       data-tradition="{{this.tradition}}"
-                      data-name="{{this.name}}">
+                      data-name="{{this.name}}"
+                      data-known="{{#if this.alreadyKnown}}true{{else}}false{{/if}}"
+                      {{#if this.alreadyKnown}}disabled aria-disabled="true"
+                      data-tooltip="{{localize 'am.maneuvers.already-known'}}"{{/if}}>
                 <img class="am-card-img" src="{{this.img}}" alt="" loading="lazy">
                 <span class="am-card-name">{{this.name}}</span>
                 <div class="am-card-meta">
                   <span class="am-degree-pip">{{this.degree}}°</span>
                   {{#if this.exertion}}
                     <span class="am-ex-cost"><i class="fa-solid fa-bolt"></i>{{this.exertion}}</span>
+                  {{/if}}
+                  {{#if this.alreadyKnown}}
+                    <span class="am-known-pip"><i class="fa-solid fa-check"></i></span>
                   {{/if}}
                 </div>
               </button>
@@ -397,6 +403,8 @@
       <li><i class="fa-solid fa-check"></i> {{localize 'am.levelup.features-classfeatures'}}</li>
       {{#if info.gainsKnack}}<li><i class="fa-solid fa-check"></i> {{localize 'am.levelup.features-knack'}}</li>{{/if}}
       {{#if info.gainsASI}}<li><i class="fa-solid fa-check"></i> {{localize 'am.levelup.features-asi'}}</li>{{/if}}
+      {{#if grantsManeuvers}}<li><i class="fa-solid fa-check"></i> {{localize 'am.levelup.features-maneuvers'}}</li>{{/if}}
+      {{#if grantsSpells}}<li><i class="fa-solid fa-check"></i> {{localize 'am.levelup.features-spells'}}</li>{{/if}}
     </ul>
   </section>
   {{/if}}
@@ -448,18 +456,24 @@
           <div class="am-card-grid am-inline-card-grid" role="list">
             {{#each visibleManeuvers}}
               <button type="button"
-                      class="am-card {{#if this.isSelected}}am-card-selected{{/if}}"
+                      class="am-card {{#if this.isSelected}}am-card-selected{{/if}} {{#if this.alreadyKnown}}am-card-known{{/if}}"
                       role="listitem"
                       data-action="luToggleManeuver"
                       data-uuid="{{this.uuid}}"
                       data-tradition="{{this.tradition}}"
-                      data-name="{{this.name}}">
+                      data-name="{{this.name}}"
+                      data-known="{{#if this.alreadyKnown}}true{{else}}false{{/if}}"
+                      {{#if this.alreadyKnown}}disabled aria-disabled="true"
+                      data-tooltip="{{localize 'am.maneuvers.already-known'}}"{{/if}}>
                 <img class="am-card-img" src="{{this.img}}" alt="" loading="lazy">
                 <span class="am-card-name">{{this.name}}</span>
                 <div class="am-card-meta">
                   <span class="am-degree-pip">{{this.degree}}°</span>
                   {{#if this.exertion}}
                     <span class="am-ex-cost"><i class="fa-solid fa-bolt"></i>{{this.exertion}}</span>
+                  {{/if}}
+                  {{#if this.alreadyKnown}}
+                    <span class="am-known-pip"><i class="fa-solid fa-check"></i></span>
                   {{/if}}
                 </div>
               </button>

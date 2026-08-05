@@ -138,6 +138,7 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
         case 'maneuvers': {
           const className = A5eMancer.#getSelectedClassName();
           const classKey  = className?.toLowerCase() ?? '';
+          context.deferToSystem         = AM.deferToSystemGrants;
           context.classSelected         = !!AM.SELECTED.class?.uuid;
           context.maneuverInfo          = classKey ? ManeuverService.getClassManeuverInfo(className, 1) : null;
           context.isManeuverClass       = classKey ? !!CLASS_MANEUVER_TABLES[classKey] : false;
@@ -161,6 +162,7 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
         case 'spells': {
           const className = A5eMancer.#getSelectedClassName();
           const classKey  = className?.toLowerCase() ?? '';
+          context.deferToSystem        = AM.deferToSystemGrants;
           context.classSelected        = !!AM.SELECTED.class?.uuid;
           context.spellInfo            = classKey ? SpellService.getClassSpellInfo(className) : null;
           context.isSpellcaster        = classKey ? (!!CLASS_SPELL_TABLES[classKey] || SpellService._dynamicIsSpellcaster) : false;
@@ -307,12 +309,24 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
 
   /* ── static actions ───────────────────────────────────── */
 
-  static async rollStat(_event, form) {
+  static async rollStat(_event, btn) {
     const formula = game.settings.get(AM.ID, 'customRollFormula') || '4d6kh3';
-    const idx   = form.dataset.index;
-    const score = await StatRoller.rollSingleScore(formula);
-    const input = document.getElementById(`ability-${idx}-score`);
-    if (input) { input.value = score; input.dispatchEvent(new Event('change', { bubbles: true })); }
+    const idx     = btn.dataset.index;
+    const input   = document.getElementById(`ability-${idx}-score`);
+    if (!input) return;
+
+    btn.disabled = true;
+    try {
+      const score = await StatRoller.rollSingleScore(formula);
+      if (score === null) return;
+      input.value = score;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      // Flash the field so it's obvious which score just landed
+      input.classList.add('am-rolled');
+      setTimeout(() => input.classList.remove('am-rolled'), 600);
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   static async rollWealth(event) {
@@ -591,6 +605,7 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
 
   /** Pick random valid maneuvers for the selected class (quota + allowed traditions + degree). */
   static async #randomizeManeuvers() {
+    if (AM.deferToSystemGrants) return; // a5e's grant dialog picks these
     const className = A5eMancer.#getSelectedClassName();
     const info = className ? ManeuverService.getClassManeuverInfo(className, 1) : null;
     if (!info) return;
@@ -629,6 +644,7 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
 
   /** Pick random valid cantrips + spells for the selected class (respecting quotas). */
   static async #randomizeSpells() {
+    if (AM.deferToSystemGrants) return; // a5e's grant dialog picks these
     const className = A5eMancer.#getSelectedClassName();
     const info = className ? SpellService.getClassSpellInfo(className) : null;
     if (!info) return;
@@ -677,12 +693,13 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     } else if (method === 'manualFormula') {
       const formula = game.settings.get(AM.ID, 'customRollFormula') || '4d6kh3';
       const scores = await StatRoller.rollAllScores(formula);
-      for (let i = 0; i < 6; i++) {
+      for (let i = 0; i < scores.length; i++) {
         const input = document.getElementById(`ability-${i}-score`);
-        if (input) {
-          input.value = scores[i];
-          input.dispatchEvent(new Event('change', { bubbles: true }));
-        }
+        if (!input) continue;
+        input.value = scores[i];
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        input.classList.add('am-rolled');
+        setTimeout(() => input.classList.remove('am-rolled'), 600);
       }
 
     } else if (method === 'pointBuy') {

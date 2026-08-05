@@ -2,6 +2,7 @@ import { AM } from '../a5e-mancer.js';
 import { LevelUpDialog } from './LevelUpDialog.js';
 import { ManeuverDialog } from './ManeuverDialog.js';
 import { SpellDialog } from './SpellDialog.js';
+import { SpellService } from '../utils/spellService.js';
 
 const MODULE_ID = 'a5e-mancer';
 
@@ -134,8 +135,9 @@ export class A5eCharacterSheet extends ActorSheet {
     /* Resources */
     const hp  = sys.attributes?.hp ?? {};
     const ex  = sys.attributes?.exertion ?? {};
-    const hpPct = hp.max ? Math.round(Math.clamped((hp.value ?? 0) / hp.max, 0, 1) * 100) : 0;
-    const exPct = ex.max ? Math.round(Math.clamped((ex.current ?? 0) / ex.max, 0, 1) * 100) : 0;
+    const pct01 = (v, max) => Math.round(Math.min(Math.max(v / max, 0), 1) * 100);
+    const hpPct = hp.max ? pct01(hp.value ?? 0, hp.max) : 0;
+    const exPct = ex.max ? pct01(ex.current ?? 0, ex.max) : 0;
     const hpColor = hpPct < 25 ? '#e05040' : hpPct < 50 ? '#e09020' : '#4a9a4a';
 
     const resources = {
@@ -1270,15 +1272,29 @@ export class A5eCharacterSheet extends ActorSheet {
       AM.openLevelUp(this.actor)
     );
 
-    /* Manage maneuvers */
+    /* Manage maneuvers — the dialog derives slots, degree and tradition caps from
+       the character's class tables. GMs get an unlock toggle inside it. */
     el.querySelector('[data-action="manage-maneuvers"]')?.addEventListener('click', () =>
-      new ManeuverDialog(this.actor, { slotsAvailable: -1 }).render(true)
+      new ManeuverDialog(this.actor).render(true)
     );
 
-    /* Manage spells */
-    el.querySelector('[data-action="manage-spells"]')?.addEventListener('click', () =>
-      new SpellDialog(this.actor, { cantripsToChoose: -1, spellsToChoose: -1 }).render(true)
-    );
+    /* Manage spells. Spell level cap follows the caster's class level; a5e has no
+       bundled spells-known-per-level table, so the count itself stays free-form. */
+    el.querySelector('[data-action="manage-spells"]')?.addEventListener('click', () => {
+      const casterClass = this.actor.items.find(i =>
+        i.type === 'class' && SpellService.isSpellcaster(i.name)
+      );
+      const casterLevel = casterClass
+        ? (casterClass.system?.classLevels ?? casterClass.system?.levels ?? casterClass.system?.level ?? 1)
+        : (this.actor.items.filter(i => i.type === 'class')
+             .reduce((n, i) => n + (i.system?.classLevels ?? i.system?.levels ?? i.system?.level ?? 1), 0) || 1);
+      new SpellDialog(this.actor, {
+        className:        casterClass?.name ?? '',
+        cantripsToChoose: -1,
+        spellsToChoose:   -1,
+        maxSpellLevel:    Math.max(1, Math.min(9, Math.ceil(casterLevel / 2)))
+      }).render(true);
+    });
 
     /* Feature collapse */
     el.querySelectorAll('.am-feature-toggle').forEach(btn =>

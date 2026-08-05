@@ -48,6 +48,16 @@ export class AM {
     };
   }
 
+  /**
+   * True when the a5e system's own grant dialog is the authority on combat
+   * traditions, maneuvers and spells — so our pickers must stay out of the way
+   * or the character gets both sets of picks.
+   */
+  static get deferToSystemGrants() {
+    try { return !!game.settings.get(this.ID, 'deferToSystemGrants'); }
+    catch { return true; }
+  }
+
   static log(level, ...args) {
     if (this.LOG_LEVEL === 0 || level > this.LOG_LEVEL) return;
     const p = `${this.ID} |`;

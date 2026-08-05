@@ -13,6 +13,15 @@ export class StatRoller {
   /* --- point-buy cost table (score → cost) -------------- */
   static POINT_BUY_COSTS = { 8:0, 9:1, 10:2, 11:3, 12:4, 13:5, 14:7, 15:9 };
 
+  /**
+   * Sanity bounds for *rolled* scores. Deliberately NOT AM.ABILITY_SCORES.MIN/MAX —
+   * those are the point-buy budget bounds (8–15) and would squash every roll.
+   */
+  static ROLL_BOUNDS = { MIN: 3, MAX: 20 };
+
+  /** Math.clamped was removed in Foundry v13; keep our own so this is version-proof. */
+  static clamp(value, min, max) { return Math.min(Math.max(value, min), max); }
+
   /* -------------------------------------------------------- */
 
   /** @returns {string} comma-separated default standard array */
@@ -70,12 +79,19 @@ export class StatRoller {
    * @returns {Promise<number>}
    */
   static async rollSingleScore(formula) {
-    const roll = new Roll(formula);
-    await roll.evaluate();
+    let roll;
+    try {
+      roll = new Roll(formula || '4d6kh3');
+      await roll.evaluate();
+    } catch (err) {
+      AM.log(1, 'Ability roll failed:', formula, err);
+      ui.notifications?.error(`${AM.NAME}: invalid roll formula "${formula}"`);
+      return null;
+    }
     if (game.modules.get('dice-so-nice')?.active) {
       try { await game.dice3d.showForRoll(roll, game.user, true); } catch {}
     }
-    return Math.clamped(roll.total, AM.ABILITY_SCORES.MIN, AM.ABILITY_SCORES.MAX);
+    return this.clamp(roll.total, this.ROLL_BOUNDS.MIN, this.ROLL_BOUNDS.MAX);
   }
 
   /**
@@ -84,10 +100,13 @@ export class StatRoller {
    * @returns {Promise<number[]>} array of 6 scores
    */
   static async rollAllScores(formula) {
-    const delay = game.settings.get(AM.ID, 'rollDelay') || 400;
+    let delay = 400;
+    try { delay = game.settings.get(AM.ID, 'rollDelay') || 400; } catch { /* setting missing */ }
     const scores = [];
     for (let i = 0; i < 6; i++) {
-      scores.push(await this.rollSingleScore(formula));
+      const score = await this.rollSingleScore(formula);
+      if (score === null) return scores;   // bad formula – stop, keep what we got
+      scores.push(score);
       if (i < 5) await new Promise(r => setTimeout(r, delay));
     }
     return scores;
@@ -109,7 +128,7 @@ export class StatRoller {
     if (!scoreEl || !inputEl) return;
 
     const current  = parseInt(scoreEl.textContent) || AM.ABILITY_SCORES.DEFAULT;
-    const next     = Math.clamped(current + delta, AM.ABILITY_SCORES.MIN, AM.ABILITY_SCORES.MAX);
+    const next     = this.clamp(current + delta, AM.ABILITY_SCORES.MIN, AM.ABILITY_SCORES.MAX);
 
     // Check point-buy budget
     const allScores = [];

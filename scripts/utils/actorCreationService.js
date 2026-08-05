@@ -311,6 +311,9 @@ export class ActorCreationService {
   /* ── Biography ──────────────────────────────────────── */
 
   static async #applyManeuvers(actor) {
+    // a5e's grant dialog asks for traditions/maneuvers when the class item is
+    // created; applying our own picks too gave the character both sets.
+    if (AM.deferToSystemGrants) { AM.creationManeuvers = null; return; }
     const data = AM.creationManeuvers;
     if (!data?.uuids?.length && !data?.traditions?.length) return;
     await ManeuverService.applyManeuversToActor(
@@ -320,6 +323,7 @@ export class ActorCreationService {
   }
 
   static async #applySpells(actor) {
+    if (AM.deferToSystemGrants) { AM.creationSpells = null; return; }
     const data = AM.creationSpells;
     if (!data) return;
     const all = [...(data.cantrips ?? []), ...(data.spells ?? [])];

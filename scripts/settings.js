@@ -94,6 +94,20 @@ export function registerSettings() {
     scope: 'world', config: true, type: Boolean, default: false
   });
 
+  // Pause between the six rolls when rolling the whole array at once (ms).
+  game.settings.register(AM.ID, 'rollDelay', {
+    scope: 'client', config: false, type: Number, default: 400
+  });
+
+  // The a5e system's own grant engine opens a selection dialog for combat
+  // traditions, maneuvers and spells whenever a class item is added or its level
+  // changes. Offering the same picks in our UI means the character ends up with
+  // both sets. On (default) we step aside and let the system ask.
+  game.settings.register(AM.ID, 'deferToSystemGrants', {
+    name: 'am.settings.defer-grants.name', hint: 'am.settings.defer-grants.hint',
+    scope: 'world', config: true, type: Boolean, default: true
+  });
+
   // ---- Compendium packs (per document type) ----
   for (const type of ['heritage', 'culture', 'background', 'destiny', 'class']) {
     game.settings.register(AM.ID, `${type}Packs`, {

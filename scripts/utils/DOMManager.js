@@ -98,6 +98,22 @@ export class DOMManager {
       enforceUnique();
     }
 
+    // ── Manual / point-buy ability inputs ────────────────
+    // Only the standard-array dropdowns had listeners, so rolled and point-buy
+    // scores never refreshed the review panel or the tab-complete indicator.
+    for (const el of form.querySelectorAll('.ability-score, .ability-block.point-buy input[type="hidden"]')) {
+      const fn = () => {
+        DOMManager.updateAbilitiesSummary(form);
+        DOMManager.updateTabIndicators(form);
+      };
+      el.addEventListener('change', fn);
+      this.#listeners.push({ el, type: 'change', fn });
+      if (el.classList.contains('ability-score')) {
+        el.addEventListener('input', fn);
+        this.#listeners.push({ el, type: 'input', fn });
+      }
+    }
+
     // ── Roll method selector ─────────────────────────────
     const rollMethodSel = form.querySelector('#roll-method');
     if (rollMethodSel) {
@@ -445,12 +461,14 @@ export class DOMManager {
         return inputs.length > 0 && [...inputs].every(el => el.value && el.value !== '');
       },
       maneuvers:   () => {
+        if (AM.deferToSystemGrants) return true; // a5e's grant dialog handles these
         const className = AM.SELECTED.class?.name ?? '';
         const info = className ? ManeuverService.getClassManeuverInfo(className, 1) : null;
         if (!info) return true; // no maneuvers for this class
         return (AM.creationManeuvers?.uuids?.length ?? 0) >= info.maneuversKnown;
       },
       spells:      () => {
+        if (AM.deferToSystemGrants) return true; // a5e's grant dialog handles these
         const className = AM.SELECTED.class?.name ?? '';
         const info = className ? SpellService.getClassSpellInfo(className) : null;
         if (!info) return true; // no spells for this class

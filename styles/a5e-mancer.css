@@ -385,6 +385,21 @@
     border-color: var(--am-gold) !important;
     transform: scale(1.1);
   }
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+    transform: none;
+  }
+}
+
+/* Flash a score field right after it is rolled */
+.ability-score.am-rolled {
+  animation: am-score-flash 0.6s ease-out;
+}
+
+@keyframes am-score-flash {
+  0%   { background: rgba(212,175,55,0.55); box-shadow: 0 0 8px var(--am-gold); }
+  100% { background: transparent; box-shadow: none; }
 }
 
 .adjust-button {
@@ -673,6 +688,22 @@
     color: var(--am-gold);
     box-shadow: 0 0 12px rgba(212,175,55,0.22);
   }
+
+  /* Already on the character — visible, but not pickable again */
+  &.am-card-known,
+  &.am-card-known:hover {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+    border-color: rgba(74,154,74,0.5) !important;
+    background: rgba(74,154,74,0.07) !important;
+  }
+}
+
+.am-known-pip {
+  color: #4a9a4a;
+  font-size: 0.7rem;
 }
 
 .am-card-img {

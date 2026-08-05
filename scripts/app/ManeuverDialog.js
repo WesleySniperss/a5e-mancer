@@ -21,11 +21,22 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
    */
   constructor(actor, options = {}) {
     super(options);
-    this.actor             = actor;
-    this.slotsAvailable    = options.slotsAvailable ?? -1;
-    this.maxDegree         = options.maxDegree ?? 5;
-    this.allowedTraditions = options.allowedTraditions ?? [];
+    this.actor = actor;
+
+    // What the character's class tables actually entitle them to. Used whenever the
+    // caller doesn't state a limit — opening this from the sheet used to mean
+    // "unlimited", which let players take every maneuver and every tradition.
+    const ent = ManeuverService.getActorEntitlement(actor);
+    this.entitlement = ent;
+
+    this.slotsAvailable    = options.slotsAvailable ?? ent?.remainingManeuvers ?? -1;
+    this.maxDegree         = options.maxDegree      ?? ent?.maxDegree ?? 5;
+    this.allowedTraditions = options.allowedTraditions
+                             ?? (ent?.allowedTraditions ? [...ent.allowedTraditions] : []);
+    this.traditionLimit    = options.traditionLimit  ?? ent?.traditions ?? 0;
     this.onConfirm         = options.onConfirm ?? null;
+    // GMs can lift the caps for homebrew/corrections via the footer toggle.
+    this._unlocked         = false;
 
     // State — restore previous selections so re-opening can't duplicate picks
     this._allManeuvers     = new Map(); // tradition → Map<degree, maneuver[]>
@@ -36,7 +47,10 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     this._sortBy           = 'degree'; // 'degree' | 'name' | 'tradition'
     this._sortDir          = 'asc';    // 'asc' | 'desc'
     this._loading          = true;
-    this._selectedTraditions = new Set(options.allowedTraditions);
+    // Traditions the player is claiming in this session. Starts empty — seeding it
+    // from allowedTraditions granted proficiency in every tradition the class *may*
+    // choose, instead of the ones actually picked.
+    this._selectedTraditions = new Set(options.initialSelectedTraditions ?? []);
     this._descMap          = new Map(); // uuid → full maneuver data for description panel
     this._sidebarDescHtml  = null;      // null = hidden, string = rendered HTML
     this._compendiumCache  = new Map(); // tradition name → description string
@@ -80,9 +94,9 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     const knownManeuvers = this.actor ? ManeuverService.getActorManeuvers(this.actor) : [];
-    const knownUuids     = new Set(knownManeuvers.map(m =>
-      this.actor?.items.get(m.id)?.flags?.core?.sourceId ?? ''
-    ).filter(Boolean));
+    // Source UUIDs *and* names — reading only flags.core.sourceId (removed in v12)
+    // returned an empty set, so every known maneuver stayed pickable and got added twice.
+    const knownUuids     = ManeuverService.getActorManeuverKeys(this.actor);
 
     // Build tradition list
     const actorTraditions = new Set(this.actor ? ManeuverService.getActorTraditions(this.actor) : []);
@@ -112,7 +126,8 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     const visibleManeuvers = this.#getVisibleManeuvers(knownUuids);
 
     const selectedCount = this._selectedUuids.size;
-    const canSelectMore = this.slotsAvailable === -1 || (this.slotsAvailable > 0 && selectedCount < this.slotsAvailable);
+    const slots         = this.#effectiveSlots();
+    const canSelectMore = slots === -1 || (slots > 0 && selectedCount < slots);
 
     return {
       traditions,
@@ -124,14 +139,31 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       sortDir:           this._sortDir,
       selectedUuids:     [...this._selectedUuids],
       selectedCount,
-      slotsAvailable:    this.slotsAvailable,
+      slotsAvailable:    slots,
+      showSlots:         slots > 0,
       canSelectMore,
       maxDegree:         this.maxDegree,
       knownManeuvers,
+      knownCount:        this.entitlement?.knownCount ?? knownManeuvers.length,
+      entitlement:       this.entitlement,
+      traditionLimit:    this.#effectiveTraditionLimit(),
+      selectedTraditionCount: this._selectedTraditions.size,
+      isGM:              game.user.isGM,
+      unlocked:          this._unlocked,
       degrees:           [1, 2, 3, 4, 5].filter(d => d <= this.maxDegree),
       loading:           this._loading,
-      freeManage:        this.slotsAvailable === -1
+      freeManage:        slots === -1
     };
+  }
+
+  /** Slot cap in force right now (-1 = uncapped). */
+  #effectiveSlots() {
+    return this._unlocked ? -1 : this.slotsAvailable;
+  }
+
+  /** Tradition cap in force right now (0 = uncapped). */
+  #effectiveTraditionLimit() {
+    return this._unlocked ? 0 : this.traditionLimit;
   }
 
   /* ── Render ───────────────────────────────────────────── */
@@ -168,13 +200,10 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       });
     });
 
-    // Tradition selection checkboxes (for first-level picking)
-    el.querySelectorAll('.am-tradition-select').forEach(chk => {
-      chk.addEventListener('change', (e) => {
-        const t = e.target.dataset.tradition;
-        if (e.target.checked) this._selectedTraditions.add(t);
-        else this._selectedTraditions.delete(t);
-      });
+    // GM unlock — lifts the slot/tradition caps for homebrew or corrections
+    el.querySelector('.am-maneuver-unlock')?.addEventListener('click', () => {
+      this._unlocked = !this._unlocked;
+      this.render(false);
     });
 
     // Degree filter
@@ -251,7 +280,7 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
           }
           results.push({
             ...m,
-            alreadyKnown: knownUuids.has(m.uuid),
+            alreadyKnown: ManeuverService.isKnown(knownUuids, m),
             selected:     this._selectedUuids.has(m.uuid)
           });
         }
@@ -274,18 +303,43 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
   #toggleManeuver(card) {
     const uuid = card.dataset.uuid;
-    const alreadyKnown = card.classList.contains('am-already-known');
-    if (alreadyKnown) return;
+    const tradition = card.dataset.tradition || '';
+    if (card.classList.contains('am-already-known')) {
+      ui.notifications.warn(game.i18n.localize('am.maneuvers.already-known'));
+      return;
+    }
+
+    const slots      = this.#effectiveSlots();
+    const tradLimit  = this.#effectiveTraditionLimit();
 
     if (this._selectedUuids.has(uuid)) {
       this._selectedUuids.delete(uuid);
       card.classList.remove('am-selected');
+      // Release the tradition if this was the last pick from it
+      if (tradition && !this.#actorHasTradition(tradition) && !this.#anySelectedFrom(tradition)) {
+        this._selectedTraditions.delete(tradition);
+      }
     } else {
-      if (this.slotsAvailable !== -1 && (this.slotsAvailable === 0 || this._selectedUuids.size >= this.slotsAvailable)) {
+      if (slots !== -1 && (slots === 0 || this._selectedUuids.size >= slots)) {
         ui.notifications.warn(
-          game.i18n.format('am.maneuvers.slots-full', { n: this.slotsAvailable })
+          slots === 0
+            ? game.i18n.localize('am.maneuvers.no-slots')
+            : game.i18n.format('am.maneuvers.slots-full', { n: slots })
         );
         return;
+      }
+      // A5e classes are proficient in a fixed number of combat traditions —
+      // picking from a new one past that cap is not a legal choice.
+      if (tradition && !this.#actorHasTradition(tradition) && !this._selectedTraditions.has(tradition)) {
+        const used = new Set([
+          ...ManeuverService.getActorTraditions(this.actor ?? { system: {} }),
+          ...this._selectedTraditions
+        ]);
+        if (tradLimit > 0 && used.size >= tradLimit) {
+          ui.notifications.warn(game.i18n.format('am.app.maneuvers.tradition-limit', { n: tradLimit }));
+          return;
+        }
+        this._selectedTraditions.add(tradition);
       }
       this._selectedUuids.add(uuid);
       card.classList.add('am-selected');
@@ -294,6 +348,21 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     // Update counter
     const counter = this.element.querySelector('.am-selected-count');
     if (counter) counter.textContent = this._selectedUuids.size;
+    const tradCounter = this.element.querySelector('.am-selected-tradition-count');
+    if (tradCounter) tradCounter.textContent = this._selectedTraditions.size;
+  }
+
+  #actorHasTradition(tradition) {
+    if (!this.actor) return false;
+    return ManeuverService.getActorTraditions(this.actor).includes(tradition);
+  }
+
+  /** Is any still-selected maneuver from this tradition? */
+  #anySelectedFrom(tradition) {
+    const tradMap = this._allManeuvers.get(tradition);
+    if (!tradMap) return false;
+    const uuids = new Set([...tradMap.values()].flat().map(m => m.uuid));
+    return [...this._selectedUuids].some(u => uuids.has(u));
   }
 
   #showDescPanel(card, x, y) {

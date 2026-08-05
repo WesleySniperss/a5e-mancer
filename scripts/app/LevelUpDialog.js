@@ -94,7 +94,8 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       const maneuverInfo = newClass
         ? this.#getManeuverInfo({ name: newClass.name }, 1, newTotalLevel)
         : null;
-      const spellInfo = newClass
+      // a5e's grant dialog handles the new class's spell picks — see #getManeuverInfo
+      const spellInfo = (newClass && !AM.deferToSystemGrants)
         ? (CLASS_SPELL_TABLES[newClass.name.toLowerCase()] ?? await SpellService.loadClassSpellInfo(newClass.uuid))
         : null;
       const avgHP = Math.ceil((newClass?.hitDie ?? 8) / 2) + 1 + this.#getConMod();
@@ -142,7 +143,11 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
     // The class's knack, features and ASI/feat are granted by a5e itself when the
     // level changes, so we only surface a heads-up that its dialog will appear.
+    // With deferToSystemGrants on, its dialog also covers traditions/maneuvers/spells.
     const grantsFeatures = true;
+    const classKey       = (selectedClass?.name ?? '').toLowerCase();
+    const grantsManeuvers = AM.deferToSystemGrants && !!CLASS_MANEUVER_TABLES[classKey];
+    const grantsSpells    = AM.deferToSystemGrants && SpellService.isSpellcaster(classKey);
 
     const context = {
       actor:                this.actor,
@@ -153,6 +158,8 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       newTotalLevel,
       info,
       grantsFeatures,
+      grantsManeuvers,
+      grantsSpells,
       hpMethod:             this._hpMethod,
       avgHP,
       rolledHP:             this._rolledHP !== null ? this._rolledHP + this.#getConMod() : null,
@@ -179,7 +186,10 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       const actorTraditions = ManeuverService.getActorTraditions?.(this.actor) ?? [];
       const allUsed = [...new Set([...actorTraditions, ...this._selectedTraditions])];
       context.inlineTraditions      = LevelUpDialog.#buildTraditionPills(this._allManeuversData, allUsed, this._maneuverFilter.tradition, maneuverInfo.allowedTraditions);
-      context.visibleManeuvers      = LevelUpDialog.#filterManeuvers(this._allManeuversData, maneuverInfo.maxDegree, this._maneuverFilter.tradition, this._selectedManeuverUuids);
+      context.visibleManeuvers      = LevelUpDialog.#filterManeuvers(
+        this._allManeuversData, maneuverInfo.maxDegree, this._maneuverFilter.tradition,
+        this._selectedManeuverUuids, ManeuverService.getActorManeuverKeys(this.actor)
+      );
       context.maneuverFilterTradition = this._maneuverFilter.tradition ?? '';
     } else if (!this._loadingManeuvers) {
       this._loadingManeuvers = true;
@@ -192,7 +202,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   #addSpellBrowserContext(context, spellInfo) {
-    if (!spellInfo) return;
+    if (!spellInfo || AM.deferToSystemGrants) return;
     context.spellsLoaded = !!this._allSpellsData;
     if (this._allSpellsData) {
       const result = LevelUpDialog.#filterSpells(this._allSpellsData, spellInfo, this._spellFilter, this._selectedCantripUuids, this._selectedSpellUuids);
@@ -213,6 +223,9 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
   #getManeuverInfo(cls, newClassLevel, newTotalLevel) {
     if (!cls) return null;
+    // a5e's grant engine asks for traditions and maneuvers itself when classLevels
+    // changes; showing our own picker made the character learn both sets.
+    if (AM.deferToSystemGrants) return null;
     const info = ManeuverService.getClassManeuverInfo(cls.name, newClassLevel);
     if (!info || info.maneuversKnown === 0) return null;
 
@@ -259,7 +272,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       }));
   }
 
-  static #filterManeuvers(allData, maxDegree, traditionFilter, selectedUuids) {
+  static #filterManeuvers(allData, maxDegree, traditionFilter, selectedUuids, knownKeys = new Set()) {
     if (!allData || !traditionFilter) return [];
     const tradMap = allData.get(traditionFilter);
     if (!tradMap) return [];
@@ -267,10 +280,18 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     for (const [degree, maneuvers] of tradMap) {
       if (degree > maxDegree) continue;
       for (const m of maneuvers) {
-        result.push({ ...m, isSelected: selectedUuids.includes(m.uuid) });
+        result.push({
+          ...m,
+          isSelected:   selectedUuids.includes(m.uuid),
+          alreadyKnown: ManeuverService.isKnown(knownKeys, m)
+        });
       }
     }
-    return result.sort((a, b) => a.degree - b.degree || a.name.localeCompare(b.name));
+    // Known ones sink to the bottom so the pickable ones are what you see first
+    return result.sort((a, b) =>
+      (a.alreadyKnown === b.alreadyKnown ? 0 : a.alreadyKnown ? 1 : -1)
+      || a.degree - b.degree
+      || a.name.localeCompare(b.name));
   }
 
   static #filterSpells(allData, spellInfo, filter, selectedCantrips, selectedSpells) {
@@ -409,6 +430,12 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     const uuid      = btn.dataset.uuid;
     const tradition = btn.dataset.tradition;
     if (!uuid) return;
+
+    // Never let an already-known maneuver be picked again
+    if (btn.dataset.known === 'true' || ManeuverService.getActorManeuverKeys(dialog.actor).has(uuid)) {
+      ui.notifications.warn(game.i18n.localize('am.maneuvers.already-known'));
+      return;
+    }
 
     // Resolve slot limit and tradition limit from current class context
     let limit = 0;

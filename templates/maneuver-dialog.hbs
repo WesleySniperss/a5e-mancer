@@ -8,10 +8,20 @@
   </button>
 
   <div class="flex items-center gap-sm">
-    {{#if slotsAvailable}}
+    {{#if showSlots}}
       <span class="am-hint">
         {{localize 'am.maneuvers.footer-hint' n=slotsAvailable}}
       </span>
+    {{else if freeManage}}
+      <span class="am-hint">{{localize 'am.maneuvers.free-manage'}}</span>
+    {{else}}
+      <span class="am-hint">{{localize 'am.maneuvers.no-slots'}}</span>
+    {{/if}}
+    {{#if isGM}}
+      <button type="button" class="am-maneuver-unlock {{#if unlocked}}am-active{{/if}}"
+        data-tooltip="{{localize 'am.maneuvers.unlock-hint'}}">
+        <i class="fa-solid {{#if unlocked}}fa-lock-open{{else}}fa-lock{{/if}}"></i>
+      </button>
     {{/if}}
     <button type="button" class="am-footer-submit am-maneuver-confirm">
       <i class="fa-solid fa-check"></i>
@@ -26,7 +36,14 @@
   <aside class="am-maneuver-sidebar">
 
     <div class="am-sidebar-section">
-      <h4>{{localize 'am.maneuvers.traditions'}}</h4>
+      <h4>
+        {{localize 'am.maneuvers.traditions'}}
+        {{#if traditionLimit}}
+          <small class="am-hint">
+            (<span class="am-selected-tradition-count">{{selectedTraditionCount}}</span> + {{entitlement.knownTraditions}}/{{traditionLimit}})
+          </small>
+        {{/if}}
+      </h4>
       {{#each traditions}}
         <button type="button"
           class="am-tradition-btn {{#if (eq this.key ../activeTradition)}}am-active{{/if}} {{#unless this.known}}am-unknown-tradition{{/unless}}"
@@ -102,7 +119,7 @@
           {{/if}}
         </button>
       </div>
-      {{#if slotsAvailable}}
+      {{#if showSlots}}
         <div class="am-slot-counter">
           <span class="am-selected-count">{{selectedCount}}</span>/{{slotsAvailable}}
           {{localize 'am.maneuvers.slots-label'}}
@@ -126,6 +143,7 @@
             data-name="{{this.name}}"
             data-img="{{this.img}}"
             data-degree="{{this.degree}}"
+            data-tradition="{{this.tradition}}"
             data-tradition-label="{{this.traditionLabel}}"
             data-exertion="{{this.exertion}}"
             role="button" tabindex="0"
