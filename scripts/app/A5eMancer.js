@@ -171,7 +171,7 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
           if (context.maneuverInfo && AM.allManeuversData) {
             context.inlineTraditions = A5eMancer.#buildTraditionPills(
               AM.allManeuversData, context.selectedTraditions, AM.maneuverFilter.tradition,
-              context.maneuverInfo.allowedTraditions
+              context.maneuverInfo.allowedTraditions, context.maneuverInfo.maxDegree
             );
             context.visibleManeuvers = A5eMancer.#filterManeuvers(
               AM.allManeuversData, context.maneuverInfo.maxDegree,
@@ -948,23 +948,32 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     AM.app?.render(false, { parts: ['maneuvers'] });
   }
 
-  static #buildTraditionPills(allData, selectedTraditions, activeTradition, allowedTraditions = null) {
-    const traditions = getTraditions();
-    return traditions
+  static #buildTraditionPills(allData, selectedTraditions, activeTradition,
+                              allowedTraditions = null, maxDegree = Infinity) {
+    // Maneuvers of this tradition the character could actually take right now
+    const reachable = (key) => {
+      const tradMap = allData?.get(key);
+      if (!tradMap) return 0;
+      let n = 0;
+      for (const [degree, arr] of tradMap) if (degree <= maxDegree) n += arr.length;
+      return n;
+    };
+
+    return getTraditions()
       // Restrict to the traditions this class may choose from. Without this every
       // tradition in the system was offered, whatever the class table allows.
       // null = "any tradition of your choice" (Fighter, Trooper).
       .filter(t => !allowedTraditions || allowedTraditions.includes(t.key))
-      .filter(t => {
-        const tradMap = allData?.get(t.key);
-        return tradMap && [...tradMap.values()].some(arr => arr.length > 0);
-      })
+      // …and drop any whose maneuvers are all above the degree this level allows,
+      // which otherwise showed up as a pill that opens an empty list.
+      .map(t => ({ ...t, count: reachable(t.key) }))
+      .filter(t => t.count > 0)
       .map(t => ({
-        key:   t.key,
-        label: t.label,
+        key:    t.key,
+        label:  t.label,
         active: t.key === activeTradition,
-        used:  selectedTraditions.includes(t.key),
-        count: [...(allData.get(t.key)?.values() ?? [])].reduce((s, arr) => s + arr.length, 0)
+        used:   selectedTraditions.includes(t.key),
+        count:  t.count
       }));
   }
 

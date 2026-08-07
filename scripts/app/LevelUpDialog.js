@@ -187,7 +187,9 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     if (this._allManeuversData) {
       const actorTraditions = ManeuverService.getActorTraditions?.(this.actor) ?? [];
       const allUsed = [...new Set([...actorTraditions, ...this._selectedTraditions])];
-      context.inlineTraditions      = LevelUpDialog.#buildTraditionPills(this._allManeuversData, allUsed, this._maneuverFilter.tradition, maneuverInfo.allowedTraditions);
+      context.inlineTraditions      = LevelUpDialog.#buildTraditionPills(
+        this._allManeuversData, allUsed, this._maneuverFilter.tradition,
+        maneuverInfo.allowedTraditions, maneuverInfo.maxDegree);
       context.visibleManeuvers      = LevelUpDialog.#filterManeuvers(
         this._allManeuversData, maneuverInfo.maxDegree, this._maneuverFilter.tradition,
         this._selectedManeuverUuids, ManeuverService.getActorManeuverKeys(this.actor)
@@ -276,14 +278,22 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
   /* ── Private static browser helpers ─────────────────────────────────── */
 
-  static #buildTraditionPills(allData, usedTraditions, activeTradition, allowedTraditions = null) {
+  static #buildTraditionPills(allData, usedTraditions, activeTradition,
+                              allowedTraditions = null, maxDegree = Infinity) {
+    const reachable = (key) => {
+      const tradMap = allData?.get(key);
+      if (!tradMap) return 0;
+      let n = 0;
+      for (const [degree, arr] of tradMap) if (degree <= maxDegree) n += arr.length;
+      return n;
+    };
+
     return getTraditions()
       // Restrict to the traditions this class may choose from (null = any).
       .filter(t => !allowedTraditions || allowedTraditions.includes(t.key))
-      .filter(t => {
-        const tradMap = allData?.get(t.key);
-        return tradMap && [...tradMap.values()].some(arr => arr.length > 0);
-      })
+      // Drop traditions whose maneuvers all sit above the degree this level
+      // allows — the pill opened an empty list.
+      .filter(t => reachable(t.key) > 0)
       .map(t => ({
         key:    t.key,
         label:  t.label,

@@ -161,31 +161,63 @@ export class SpellService {
   }
 
   /**
-   * Is this spell on the given class's list?
+   * Spell-list key for a character class name, e.g. "Wizard" → "wizard".
    *
-   * A5e declares `system.classes` as a StringField — a comma-separated list, not
-   * an array. The old check ran Object.keys() over it, which yields character
-   * indices ("0","1","2"), so class filtering never actually matched anything.
-   *
-   * A spell that names no classes at all is treated as available: homebrew and
-   * imported spells routinely leave the field empty, and hiding them would be
-   * worse than showing one too many.
+   * The authoritative keys are CONFIG.A5E.classSpellLists (artificer, bard,
+   * cleric, druid, elementalistAir/Earth/Fire/Water, esper, psion, psyknight,
+   * herald, sorcerer, warlock, wielder, witch, wizard). Matching against them
+   * exactly is what keeps foreign lists out; the old fuzzy substring compare is
+   * what let extra schools through.
    */
-  static spellAllowsClass(sys, className) {
+  static classSpellListKey(className) {
     const norm = (s) => String(s ?? '').toLowerCase().replace(/[^a-z]/g, '');
     const want = norm(className);
-    if (!want) return true;
+    if (!want) return '';
 
-    const raw = sys?.classes ?? sys?.spellClasses ?? '';
-    const tokens = Array.isArray(raw)
-      ? raw
-      : (raw && typeof raw === 'object')
-        ? Object.keys(raw)
-        : String(raw).split(/[,;/|]/);
+    const keys = Object.keys(CONFIG?.A5E?.classSpellLists ?? {});
+    if (!keys.length) return want;
 
-    const list = tokens.map(norm).filter(Boolean);
-    if (!list.length) return true;                    // unrestricted / unknown
-    return list.some(c => c === want || c.includes(want) || want.includes(c));
+    const exact = keys.find(k => norm(k) === want);
+    if (exact) return exact;
+
+    // "Elementalist (Fire)" and friends carry their element in the name
+    if (want.startsWith('elementalist')) {
+      const el = keys.find(k => k.startsWith('elementalist') && want.includes(norm(k).replace('elementalist', '')));
+      if (el) return el;
+    }
+    return '';
+  }
+
+  /**
+   * Is this spell on the given class's list?
+   *
+   * `system.classes` on a spell is a set of those keys — a5e itself reads it with
+   * `[...item.system.classes]`. Object.keys() over a Set returns an empty array,
+   * which the old code read as "no restriction", so every spell in every
+   * compendium passed the filter.
+   *
+   * A spell that genuinely names no class is still treated as available:
+   * homebrew and imported spells routinely leave the field empty.
+   */
+  static spellAllowsClass(sys, className) {
+    const key = this.classSpellListKey(className);
+    if (!key) return true;                      // unknown class — don't hide anything
+
+    const raw = sys?.classes ?? sys?.spellClasses ?? null;
+    if (raw === null || raw === undefined) return true;
+
+    // Array, Set, or any other iterable — the same spread a5e uses
+    let list = [];
+    if (typeof raw === 'string')            list = raw.split(/[,;/|]/);
+    else if (typeof raw?.[Symbol.iterator] === 'function') list = [...raw];
+    else if (typeof raw === 'object')       list = Object.keys(raw);
+
+    const norm = (s) => String(s ?? '').toLowerCase().replace(/[^a-z]/g, '');
+    const wanted = norm(key);
+    const normalized = list.map(norm).filter(Boolean);
+    if (!normalized.length) return true;        // unrestricted / unknown
+
+    return normalized.includes(wanted);
   }
 
   /**

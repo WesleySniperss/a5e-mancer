@@ -109,9 +109,14 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       })
       .map(t => {
         const tradMap = this._allManeuvers.get(t.key);
-        const maneuverCount = tradMap
-          ? [...tradMap.values()].flat().length
-          : 0;
+        // Count only what this character could actually take — a tradition whose
+        // maneuvers are all above the allowed degree opened an empty list.
+        let maneuverCount = 0;
+        if (tradMap) {
+          for (const [degree, arr] of tradMap) {
+            if (degree <= this.maxDegree) maneuverCount += arr.length;
+          }
+        }
         return {
           key:           t.key,
           name:          t.label,
