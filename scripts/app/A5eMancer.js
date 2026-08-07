@@ -161,7 +161,6 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
         case 'maneuvers': {
           const className = A5eMancer.#getSelectedClassName();
           const classKey  = className?.toLowerCase() ?? '';
-          context.deferToSystem         = AM.deferToSystemGrants;
           context.classSelected         = !!AM.SELECTED.class?.uuid;
           context.maneuverInfo          = classKey ? ManeuverService.getClassManeuverInfo(className, 1) : null;
           context.isManeuverClass       = classKey ? !!CLASS_MANEUVER_TABLES[classKey] : false;
@@ -185,7 +184,6 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
         case 'spells': {
           const className = A5eMancer.#getSelectedClassName();
           const classKey  = className?.toLowerCase() ?? '';
-          context.deferToSystem        = AM.deferToSystemGrants;
           context.classSelected        = !!AM.SELECTED.class?.uuid;
           context.spellInfo            = classKey ? SpellService.getClassSpellInfo(className) : null;
           context.isSpellcaster        = classKey ? (!!CLASS_SPELL_TABLES[classKey] || SpellService._dynamicIsSpellcaster) : false;
@@ -693,7 +691,6 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
 
   /** Pick random valid maneuvers for the selected class (quota + allowed traditions + degree). */
   static async #randomizeManeuvers() {
-    if (AM.deferToSystemGrants) return; // a5e's grant dialog picks these
     const className = A5eMancer.#getSelectedClassName();
     const info = className ? ManeuverService.getClassManeuverInfo(className, 1) : null;
     if (!info) return;
@@ -732,7 +729,6 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
 
   /** Pick random valid cantrips + spells for the selected class (respecting quotas). */
   static async #randomizeSpells() {
-    if (AM.deferToSystemGrants) return; // a5e's grant dialog picks these
     const className = A5eMancer.#getSelectedClassName();
     const info = className ? SpellService.getClassSpellInfo(className) : null;
     if (!info) return;

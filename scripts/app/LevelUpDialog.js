@@ -94,8 +94,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       const maneuverInfo = newClass
         ? this.#getManeuverInfo({ name: newClass.name }, 1, newTotalLevel)
         : null;
-      // a5e's grant dialog handles the new class's spell picks — see #getManeuverInfo
-      const spellInfo = (newClass && !AM.deferToSystemGrants)
+      const spellInfo = newClass
         ? (CLASS_SPELL_TABLES[newClass.name.toLowerCase()] ?? await SpellService.loadClassSpellInfo(newClass.uuid))
         : null;
       const avgHP = Math.ceil((newClass?.hitDie ?? 8) / 2) + 1 + this.#getConMod();
@@ -144,11 +143,12 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
     // The class's knack, features and ASI/feat are granted by a5e itself when the
     // level changes, so we only surface a heads-up that its dialog will appear.
-    // With deferToSystemGrants on, its dialog also covers traditions/maneuvers/spells.
-    const grantsFeatures = true;
-    const classKey       = (selectedClass?.name ?? '').toLowerCase();
-    const grantsManeuvers = AM.deferToSystemGrants && !!CLASS_MANEUVER_TABLES[classKey];
-    const grantsSpells    = AM.deferToSystemGrants && SpellService.isSpellcaster(classKey);
+    // It also asks for combat traditions (a 'trait' grant) — but NOT for maneuver
+    // or spell items: a5e has no grant type that hands those out, which is why
+    // both pickers below stay in this dialog.
+    const grantsFeatures  = true;
+    const classKey        = (selectedClass?.name ?? '').toLowerCase();
+    const grantsTraditions = !!CLASS_MANEUVER_TABLES[classKey];
 
     const context = {
       actor:                this.actor,
@@ -159,8 +159,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       newTotalLevel,
       info,
       grantsFeatures,
-      grantsManeuvers,
-      grantsSpells,
+      grantsTraditions,
       deferHp:              this.#systemOwnsHp(),
       hpMethod:             this._hpMethod,
       avgHP,
@@ -204,7 +203,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   #addSpellBrowserContext(context, spellInfo) {
-    if (!spellInfo || AM.deferToSystemGrants) return;
+    if (!spellInfo) return;
     context.spellsLoaded = !!this._allSpellsData;
     if (this._allSpellsData) {
       const result = LevelUpDialog.#filterSpells(this._allSpellsData, spellInfo, this._spellFilter, this._selectedCantripUuids, this._selectedSpellUuids);
@@ -225,9 +224,6 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
   #getManeuverInfo(cls, newClassLevel, newTotalLevel) {
     if (!cls) return null;
-    // a5e's grant engine asks for traditions and maneuvers itself when classLevels
-    // changes; showing our own picker made the character learn both sets.
-    if (AM.deferToSystemGrants) return null;
     const info = ManeuverService.getClassManeuverInfo(cls.name, newClassLevel);
     if (!info || info.maneuversKnown === 0) return null;
 

@@ -507,14 +507,12 @@ export class DOMManager {
         return inputs.length > 0 && [...inputs].every(el => el.value && el.value !== '');
       },
       maneuvers:   () => {
-        if (AM.deferToSystemGrants) return true; // a5e's grant dialog handles these
         const className = AM.SELECTED.class?.name ?? '';
         const info = className ? ManeuverService.getClassManeuverInfo(className, 1) : null;
         if (!info) return true; // no maneuvers for this class
         return (AM.creationManeuvers?.uuids?.length ?? 0) >= info.maneuversKnown;
       },
       spells:      () => {
-        if (AM.deferToSystemGrants) return true; // a5e's grant dialog handles these
         const className = AM.SELECTED.class?.name ?? '';
         const info = className ? SpellService.getClassSpellInfo(className) : null;
         if (!info) return true; // no spells for this class

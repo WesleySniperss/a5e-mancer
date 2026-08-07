@@ -4,17 +4,7 @@
   <fieldset>
     <legend>{{localize 'am.app.maneuvers.tooltip'}}</legend>
 
-    {{#if deferToSystem}}
-
-      {{!-- a5e's own grant dialog asks for traditions and maneuvers when the class
-            item lands on the actor. Picking here too gave the character both sets. --}}
-      <div class="am-info-placeholder">
-        <i class="fa-solid fa-circle-info fa-2x" style="opacity:0.5"></i>
-        <p>{{localize 'am.app.maneuvers.system-handles'}}</p>
-        <p class="am-hint">{{localize 'am.app.maneuvers.system-handles-hint'}}</p>
-      </div>
-
-    {{else if classSelected}}
+    {{#if classSelected}}
 
       {{#if maneuverInfo}}
 

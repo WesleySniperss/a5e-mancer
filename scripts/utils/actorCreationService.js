@@ -123,12 +123,25 @@ export class ActorCreationService {
       },
       system: {
         abilities,
+        // A5e's character details schema is: age, appearance, archetype,
+        // background, classes, culture, destiny, eyeColor, gender, hairColor,
+        // heritage, height, level, bonds, flaws, ideals, goals, notes, prestige,
+        // skinColor, weight. We were writing eyes/hair/skin/alignment/pronouns,
+        // none of which exist — Foundry drops unknown paths, so every one of those
+        // fields silently stayed empty. Alignment and pronouns have no home in the
+        // schema at all and are folded into `appearance`.
         details: {
-          gender: fd.gender || '', age: fd.age || '',
-          height: fd.height || '', weight: fd.weight || '',
-          eyes:   fd.eyes   || '', hair:   fd.hair   || '',
-          skin:   fd.skin   || '', alignment: fd.alignment || '',
-          pronouns: fd.pronouns || ''
+          gender:    fd.gender  || '',
+          age:       fd.age     || '',
+          height:    fd.height  || '',
+          weight:    fd.weight  || '',
+          eyeColor:  fd.eyes    || '',
+          hairColor: fd.hair    || '',
+          skinColor: fd.skin    || '',
+          appearance: [
+            fd.pronouns  ? `Pronouns: ${fd.pronouns}`   : '',
+            fd.alignment ? `Alignment: ${fd.alignment}` : ''
+          ].filter(Boolean).join(' · ')
         }
       },
       ownership: { [targetUser.id]: CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER }
@@ -159,7 +172,7 @@ export class ActorCreationService {
         const data = item.toObject();
         data._stats = data._stats || {};
         data._stats.compendiumSource = uuid;
-        this.#stripEquipmentGrants(data);
+        this.#stripBuilderOwnedGrants(data);
         itemDatas.push(data);
         AM.log(3, `Queued ${type}: ${item.name}`);
       } catch (err) {
@@ -187,22 +200,30 @@ export class ActorCreationService {
   }
 
   /**
-   * Drop the class/background "Starting Equipment" and "Suggested Equipment"
-   * grants from the item data before it reaches the actor.
+   * Drop the grants the builder itself asks for, before the item data reaches
+   * the actor. a5e reads grants off the item being created
+   * (`t.noGrant || grants.createInitialGrants(this)`), so anything removed here
+   * simply never appears in its window. Everything else still goes through a5e's
+   * grant engine untouched.
    *
-   * a5e reads grants off the item being created (`t.noGrant || grants.createInitialGrants(this)`),
-   * so removing them here means its window never offers gear at all — the
-   * Equipment tab is the single place it is chosen. Everything else on the item
-   * still goes through a5e's grant engine untouched.
+   *  - `item` grants  — "Starting Equipment" / "Suggested Equipment"; the
+   *    Equipment tab is the single place gear is chosen.
+   *  - `maneuverTraditions` trait grants — the Maneuvers tab claims a tradition
+   *    as you pick maneuvers from it. Note a5e grants the *tradition* only; it has
+   *    no grant type that hands out maneuver or spell items, which is why those
+   *    pickers belong to the builder.
    */
-  static #stripEquipmentGrants(data) {
+  static #stripBuilderOwnedGrants(data) {
     const grants = data.system?.grants;
     if (!grants || typeof grants !== 'object') return;
     let removed = 0;
     for (const [id, grant] of Object.entries(grants)) {
-      if (grant?.grantType === 'item') { delete grants[id]; removed++; }
+      const isEquipment = grant?.grantType === 'item';
+      const isTradition = grant?.grantType === 'trait'
+                          && grant.traits?.traitType === 'maneuverTraditions';
+      if (isEquipment || isTradition) { delete grants[id]; removed++; }
     }
-    if (removed) AM.log(3, `Removed ${removed} equipment grant(s) from ${data.name}`);
+    if (removed) AM.log(3, `Removed ${removed} builder-owned grant(s) from ${data.name}`);
   }
 
   /* ── Heritage Gift ──────────────────────────────────── */
@@ -397,9 +418,6 @@ export class ActorCreationService {
   /* ── Biography ──────────────────────────────────────── */
 
   static async #applyManeuvers(actor) {
-    // a5e's grant dialog asks for traditions/maneuvers when the class item is
-    // created; applying our own picks too gave the character both sets.
-    if (AM.deferToSystemGrants) { AM.creationManeuvers = null; return; }
     const data = AM.creationManeuvers;
     if (!data?.uuids?.length && !data?.traditions?.length) return;
     await ManeuverService.applyManeuversToActor(
@@ -409,7 +427,6 @@ export class ActorCreationService {
   }
 
   static async #applySpells(actor) {
-    if (AM.deferToSystemGrants) { AM.creationSpells = null; return; }
     const data = AM.creationSpells;
     if (!data) return;
     const all = [...(data.cantrips ?? []), ...(data.spells ?? [])];
