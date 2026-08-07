@@ -321,6 +321,24 @@ export class A5eCharacterSheet extends ActorSheet {
       destinyDesc:    await enrichDesc(descOf(_dItem?.system),  actor),
     };
 
+    /* Biography written by the creation wizard. Kept as a flag because a5e's
+       details schema has no field for backstory, connections, mementos or the
+       destiny table results — see ActorCreationService#applyBiography. */
+    const bioFlag = actor.getFlag(MODULE_ID, 'biography') ?? {};
+    const bio = {
+      backstory:   bioFlag.backstory   ?? '',
+      traits:      bioFlag.traits      ?? '',
+      connections: bioFlag.connections ?? '',
+      mementos:    bioFlag.mementos    ?? '',
+      motivation:  bioFlag.destiny?.motivation  ?? '',
+      goals:       bioFlag.destiny?.goals       ?? '',
+      connection:  bioFlag.destiny?.connection  ?? '',
+      fulfillment: bioFlag.destiny?.fulfillment ?? '',
+      inspiration: bioFlag.destiny?.inspiration ?? ''
+    };
+    bio.hasDestiny = !!(bio.motivation || bio.goals || bio.connection
+                        || bio.fulfillment || bio.inspiration);
+
     return {
       actor, system: sys, isOwner: actor.isOwner, isGM: game.user.isGM,
       abilities, skills, resources, classes,
@@ -329,7 +347,7 @@ export class A5eCharacterSheet extends ActorSheet {
       features, feats, allFeatures, featuresBySource, customCounters, equipment, currency,
       fatiguePips, strifePips, exertionPips,
       fatigueDesc, strifeDesc, statusConditions,
-      attunementItems, attuneCount, passivePerception, charInfo,
+      attunementItems, attuneCount, passivePerception, charInfo, bio,
       hasWeapons:          weapons.length        > 0,
       hasManeuvers:        maneuvers.length      > 0,
       hasSpells:           spells.length         > 0,

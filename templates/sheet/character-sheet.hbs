@@ -668,8 +668,39 @@
           {{!-- Editable biography fields (A5e field paths: no .value subkey) --}}
           <div class="am-cs-notes-grid">
 
+            {{!-- Written by the creation wizard. A5e's schema has no field for
+                  backstory, connections, mementos or the destiny results, so they
+                  come from our flag and each gets its own card. --}}
             <div class="am-cs-note-card am-cs-note-wide">
-              <div class="am-cs-note-label">Notes / Backstory</div>
+              <div class="am-cs-note-label">Backstory</div>
+              <textarea class="am-cs-note-text am-cs-note-tall"
+                name="flags.a5e-mancer.biography.backstory"
+                placeholder="Where do they come from?">{{bio.backstory}}</textarea>
+            </div>
+
+            <div class="am-cs-note-card">
+              <div class="am-cs-note-label">Personality Traits</div>
+              <textarea class="am-cs-note-text"
+                name="flags.a5e-mancer.biography.traits"
+                placeholder="How do they act?">{{bio.traits}}</textarea>
+            </div>
+
+            <div class="am-cs-note-card">
+              <div class="am-cs-note-label">Connections</div>
+              <textarea class="am-cs-note-text"
+                name="flags.a5e-mancer.biography.connections"
+                placeholder="Who do they know?">{{bio.connections}}</textarea>
+            </div>
+
+            <div class="am-cs-note-card">
+              <div class="am-cs-note-label">Mementos</div>
+              <textarea class="am-cs-note-text"
+                name="flags.a5e-mancer.biography.mementos"
+                placeholder="What do they carry?">{{bio.mementos}}</textarea>
+            </div>
+
+            <div class="am-cs-note-card am-cs-note-wide">
+              <div class="am-cs-note-label">Notes</div>
               <div class="am-cs-note-html">{{{actor.system.details.notes}}}</div>
             </div>
 
@@ -697,6 +728,33 @@
             </div>
 
           </div>
+
+          {{!-- Destiny table results rolled during creation --}}
+          {{#if bio.hasDestiny}}
+            <div class="am-cs-note-card am-cs-note-wide am-cs-destiny-card">
+              <div class="am-cs-note-label">
+                <i class="fa-solid fa-star"></i> Destiny
+                {{#if charInfo.destiny}}<span class="am-cs-muted">— {{charInfo.destiny}}</span>{{/if}}
+              </div>
+              <dl class="am-cs-destiny-list">
+                {{#if bio.motivation}}
+                  <dt>Source of Motivation</dt><dd>{{bio.motivation}}</dd>
+                {{/if}}
+                {{#if bio.goals}}
+                  <dt>Goals</dt><dd>{{bio.goals}}</dd>
+                {{/if}}
+                {{#if bio.connection}}
+                  <dt>Connection</dt><dd>{{bio.connection}}</dd>
+                {{/if}}
+                {{#if bio.fulfillment}}
+                  <dt>Fulfillment</dt><dd>{{bio.fulfillment}}</dd>
+                {{/if}}
+                {{#if bio.inspiration}}
+                  <dt>Inspiration Feature</dt><dd>{{bio.inspiration}}</dd>
+                {{/if}}
+              </dl>
+            </div>
+          {{/if}}
 
           {{!-- Physical --}}
           <div class="am-cs-phys-grid">

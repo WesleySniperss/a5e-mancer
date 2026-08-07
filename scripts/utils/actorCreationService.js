@@ -434,41 +434,77 @@ export class ActorCreationService {
     AM.creationSpells = null;
   }
 
+  /**
+   * Everything the Biography and Destiny tabs collected.
+   *
+   * A5e's details schema only has bonds, flaws, ideals, goals and notes for prose,
+   * so backstory, connections, mementos and the destiny table results have no
+   * native home and used to be concatenated into one `notes` blob — which is why
+   * they read as "not carried over" on the sheet.
+   *
+   * Each piece is now ALSO stored verbatim under our own flag, so the sheet can
+   * show it as its own field, while the native a5e fields still get a readable
+   * composed version for the system's own sheet and for anything else that reads
+   * them.
+   */
   static async #applyBiography(actor, fd) {
-    // A5e system.details fields (verified from A5e schema):
-    //   bonds, flaws, ideals, goals, notes — HTMLField (direct, no .value)
-    //   appearance — StringField
-    //   NO personality, biography, connections, mementos fields exist in A5e
+    const clean = (v) => (typeof v === 'string' ? v.trim() : '');
 
-    // Combine bonds + destiny narrative into bonds field
+    const bio = {
+      traits:      clean(fd.traits),
+      ideals:      clean(fd.ideals),
+      bonds:       clean(fd.bonds),
+      flaws:       clean(fd.flaws),
+      connections: clean(fd.connections),
+      backstory:   clean(fd.backstory),
+      mementos:    clean(fd.mementos),
+      destiny: {
+        motivation:  clean(fd.destinyMotivation),
+        goals:       clean(fd.destinyGoals),
+        connection:  clean(fd.destinyConnection),
+        fulfillment: clean(fd.destinyFulfillment),
+        inspiration: clean(fd.destinyInspiration)
+      }
+    };
+
+    const para    = (t) => `<p>${t.replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>')}</p>`;
+    const section = (heading, body) => (body ? `<h4>${heading}</h4>${para(body)}` : '');
+
     const bondsHtml = [
-      fd.bonds              ? `<p>${fd.bonds}</p>` : '',
-      fd.connections        ? `<p><strong>Connections:</strong> ${fd.connections}</p>` : '',
-      fd.destinyConnection  ? `<p><strong>Destiny Connection:</strong> ${fd.destinyConnection}</p>` : '',
-      fd.destinyFulfillment ? `<p><strong>Fulfillment:</strong> ${fd.destinyFulfillment}</p>` : '',
+      bio.bonds       ? para(bio.bonds) : '',
+      section('Connections', bio.connections),
+      section('Destiny Connection', bio.destiny.connection)
     ].filter(Boolean).join('\n');
 
-    // Pack personality traits, backstory, mementos, destiny motivation/inspiration into notes
+    const goalsHtml = [
+      bio.destiny.goals ? para(bio.destiny.goals) : '',
+      section('Fulfillment', bio.destiny.fulfillment)
+    ].filter(Boolean).join('\n');
+
     const notesHtml = [
-      fd.traits             ? `<h4>Personality Traits</h4><p>${fd.traits}</p>` : '',
-      fd.backstory          ? `<h4>Backstory</h4><p>${fd.backstory}</p>` : '',
-      fd.mementos           ? `<h4>Mementos</h4><p>${fd.mementos}</p>` : '',
-      fd.destinyMotivation  ? `<h4>Destiny Motivation</h4><p>${fd.destinyMotivation}</p>` : '',
-      fd.destinyInspiration ? `<h4>Inspiration Feature</h4><p>${fd.destinyInspiration}</p>` : '',
+      section('Backstory',            bio.backstory),
+      section('Personality Traits',   bio.traits),
+      section('Mementos',             bio.mementos),
+      section('Destiny Motivation',   bio.destiny.motivation),
+      section('Inspiration Feature',  bio.destiny.inspiration)
     ].filter(Boolean).join('\n');
 
     const updates = {
-      'system.details.ideals': fd.ideals || '',
-      'system.details.bonds':  bondsHtml || '',
-      'system.details.flaws':  fd.flaws  || '',
-      'system.details.goals':  fd.destinyGoals ? `<p>${fd.destinyGoals}</p>` : '',
-      'system.details.notes':  notesHtml || '',
+      'system.details.ideals': bio.ideals ? para(bio.ideals) : '',
+      'system.details.bonds':  bondsHtml,
+      'system.details.flaws':  bio.flaws ? para(bio.flaws) : '',
+      'system.details.goals':  goalsHtml,
+      'system.details.notes':  notesHtml,
+      [`flags.${AM.ID}.biography`]: bio
     };
 
     try {
       await actor.update(updates);
-    } catch(err) {
-      AM.log(2, 'Biography update failed:', err);
+      AM.log(3, 'Biography applied:', Object.keys(bio).filter(k => bio[k]).join(', '));
+    } catch (err) {
+      // Loud: a silent failure here is exactly how these fields went missing before
+      AM.log(1, 'Biography update failed:', err);
+      ui.notifications.warn(`${AM.NAME}: could not save the biography fields — see the console.`);
     }
   }
 }

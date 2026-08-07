@@ -395,6 +395,6 @@
   "am.app.maneuvers.tradition-limit": "You can only use {n} combat tradition(s). Remove a maneuver from another tradition first.",
   "am.app.spells.filter-all": "All Levels",
   "am.app.spells.filter-all-schools": "All Schools",
-  "am.app.hover-for-description": "Hover a card to preview its description",
+  "am.app.hover-for-description": "Hover a card to preview it — right-click for the full text and its costs",
   "am.levelup.features-traditions": "Combat tradition proficiency"
 }

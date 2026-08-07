@@ -4,6 +4,7 @@ import { EquipmentService } from './equipmentService.js';
 import { ManeuverService } from './maneuverService.js';
 import { SpellService } from './spellService.js';
 import { GrantAbsorber } from './grantAbsorber.js';
+import { ItemDescPanel } from './itemDescPanel.js';
 
 const ITEM_TYPES = ['heritage', 'culture', 'background', 'destiny', 'class'];
 
@@ -177,6 +178,14 @@ export class DOMManager {
       this.#listeners.push({ el, type: 'input', fn });
     }
 
+    // ── Right-click a card for the full description + its costs ──
+    // Hover gives the short inline blurb; this is the "what does it cost me"
+    // popup (exertion, casting time, components, uses).
+    {
+      const detach = ItemDescPanel.attach(form);
+      this.#listeners.push({ el: form, type: '__cleanup', fn: detach });
+    }
+
     // ── Inline card description hover ────────────────────
     for (const grid of form.querySelectorAll('.am-inline-card-grid')) {
       const panel = grid.closest('.lu-section, fieldset')?.querySelector('.am-inline-description');
@@ -213,7 +222,8 @@ export class DOMManager {
 
   static cleanup() {
     for (const { el, type, fn } of this.#listeners) {
-      try { el.removeEventListener(type, fn); } catch {}
+      // '__cleanup' entries hold a teardown function rather than a listener
+      try { type === '__cleanup' ? fn() : el.removeEventListener(type, fn); } catch {}
     }
     this.#listeners = [];
   }
@@ -350,7 +360,7 @@ export class DOMManager {
       AM.app?.render(false, { parts: ['maneuvers'] });
     });
     const spellInfo = SpellService.getClassSpellInfo(AM.SELECTED.class?.name ?? '');
-    SpellService.loadSpells(null, spellInfo?.maxLevel ?? 1).then(data => {
+    SpellService.loadSpells(AM.SELECTED.class?.name ?? '', spellInfo?.maxLevel ?? 1).then(data => {
       AM.allSpellsData = data;
       AM.app?.render(false, { parts: ['spells'] });
     });

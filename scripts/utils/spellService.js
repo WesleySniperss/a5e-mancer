@@ -161,6 +161,34 @@ export class SpellService {
   }
 
   /**
+   * Is this spell on the given class's list?
+   *
+   * A5e declares `system.classes` as a StringField — a comma-separated list, not
+   * an array. The old check ran Object.keys() over it, which yields character
+   * indices ("0","1","2"), so class filtering never actually matched anything.
+   *
+   * A spell that names no classes at all is treated as available: homebrew and
+   * imported spells routinely leave the field empty, and hiding them would be
+   * worse than showing one too many.
+   */
+  static spellAllowsClass(sys, className) {
+    const norm = (s) => String(s ?? '').toLowerCase().replace(/[^a-z]/g, '');
+    const want = norm(className);
+    if (!want) return true;
+
+    const raw = sys?.classes ?? sys?.spellClasses ?? '';
+    const tokens = Array.isArray(raw)
+      ? raw
+      : (raw && typeof raw === 'object')
+        ? Object.keys(raw)
+        : String(raw).split(/[,;/|]/);
+
+    const list = tokens.map(norm).filter(Boolean);
+    if (!list.length) return true;                    // unrestricted / unknown
+    return list.some(c => c === want || c.includes(want) || want.includes(c));
+  }
+
+  /**
    * Load all spells from compendiums, grouped by level then class.
    * Returns: Map<level (0–9), spell[]>
    */
@@ -182,13 +210,7 @@ export class SpellService {
           if (level > maxLevel) continue;
 
           // Filter by class if specified
-          if (filterClass) {
-            const classes = entry.system?.classes ?? entry.system?.spellClasses ?? [];
-            const classArr = Array.isArray(classes) ? classes : Object.keys(classes);
-            if (classArr.length && !classArr.some(c =>
-              c.toLowerCase().includes(filterClass.toLowerCase())
-            )) continue;
-          }
+          if (filterClass && !this.spellAllowsClass(entry.system, filterClass)) continue;
 
           const school = entry.system?.schools?.primary ?? entry.system?.school ?? '';
           const schoolI18nKey = CONFIG?.A5E?.spellSchools?.primary?.[school];

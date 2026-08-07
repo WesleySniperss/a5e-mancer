@@ -1,5 +1,6 @@
 import { AM } from '../a5e-mancer.js';
 import { SpellService, getSpellSchools, getSecondarySchoolsForClass } from '../utils/spellService.js';
+import { ItemDescPanel } from '../utils/itemDescPanel.js';
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -99,12 +100,25 @@ export class SpellDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       sortBy:                this._sortBy,
       sortDir:               this._sortDir,
       levels,
-      schools:               getSpellSchools(),
+      // Only schools that actually have spells on this class's list. Listing every
+      // school from CONFIG offered filters that could never match anything, and
+      // read as "all schools are available to me".
+      schools:               this.#availableSchools(),
       secondarySchools:      getSecondarySchoolsForClass(this.className),
       visibleSpells,
       loading:               this._loading,
       totalSelected:         this._selectedCantrips.size + this._selectedSpells.size
     };
+  }
+
+  /** Primary schools present among the spells actually loaded for this class. */
+  #availableSchools() {
+    const present = new Set();
+    for (const spells of this._allSpells.values()) {
+      for (const s of spells) if (s.school) present.add(s.school);
+    }
+    if (!present.size) return getSpellSchools();   // nothing loaded yet — show all
+    return getSpellSchools().filter(s => present.has(s.key));
   }
 
   /* ── Render ───────────────────────────────────────────── */
@@ -197,13 +211,16 @@ export class SpellDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       card.addEventListener('click', () => this.#toggleSpell(card));
       card.addEventListener('contextmenu', (e) => {
         e.preventDefault();
-        this.#showDescPanel(card, e.clientX, e.clientY);
+        ItemDescPanel.showForUuid(card.dataset.uuid, e.clientX, e.clientY, {
+          name: card.dataset.name ?? '',
+          img:  card.dataset.img  ?? ''
+        });
       });
     });
 
     // Close desc panel on click outside
     el.addEventListener('click', (e) => {
-      if (!e.target.closest('.am-item-desc-panel')) this.#closeDescPanel();
+      if (!e.target.closest('.am-item-desc-panel')) ItemDescPanel.close();
     }, true);
 
     // Buttons
@@ -293,48 +310,9 @@ export class SpellDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     if (counter) counter.textContent = set.size;
   }
 
-  #showDescPanel(card, x, y) {
-    this.#closeDescPanel();
-    const uuid = card.dataset.uuid;
-    const data = this._descMap.get(uuid) ?? {};
-    const level = parseInt(card.dataset.level ?? 0);
-
-    const panel = document.createElement('div');
-    panel.className = 'am-item-desc-panel';
-    panel.innerHTML = `
-      <div class="am-item-desc-header">
-        <img src="${data.img ?? ''}" alt="" />
-        <div class="am-item-desc-header-text">
-          <div class="am-item-desc-title">${data.name ?? ''}</div>
-          <div class="am-item-desc-meta">
-            <span class="am-badge ${level === 0 ? 'am-badge-cantrip' : 'am-badge-spell'}">${data.levelLabel ?? card.dataset.levelLabel ?? ''}</span>
-            ${data.schoolLabel ? `<span>${data.schoolLabel}</span>` : ''}
-            ${data.ritual ? '<span class="am-badge am-badge-ritual">Ritual</span>' : ''}
-            ${data.concentration ? '<span class="am-badge am-badge-conc">Concentration</span>' : ''}
-          </div>
-        </div>
-        <button class="am-item-desc-close" type="button">✕</button>
-      </div>
-      <div class="am-item-desc-body">${data.description || '<em>No description available.</em>'}</div>`;
-
-    panel.querySelector('.am-item-desc-close').addEventListener('click', () => this.#closeDescPanel());
-    document.body.appendChild(panel);
-
-    // Position: keep within viewport
-    const pw = 352, ph = Math.min(panel.scrollHeight, 512);
-    const vw = window.innerWidth, vh = window.innerHeight;
-    panel.style.left = `${Math.min(x + 8, vw - pw - 8)}px`;
-    panel.style.top  = `${Math.min(y + 8, vh - ph - 8)}px`;
-    this._descPanel = panel;
-  }
-
-  #closeDescPanel() {
-    this._descPanel?.remove();
-    this._descPanel = null;
-  }
 
   async _preClose() {
-    this.#closeDescPanel();
+    ItemDescPanel.close();
     return super._preClose?.() ?? true;
   }
 

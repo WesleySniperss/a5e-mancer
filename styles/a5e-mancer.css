@@ -102,6 +102,11 @@
   grid-column: 2;
   grid-row: 1 / 3;
   overflow-y: auto;
+  /* A grid item defaults to min-height:auto, which refuses to shrink below its
+     content — so overflow-y never engaged and long tabs (maneuvers, spells) grew
+     past the window instead of scrolling, leaving the description panel below the
+     bottom edge and unreachable. */
+  min-height: 0;
   max-height: none;
   padding: var(--am-spacing-md);
 }
@@ -721,6 +726,12 @@
   text-align: center;
   color: var(--am-text-dim);
   min-height: 5.5rem;
+  /* Grid stretches cells to the tallest in the row. Without these the extra
+     height was taken out of the image (squashing it) and long names spilled
+     past the border. */
+  justify-content: flex-start;
+  min-width: 0;
+  overflow: hidden;
 
   &:hover {
     border-color: rgba(212,175,55,0.5) !important;
@@ -791,12 +802,15 @@
 .am-card-img {
   width: 3rem;
   height: 3rem;
+  /* Belt and braces against a squashed icon: the flex column must not shrink it,
+     and the box must stay square whatever the row height turns out to be. */
+  flex: 0 0 auto;
+  aspect-ratio: 1 / 1;
   object-fit: contain;
   border-radius: 4px;
   border: none !important;
   float: none !important;
   margin: 0 !important;
-  flex-shrink: 0;
   opacity: 0.9;
   &[src=""], &:not([src]) { opacity: 0.1; }
 }
@@ -1104,10 +1118,10 @@ img[src*="a5e-mancer/assets/icons/"] {
 
   /* Card grid + description share the now-wider window comfortably */
   .am-inline-card-grid {
-    max-height: 18rem;
+    max-height: min(18rem, 40vh);
   }
   .am-inline-description {
-    max-height: 10rem;
+    max-height: min(14rem, 30vh);
   }
 
   /* Red window close (✕) cross */
@@ -1956,6 +1970,22 @@ img[src*="a5e-mancer/assets/icons/"] {
 }
 
 /* в”Ђв”Ђ Right-click description panel в”Ђв”Ђ */
+/* Resource chips in the right-click description popup: exertion, casting time,
+   range, duration, components, uses — what the option costs to use. */
+.am-res-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  white-space: nowrap;
+  background: rgba(120,90,20,0.14);
+  border: 1px solid rgba(120,90,20,0.35);
+  color: #4a3608;
+  border-radius: 3px;
+  padding: 0.05rem 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
 .am-item-desc-panel {
   position: fixed;
   z-index: 9999;
@@ -2139,16 +2169,21 @@ img[src*="a5e-mancer/assets/icons/"] {
 /* ── Inline card grid tweaks ────────────────────────────── */
 
 .am-inline-card-grid {
-  max-height: 22rem;
+  max-height: min(22rem, 45vh);
 }
 
 /* ── Inline card description panel ─────────────────────── */
 
 .am-inline-description {
   min-height: 4.5rem;
-  max-height: 10rem;
+  /* Cap against the window, not a fixed rem value: on a short window 10rem of
+     description plus the card grid pushed the panel off the bottom. */
+  max-height: min(14rem, 30vh);
   overflow-y: auto;
   overflow-x: hidden;
+  overscroll-behavior: contain;
+  /* Draggable divider so a long spell description can be opened up */
+  resize: vertical;
   border: 1px solid var(--am-gold-border);
   border-radius: var(--am-border-radius);
   padding: 0.5rem 0.75rem;
@@ -3573,17 +3608,12 @@ img[src*="a5e-mancer/assets/icons/"] {
   border-bottom: 2px solid rgba(112,80,204,0.2);
   padding-block-end: 0.2rem; margin-block-end: 0.3rem;
 }
-.am-spell-card {
-  border: 1px solid #ddd; border-radius: 4px;
-  margin-block-end: 0.22rem; overflow: hidden;
-  transition: border-color 0.12s;
-  &:hover { border-color: rgba(112,80,204,0.45); }
-}
-.am-spell-card-header {
-  display: flex; align-items: center; gap: 0.35rem;
-  padding: 0.28rem 0.45rem;
-  &:hover .am-item-controls { opacity: 1; }
-}
+/* NOTE: `.am-spell-card` and `.am-spell-card-header` used to be redefined here for
+   an older sheet spell list. Only the spell picker uses those classes now, and
+   because these rules came later they overrode its 2px themed border with a flat
+   1px grey one and forced `overflow: hidden` on the card — which is what made the
+   picker's icon/description grid look wrong. The picker's own rules above are the
+   single definition now. */
 .am-spell-tags { display: flex; align-items: center; gap: 0.18rem; }
 .am-stag {
   font-size: 0.62rem; font-weight: bold; border-radius: 2px;
@@ -4813,6 +4843,26 @@ input.am-cs-stat-val {
 }
 .am-cs-note-html p, .am-cs-note-html h4 { margin: 0.2rem 0; }
 .am-cs-note-html h4 { font-size: 0.7rem; font-weight: bold; opacity: 0.7; }
+/* Plain-text biography cards keep the author's line breaks */
+.am-cs-note-card .am-cs-note-html { white-space: pre-wrap; }
+.am-cs-note-card .am-cs-note-html p { white-space: normal; }
+
+/* Destiny table results rolled during creation */
+.am-cs-destiny-card { margin-block-end: 0.6rem; }
+.am-cs-destiny-list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.2rem 0.6rem;
+  margin: 0;
+  padding: 0.35rem 0.45rem;
+  background: var(--cs-bg3);
+  border: 1px solid var(--cs-border);
+  border-radius: 3px;
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+.am-cs-destiny-list dt { color: var(--cs-muted); font-size: 0.68rem; padding-top: 0.05rem; }
+.am-cs-destiny-list dd { margin: 0; color: var(--cs-text); }
 .am-cs-phys-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.4rem; margin-top: 0.3rem; }
 .am-cs-phys-grid label { font-size: 0.62rem; color: var(--cs-muted); display: block; margin-block-end: 0.1rem; }
 .am-cs-phys-inp { width: 100%; background: var(--cs-bg3); border: 1px solid var(--cs-border); border-radius: 2px; color: var(--cs-text); font-size: 0.78rem; padding: 0.15rem 0.3rem; }

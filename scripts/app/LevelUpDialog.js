@@ -3,6 +3,7 @@ import { LevelUpService } from '../utils/levelUpService.js';
 import { DocumentService } from '../utils/documentService.js';
 import { ManeuverService, CLASS_MANEUVER_TABLES, getTraditions } from '../utils/maneuverService.js';
 import { SpellService, CLASS_SPELL_TABLES } from '../utils/spellService.js';
+import { ItemDescPanel } from '../utils/itemDescPanel.js';
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -214,7 +215,13 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       context.spellSchoolAllActive = result.schoolAllActive;
     } else if (!this._loadingSpells) {
       this._loadingSpells = true;
-      SpellService.loadSpells(null, spellInfo.maxLevel ?? 1).then(data => {
+      // Restrict to the caster's own spell list — a null class shows every spell
+      // in every compendium, which is what made "all schools" available.
+      const casterName = this._mode === 'multiclass'
+        ? ((this._compendiumClasses ?? []).find(c => c.uuid === this._newClassUuid)?.name ?? '')
+        : (LevelUpService.getActorClasses(this.actor)
+             .find(c => c.id === this._selectedClassId)?.name ?? '');
+      SpellService.loadSpells(casterName, spellInfo.maxLevel ?? 1).then(data => {
         this._allSpellsData = data;
         this._loadingSpells = false;
         this.render(false);
@@ -350,6 +357,10 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   /* ── render lifecycle ────────────────────────────────────────────────── */
 
   async _onRender(_ctx, _opts) {
+    /* ── Right-click a maneuver/spell card for its full text and costs ── */
+    this._detachDescPanel?.();
+    this._detachDescPanel = ItemDescPanel.attach(this.element);
+
     /* ── Mode toggle ── */
     this.element.querySelectorAll('.lu-mode-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
@@ -627,6 +638,12 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       const conMod = dialog.#getConMod();
       resultEl.textContent = `${roll.total} + ${conMod} CON = ${roll.total + conMod} HP`;
     }
+  }
+
+  async _preClose(options) {
+    this._detachDescPanel?.();
+    this._detachDescPanel = null;
+    return super._preClose?.(options);
   }
 
   /** HP for one level from the chosen method. Only used when a5e isn't doing it. */

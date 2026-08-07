@@ -170,7 +170,8 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
           context.maneuversLoaded       = !!AM.allManeuversData;
           if (context.maneuverInfo && AM.allManeuversData) {
             context.inlineTraditions = A5eMancer.#buildTraditionPills(
-              AM.allManeuversData, context.selectedTraditions, AM.maneuverFilter.tradition
+              AM.allManeuversData, context.selectedTraditions, AM.maneuverFilter.tradition,
+              context.maneuverInfo.allowedTraditions
             );
             context.visibleManeuvers = A5eMancer.#filterManeuvers(
               AM.allManeuversData, context.maneuverInfo.maxDegree,
@@ -735,7 +736,7 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
 
     const maxLevel = info.maxLevel ?? 1;
     if (!AM.allSpellsData) {
-      try { AM.allSpellsData = await SpellService.loadSpells(null, maxLevel); } catch { return; }
+      try { AM.allSpellsData = await SpellService.loadSpells(className, maxLevel); } catch { return; }
     }
     const data = AM.allSpellsData;
     if (!data) return;
@@ -929,6 +930,11 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
         ui.notifications.warn(game.i18n.format('am.maneuvers.slots-full', { n: info.maneuversKnown }));
         return;
       }
+      if (tradition && Array.isArray(info.allowedTraditions)
+          && !info.allowedTraditions.includes(tradition)) {
+        ui.notifications.warn(game.i18n.localize('am.grants.tradition-not-allowed'));
+        return;
+      }
       if (tradition && !traditions.includes(tradition) && traditions.length >= info.traditions) {
         ui.notifications.warn(game.i18n.format('am.app.maneuvers.tradition-limit', { n: info.traditions }));
         return;
@@ -942,9 +948,13 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     AM.app?.render(false, { parts: ['maneuvers'] });
   }
 
-  static #buildTraditionPills(allData, selectedTraditions, activeTradition) {
+  static #buildTraditionPills(allData, selectedTraditions, activeTradition, allowedTraditions = null) {
     const traditions = getTraditions();
     return traditions
+      // Restrict to the traditions this class may choose from. Without this every
+      // tradition in the system was offered, whatever the class table allows.
+      // null = "any tradition of your choice" (Fighter, Trooper).
+      .filter(t => !allowedTraditions || allowedTraditions.includes(t.key))
       .filter(t => {
         const tradMap = allData?.get(t.key);
         return tradMap && [...tradMap.values()].some(arr => arr.length > 0);

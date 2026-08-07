@@ -1,5 +1,6 @@
 import { AM } from '../a5e-mancer.js';
 import { ManeuverService, getTraditions } from '../utils/maneuverService.js';
+import { ItemDescPanel } from '../utils/itemDescPanel.js';
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -244,13 +245,16 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       card.addEventListener('click', () => this.#toggleManeuver(card));
       card.addEventListener('contextmenu', (e) => {
         e.preventDefault();
-        this.#showDescPanel(card, e.clientX, e.clientY);
+        ItemDescPanel.showForUuid(card.dataset.uuid, e.clientX, e.clientY, {
+          name: card.dataset.name ?? '',
+          img:  card.dataset.img  ?? ''
+        });
       });
     });
 
     // Close desc panel on click outside
     el.addEventListener('click', (e) => {
-      if (!e.target.closest('.am-item-desc-panel')) this.#closeDescPanel();
+      if (!e.target.closest('.am-item-desc-panel')) ItemDescPanel.close();
     }, true);
 
     // Confirm button
@@ -365,45 +369,9 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     return [...this._selectedUuids].some(u => uuids.has(u));
   }
 
-  #showDescPanel(card, x, y) {
-    this.#closeDescPanel();
-    const uuid = card.dataset.uuid;
-    const data = this._descMap.get(uuid) ?? {};
-
-    const panel = document.createElement('div');
-    panel.className = 'am-item-desc-panel';
-    panel.innerHTML = `
-      <div class="am-item-desc-header">
-        <img src="${data.img ?? ''}" alt="" />
-        <div class="am-item-desc-header-text">
-          <div class="am-item-desc-title">${data.name ?? ''}</div>
-          <div class="am-item-desc-meta">
-            <span class="am-badge">${data.degree ?? ''}°</span>
-            ${data.traditionLabel ? `<span>${data.traditionLabel}</span>` : ''}
-            ${data.exertion ? `<span class="am-badge am-badge-gold"><i class="fa-solid fa-bolt"></i> ${data.exertion}</span>` : ''}
-          </div>
-        </div>
-        <button class="am-item-desc-close" type="button">✕</button>
-      </div>
-      <div class="am-item-desc-body">${data.description || '<em>No description available.</em>'}</div>`;
-
-    panel.querySelector('.am-item-desc-close').addEventListener('click', () => this.#closeDescPanel());
-    document.body.appendChild(panel);
-
-    const pw = 352, ph = Math.min(panel.scrollHeight, 512);
-    const vw = window.innerWidth, vh = window.innerHeight;
-    panel.style.left = `${Math.min(x + 8, vw - pw - 8)}px`;
-    panel.style.top  = `${Math.min(y + 8, vh - ph - 8)}px`;
-    this._descPanel = panel;
-  }
-
-  #closeDescPanel() {
-    this._descPanel?.remove();
-    this._descPanel = null;
-  }
 
   async _preClose() {
-    this.#closeDescPanel();
+    ItemDescPanel.close();
     return super._preClose?.() ?? true;
   }
 
