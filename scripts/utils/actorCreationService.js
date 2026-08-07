@@ -3,6 +3,7 @@ import { DocumentService } from './documentService.js';
 import { EquipmentService } from './equipmentService.js';
 import { ManeuverService } from './maneuverService.js';
 import { SpellService } from './spellService.js';
+import { GrantAbsorber } from './grantAbsorber.js';
 import { applyItemIcon } from '../data/a5eIcons.js';
 
 export class ActorCreationService {
@@ -158,6 +159,7 @@ export class ActorCreationService {
         const data = item.toObject();
         data._stats = data._stats || {};
         data._stats.compendiumSource = uuid;
+        this.#stripEquipmentGrants(data);
         itemDatas.push(data);
         AM.log(3, `Queued ${type}: ${item.name}`);
       } catch (err) {
@@ -165,11 +167,42 @@ export class ActorCreationService {
       }
     }
     // Create one-at-a-time so A5e's grant system (skills, proficiencies) fires per item
+    const absorbBackground = !!AM.backgroundGrants?.absorb;
     for (const data of itemDatas) {
       applyItemIcon(data);
+
+      // The background's grants were chosen in our own tab, so suppress a5e's
+      // window for it and apply them ourselves through a5e's own writers.
+      if (data.type === 'background' && absorbBackground) {
+        const [created] = await actor.createEmbeddedDocuments('Item', [data], { noGrant: true });
+        if (created) {
+          await GrantAbsorber.apply(actor, created, AM.backgroundGrants.choices ?? {});
+        }
+        continue;
+      }
+
       await actor.createEmbeddedDocuments('Item', [data]);
     }
     if (itemDatas.length) AM.log(3, `Added ${itemDatas.length} items`);
+  }
+
+  /**
+   * Drop the class/background "Starting Equipment" and "Suggested Equipment"
+   * grants from the item data before it reaches the actor.
+   *
+   * a5e reads grants off the item being created (`t.noGrant || grants.createInitialGrants(this)`),
+   * so removing them here means its window never offers gear at all — the
+   * Equipment tab is the single place it is chosen. Everything else on the item
+   * still goes through a5e's grant engine untouched.
+   */
+  static #stripEquipmentGrants(data) {
+    const grants = data.system?.grants;
+    if (!grants || typeof grants !== 'object') return;
+    let removed = 0;
+    for (const [id, grant] of Object.entries(grants)) {
+      if (grant?.grantType === 'item') { delete grants[id]; removed++; }
+    }
+    if (removed) AM.log(3, `Removed ${removed} equipment grant(s) from ${data.name}`);
   }
 
   /* ── Heritage Gift ──────────────────────────────────── */
@@ -256,10 +289,50 @@ export class ActorCreationService {
       await addChoice(bgChoices, i, `bgEquipmentChoice[${i}]`);
     }
 
-    if (itemsToCreate.length) {
-      itemsToCreate.forEach(applyItemIcon);
-      await actor.createEmbeddedDocuments('Item', itemsToCreate);
-      AM.log(3, `Added ${itemsToCreate.length} equipment items`);
+    // a5e's class and background carry optional "Starting/Suggested Equipment"
+    // item grants. They default to unticked, but a player who accepts them would
+    // otherwise get a second copy of everything we just added, so merge by name:
+    // bump the quantity instead of creating a duplicate row.
+    const qtyOf = (o) => Number(o?.system?.quantity ?? 1) || 1;
+
+    const onActor = new Map();            // name → existing embedded item
+    for (const item of actor.items) {
+      if (item.type !== 'object') continue;
+      onActor.set(item.name.toLowerCase(), item);
+    }
+
+    const bumps = new Map();              // existing item id → new quantity
+    const fresh = new Map();              // name → item data queued for creation
+
+    for (const data of itemsToCreate) {
+      const key = (data.name ?? '').toLowerCase();
+
+      const queued = fresh.get(key);      // same item twice in our own picks
+      if (queued) {
+        queued.system.quantity = qtyOf(queued) + qtyOf(data);
+        continue;
+      }
+
+      const have = onActor.get(key);      // already on the actor
+      if (have) {
+        bumps.set(have.id, (bumps.get(have.id) ?? qtyOf(have)) + qtyOf(data));
+        continue;
+      }
+
+      data.system = data.system || {};
+      data.system.quantity = qtyOf(data);
+      fresh.set(key, data);
+    }
+
+    if (bumps.size) {
+      await actor.updateEmbeddedDocuments('Item',
+        [...bumps].map(([_id, quantity]) => ({ _id, 'system.quantity': quantity })));
+    }
+    if (fresh.size) {
+      const list = [...fresh.values()];
+      list.forEach(applyItemIcon);
+      await actor.createEmbeddedDocuments('Item', list);
+      AM.log(3, `Added ${list.length} equipment items (${bumps.size} merged into existing)`);
     }
   }
 
@@ -275,6 +348,9 @@ export class ActorCreationService {
   /* ── HP choice ──────────────────────────────────────── */
 
   static async #applyHpChoice(actor, fd) {
+    // a5e's grant dialog asks for level-1 HP as part of applying the class.
+    if (AM.deferToSystemGrants) return;
+
     const method = fd.hpMethod || 'max';
     if (method === 'max') return; // A5e grants full hit die at level 1 by default
 
@@ -292,16 +368,26 @@ export class ActorCreationService {
 
     try {
       const hp = actor.system?.attributes?.hp;
-      const update = { 'system.attributes.hp.value': totalHp };
-      // a5e derives hp.max from baseMax + bonus, so writing hp.max is inert —
-      // set baseMax (minus any prepared bonus) so the chosen maximum actually sticks.
-      if (hp?.baseMax !== undefined) {
-        const bonus = (Number(hp.max) || 0) - (Number(hp.baseMax) || 0);
-        update['system.attributes.hp.baseMax'] = Math.max(1, totalHp - bonus);
+      const classItem = actor.items.find(i => i.type === 'class');
+      // With class HP automation on — the default as soon as a class item exists —
+      // Actor#prepareHitPoints derives hp.max from each class item's hp.levels plus
+      // CON x level. baseMax is only consulted in the non-automated branch, so the
+      // per-level value on the class item is the only thing that sticks.
+      const automated = actor.classAutomationFlags?.hitPoints ?? !!classItem;
+
+      if (automated && classItem) {
+        await classItem.update({ 'system.hp.levels.1': baseHp });
+        await actor.update({ 'system.attributes.hp.value': totalHp });
       } else {
-        update['system.attributes.hp.max'] = totalHp;
+        const update = { 'system.attributes.hp.value': totalHp };
+        if (hp?.baseMax !== undefined) {
+          const bonus = (Number(hp.max) || 0) - (Number(hp.baseMax) || 0);
+          update['system.attributes.hp.baseMax'] = Math.max(1, totalHp - bonus);
+        } else {
+          update['system.attributes.hp.max'] = totalHp;
+        }
+        await actor.update(update);
       }
-      await actor.update(update);
       AM.log(3, `HP choice (${method}): ${baseHp} + ${conMod} CON = ${totalHp}`);
     } catch (err) {
       AM.log(2, 'HP choice update failed:', err);

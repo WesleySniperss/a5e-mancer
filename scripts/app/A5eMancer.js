@@ -23,6 +23,9 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     actions: {
       adjustScore:            StatRoller.adjustScore.bind(StatRoller),
       rollStat:               A5eMancer.rollStat,
+      rollAbilityPool:        A5eMancer.rollAbilityPool,
+      clearAbilityPool:       A5eMancer.clearAbilityPool,
+      toggleGrantOption:      A5eMancer.toggleGrantOption,
       rollWealth:             A5eMancer.rollWealth,
       selectCharacterArt:     CharacterArtPicker.selectCharacterArt,
       selectTokenArt:         CharacterArtPicker.selectTokenArt,
@@ -116,9 +119,29 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
           break;
         }
 
+        case 'background': {
+          context.selectedItem = A5eMancer.#buildSelectedItem(partId);
+          // Grants we ask for ourselves so a5e's window stays shut for backgrounds
+          const bg = AM.backgroundGrants;
+          if (context.selectedItem && bg?.absorb) {
+            const withState = (g) => ({
+              ...g,
+              options: g.options.map(o => ({
+                ...o,
+                selected: (bg.choices[g.id] ?? []).includes(o.key)
+              })),
+              chosen: (bg.choices[g.id] ?? []).length,
+              complete: (bg.choices[g.id] ?? []).length >= g.total
+            });
+            context.bgGrants   = bg.grants.map(withState);
+            context.bgFeatures = bg.features.map(withState).filter(f => f.total > 0 || f.baseLabels.length);
+            context.hasBgGrants = context.bgGrants.length > 0 || context.bgFeatures.length > 0;
+          }
+          break;
+        }
+
         case 'heritage':
         case 'culture':
-        case 'background':
         case 'destiny':
           context.selectedItem = A5eMancer.#buildSelectedItem(partId);
           break;
@@ -206,6 +229,17 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
           context.remainingPoints = context.totalPoints - context.pointsSpent;
           context.allowedMethods  = game.settings.get(AM.ID, 'allowedMethods');
           context.chainedRolls    = game.settings.get(AM.ID, 'chainedRolls');
+          // Rolled-but-unassigned scores turn the manual tab into an assignment
+          // grid, so a roll can be placed where the player wants it.
+          context.rolledPool      = AM.rolledPool;
+          context.hasRolledPool   = Array.isArray(AM.rolledPool) && AM.rolledPool.length > 0;
+          if (context.hasRolledPool) {
+            // 4d6kh3 repeats values often, so the dropdowns list each distinct
+            // number once and the pool string tells DOMManager how many of each
+            // may be spent. A plain "already selected" rule would lose a duplicate.
+            context.rolledPoolOptions = [...new Set(AM.rolledPool)].sort((a, b) => b - a);
+            context.rolledPoolCsv     = AM.rolledPool.join(',');
+          }
           break;
         }
 
@@ -327,6 +361,60 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     } finally {
       btn.disabled = false;
     }
+  }
+
+  /**
+   * Roll all six scores into a pool. The tab then shows one dropdown per ability
+   * holding those exact numbers, so the player decides which score goes where —
+   * rolling used to nail each result to the ability whose button was clicked.
+   */
+  static async rollAbilityPool(_event, btn) {
+    const formula = game.settings.get(AM.ID, 'customRollFormula') || '4d6kh3';
+    if (btn) btn.disabled = true;
+    try {
+      const scores = await StatRoller.rollAllScores(formula);
+      if (scores.length < 6) return;              // bad formula — notified already
+      AM.rolledPool = scores.sort((a, b) => b - a);
+      await AM.app?.render(false, { parts: ['abilities'] });
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  /**
+   * Pick or unpick one option of an absorbed grant (background skill, ASI, …).
+   * Enforces the grant's own `total`, which is the number a5e would allow.
+   */
+  static async toggleGrantOption(_event, btn) {
+    const bg = AM.backgroundGrants;
+    if (!bg?.absorb) return;
+
+    const grantId = btn.dataset.grantId;
+    const key     = btn.dataset.key;
+    if (!grantId || !key) return;
+
+    const model = [...bg.grants, ...bg.features].find(g => g.id === grantId);
+    if (!model) return;
+
+    const picked = [...(bg.choices[grantId] ?? [])];
+    const at = picked.indexOf(key);
+    if (at >= 0) {
+      picked.splice(at, 1);
+    } else {
+      if (picked.length >= model.total) {
+        ui.notifications.warn(game.i18n.format('am.grants.limit-reached', { n: model.total, label: model.label }));
+        return;
+      }
+      picked.push(key);
+    }
+    bg.choices[grantId] = picked;
+    await AM.app?.render(false, { parts: ['background'] });
+  }
+
+  /** Discard the pool and go back to rolling each ability on its own. */
+  static async clearAbilityPool() {
+    AM.rolledPool = null;
+    await AM.app?.render(false, { parts: ['abilities'] });
   }
 
   static async rollWealth(event) {
@@ -455,7 +543,7 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
       : null;
 
     const tableText = doc
-      ? A5eMancer.#extractTableEntry(doc.system?.description?.value ?? '', fieldName, result)
+      ? A5eMancer.#extractTableEntry(doc.system?.description?.value ?? doc.system?.description ?? '', fieldName, result)
       : null;
 
     if (tableText) {
@@ -693,13 +781,19 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     } else if (method === 'manualFormula') {
       const formula = game.settings.get(AM.ID, 'customRollFormula') || '4d6kh3';
       const scores = await StatRoller.rollAllScores(formula);
-      for (let i = 0; i < scores.length; i++) {
-        const input = document.getElementById(`ability-${i}-score`);
-        if (!input) continue;
-        input.value = scores[i];
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-        input.classList.add('am-rolled');
-        setTimeout(() => input.classList.remove('am-rolled'), 600);
+      if (scores.length < 6) return;
+
+      // Roll a fresh pool and drop the results into random abilities — the player
+      // can still reshuffle them by hand afterwards.
+      AM.rolledPool = [...scores].sort((a, b) => b - a);
+      await AM.app?.render(false, { parts: ['abilities'] });
+
+      const shuffled = A5eMancer.#shuffle([...scores]);
+      for (let i = 0; i < 6; i++) {
+        const dd = document.getElementById(`ability-${i}-dropdown`);
+        if (!dd) continue;
+        dd.value = String(shuffled[i]);
+        dd.dispatchEvent(new Event('change', { bubbles: true }));
       }
 
     } else if (method === 'pointBuy') {

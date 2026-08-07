@@ -119,7 +119,7 @@ export class EquipmentService {
               id:   entry._id,
               uuid: `Compendium.${pack.collection}.${entry._id}`,
               name: entry.name,
-              description: entry.system?.description?.value ?? ''
+              description: entry.system?.description?.value ?? entry.system?.description ?? ''
             });
           }
         }
@@ -257,7 +257,7 @@ export class EquipmentService {
       }
     }
     // Fall back to parsing the description
-    const desc = containerDoc.system?.description?.value ?? '';
+    const desc = containerDoc.system?.description?.value ?? containerDoc.system?.description ?? '';
     if (!desc) return null;
     const text = desc.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     // Look for bullet-list style contents: "• Item name" or "- Item name" or "* Item"
@@ -303,7 +303,7 @@ export class EquipmentService {
       return sys?.startingWealth?.formula
           ?? sys?.wealth?.formula
           ?? sys?.startingWealth
-          ?? this.#extractWealthFromDescription(sys?.description?.value ?? '');
+          ?? this.#extractWealthFromDescription(sys?.description?.value ?? sys?.description ?? '');
     } catch {
       return null;
     }

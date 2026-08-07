@@ -313,10 +313,12 @@ export class A5eCharacterSheet extends ActorSheet {
       culture:    _cItem?.name   ?? sys.details?.culture?.name    ?? '—',
       background: _bgItem?.name  ?? sys.details?.background?.name ?? '—',
       destiny:    _dItem?.name   ?? sys.details?.destiny?.name    ?? null,
-      heritageDesc:   _hItem?.system?.description?.value   ?? '',
-      cultureDesc:    _cItem?.system?.description?.value   ?? '',
-      backgroundDesc: _bgItem?.system?.description?.value  ?? '',
-      destinyDesc:    _dItem?.system?.description?.value   ?? '',
+      // Enriched, not raw: a5e origin text embeds its traits and tables as
+      // @UUID/@Embed links which render as empty shells until resolved.
+      heritageDesc:   await enrichDesc(descOf(_hItem?.system),  actor),
+      cultureDesc:    await enrichDesc(descOf(_cItem?.system),  actor),
+      backgroundDesc: await enrichDesc(descOf(_bgItem?.system), actor),
+      destinyDesc:    await enrichDesc(descOf(_dItem?.system),  actor),
     };
 
     return {
@@ -460,7 +462,7 @@ export class A5eCharacterSheet extends ActorSheet {
       damaged:      (sys.damagedState ?? 0) === 1,
       broken:       (sys.damagedState ?? 0) === 2,
       activation,
-      desc: sys.description?.value ?? '',
+      desc: descOf(sys),
     };
   }
 
@@ -477,7 +479,7 @@ export class A5eCharacterSheet extends ActorSheet {
       tradition: tradition || 'Other',
       degree, exertion, activation,
       range, dmgFull, saveDC,
-      desc: sys.description?.value ?? '',
+      desc: descOf(sys),
     };
   }
 
@@ -512,7 +514,7 @@ export class A5eCharacterSheet extends ActorSheet {
       prepared: sys.prepared !== false,
       activation,
       range, duration, dmgFull, saveDC,
-      desc: sys.description?.value ?? '',
+      desc: descOf(sys),
     };
   }
 
@@ -523,7 +525,7 @@ export class A5eCharacterSheet extends ActorSheet {
     const range    = rangeVal ? `${rangeVal} ${sys.range?.units ?? 'ft'}` : null;
 
     // For purely descriptive features (no combat props), show a text snippet
-    const rawDesc  = sys.description?.value ?? '';
+    const rawDesc  = descOf(sys);
     const hasCombatProps = !!(dmgFull || range || saveDC);
     const shortDesc = !hasCombatProps && rawDesc
       ? rawDesc.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 90)
@@ -555,7 +557,7 @@ export class A5eCharacterSheet extends ActorSheet {
       id: item.id, name: item.name, img: item.img,
       source: this.#normFeatSource(source),
       prereq,
-      desc: sys.description?.value ?? ''
+      desc: descOf(sys)
     };
   }
 
@@ -1387,7 +1389,7 @@ export class A5eCharacterSheet extends ActorSheet {
       uses: { current: uses.current ?? uses.value ?? null,
                max: uses.max ?? null, hasUses: !!(uses.max > 0) },
       actions: this.#allActionsForItem(item),
-      desc: sys.description?.value ?? '',
+      desc: descOf(sys),
     };
   }
 
@@ -1571,3 +1573,32 @@ export class A5eCharacterSheet extends ActorSheet {
 }
 
 function sign(n) { return n >= 0 ? `+${n}` : `${n}`; }
+
+/**
+ * Read an item description regardless of which shape it is stored in.
+ *
+ * A5e declares `description` as a plain HTMLField, so `system.description` IS the
+ * string — there is no `.value`. Reading only `.value` returned undefined for every
+ * compendium item, which is why the origin panels showed empty cards. Older/imported
+ * data and some 5e-derived items do use `{ value }`, so both are accepted.
+ */
+function descOf(sys) {
+  const d = sys?.description;
+  if (typeof d === 'string') return d;
+  return d?.value ?? '';
+}
+
+/**
+ * Resolve @UUID / @Embed links and inline rolls in a description. A5e origin text
+ * embeds its trait and table entries this way; unenriched they render as empty
+ * shells, which is what the "empty tables" in the overview were.
+ */
+async function enrichDesc(html, actor) {
+  if (!html) return '';
+  try {
+    const TE = foundry.applications?.ux?.TextEditor?.implementation ?? TextEditor;
+    return await TE.enrichHTML(html, { async: true, relativeTo: actor, rollData: actor?.getRollData?.() ?? {} });
+  } catch {
+    return html;
+  }
+}

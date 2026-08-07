@@ -197,14 +197,14 @@ export class A5eNPCSheet extends ActorSheet {
       atkBonus: sign(atkBonus),
       dmg: dmgParts.join(' + ') || '—',
       range, activation,
-      desc: sys.description?.value ?? ''
+      desc: sys?.description?.value ?? sys?.description ?? ''
     };
   }
 
   #feature(item) {
     return {
       id: item.id, name: item.name, img: item.img,
-      desc: item.system?.description?.value ?? '',
+      desc: item.system?.description?.value ?? item.system?.description ?? '',
       recharge: item.system?.recharge?.value ?? null
     };
   }

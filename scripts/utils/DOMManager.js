@@ -3,6 +3,7 @@ import { DocumentService } from './documentService.js';
 import { EquipmentService } from './equipmentService.js';
 import { ManeuverService } from './maneuverService.js';
 import { SpellService } from './spellService.js';
+import { GrantAbsorber } from './grantAbsorber.js';
 
 const ITEM_TYPES = ['heritage', 'culture', 'background', 'destiny', 'class'];
 
@@ -78,13 +79,30 @@ export class DOMManager {
     // ── Standard array uniqueness ────────────────────────
     const arrayDropdowns = [...form.querySelectorAll('.ability-dropdown')];
     if (arrayDropdowns.length) {
+      // How many times each value may be used. A rolled pool can hold the same
+      // number twice (4d6kh3 repeats often), so capacity is a count, not a flag.
+      // Without data-ability-pool every value has capacity 1 — the standard array.
+      const poolCsv = form.querySelector('.ability-container[data-ability-pool]')
+        ?.dataset.abilityPool ?? '';
+      const capacity = new Map();
+      for (const raw of poolCsv.split(',')) {
+        const v = raw.trim();
+        if (v) capacity.set(v, (capacity.get(v) ?? 0) + 1);
+      }
+
       const enforceUnique = () => {
-        const selected = new Set(arrayDropdowns.map(d => d.value).filter(Boolean));
+        const used = new Map();
+        for (const dd of arrayDropdowns) {
+          if (!dd.value) continue;
+          used.set(dd.value, (used.get(dd.value) ?? 0) + 1);
+        }
         for (const dd of arrayDropdowns) {
           const current = dd.value;
           for (const opt of dd.options) {
             if (!opt.value) continue;
-            opt.disabled = selected.has(opt.value) && opt.value !== current;
+            const max   = capacity.get(opt.value) ?? 1;
+            const taken = (used.get(opt.value) ?? 0) - (opt.value === current ? 1 : 0);
+            opt.disabled = taken >= max;
           }
         }
         DOMManager.updateAbilitiesSummary(form);
@@ -351,6 +369,7 @@ export class DOMManager {
   static async #onBackgroundChanged(uuid, form) {
     if (!AM.equipmentData) AM.equipmentData = {};
     AM.equipmentData.background = await EquipmentService.loadStartingEquipment(uuid, 'background');
+    await this.#loadBackgroundGrants(uuid);
     if (AM.app) {
         await AM.app.render(false, { parts: ['equipment'] });
         const newForm = AM.app.element;
@@ -360,6 +379,33 @@ export class DOMManager {
           this.#listeners.push({ el: btn, type: 'click', fn });
         });
       }
+  }
+
+  /**
+   * Work out whether the builder can ask for this background's grants itself.
+   * When it can, the background item is later created with `noGrant: true` and
+   * a5e's window never opens for it.
+   */
+  static async #loadBackgroundGrants(uuid) {
+    AM.backgroundGrants = null;
+    if (!AM.deferToSystemGrants) return;   // GM chose to keep our old pickers
+    try {
+      const doc = await fromUuid(uuid);
+      if (!doc) return;
+      const absorb = await GrantAbsorber.canAbsorb(doc);
+      if (!absorb) {
+        AM.log(3, `Background ${doc.name}: grants left to a5e (unsupported types present)`);
+        return;
+      }
+      AM.backgroundGrants = {
+        absorb:   true,
+        grants:   GrantAbsorber.describe(doc),
+        features: await GrantAbsorber.describeFeatures(doc),
+        choices:  {}
+      };
+    } catch (err) {
+      AM.log(2, 'Could not read background grants:', err);
+    }
   }
 
   static #onEquipmentChoice(btn, _form) {

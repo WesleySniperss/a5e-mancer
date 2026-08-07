@@ -4,6 +4,14 @@
   <fieldset>
     <legend>{{localize 'am.app.equipment.tooltip'}}</legend>
 
+    {{!-- a5e's class and background each carry an OPTIONAL "Starting/Suggested
+          Equipment" grant. They are unticked by default, so this is a heads-up
+          rather than a conflict — and anything taken twice is merged on apply. --}}
+    <p class="am-hint">
+      <i class="fa-solid fa-circle-info"></i>
+      {{localize 'am.app.equipment.system-overlap-hint'}}
+    </p>
+
     {{!-- ═══════════════════════════════════════════════════════
          STARTING WEALTH
          ═══════════════════════════════════════════════════════ --}}

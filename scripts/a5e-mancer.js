@@ -3,7 +3,7 @@ import { A5eMancer } from './app/A5eMancer.js';
 import { LevelUpDialog } from './app/LevelUpDialog.js';
 import { A5eCharacterSheet } from './app/A5eCharacterSheet.js';
 import { A5eNPCSheet } from './app/A5eNPCSheet.js';
-import { DocumentService, StatRoller, Beyond20Service } from './utils/index.js';
+import { DocumentService, StatRoller, Beyond20Service, GrantDialogEnhancer } from './utils/index.js';
 import { iconForItem } from './data/a5eIcons.js';
 import { installCompendiumFilterFix } from './utils/compendiumIndexFix.js';
 
@@ -23,6 +23,12 @@ export class AM {
   static maneuverFilter    = { tradition: null };
   static spellFilter       = { level: null, school: null };
   static hpChoice          = { method: 'max', value: 0 };
+  // Six rolled scores waiting to be assigned to abilities (manual/roll method).
+  // null = not rolled yet, so the tab shows the per-ability roll buttons instead.
+  static rolledPool        = null;
+  // Background grant picks made in our UI instead of a5e's window.
+  // { grants: [uiModel], features: [uiModel], choices: { grantId: key[] }, absorb: bool }
+  static backgroundGrants  = null;
   static app               = null;
   static levelUpDialog     = null;
 
@@ -181,6 +187,9 @@ Hooks.once('ready', () => { installCompendiumFilterFix(); });
 Hooks.once('ready', () => {
   if (!game.settings.get(AM.ID, 'enable')) return;
   Beyond20Service.init();
+  // Adds trait limits and descriptions to a5e's own grant dialog — see
+  // grantDialogEnhancer.js. Registered here so it is live before any level-up.
+  GrantDialogEnhancer.register();
 });
 
 /* ── Ready ──────────────────────────────────────────────── */

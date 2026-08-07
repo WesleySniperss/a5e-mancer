@@ -64,7 +64,10 @@
   {{#if newClass}}
   <hr />
 
-  {{!-- HP section --}}
+  {{!-- HP: a5e's own grant dialog asks for this and only its answer counts —
+        hp.max is derived from the class item's hp.levels whenever class HP
+        automation is on, which it is as soon as the actor has a class. --}}
+  {{#unless deferHp}}
   <section class="lu-section">
     <h3><i class="fa-solid fa-heart"></i> {{localize 'am.levelup.hp-title'}} (d{{newClass.hitDie}})</h3>
     <p class="am-hint">{{localize 'am.levelup.con-mod'}}: {{#if (gte conMod 0)}}+{{/if}}{{conMod}}</p>
@@ -110,6 +113,7 @@
       </label>
     </div>
   </section>
+  {{/unless}}
 
   {{!-- Maneuvers (multiclass) --}}
   {{#if maneuverInfo.newManeuversToLearn}}
@@ -343,7 +347,8 @@
 
   <hr />
 
-  {{!-- HP section --}}
+  {{!-- HP: see the multiclass block above — a5e owns this value --}}
+  {{#unless deferHp}}
   <section class="lu-section">
     <h3><i class="fa-solid fa-heart"></i> {{localize 'am.levelup.hp-title'}} (d{{selectedClass.hitDie}})</h3>
     <p class="am-hint">{{localize 'am.levelup.con-mod'}}: {{#if (gte conMod 0)}}+{{/if}}{{conMod}}</p>
@@ -389,6 +394,7 @@
       </label>
     </div>
   </section>
+  {{/unless}}
 
   {{!-- Class features, knack & ASI/feat: a5e's own grant engine handles these when
         the class level changes, so we only tell the player what's coming. --}}
@@ -405,6 +411,7 @@
       {{#if info.gainsASI}}<li><i class="fa-solid fa-check"></i> {{localize 'am.levelup.features-asi'}}</li>{{/if}}
       {{#if grantsManeuvers}}<li><i class="fa-solid fa-check"></i> {{localize 'am.levelup.features-maneuvers'}}</li>{{/if}}
       {{#if grantsSpells}}<li><i class="fa-solid fa-check"></i> {{localize 'am.levelup.features-spells'}}</li>{{/if}}
+      {{#if deferHp}}<li><i class="fa-solid fa-check"></i> {{localize 'am.levelup.features-hp'}}</li>{{/if}}
     </ul>
   </section>
   {{/if}}

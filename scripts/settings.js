@@ -108,6 +108,13 @@ export function registerSettings() {
     scope: 'world', config: true, type: Boolean, default: true
   });
 
+  // Since a5e's grant dialog is where the picks happen, make it a better place to
+  // pick: enforce the trait allowance it states and show what each option is.
+  game.settings.register(AM.ID, 'enhanceGrantDialog', {
+    name: 'am.settings.enhance-grants.name', hint: 'am.settings.enhance-grants.hint',
+    scope: 'world', config: true, type: Boolean, default: true
+  });
+
   // ---- Compendium packs (per document type) ----
   for (const type of ['heritage', 'culture', 'background', 'destiny', 'class']) {
     game.settings.register(AM.ID, `${type}Packs`, {

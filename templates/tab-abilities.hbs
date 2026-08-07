@@ -94,23 +94,73 @@
       <p>{{localize 'am.app.abilities.manual.description'}}</p>
       <hr />
 
-      <div class="ability-container flex justify-between items-center">
-        {{#each abilities}}
-          <div id="ability-block-{{@index}}" class="ability-block flex flex-col items-center gap-xs">
-            <span class="ability-label">{{this.abbreviation}}</span>
-            <input id="ability-{{@index}}-score" type="number"
-              name="abilities[{{this.key}}]"
-              class="ability-score form-input text-center" data-dtype="Number"
-              placeholder="—" min="3" max="20" />
-            <button type="button" class="am-roll-stat-btn"
-              data-action="rollStat" data-index="{{@index}}"
-              data-tooltip="{{localize 'am.app.abilities.roll'}} {{this.label}}">
-              <i class="fa-solid fa-dice"></i>
-            </button>
-            <small class="ability-full-label">{{this.label}}</small>
+      {{#if hasRolledPool}}
+
+        {{!-- Rolled six at once: assign them wherever you like. The dropdowns carry
+              .ability-dropdown so DOMManager's uniqueness rule applies, exactly as
+              it does for the standard array. --}}
+        <div class="am-rolled-pool">
+          <span class="am-hint">{{localize 'am.app.abilities.pool-label'}}</span>
+          <div class="am-pool-chips">
+            {{#each rolledPool}}<span class="am-pool-chip">{{this}}</span>{{/each}}
           </div>
-        {{/each}}
-      </div>
+          <div class="am-pool-actions flex items-center gap-xs">
+            <button type="button" class="select-button" data-action="rollAbilityPool"
+              data-tooltip="{{localize 'am.app.abilities.reroll-pool'}}">
+              <i class="fa-solid fa-dice"></i> {{localize 'am.app.abilities.reroll-pool'}}
+            </button>
+            <button type="button" class="select-button" data-action="clearAbilityPool"
+              data-tooltip="{{localize 'am.app.abilities.clear-pool'}}">
+              <i class="fa-solid fa-rotate-left"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="ability-container flex justify-between items-center"
+             data-ability-pool="{{rolledPoolCsv}}">
+          {{#each abilities}}
+            <div id="ability-block-{{@index}}" class="ability-block flex flex-col items-center gap-xs">
+              <span class="ability-label">{{this.abbreviation}}</span>
+              <select id="ability-{{@index}}-dropdown"
+                name="abilities[{{this.key}}]"
+                class="ability-dropdown form-select text-center" data-dtype="Number">
+                <option value="">—</option>
+                {{#each ../rolledPoolOptions}}
+                  <option value="{{this}}">{{this}}</option>
+                {{/each}}
+              </select>
+              <small class="ability-full-label">{{this.label}}</small>
+            </div>
+          {{/each}}
+        </div>
+
+      {{else}}
+
+        <div class="ability-container flex justify-between items-center">
+          {{#each abilities}}
+            <div id="ability-block-{{@index}}" class="ability-block flex flex-col items-center gap-xs">
+              <span class="ability-label">{{this.abbreviation}}</span>
+              <input id="ability-{{@index}}-score" type="number"
+                name="abilities[{{this.key}}]"
+                class="ability-score form-input text-center" data-dtype="Number"
+                placeholder="—" min="3" max="20" />
+              <button type="button" class="am-roll-stat-btn"
+                data-action="rollStat" data-index="{{@index}}"
+                data-tooltip="{{localize 'am.app.abilities.roll'}} {{this.label}}">
+                <i class="fa-solid fa-dice"></i>
+              </button>
+              <small class="ability-full-label">{{this.label}}</small>
+            </div>
+          {{/each}}
+        </div>
+
+        <hr />
+        <button type="button" class="select-button" data-action="rollAbilityPool">
+          <i class="fa-solid fa-dice-d20"></i> {{localize 'am.app.abilities.roll-pool'}}
+        </button>
+        <p class="am-hint">{{localize 'am.app.abilities.roll-pool-hint'}}</p>
+
+      {{/if}}
 
       {{#if chainedRolls}}
         <hr />

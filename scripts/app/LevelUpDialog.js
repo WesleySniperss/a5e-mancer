@@ -107,6 +107,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         availableClasses,
         newClass,
         newTotalLevel,
+        deferHp:              this.#systemOwnsHp(),
         hpMethod:             this._hpMethod,
         avgHP,
         rolledHP:             this._rolledHP !== null ? this._rolledHP + this.#getConMod() : null,
@@ -160,6 +161,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       grantsFeatures,
       grantsManeuvers,
       grantsSpells,
+      deferHp:              this.#systemOwnsHp(),
       hpMethod:             this._hpMethod,
       avgHP,
       rolledHP:             this._rolledHP !== null ? this._rolledHP + this.#getConMod() : null,
@@ -239,6 +241,21 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   #getConMod() {
     const con = this.actor.system?.abilities?.con?.value ?? 10;
     return Math.floor((con - 10) / 2);
+  }
+
+  /**
+   * True when a5e owns the character's hit points, so asking here is pointless.
+   *
+   * With class HP automation on — the default for any actor that has a class item —
+   * Actor#prepareHitPoints derives hp.max from the sum of each class item's
+   * system.hp.levels plus CON x level. Writing hp.max/baseMax ourselves is
+   * discarded on the next data prep; a5e's grant dialog sets the real value via
+   * system.hp.levels.<charLevel>.
+   */
+  #systemOwnsHp() {
+    if (!AM.deferToSystemGrants) return false;
+    return this.actor.classAutomationFlags?.hitPoints
+           ?? (Object.keys(this.actor.classes ?? {}).length > 0);
   }
 
   #resetSelections() {
@@ -616,6 +633,17 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     }
   }
 
+  /** HP for one level from the chosen method. Only used when a5e isn't doing it. */
+  static #hpFor(dialog, hitDie, conMod) {
+    switch (dialog._hpMethod) {
+      case 'roll':   return (dialog._rolledHP ?? 1) + conMod;
+      case 'max':    return hitDie + conMod;
+      case 'manual': return dialog._manualHP ?? 0;
+      case 'average':
+      default:       return Math.ceil(hitDie / 2) + 1 + conMod;
+    }
+  }
+
   /* ── Form handler ───────────────────────────────────────────────────── */
 
   static async formHandler(_event, _form, _formData) {
@@ -633,15 +661,10 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         return;
       }
 
-      const hitDie = dialog._newClassHitDie;
-      let hpGained = 0;
-      switch (dialog._hpMethod) {
-        case 'average': hpGained = Math.ceil(hitDie / 2) + 1 + conMod; break;
-        case 'roll':    hpGained = (dialog._rolledHP ?? 1) + conMod;    break;
-        case 'max':     hpGained = hitDie + conMod;                      break;
-        case 'manual':  hpGained = dialog._manualHP ?? 0;                break;
-      }
-      hpGained = Math.max(1, hpGained);
+      // 0 = leave HP alone; a5e's grant dialog writes system.hp.levels itself
+      const hpGained = dialog.#systemOwnsHp()
+        ? 0
+        : Math.max(1, LevelUpDialog.#hpFor(dialog, dialog._newClassHitDie, conMod));
 
       const success = await LevelUpService.applyMulticlass(
         dialog.actor, dialog._newClassUuid, hpGained
@@ -666,14 +689,9 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     const cls     = classes.find(c => c.id === dialog._selectedClassId) ?? classes[0];
     if (!cls) return;
 
-    let hpGained = 0;
-    switch (dialog._hpMethod) {
-      case 'average': hpGained = Math.ceil(cls.hitDie / 2) + 1 + conMod; break;
-      case 'roll':    hpGained = (dialog._rolledHP ?? 1) + conMod;        break;
-      case 'max':     hpGained = cls.hitDie + conMod;                      break;
-      case 'manual':  hpGained = dialog._manualHP ?? 0;                    break;
-    }
-    hpGained = Math.max(1, hpGained);
+    const hpGained = dialog.#systemOwnsHp()
+      ? 0
+      : Math.max(1, LevelUpDialog.#hpFor(dialog, cls.hitDie, conMod));
 
     await LevelUpService.applyLevelUp(
       dialog.actor, cls.id, hpGained

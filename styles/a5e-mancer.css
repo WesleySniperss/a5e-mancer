@@ -392,6 +392,54 @@
   }
 }
 
+/* Grant choices asked inside the builder instead of a5e's own window */
+.am-grant-block {
+  margin: 0.6rem 0;
+  padding: 0.5rem 0.6rem;
+  border-radius: 4px;
+  border: 1px solid var(--am-gold-border);
+  background: rgba(0,0,0,0.12);
+
+  .am-grant-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .am-grant-label { font-weight: bold; color: var(--am-gold); }
+
+  .am-hint { margin: 0 0 0.35rem; }
+}
+
+/* Rolled score pool waiting to be assigned to abilities */
+.am-rolled-pool {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.am-pool-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.am-pool-chip {
+  min-width: 2.2rem;
+  padding: 0.15rem 0.5rem;
+  text-align: center;
+  font-weight: bold;
+  border-radius: 4px;
+  border: 1px solid var(--am-gold-border);
+  background: rgba(212,175,55,0.10);
+  color: var(--am-gold);
+}
+
 /* Flash a score field right after it is rolled */
 .ability-score.am-rolled {
   animation: am-score-flash 0.6s ease-out;
@@ -704,6 +752,40 @@
 .am-known-pip {
   color: #4a9a4a;
   font-size: 0.7rem;
+}
+
+/* ── Additions injected into a5e's own "Apply Grants" dialog ─────────────
+   Scoped to a5e's own classes on purpose: these rules only ever apply inside
+   that window, never to our sheets. See scripts/utils/grantDialogEnhancer.js */
+.a5e-sheet {
+  button.tag.am-grant-disallowed {
+    opacity: 0.35;
+    text-decoration: line-through;
+    cursor: not-allowed;
+  }
+
+  .am-grant-cap {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-size: 0.75rem;
+    opacity: 0.75;
+  }
+
+  .am-grant-desc {
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.6rem;
+    max-height: 11rem;
+    overflow-y: auto;
+    border-radius: 4px;
+    border: 1px solid rgba(128,128,128,0.3);
+    background: rgba(0,0,0,0.12);
+    font-size: 0.85rem;
+    line-height: 1.4;
+
+    strong { display: block; margin-bottom: 0.25rem; }
+    p:last-child { margin-bottom: 0; }
+    img { display: none; }
+  }
 }
 
 .am-card-img {
