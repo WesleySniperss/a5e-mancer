@@ -622,8 +622,15 @@ export class A5eCharacterSheet extends ActorSheet {
   #classItem(item) {
     return {
       id: item.id, name: item.name, img: item.img,
-      level: item.system?.levels ?? item.system?.level ?? 1,
-      hitDie: item.system?.hitDice?.denomination ?? item.system?.hitDie ?? 8
+      // A5e stores these as system.classLevels and system.hp.hitDiceSize — the
+      // 5e-style paths below are fallbacks for imported data. Reading only those
+      // meant every class showed as level 1, which also made the header's total
+      // level and anything derived from it wrong.
+      level:  item.system?.classLevels ?? item.system?.levels ?? item.system?.level ?? 1,
+      hitDie: item.system?.hp?.hitDiceSize
+              ?? item.system?.hitDice?.denomination
+              ?? item.system?.hitDie
+              ?? 8
     };
   }
 
@@ -1412,8 +1419,10 @@ export class A5eCharacterSheet extends ActorSheet {
   }
 
   #calcProf(actor) {
+    // Same a5e path as #classItem; without classLevels every class counted as 1,
+    // so the fallback proficiency bonus was too low above 4th level.
     const lvl = actor.items.filter(i => i.type === 'class')
-      .reduce((n, i) => n + (i.system?.levels ?? i.system?.level ?? 1), 0) || 1;
+      .reduce((n, i) => n + (i.system?.classLevels ?? i.system?.levels ?? i.system?.level ?? 1), 0) || 1;
     return Math.ceil(1 + lvl / 4);
   }
 
