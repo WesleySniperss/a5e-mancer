@@ -396,9 +396,20 @@
   </section>
   {{/unless}}
 
+  {{!-- This level's grants, asked here so a5e's window never opens. Falls back to
+        the heads-up note below when the builder cannot account for all of them. --}}
+  {{#if hasBgGrants}}
+  <hr />
+  <section class="lu-section">
+    <h3><i class="fa-solid fa-award"></i> {{localize 'am.grants.item-title'}}</h3>
+    {{> am-item-grants}}
+  </section>
+  {{/if}}
+
   {{!-- Class features, knack & ASI/feat: a5e's own grant engine handles these when
         the class level changes, so we only tell the player what's coming. --}}
   {{#if grantsFeatures}}
+  {{#unless hasBgGrants}}
   <hr />
   <section class="lu-section lu-grants-note">
     <h3><i class="fa-solid fa-wand-magic-sparkles"></i> {{localize 'am.levelup.features-title'}}</h3>
@@ -413,6 +424,7 @@
       {{#if deferHp}}<li><i class="fa-solid fa-check"></i> {{localize 'am.levelup.features-hp'}}</li>{{/if}}
     </ul>
   </section>
+  {{/unless}}
   {{/if}}
 
   {{!-- Maneuvers (level-up mode) --}}

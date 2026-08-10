@@ -4,6 +4,7 @@ import { DocumentService } from '../utils/documentService.js';
 import { ManeuverService, CLASS_MANEUVER_TABLES, getTraditions } from '../utils/maneuverService.js';
 import { SpellService, CLASS_SPELL_TABLES } from '../utils/spellService.js';
 import { ItemDescPanel } from '../utils/itemDescPanel.js';
+import { GrantAbsorber } from '../utils/grantAbsorber.js';
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -52,6 +53,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       luFilterSpellLevel:        LevelUpDialog.luFilterSpellLevel,
       luFilterSpellSchool:       LevelUpDialog.luFilterSpellSchool,
       luToggleSpell:             LevelUpDialog.luToggleSpell,
+      toggleGrantOption:         LevelUpDialog.luToggleGrantOption,
     },
     classes: ['am-app', 'am-levelup-dialog'],
     position: { width: 680, height: 760 },
@@ -176,7 +178,61 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     };
 
     this.#addManeuverBrowserContext(context, maneuverInfo);
+    await this.#addLevelGrantContext(context, selectedClass, newClassLevel);
     return context;
+  }
+
+  /**
+   * The grants this level brings — features, knack, ASI/feat — asked here so
+   * a5e's window never opens. Only engages when every grant can be accounted
+   * for; otherwise AM.levelUpGrants stays null and a5e handles it as before.
+   */
+  async #addLevelGrantContext(context, selectedClass, newLevel) {
+    AM.levelUpGrants = null;
+    if (!AM.deferToSystemGrants || !selectedClass) return;
+
+    const classItem = this.actor.items.get(selectedClass.id);
+    if (!classItem) return;
+
+    try {
+      if (!await GrantAbsorber.canAbsorb(classItem, newLevel)) {
+        AM.log(3, `${classItem.name} level ${newLevel}: grants left to a5e`);
+        return;
+      }
+      const store = {
+        absorb:   true,
+        level:    newLevel,
+        grants:   GrantAbsorber.describeForLevel(classItem, newLevel),
+        features: (await GrantAbsorber.describeFeatures(classItem, newLevel))
+                    .filter(f => (classItem.grants?.get(f.id)?.level ?? 1) === newLevel),
+        choices:  this._levelChoices ?? {}
+      };
+      // The per-level hit points a5e would have written, without CON — it adds
+      // CON x level separately when deriving max HP.
+      store.charLevel = context.newTotalLevel;
+      store.hpValue   = Math.max(1, LevelUpDialog.#hpFor(this, selectedClass.hitDie, 0));
+
+      AM.levelUpGrants = store;
+      this._levelChoices = store.choices;
+
+      const withState = (g) => {
+        const picked = store.choices[g.id] ?? [];
+        return {
+          ...g,
+          grantType: 'levelup',
+          options:   g.options.map(o => ({ ...o, selected: picked.includes(o.key) })),
+          chosen:    picked.length,
+          complete:  picked.length >= g.total
+        };
+      };
+      context.bgGrants   = store.grants.map(withState);
+      context.bgFeatures = store.features.map(withState)
+        .filter(f => f.total > 0 || f.baseLabels.length);
+      context.hasBgGrants = context.bgGrants.length > 0 || context.bgFeatures.length > 0;
+    } catch (err) {
+      AM.log(2, 'Could not read level-up grants:', err);
+      AM.levelUpGrants = null;
+    }
   }
 
   /* ── Context helpers ─────────────────────────────────────────────────── */
@@ -259,6 +315,9 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
    */
   #systemOwnsHp() {
     if (!AM.deferToSystemGrants) return false;
+    // When we absorb the level's grants, a5e's routine never runs, so the level's
+    // hit points are ours to ask for and write.
+    if (AM.levelUpGrants?.absorb) return false;
     return this.actor.classAutomationFlags?.hitPoints
            ?? (Object.keys(this.actor.classes ?? {}).length > 0);
   }
@@ -274,6 +333,9 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     this._loadingSpells     = false;
     this._maneuverFilter    = { tradition: null };
     this._spellFilter       = { level: null, school: null };
+    // Grant picks belong to one class at one level — switching either invalidates them
+    this._levelChoices      = {};
+    AM.levelUpGrants        = null;
   }
 
   /* ── Private static browser helpers ─────────────────────────────────── */
@@ -603,6 +665,35 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     dialog.render(false);
   }
 
+  /** Pick or unpick one option of this level's grants. */
+  static luToggleGrantOption(_event, btn) {
+    const dialog = AM.levelUpDialog;
+    const store  = AM.levelUpGrants;
+    if (!dialog || !store?.absorb) return;
+
+    const grantId = btn.dataset.grantId;
+    const key     = btn.dataset.key;
+    if (!grantId || !key) return;
+
+    const model = [...store.grants, ...store.features].find(g => g.id === grantId);
+    if (!model) return;
+
+    const picked = [...(store.choices[grantId] ?? [])];
+    const at = picked.indexOf(key);
+    if (at >= 0) {
+      picked.splice(at, 1);
+    } else {
+      if (picked.length >= model.total) {
+        ui.notifications.warn(game.i18n.format('am.grants.limit-reached', { n: model.total, label: model.label }));
+        return;
+      }
+      picked.push(key);
+    }
+    store.choices[grantId] = picked;
+    dialog._levelChoices = store.choices;
+    dialog.render(false);
+  }
+
   /* ── Static action: cancel ──────────────────────────────────────────── */
 
   /**
@@ -613,6 +704,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   static luCancel(_event, _btn) {
     const dialog = AM.levelUpDialog;
     AM.levelUpDialog = null;
+    AM.levelUpGrants = null;   // nothing was applied; don't leak picks to the next run
     dialog?.close();
   }
 

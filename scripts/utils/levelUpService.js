@@ -2,6 +2,7 @@ import { AM } from '../a5e-mancer.js';
 import { DocumentService } from './documentService.js';
 import { A5E_CLASS_DATA, classKey as classKeyOf } from '../data/a5eClassData.js';
 import { iconForItem } from '../data/a5eIcons.js';
+import { GrantAbsorber } from './grantAbsorber.js';
 
 /**
  * Handles levelling up a character in a5e.
@@ -236,14 +237,25 @@ export class LevelUpService {
     const currentLevel = classItem.system?.classLevels ?? classItem.system?.levels ?? classItem.system?.level ?? 1;
     const newLevel     = currentLevel + 1;
 
-    // 1. Update class level. This triggers a5e's grant engine (features/knack/ASI).
-    const levelUpdatePath = classItem.system?.classLevels !== undefined
-      ? 'system.classLevels'
-      : classItem.system?.levels !== undefined
-        ? 'system.levels'
-        : 'system.level';
-    await classItem.update({ [levelUpdatePath]: newLevel });
-    AM.log(3, `${classItem.name} levelled to ${newLevel}`);
+    // 1. Raise the level. When the builder asked for this level's grants itself,
+    //    a5e's window is suppressed and we apply them; otherwise the plain update
+    //    fires its grant engine as before.
+    const absorbed = AM.levelUpGrants?.absorb
+      ? await GrantAbsorber.levelUpWithoutDialog(
+          actor, classItem, newLevel, AM.levelUpGrants.choices ?? {},
+          { hpValue: AM.levelUpGrants.hpValue ?? 0,
+            charLevel: AM.levelUpGrants.charLevel ?? 0 })
+      : false;
+
+    if (!absorbed) {
+      const levelUpdatePath = classItem.system?.classLevels !== undefined
+        ? 'system.classLevels'
+        : classItem.system?.levels !== undefined
+          ? 'system.levels'
+          : 'system.level';
+      await classItem.update({ [levelUpdatePath]: newLevel });
+    }
+    AM.log(3, `${classItem.name} levelled to ${newLevel}${absorbed ? ' (grants applied in-app)' : ''}`);
 
     // 2. Add HP
     if (hpGained > 0) {
@@ -260,6 +272,8 @@ export class LevelUpService {
 
     // Class features, the knack and the ASI/feat are applied by a5e's grant engine
     // (triggered by the classLevels update above) — see the method doc comment.
+
+    AM.levelUpGrants = null;   // consumed
 
     ui.notifications.info(
       game.i18n.format('am.levelup.success', { class: classItem.name, level: newLevel }),

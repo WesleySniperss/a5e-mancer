@@ -26,6 +26,8 @@ export class AM {
   // Six rolled scores waiting to be assigned to abilities (manual/roll method).
   // null = not rolled yet, so the tab shows the per-ability roll buttons instead.
   static rolledPool        = null;
+  // Grants for the level being gained, asked in the level-up dialog
+  static levelUpGrants     = null;
   // Grant picks made in our UI instead of a5e's window, keyed by item type
   // (heritage, culture, background, destiny). Each entry:
   // { absorb: bool, grants: [uiModel], features: [uiModel], choices: { grantId: key[] } }
