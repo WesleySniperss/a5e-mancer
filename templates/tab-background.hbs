@@ -31,64 +31,7 @@
         <div id="background-description" class="am-description-panel overflow-vert-only"
              role="region" aria-live="polite" aria-atomic="true">{{{selectedItem.descriptionHtml}}}</div>
 
-        {{!-- Background grants asked here instead of in a5e's own window. Only
-              shown when the builder can account for every grant on the item —
-              otherwise a5e still handles them and this block stays hidden. --}}
-        {{#if hasBgGrants}}
-          <hr />
-          <h3><i class="fa-solid fa-award"></i> {{localize 'am.grants.background-title'}}</h3>
-          <p class="am-hint">{{localize 'am.grants.background-hint'}}</p>
-
-          {{#each bgGrants}}
-            <div class="am-grant-block">
-              <div class="am-grant-head">
-                <span class="am-grant-label">{{this.label}}</span>
-                <span class="am-counter-badge {{#if this.complete}}am-badge-success{{else}}am-badge-pending{{/if}}">
-                  {{this.chosen}}/{{this.total}}
-                </span>
-              </div>
-              {{#if this.baseLabels.length}}
-                <p class="am-hint">{{localize 'am.grants.always-granted'}}: {{#each this.baseLabels}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}</p>
-              {{/if}}
-              <div class="am-filter-pills">
-                {{#each this.options}}
-                  <button type="button"
-                    class="am-filter-pill {{#if this.selected}}am-pill-active{{/if}}"
-                    data-action="toggleGrantOption"
-                    data-grant-id="{{../id}}"
-                    data-key="{{this.key}}">{{this.label}}</button>
-                {{/each}}
-              </div>
-            </div>
-          {{/each}}
-
-          {{#each bgFeatures}}
-            <div class="am-grant-block">
-              <div class="am-grant-head">
-                <span class="am-grant-label">{{this.label}}</span>
-                {{#if this.total}}
-                  <span class="am-counter-badge {{#if this.complete}}am-badge-success{{else}}am-badge-pending{{/if}}">
-                    {{this.chosen}}/{{this.total}}
-                  </span>
-                {{/if}}
-              </div>
-              {{#if this.baseLabels.length}}
-                <p class="am-hint">{{localize 'am.grants.always-granted'}}: {{#each this.baseLabels}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}</p>
-              {{/if}}
-              {{#if this.options.length}}
-                <div class="am-filter-pills">
-                  {{#each this.options}}
-                    <button type="button"
-                      class="am-filter-pill {{#if this.selected}}am-pill-active{{/if}}"
-                      data-action="toggleGrantOption"
-                      data-grant-id="{{../id}}"
-                      data-key="{{this.key}}">{{this.label}}</button>
-                  {{/each}}
-                </div>
-              {{/if}}
-            </div>
-          {{/each}}
-        {{/if}}
+        {{> am-item-grants}}
       </div>
     {{else}}
       {{!-- ── CARD BROWSER ── --}}

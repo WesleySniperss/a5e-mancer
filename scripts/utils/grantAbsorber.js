@@ -131,8 +131,12 @@ export class GrantAbsorber {
    * @param {Item}  item       the embedded item, whose `.grants` we drive
    * @param {object} choices   { [grantId]: string[] }
    */
-  static async apply(actor, item, choices = {}) {
+  static async apply(actor, item, choices = {}, depth = 0) {
     if (!actor || !item) return;
+    if (depth > this.#MAX_DEPTH) {
+      AM.log(2, `Grant nesting too deep at ${item.name}; leaving the rest to a5e`);
+      return;
+    }
 
     const grantMap = item.grants;
     if (!grantMap) { AM.log(2, 'Item has no prepared grants collection:', item.name); return; }
@@ -140,13 +144,15 @@ export class GrantAbsorber {
     let update = {};
     let applied = 0;
     const documentIds = {};   // grantId → created feature item ids
+    const spawned = [];       // features created here, whose own grants come next
 
     for (const [id, grant] of grantMap.entries?.() ?? []) {
       if (grant?.grantType === 'feature') {
         try {
-          const { update: u, ids } = await this.#applyFeatureGrant(actor, grant, choices[id]);
+          const { update: u, ids, items } = await this.#applyFeatureGrant(actor, grant, choices[id]);
           update = foundry.utils.mergeObject(update, u, { inplace: false });
           if (ids.length) documentIds[id] = ids;
+          spawned.push(...items);
           applied++;
         } catch (err) {
           AM.log(2, `Feature grant ${id} on ${item.name} failed:`, err);
@@ -184,6 +190,12 @@ export class GrantAbsorber {
       await actor.update(update);
       AM.log(3, `Applied ${applied} absorbed grant(s) from ${item.name}`);
     }
+
+    // The features we just created were made with noGrant, so their own grants
+    // did not fire — a5e resolves this chain recursively and so must we.
+    for (const feature of spawned) {
+      await this.apply(actor, feature, choices, depth + 1);
+    }
   }
 
   /**
@@ -201,33 +213,22 @@ export class GrantAbsorber {
 
   /* ── feature grants ───────────────────────────────────── */
 
-  /**
-   * Feature grants hand out items, and those items may carry grants of their own —
-   * a5e resolves that recursively. We only take over the flat case; anything with
-   * a nested grant goes back to a5e untouched.
-   */
-  static async #featuresAreFlat(grant) {
-    const uuids = [...(grant.features?.base ?? []), ...(grant.features?.options ?? [])]
-      .map(f => f?.uuid).filter(Boolean);
-    for (const uuid of uuids) {
-      try {
-        const doc = await fromUuid(uuid);
-        const nested = doc?.system?.grants;
-        if (nested && Object.keys(nested).length) return false;
-      } catch { return false; }   // unreadable — do not gamble
-    }
-    return true;
-  }
+  /** Guard against a feature that grants itself, directly or in a loop. */
+  static #MAX_DEPTH = 6;
 
   /**
    * Can the builder own this item's whole grant set?
    *
    * `noGrant` is all-or-nothing per item: suppressing a5e's window also suppresses
-   * every grant on it. So we only take over when nothing would be silently lost.
+   * every grant on it. So we only take over when nothing would be silently lost —
+   * which means walking into the features a grant hands out, because those carry
+   * grants of their own and a5e resolves them recursively.
    */
-  static async canAbsorb(doc) {
+  static async canAbsorb(doc, depth = 0, seen = new Set()) {
     const grants = doc?.system?.grants;
-    if (!grants || typeof grants !== 'object') return false;
+    if (!grants || typeof grants !== 'object') return depth > 0;   // leaf feature: fine
+
+    if (depth > this.#MAX_DEPTH) return false;
 
     for (const grant of Object.values(grants)) {
       const type = grant?.grantType;
@@ -235,10 +236,31 @@ export class GrantAbsorber {
       if (type === 'item') continue;                 // stripped — the Equipment tab owns gear
       if (this.#isSupported(grant)) continue;
       if (type === 'feature') {
-        if (await this.#featuresAreFlat(grant)) continue;
+        if (await this.#featuresAbsorbable(grant, depth, seen)) continue;
         return false;
       }
       return false;                                  // something we do not model
+    }
+    return true;
+  }
+
+  /** Every feature this grant can hand out must itself be absorbable. */
+  static async #featuresAbsorbable(grant, depth, seen) {
+    const uuids = [...(grant.features?.base ?? []), ...(grant.features?.options ?? [])]
+      .map(f => f?.uuid).filter(Boolean);
+
+    for (const uuid of uuids) {
+      if (seen.has(uuid)) continue;                  // already cleared (or cycling)
+      seen.add(uuid);
+      try {
+        const doc = await fromUuid(uuid);
+        if (!doc) return false;
+        const nested = doc.system?.grants;
+        if (!nested || !Object.keys(nested).length) continue;   // flat feature
+        if (!await this.canAbsorb(doc, depth + 1, seen)) return false;
+      } catch {
+        return false;                                // unreadable — do not gamble
+      }
     }
     return true;
   }
@@ -281,7 +303,7 @@ export class GrantAbsorber {
       .slice(0, total);
 
     const uuids = [...new Set([...base, ...picked])];
-    if (!uuids.length) return { update: grant.getApplyData(actor, { uuids }) ?? {}, ids: [] };
+    if (!uuids.length) return { update: grant.getApplyData(actor, { uuids }) ?? {}, ids: [], items: [] };
 
     const datas = [];
     for (const uuid of uuids) {
@@ -295,11 +317,12 @@ export class GrantAbsorber {
       } catch (err) { AM.log(2, `Feature ${uuid} could not be read:`, err); }
     }
 
-    let ids = [];
+    let ids = [], items = [];
     if (datas.length) {
       const created = await actor.createEmbeddedDocuments('Item', datas, { noGrant: true, keepId: true });
-      ids = created.map(i => i.id);
+      ids   = created.map(i => i.id);
+      items = [...created];
     }
-    return { update: grant.getApplyData(actor, { uuids }) ?? {}, ids };
+    return { update: grant.getApplyData(actor, { uuids }) ?? {}, ids, items };
   }
 }

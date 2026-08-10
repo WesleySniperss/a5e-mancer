@@ -254,11 +254,14 @@ export class DOMManager {
 
     if (uuid) {
       await this.#loadDescription(type, uuid, form);
+      // Grants we can ask for ourselves, so a5e's window stays shut for this item
+      await this.loadItemGrants(type, uuid);
       // Side effects per type
       if (type === 'heritage')   await this.#onHeritageChanged(uuid, form);
       if (type === 'class')      await this.#onClassChanged(uuid, form);
       if (type === 'background') await this.#onBackgroundChanged(uuid, form);
     } else {
+      AM.itemGrants[type] = null;
       const panel = form.querySelector(`#${type}-description`);
       if (panel) panel.innerHTML = '';
       if (type === 'heritage')   this.#clearHeritageGifts(form);
@@ -379,7 +382,6 @@ export class DOMManager {
   static async #onBackgroundChanged(uuid, form) {
     if (!AM.equipmentData) AM.equipmentData = {};
     AM.equipmentData.background = await EquipmentService.loadStartingEquipment(uuid, 'background');
-    await this.#loadBackgroundGrants(uuid);
     if (AM.app) {
         await AM.app.render(false, { parts: ['equipment'] });
         const newForm = AM.app.element;
@@ -392,29 +394,33 @@ export class DOMManager {
   }
 
   /**
-   * Work out whether the builder can ask for this background's grants itself.
-   * When it can, the background item is later created with `noGrant: true` and
-   * a5e's window never opens for it.
+   * Work out whether the builder can ask for this item's grants itself. When it
+   * can, the item is later created with `noGrant: true` and a5e's window never
+   * opens for it — that is how five sequential pop-ups become none.
+   *
+   * The class is deliberately excluded: its grant application also creates the
+   * spellbook, writes per-level hit points and resolves the archetype, none of
+   * which lives in the grant data we can read back.
    */
-  static async #loadBackgroundGrants(uuid) {
-    AM.backgroundGrants = null;
+  static async loadItemGrants(type, uuid) {
+    AM.itemGrants[type] = null;
     if (!AM.deferToSystemGrants) return;   // GM chose to keep our old pickers
+    if (type === 'class') return;
     try {
       const doc = await fromUuid(uuid);
       if (!doc) return;
-      const absorb = await GrantAbsorber.canAbsorb(doc);
-      if (!absorb) {
-        AM.log(3, `Background ${doc.name}: grants left to a5e (unsupported types present)`);
+      if (!await GrantAbsorber.canAbsorb(doc)) {
+        AM.log(3, `${type} ${doc.name}: grants left to a5e (unsupported grant present)`);
         return;
       }
-      AM.backgroundGrants = {
+      AM.itemGrants[type] = {
         absorb:   true,
         grants:   GrantAbsorber.describe(doc),
         features: await GrantAbsorber.describeFeatures(doc),
         choices:  {}
       };
     } catch (err) {
-      AM.log(2, 'Could not read background grants:', err);
+      AM.log(2, `Could not read ${type} grants:`, err);
     }
   }
 

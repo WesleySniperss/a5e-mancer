@@ -119,31 +119,13 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
           break;
         }
 
-        case 'background': {
-          context.selectedItem = A5eMancer.#buildSelectedItem(partId);
-          // Grants we ask for ourselves so a5e's window stays shut for backgrounds
-          const bg = AM.backgroundGrants;
-          if (context.selectedItem && bg?.absorb) {
-            const withState = (g) => ({
-              ...g,
-              options: g.options.map(o => ({
-                ...o,
-                selected: (bg.choices[g.id] ?? []).includes(o.key)
-              })),
-              chosen: (bg.choices[g.id] ?? []).length,
-              complete: (bg.choices[g.id] ?? []).length >= g.total
-            });
-            context.bgGrants   = bg.grants.map(withState);
-            context.bgFeatures = bg.features.map(withState).filter(f => f.total > 0 || f.baseLabels.length);
-            context.hasBgGrants = context.bgGrants.length > 0 || context.bgFeatures.length > 0;
-          }
-          break;
-        }
-
         case 'heritage':
         case 'culture':
+        case 'background':
         case 'destiny':
           context.selectedItem = A5eMancer.#buildSelectedItem(partId);
+          // Grants asked here so a5e's window never opens for this item
+          A5eMancer.#addGrantContext(context, partId);
           break;
 
         case 'start':
@@ -385,17 +367,18 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
    * Enforces the grant's own `total`, which is the number a5e would allow.
    */
   static async toggleGrantOption(_event, btn) {
-    const bg = AM.backgroundGrants;
-    if (!bg?.absorb) return;
-
+    const type    = btn.dataset.grantSource;
     const grantId = btn.dataset.grantId;
     const key     = btn.dataset.key;
-    if (!grantId || !key) return;
+    if (!type || !grantId || !key) return;
 
-    const model = [...bg.grants, ...bg.features].find(g => g.id === grantId);
+    const store = AM.itemGrants?.[type];
+    if (!store?.absorb) return;
+
+    const model = [...store.grants, ...store.features].find(g => g.id === grantId);
     if (!model) return;
 
-    const picked = [...(bg.choices[grantId] ?? [])];
+    const picked = [...(store.choices[grantId] ?? [])];
     const at = picked.indexOf(key);
     if (at >= 0) {
       picked.splice(at, 1);
@@ -406,8 +389,8 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
       }
       picked.push(key);
     }
-    bg.choices[grantId] = picked;
-    await AM.app?.render(false, { parts: ['background'] });
+    store.choices[grantId] = picked;
+    await AM.app?.render(false, { parts: [type] });
   }
 
   /** Discard the pool and go back to rolling each ability on its own. */
@@ -487,6 +470,28 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     const sel = AM.SELECTED[type];
     if (sel) sel.browsing = true;
     AM.app?.render(false, { parts: [type] });
+  }
+
+  /** Fill in the grant pickers for an origin tab, if we took its grants over. */
+  static #addGrantContext(context, type) {
+    const store = AM.itemGrants?.[type];
+    if (!context.selectedItem || !store?.absorb) return;
+
+    const withState = (g) => {
+      const picked = store.choices[g.id] ?? [];
+      return {
+        ...g,
+        grantType: type,
+        options:   g.options.map(o => ({ ...o, selected: picked.includes(o.key) })),
+        chosen:    picked.length,
+        complete:  picked.length >= g.total
+      };
+    };
+
+    context.bgGrants   = store.grants.map(withState);
+    context.bgFeatures = store.features.map(withState)
+      .filter(f => f.total > 0 || f.baseLabels.length);
+    context.hasBgGrants = context.bgGrants.length > 0 || context.bgFeatures.length > 0;
   }
 
   static #buildSelectedItem(type) {

@@ -180,17 +180,17 @@ export class ActorCreationService {
       }
     }
     // Create one-at-a-time so A5e's grant system (skills, proficiencies) fires per item
-    const absorbBackground = !!AM.backgroundGrants?.absorb;
     for (const data of itemDatas) {
       applyItemIcon(data);
 
-      // The background's grants were chosen in our own tab, so suppress a5e's
-      // window for it and apply them ourselves through a5e's own writers.
-      if (data.type === 'background' && absorbBackground) {
+      // Whatever the builder already asked for gets created with noGrant, so a5e's
+      // window never opens for it, and the picks are applied through a5e's own
+      // writers instead. Anything we could not fully account for still goes
+      // through its grant engine untouched.
+      const store = AM.itemGrants?.[data.type];
+      if (store?.absorb) {
         const [created] = await actor.createEmbeddedDocuments('Item', [data], { noGrant: true });
-        if (created) {
-          await GrantAbsorber.apply(actor, created, AM.backgroundGrants.choices ?? {});
-        }
+        if (created) await GrantAbsorber.apply(actor, created, store.choices ?? {});
         continue;
       }
 

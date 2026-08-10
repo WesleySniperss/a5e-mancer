@@ -396,5 +396,6 @@
   "am.app.spells.filter-all": "All Levels",
   "am.app.spells.filter-all-schools": "All Schools",
   "am.app.hover-for-description": "Hover a card to preview it — right-click for the full text and its costs",
-  "am.levelup.features-traditions": "Combat tradition proficiency"
+  "am.levelup.features-traditions": "Combat tradition proficiency",
+  "am.grants.item-title": "Benefits"
 }

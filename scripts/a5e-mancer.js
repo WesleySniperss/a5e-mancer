@@ -26,9 +26,10 @@ export class AM {
   // Six rolled scores waiting to be assigned to abilities (manual/roll method).
   // null = not rolled yet, so the tab shows the per-ability roll buttons instead.
   static rolledPool        = null;
-  // Background grant picks made in our UI instead of a5e's window.
-  // { grants: [uiModel], features: [uiModel], choices: { grantId: key[] }, absorb: bool }
-  static backgroundGrants  = null;
+  // Grant picks made in our UI instead of a5e's window, keyed by item type
+  // (heritage, culture, background, destiny). Each entry:
+  // { absorb: bool, grants: [uiModel], features: [uiModel], choices: { grantId: key[] } }
+  static itemGrants        = {};
   static app               = null;
   static levelUpDialog     = null;
 
@@ -195,6 +196,19 @@ Hooks.once('ready', () => {
 /* ── Ready ──────────────────────────────────────────────── */
 Hooks.once('ready', async () => {
   if (!game.settings.get(AM.ID, 'enable')) return;
+
+  // The origin tabs share one grant-picker block; it lives in a file rather than
+  // being a fourth inline copy, so it has to be compiled and registered by hand.
+  try {
+    const getTpl = foundry.applications?.handlebars?.getTemplate ?? globalThis.getTemplate;
+    const tpl = await getTpl('modules/a5e-mancer/templates/partial-item-grants.hbs');
+    Handlebars.registerPartial('am-item-grants', tpl);
+  } catch (err) {
+    // Without it the origin tabs would throw on render — register a no-op instead
+    Handlebars.registerPartial('am-item-grants', '');
+    AM.log(1, 'Could not register the item-grants partial:', err);
+  }
+
   await DocumentService.loadAndInitializeDocuments();
   const arr = game.settings.get(AM.ID, 'customStandardArray') || StatRoller.getDefaultStandardArray();
   if (!arr || arr.trim() === '')
