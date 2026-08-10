@@ -73,6 +73,25 @@
             <input type="hidden" name="hpRollResult" value="{{hpChoice.value}}">
           {{/if}}
 
+          {{!-- Spellcasting ability, when the class leaves it open --}}
+          {{#if castingOptions}}
+            <div class="am-grant-block">
+              <div class="am-grant-head">
+                <span class="am-grant-label">{{localize 'am.grants.casting-ability'}}</span>
+              </div>
+              <div class="am-filter-pills">
+                {{#each castingOptions}}
+                  <button type="button"
+                    class="am-filter-pill {{#if this.selected}}am-pill-active{{/if}}"
+                    data-action="setCastingAbility"
+                    data-ability="{{this.key}}">{{this.label}}</button>
+                {{/each}}
+              </div>
+            </div>
+          {{/if}}
+
+          {{> am-item-grants}}
+
           <p class="am-hint am-archetype-note">
             <i class="fa-solid fa-info-circle"></i> {{localize 'am.app.class.archetype-note'}}
           </p>

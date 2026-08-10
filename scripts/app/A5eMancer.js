@@ -26,6 +26,7 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
       rollAbilityPool:        A5eMancer.rollAbilityPool,
       clearAbilityPool:       A5eMancer.clearAbilityPool,
       toggleGrantOption:      A5eMancer.toggleGrantOption,
+      setCastingAbility:      A5eMancer.setCastingAbility,
       rollWealth:             A5eMancer.rollWealth,
       selectCharacterArt:     CharacterArtPicker.selectCharacterArt,
       selectTokenArt:         CharacterArtPicker.selectTokenArt,
@@ -115,6 +116,18 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
             context.hitDieNum = hitNum;
             context.hitDieAvg = hitNum > 0 ? Math.floor(hitNum / 2) + 1 : 0;
             context.hpChoice  = AM.hpChoice;
+            A5eMancer.#addGrantContext(context, 'class');
+
+            // Spellcasting ability, when the class leaves the choice open
+            const cls = AM.itemGrants?.class;
+            if (cls?.absorb && (cls.spellcastingOptions?.length ?? 0) > 1) {
+              const abilities = CONFIG?.A5E?.abilities ?? {};
+              context.castingOptions = cls.spellcastingOptions.map(key => ({
+                key,
+                label:    game.i18n.localize(abilities[key] ?? key),
+                selected: key === cls.spellcastingAbility
+              }));
+            }
           }
           break;
         }
@@ -366,6 +379,14 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
    * Pick or unpick one option of an absorbed grant (background skill, ASI, …).
    * Enforces the grant's own `total`, which is the number a5e would allow.
    */
+  /** Pick which ability powers the class's spells, when it offers a choice. */
+  static async setCastingAbility(_event, btn) {
+    const store = AM.itemGrants?.class;
+    if (!store?.absorb || !btn.dataset.ability) return;
+    store.spellcastingAbility = btn.dataset.ability;
+    await AM.app?.render(false, { parts: ['class'] });
+  }
+
   static async toggleGrantOption(_event, btn) {
     const type    = btn.dataset.grantSource;
     const grantId = btn.dataset.grantId;

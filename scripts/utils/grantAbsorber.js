@@ -52,10 +52,24 @@ export class GrantAbsorber {
     return out;
   }
 
+  /**
+   * Grants the builder owns elsewhere, so they must not appear as pickers here
+   * and are stripped from the item data before creation:
+   *   – `item`  → the Equipment tab
+   *   – combat tradition traits → the Maneuvers tab claims one as you pick from it
+   * See ActorCreationService#stripBuilderOwnedGrants, which must stay in step.
+   */
+  static #isOwnedElsewhere(grant) {
+    if (grant?.grantType === 'item') return true;
+    return grant?.grantType === 'trait'
+        && grant.traits?.traitType === 'maneuverTraditions';
+  }
+
   static #isSupported(grant) {
     if (!grant?.grantType) return false;
+    if (this.#isOwnedElsewhere(grant)) return false;
     if (!this.SUPPORTED.has(grant.grantType)) return false;
-    // Levelled grants belong to the class flow, not to a one-off origin pick
+    // Levelled grants belong to later levels, not to a 1st-level pick
     if (grant.level && grant.level > 1) return false;
     return true;
   }
@@ -147,6 +161,11 @@ export class GrantAbsorber {
     const spawned = [];       // features created here, whose own grants come next
 
     for (const [id, grant] of grantMap.entries?.() ?? []) {
+      // a5e's createInitialGrants skips anything above the character's level;
+      // without the same guard a class's 5th-level feature landed at creation.
+      if (grant?.level && grant.level > 1) continue;
+      if (this.#isOwnedElsewhere(grant)) continue;
+
       if (grant?.grantType === 'feature') {
         try {
           const { update: u, ids, items } = await this.#applyFeatureGrant(actor, grant, choices[id]);
@@ -198,6 +217,85 @@ export class GrantAbsorber {
     }
   }
 
+  /* ── class tail ───────────────────────────────────────── */
+
+  /**
+   * Everything a5e does for a CLASS item after its grants are applied.
+   *
+   * Its grant routine ends with three writes that are not grants at all, which is
+   * why the class window could not simply be skipped:
+   *   – the level's hit points, on the class item at system.hp.levels.<level>
+   *   – the spellcasting ability, at system.spellcasting.ability.value
+   *   – a spell book, configured for the class's casting resource
+   * This mirrors that tail for a 1st-level class. Archetypes are not handled —
+   * they are chosen at the class's archetypeLevel, never at creation.
+   *
+   * @param {object} opts
+   * @param {number} opts.hpValue      hit points for level 1 (before CON)
+   * @param {string} [opts.ability]    chosen spellcasting ability
+   * @param {number} [opts.charLevel]  character level this class entry is for
+   */
+  static async applyClassTail(actor, classItem, { hpValue, ability, charLevel = 1 } = {}) {
+    if (!actor || !classItem) return;
+    const sys = classItem.system ?? {};
+
+    const spellcasting = sys.spellcasting ?? {};
+    const chosen = ability
+      || spellcasting.ability?.options?.[0]
+      || spellcasting.ability?.base
+      || 'none';
+
+    const clsUpdate = {};
+    if (Number.isFinite(hpValue) && hpValue > 0) {
+      clsUpdate[`system.hp.levels.${charLevel}`] = hpValue;
+    }
+    if (chosen) clsUpdate['system.spellcasting.ability.value'] = chosen;
+    if (Object.keys(clsUpdate).length) {
+      try { await classItem.update(clsUpdate); }
+      catch (err) { AM.log(1, 'Class hit points / spellcasting ability failed:', err); }
+    }
+
+    if (!chosen || chosen === 'none') return;
+
+    // Mark the actor's casting ability when this is the starting class
+    try {
+      if (actor.system?.classes?.startingClass === classItem.slug) {
+        await actor.update({ 'system.attributes.spellcasting': chosen });
+      }
+    } catch (err) { AM.log(2, 'Could not set the actor spellcasting ability:', err); }
+
+    await this.#ensureSpellBook(actor, classItem, chosen);
+  }
+
+  /** Create or configure the class's spell book, matching its casting resource. */
+  static async #ensureSpellBook(actor, classItem, ability) {
+    const book = {
+      ability,
+      name: `${classItem.name} Spell Book`,
+      showSpellSlots: false
+    };
+    const resource = classItem.casting?.resource || 'slots';
+    if      (resource === 'points')          book.showSpellPoints     = true;
+    else if (resource === 'inventions')      book.showSpellInventions = true;
+    else if (resource === 'artifactCharges') book.showArtifactCharges = true;
+    else                                     book.showSpellSlots      = true;
+
+    try {
+      // More than one class means an additional book; otherwise configure the
+      // one every character starts with, exactly as a5e does.
+      if (Object.keys(actor.classes ?? {}).length > 1) {
+        await actor.spellBooks.add(book);
+      } else {
+        const id = actor.spellBooks?.first()?._id;
+        if (id) await actor.update({ [`system.spellBooks.${id}`]: book });
+        else    await actor.spellBooks.add(book);
+      }
+      AM.log(3, `Spell book ready for ${classItem.name} (${resource}, ${ability})`);
+    } catch (err) {
+      AM.log(1, 'Spell book setup failed:', err);
+    }
+  }
+
   /**
    * Grants on this item that we are NOT taking over, so the caller can decide
    * whether a5e still needs to be involved.
@@ -233,8 +331,10 @@ export class GrantAbsorber {
     for (const grant of Object.values(grants)) {
       const type = grant?.grantType;
       if (!type) continue;
-      if (type === 'item') continue;                 // stripped — the Equipment tab owns gear
+      if (this.#isOwnedElsewhere(grant)) continue;   // stripped before creation
       if (this.#isSupported(grant)) continue;
+      // A grant for a later level does not block a 1st-level absorption
+      if (grant.level && grant.level > 1) continue;
       if (type === 'feature') {
         if (await this.#featuresAbsorbable(grant, depth, seen)) continue;
         return false;
@@ -273,6 +373,7 @@ export class GrantAbsorber {
     const out = [];
     for (const [id, grant] of Object.entries(grants)) {
       if (grant?.grantType !== 'feature') continue;
+      if (grant.level && grant.level > 1) continue;   // a later level's feature
       const base    = grant.features?.base ?? [];
       const options = grant.features?.options ?? [];
       const total   = Number(grant.features?.total ?? 0) || 0;

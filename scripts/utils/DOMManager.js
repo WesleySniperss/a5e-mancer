@@ -398,14 +398,14 @@ export class DOMManager {
    * can, the item is later created with `noGrant: true` and a5e's window never
    * opens for it — that is how five sequential pop-ups become none.
    *
-   * The class is deliberately excluded: its grant application also creates the
-   * spellbook, writes per-level hit points and resolves the archetype, none of
-   * which lives in the grant data we can read back.
+   * The class carries three things that are not grants at all — level hit points,
+   * the spellcasting ability and the spell book — so absorbing it also means
+   * running GrantAbsorber.applyClassTail afterwards. Archetypes are chosen at a
+   * later level, so creation never has to deal with them.
    */
   static async loadItemGrants(type, uuid) {
     AM.itemGrants[type] = null;
     if (!AM.deferToSystemGrants) return;   // GM chose to keep our old pickers
-    if (type === 'class') return;
     try {
       const doc = await fromUuid(uuid);
       if (!doc) return;
@@ -413,12 +413,19 @@ export class DOMManager {
         AM.log(3, `${type} ${doc.name}: grants left to a5e (unsupported grant present)`);
         return;
       }
-      AM.itemGrants[type] = {
+      const store = {
         absorb:   true,
         grants:   GrantAbsorber.describe(doc),
         features: await GrantAbsorber.describeFeatures(doc),
         choices:  {}
       };
+      if (type === 'class') {
+        // Offer the ability only when the class actually leaves it open
+        const opts = doc.system?.spellcasting?.ability?.options ?? [];
+        store.spellcastingOptions = [...opts];
+        store.spellcastingAbility = opts[0] ?? doc.system?.spellcasting?.ability?.base ?? '';
+      }
+      AM.itemGrants[type] = store;
     } catch (err) {
       AM.log(2, `Could not read ${type} grants:`, err);
     }

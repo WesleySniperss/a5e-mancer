@@ -22,7 +22,7 @@ export class ActorCreationService {
 
       // Add all main items (Grants fire automatically)
       const uuids = this.#extractItemUuids(fd);
-      await this.#addItemsToActor(actor, uuids);
+      await this.#addItemsToActor(actor, uuids, fd);
 
       // Apply HP choice (avg/roll) after class item sets base HP
       await this.#applyHpChoice(actor, fd);
@@ -162,7 +162,7 @@ export class ActorCreationService {
 
   /* ── Add items ──────────────────────────────────────── */
 
-  static async #addItemsToActor(actor, uuids) {
+  static async #addItemsToActor(actor, uuids, fd = {}) {
     const itemDatas = [];
     for (const [type, uuid] of Object.entries(uuids)) {
       if (!uuid) continue;
@@ -190,7 +190,17 @@ export class ActorCreationService {
       const store = AM.itemGrants?.[data.type];
       if (store?.absorb) {
         const [created] = await actor.createEmbeddedDocuments('Item', [data], { noGrant: true });
-        if (created) await GrantAbsorber.apply(actor, created, store.choices ?? {});
+        if (created) {
+          await GrantAbsorber.apply(actor, created, store.choices ?? {});
+          // The class needs the non-grant tail a5e's routine ends with
+          if (data.type === 'class') {
+            await GrantAbsorber.applyClassTail(actor, created, {
+              hpValue:   this.#level1Hp(fd),
+              ability:   store.spellcastingAbility,
+              charLevel: 1
+            });
+          }
+        }
         continue;
       }
 
@@ -368,8 +378,27 @@ export class ActorCreationService {
 
   /* ── HP choice ──────────────────────────────────────── */
 
+  /**
+   * Level-1 hit points from the Class tab's choice, before CON.
+   * This is the per-level value a5e stores on the class item, not a total.
+   */
+  static #level1Hp(fd) {
+    const hitDie = AM.SELECTED.class?.hitDie ?? '';
+    const hitNum = parseInt(String(hitDie).replace('d', '')) || 0;
+    if (!hitNum) return 0;
+
+    switch (fd.hpMethod || 'max') {
+      case 'roll': return parseInt(fd.hpRollResult) || Math.floor(hitNum / 2) + 1;
+      case 'avg':  return Math.floor(hitNum / 2) + 1;
+      case 'max':
+      default:     return hitNum;   // A5e grants a full hit die at 1st level
+    }
+  }
+
   static async #applyHpChoice(actor, fd) {
-    // a5e's grant dialog asks for level-1 HP as part of applying the class.
+    // The class tail already wrote system.hp.levels.1 when we absorbed the class
+    if (AM.itemGrants?.class?.absorb) return;
+    // Otherwise a5e's grant dialog asks for level-1 HP as part of applying the class.
     if (AM.deferToSystemGrants) return;
 
     const method = fd.hpMethod || 'max';
