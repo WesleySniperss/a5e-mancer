@@ -5287,3 +5287,27 @@ input.am-cs-stat-val {
   border-radius: 3px;
   &:hover { background: rgba(212,175,55,0.45); }
 }
+
+/* ── Lore tables discovered in the destiny/background description ───────── */
+.am-lore-header {
+  margin-block: 0.5rem 0.6rem;
+  padding-block-end: 0.4rem;
+  border-bottom: 1px solid var(--am-gold-border);
+}
+
+.am-lore-tables {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 0.6rem 1rem;
+}
+
+.am-lore-row label { font-weight: 600; color: var(--am-gold); }
+
+.am-lore-source {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.6;
+}
+
+.am-lore-input { width: 100%; resize: vertical; }

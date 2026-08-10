@@ -5,6 +5,7 @@ import {
   ManeuverService, CLASS_MANEUVER_TABLES, getTraditions
 } from '../utils/index.js';
 import { SpellService, CLASS_SPELL_TABLES } from '../utils/spellService.js';
+import { LoreTableService } from '../utils/loreTableService.js';
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -41,6 +42,8 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
       cardSelect:             A5eMancer.cardSelect,
       clearCardSelection:     A5eMancer.clearCardSelection,
       rollDestinyTable:       A5eMancer.rollDestinyTable,
+      rollLoreTable:          A5eMancer.rollLoreTable,
+      rollAllLoreTables:      A5eMancer.rollAllLoreTables,
       toggleEquipmentChoice:  A5eMancer.toggleEquipmentChoice,
       setHpMethod:             A5eMancer.setHpMethod,
       rollHpDie:               A5eMancer.rollHpDie,
@@ -237,12 +240,30 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
           break;
         }
 
-        case 'biography':
+        case 'biography': {
+          // One rollable row per table found in the destiny/background text
+          const rows = [];
+          for (const src of ['destiny', 'background']) {
+            for (const t of (AM.loreTables?.[src] ?? [])) {
+              rows.push({
+                key:     t.key,
+                heading: t.heading,
+                die:     t.die,
+                source:  src,
+                sourceLabel: game.i18n.localize(`am.app.tab-names.${src}`),
+                value:   AM.loreRolls?.[t.key] ?? ''
+              });
+            }
+          }
+          context.loreTables    = rows;
+          context.hasLoreTables = rows.length > 0;
+
           context.alignments = (game.settings.get(AM.ID, 'alignments') || '')
             .split(',').map(s => s.trim()).filter(Boolean);
           context.enableAlignmentFaithInputs = game.settings.get(AM.ID, 'enableAlignmentFaithInputs');
           context.selectedDestiny = AM.SELECTED.destiny ?? null;
           break;
+        }
 
         case 'footer':
           context.navigationButtons = game.settings.get(AM.ID, 'enableNavigationButtons');
@@ -548,6 +569,41 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     }
   }
 
+  /** Find a discovered lore table by its `<source>.<index>` key. */
+  static #findLoreTable(key) {
+    for (const list of Object.values(AM.loreTables ?? {})) {
+      const hit = (list ?? []).find(t => t.key === key);
+      if (hit) return hit;
+    }
+    return null;
+  }
+
+  /** Roll one of the tables found in the destiny/background description. */
+  static rollLoreTable(_event, btn) {
+    const key = btn?.dataset.key;
+    const table = key ? A5eMancer.#findLoreTable(key) : null;
+    if (!table) return;
+
+    const text = LoreTableService.roll(table);
+    AM.loreRolls[key] = text;
+
+    // Write straight into the field so the value survives without a re-render
+    const input = document.getElementById(`lore-${key.replace('.', '-')}`);
+    if (input) {
+      input.value = text;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  }
+
+  /** Roll every table at once — the usual way to fill a character's lore. */
+  static rollAllLoreTables() {
+    for (const list of Object.values(AM.loreTables ?? {})) {
+      for (const table of (list ?? [])) {
+        A5eMancer.rollLoreTable(null, { dataset: { key: table.key } });
+      }
+    }
+  }
+
   static async rollDestinyTable(_event, btn) {
     const fieldName = btn.dataset.field;
     const die       = parseInt(btn.dataset.die) || 4;
@@ -685,7 +741,9 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     // 4. Randomize ability scores based on the active method
     await A5eMancer.#randomizeAbilities(app.element);
 
-    // 5. Roll the destiny/background narrative fields (motivation, goals, backstory)
+    // 5. Roll every lore table the destiny/background offers, plus the older
+    //    fixed narrative fields (backstory and friends)
+    A5eMancer.rollAllLoreTables();
     for (const rb of form.querySelectorAll('[data-action="rollDestinyTable"]')) {
       rb.click();
       await new Promise(r => setTimeout(r, 50));

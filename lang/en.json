@@ -398,5 +398,11 @@
   "am.app.hover-for-description": "Hover a card to preview it — right-click for the full text and its costs",
   "am.levelup.features-traditions": "Combat tradition proficiency",
   "am.grants.item-title": "Benefits",
-  "am.grants.casting-ability": "Spellcasting Ability"
+  "am.grants.casting-ability": "Spellcasting Ability",
+  "am.app.lore.intro": "Tables from your destiny and background — roll them or write your own.",
+  "am.app.lore.roll-all": "Roll all",
+  "am.app.lore.roll-one": "Roll this table",
+  "am.app.lore.placeholder": "Roll, or write your own…",
+  "am.app.lore.none": "Choose a destiny or background to see its roll tables here.",
+  "am.app.lore.table-n": "Table {n}"
 }

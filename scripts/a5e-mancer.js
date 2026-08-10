@@ -30,6 +30,10 @@ export class AM {
   // (heritage, culture, background, destiny). Each entry:
   // { absorb: bool, grants: [uiModel], features: [uiModel], choices: { grantId: key[] } }
   static itemGrants        = {};
+  // Roll tables found in the destiny/background descriptions, and what was rolled.
+  // { destiny: [table], background: [table] } and { 'destiny.0': 'text', … }
+  static loreTables        = {};
+  static loreRolls         = {};
   static app               = null;
   static levelUpDialog     = null;
 

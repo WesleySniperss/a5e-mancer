@@ -752,6 +752,10 @@
                 {{#if bio.inspiration}}
                   <dt>Inspiration Feature</dt><dd>{{bio.inspiration}}</dd>
                 {{/if}}
+                {{!-- Whatever the destiny/background tables actually rolled --}}
+                {{#each bio.lore}}
+                  <dt>{{this.heading}}</dt><dd>{{this.text}}</dd>
+                {{/each}}
               </dl>
             </div>
           {{/if}}

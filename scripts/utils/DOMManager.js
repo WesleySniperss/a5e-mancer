@@ -5,6 +5,7 @@ import { ManeuverService } from './maneuverService.js';
 import { SpellService } from './spellService.js';
 import { GrantAbsorber } from './grantAbsorber.js';
 import { ItemDescPanel } from './itemDescPanel.js';
+import { LoreTableService } from './loreTableService.js';
 
 const ITEM_TYPES = ['heritage', 'culture', 'background', 'destiny', 'class'];
 
@@ -256,6 +257,14 @@ export class DOMManager {
       await this.#loadDescription(type, uuid, form);
       // Grants we can ask for ourselves, so a5e's window stays shut for this item
       await this.loadItemGrants(type, uuid);
+      // Lore tables live in the description; the Biography tab rolls them
+      if (type === 'destiny' || type === 'background') {
+        AM.loreTables[type] = await LoreTableService.load(uuid, type);
+        for (const key of Object.keys(AM.loreRolls)) {
+          if (key.startsWith(`${type}.`)) delete AM.loreRolls[key];
+        }
+        await AM.app?.render(false, { parts: ['biography'] });
+      }
       // Side effects per type
       if (type === 'heritage')   await this.#onHeritageChanged(uuid, form);
       if (type === 'class')      await this.#onClassChanged(uuid, form);

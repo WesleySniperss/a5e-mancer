@@ -149,38 +149,41 @@
       </h2>
       <p class="am-hint">{{localize 'am.app.biography.destiny-rolls-hint'}}</p>
 
-      {{!-- Row 1: roll tables --}}
-      <div class="grid grid-2-col gap-md">
-
-        {{!-- Source of Motivation --}}
-        <div class="form-group">
-          <div class="flex items-center gap-xs mb-xs">
-            <label for="destinyMotivation">{{localize 'am.app.biography.destiny-motivation'}}</label>
-            <button type="button" class="am-roll-btn" data-action="rollDestinyTable"
-              data-field="destinyMotivation" data-die="4"
-              data-tooltip="{{localize 'am.app.biography.roll-motivation'}}">
-              <i class="fa-solid fa-dice"></i> d4
-            </button>
-          </div>
-          <textarea id="destinyMotivation" name="destinyMotivation" class="form-input" rows="3"
-            placeholder="{{localize 'am.app.biography.destiny-motivation-placeholder'}}"></textarea>
+      {{!-- Every roll table found in the chosen destiny and background. These are
+            plain HTML tables in the item description, so they are discovered
+            rather than hardcoded — a destiny carries several. --}}
+      {{#if hasLoreTables}}
+        <div class="am-lore-header flex items-center justify-between gap-sm">
+          <span class="am-hint">{{localize 'am.app.lore.intro'}}</span>
+          <button type="button" class="select-button" data-action="rollAllLoreTables">
+            <i class="fa-solid fa-dice-d20"></i> {{localize 'am.app.lore.roll-all'}}
+          </button>
         </div>
 
-        {{!-- Goals --}}
-        <div class="form-group">
-          <div class="flex items-center gap-xs mb-xs">
-            <label for="destinyGoals">{{localize 'am.app.biography.destiny-goals'}}</label>
-            <button type="button" class="am-roll-btn" data-action="rollDestinyTable"
-              data-field="destinyGoals" data-die="6"
-              data-tooltip="{{localize 'am.app.biography.roll-goals'}}">
-              <i class="fa-solid fa-dice"></i> d6
-            </button>
-          </div>
-          <textarea id="destinyGoals" name="destinyGoals" class="form-input" rows="3"
-            placeholder="{{localize 'am.app.biography.destiny-goals-placeholder'}}"></textarea>
+        <div class="am-lore-tables">
+          {{#each loreTables}}
+            <div class="form-group am-lore-row">
+              <div class="flex items-center gap-xs mb-xs">
+                <label for="lore-{{this.source}}-{{@index}}">{{this.heading}}</label>
+                <span class="am-lore-source am-hint">{{this.sourceLabel}}</span>
+                <button type="button" class="am-roll-btn" data-action="rollLoreTable"
+                  data-key="{{this.key}}"
+                  data-tooltip="{{localize 'am.app.lore.roll-one'}}">
+                  <i class="fa-solid fa-dice"></i> d{{this.die}}
+                </button>
+              </div>
+              <textarea id="lore-{{this.source}}-{{@index}}"
+                name="lore[{{this.key}}]" class="form-input am-lore-input" rows="2"
+                data-heading="{{this.heading}}"
+                placeholder="{{localize 'am.app.lore.placeholder'}}">{{this.value}}</textarea>
+            </div>
+          {{/each}}
         </div>
-
-      </div>
+      {{else}}
+        <p class="am-hint">
+          <i class="fa-solid fa-circle-info"></i> {{localize 'am.app.lore.none'}}
+        </p>
+      {{/if}}
 
       {{!-- Row 2: narrative fields --}}
       <div class="grid grid-2-col gap-md" style="margin-top:0.75rem">

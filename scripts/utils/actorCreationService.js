@@ -479,7 +479,18 @@ export class ActorCreationService {
   static async #applyBiography(actor, fd) {
     const clean = (v) => (typeof v === 'string' ? v.trim() : '');
 
+    // Every lore table the destiny/background offered, with its own heading —
+    // there are several per destiny and previously only two ever reached here.
+    const lore = [];
+    for (const [source, tables] of Object.entries(AM.loreTables ?? {})) {
+      for (const table of (tables ?? [])) {
+        const text = clean(fd[`lore[${table.key}]`] ?? AM.loreRolls?.[table.key]);
+        if (text) lore.push({ source, heading: table.heading, text });
+      }
+    }
+
     const bio = {
+      lore,
       traits:      clean(fd.traits),
       ideals:      clean(fd.ideals),
       bonds:       clean(fd.bonds),
@@ -515,7 +526,8 @@ export class ActorCreationService {
       section('Personality Traits',   bio.traits),
       section('Mementos',             bio.mementos),
       section('Destiny Motivation',   bio.destiny.motivation),
-      section('Inspiration Feature',  bio.destiny.inspiration)
+      section('Inspiration Feature',  bio.destiny.inspiration),
+      ...lore.map(l => section(l.heading, l.text))
     ].filter(Boolean).join('\n');
 
     const updates = {

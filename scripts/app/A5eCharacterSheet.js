@@ -336,8 +336,10 @@ export class A5eCharacterSheet extends ActorSheet {
       fulfillment: bioFlag.destiny?.fulfillment ?? '',
       inspiration: bioFlag.destiny?.inspiration ?? ''
     };
+    // Rolled lore-table results, each with the heading it came from
+    bio.lore = Array.isArray(bioFlag.lore) ? bioFlag.lore.filter(l => l?.text) : [];
     bio.hasDestiny = !!(bio.motivation || bio.goals || bio.connection
-                        || bio.fulfillment || bio.inspiration);
+                        || bio.fulfillment || bio.inspiration || bio.lore.length);
 
     return {
       actor, system: sys, isOwner: actor.isOwner, isGM: game.user.isGM,

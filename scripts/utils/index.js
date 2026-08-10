@@ -14,3 +14,4 @@ export { Beyond20Service } from './beyond20Service.js';
 export { GrantDialogEnhancer } from './grantDialogEnhancer.js';
 export { GrantAbsorber } from './grantAbsorber.js';
 export { ItemDescPanel } from './itemDescPanel.js';
+export { LoreTableService } from './loreTableService.js';
