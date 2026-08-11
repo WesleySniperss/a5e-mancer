@@ -396,6 +396,56 @@
   </section>
   {{/unless}}
 
+  {{!-- Trading in what you already know. A5e lets a maneuver class swap one
+        maneuver per class level, and a known caster swap one spell — which is why
+        a level that grants nothing new can still be worth opening. Each item
+        marked here frees one pick in the browsers above. --}}
+  {{#if knownManeuverList}}
+  <hr />
+  <section class="lu-section">
+    <h3><i class="fa-solid fa-right-left"></i> {{localize 'am.levelup.replace-maneuver-title'}}</h3>
+    <p class="am-hint">
+      {{localize 'am.levelup.replace-hint' n=maneuverReplaceLimit}}
+      <strong>({{maneuverReplaceUsed}}/{{maneuverReplaceLimit}})</strong>
+    </p>
+    <div class="am-replace-list">
+      {{#each knownManeuverList}}
+        <button type="button"
+                class="am-replace-row {{#if this.replaced}}am-replace-marked{{/if}}"
+                data-action="luReplaceManeuver" data-item-id="{{this.id}}">
+          <img src="{{this.img}}" alt="" class="am-replace-img">
+          <span class="am-replace-name">{{this.name}}</span>
+          <span class="am-hint">{{this.traditionLabel}} · {{this.degree}}°</span>
+          <i class="fa-solid {{#if this.replaced}}fa-rotate-left{{else}}fa-xmark{{/if}}"></i>
+        </button>
+      {{/each}}
+    </div>
+  </section>
+  {{/if}}
+
+  {{#if knownSpellList}}
+  <hr />
+  <section class="lu-section">
+    <h3><i class="fa-solid fa-right-left"></i> {{localize 'am.levelup.replace-spell-title'}}</h3>
+    <p class="am-hint">
+      {{localize 'am.levelup.replace-hint' n=spellReplaceLimit}}
+      <strong>({{spellReplaceUsed}}/{{spellReplaceLimit}})</strong>
+    </p>
+    <div class="am-replace-list">
+      {{#each knownSpellList}}
+        <button type="button"
+                class="am-replace-row {{#if this.replaced}}am-replace-marked{{/if}}"
+                data-action="luReplaceSpell" data-item-id="{{this.id}}">
+          <img src="{{this.img}}" alt="" class="am-replace-img">
+          <span class="am-replace-name">{{this.name}}</span>
+          <span class="am-hint">{{localize 'am.spells.level-n' n=this.level}}</span>
+          <i class="fa-solid {{#if this.replaced}}fa-rotate-left{{else}}fa-xmark{{/if}}"></i>
+        </button>
+      {{/each}}
+    </div>
+  </section>
+  {{/if}}
+
   {{!-- This level's grants, asked here so a5e's window never opens. Falls back to
         the heads-up note below when the builder cannot account for all of them. --}}
   {{#if hasBgGrants}}

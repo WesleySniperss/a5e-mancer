@@ -32,6 +32,11 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     this._selectedCantripUuids  = [];
     this._selectedSpellUuids    = [];
 
+    // Items being swapped out this level. Each one frees a pick, and the item is
+    // removed from the actor when the level-up is applied.
+    this._replacedManeuverIds = [];
+    this._replacedSpellIds    = [];
+
     // Inline browser state
     this._maneuverFilter   = { tradition: null };
     this._spellFilter      = { level: null, school: null };
@@ -54,6 +59,8 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       luFilterSpellSchool:       LevelUpDialog.luFilterSpellSchool,
       luToggleSpell:             LevelUpDialog.luToggleSpell,
       toggleGrantOption:         LevelUpDialog.luToggleGrantOption,
+      luReplaceManeuver:         LevelUpDialog.luReplaceManeuver,
+      luReplaceSpell:            LevelUpDialog.luReplaceSpell,
     },
     classes: ['am-app', 'am-levelup-dialog'],
     position: { width: 680, height: 760 },
@@ -177,6 +184,21 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       newClass: null,
     };
 
+    this.#maneuverReplacementContext(context, selectedClass, newClassLevel);
+    this.#spellReplacementContext(context, selectedClass, newClassLevel);
+
+    // A known caster may swap a spell even on a level that grants none, so the
+    // spell browser has to open whenever there is a replacement in play.
+    if (context.spellReplaceLimit && !context.spellInfo) {
+      const info = SpellService.getClassSpellInfo(selectedClass?.name ?? '');
+      if (info) {
+        context.spellInfo = { ...info, spellsKnown: this._replacedSpellIds.length };
+        this.#addSpellBrowserContext(context, context.spellInfo);
+      }
+    }
+    context.selectedCantripCount = this._selectedCantripUuids.length;
+    context.selectedSpellCount   = this._selectedSpellUuids.length;
+
     this.#addManeuverBrowserContext(context, maneuverInfo);
     await this.#addLevelGrantContext(context, selectedClass, newClassLevel);
     return context;
@@ -293,10 +315,60 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!info || info.maneuversKnown === 0) return null;
 
     const prevInfo = ManeuverService.getClassManeuverInfo(cls.name, newClassLevel - 1) ?? { maneuversKnown: 0, maxDegree: 0 };
-    const newManeuversToLearn = Math.max(0, info.maneuversKnown - prevInfo.maneuversKnown);
-    const degreeUnlocked      = info.maxDegree > prevInfo.maxDegree ? info.maxDegree : null;
+    const gained             = Math.max(0, info.maneuversKnown - prevInfo.maneuversKnown);
+    const degreeUnlocked     = info.maxDegree > prevInfo.maxDegree ? info.maxDegree : null;
 
-    return { ...info, newManeuversToLearn, degreeUnlocked, hasManeuvers: info.maneuversKnown > 0 };
+    // Each maneuver swapped out frees one pick on top of the level's gain. This
+    // is what makes levels that grant nothing new still worth opening: the class
+    // may still let one known maneuver be traded for another.
+    const replaced = this._replacedManeuverIds.length;
+    const newManeuversToLearn = gained + replaced;
+
+    return {
+      ...info,
+      gained,
+      newManeuversToLearn,
+      degreeUnlocked,
+      hasManeuvers: info.maneuversKnown > 0
+    };
+  }
+
+  /**
+   * Known maneuvers offered for replacement, plus how many may still be swapped.
+   * a5e allows one per class level gained.
+   */
+  #maneuverReplacementContext(context, cls, newClassLevel) {
+    if (!cls || newClassLevel <= 1) return;
+    const info = ManeuverService.getClassManeuverInfo(cls.name, newClassLevel);
+    if (!info?.replaceable) return;
+
+    const known = ManeuverService.getActorManeuvers(this.actor);
+    if (!known.length) return;
+
+    context.maneuverReplaceLimit = info.replaceable;
+    context.maneuverReplaceUsed  = this._replacedManeuverIds.length;
+    context.knownManeuverList = known.map(m => ({
+      id: m.id, name: m.name, img: m.img,
+      degree: m.degree, traditionLabel: m.traditionLabel,
+      replaced: this._replacedManeuverIds.includes(m.id)
+    }));
+  }
+
+  /** Known spells offered for replacement — known casters only. */
+  #spellReplacementContext(context, cls, newClassLevel) {
+    if (!cls || newClassLevel <= 1) return;
+    const limit = SpellService.replaceableOnLevelUp(cls.name);
+    if (!limit) return;
+
+    const known = SpellService.getActorSpells(this.actor).filter(s => s.level > 0);
+    if (!known.length) return;
+
+    context.spellReplaceLimit = limit;
+    context.spellReplaceUsed  = this._replacedSpellIds.length;
+    context.knownSpellList = known.map(s => ({
+      id: s.id, name: s.name, img: s.img, level: s.level,
+      replaced: this._replacedSpellIds.includes(s.id)
+    }));
   }
 
   #getConMod() {
@@ -327,6 +399,8 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     this._selectedTraditions    = [];
     this._selectedCantripUuids  = [];
     this._selectedSpellUuids    = [];
+    this._replacedManeuverIds   = [];
+    this._replacedSpellIds      = [];
     this._allManeuversData  = null;
     this._allSpellsData     = null;
     this._loadingManeuvers  = false;
@@ -665,6 +739,68 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     dialog.render(false);
   }
 
+  /**
+   * Mark a known maneuver to be traded in. Each one frees a pick in the browser
+   * above; unmarking it takes that pick back, dropping the newest selection if
+   * the player had already spent it.
+   */
+  static luReplaceManeuver(_event, btn) {
+    const dialog = AM.levelUpDialog;
+    const id = btn?.dataset.itemId;
+    if (!dialog || !id) return;
+
+    const list = dialog._replacedManeuverIds;
+    const at = list.indexOf(id);
+
+    if (at >= 0) {
+      list.splice(at, 1);
+      // The freed pick is gone — give back the most recent maneuver chosen
+      const cls = LevelUpService.getActorClasses(dialog.actor)
+        .find(c => c.id === dialog._selectedClassId);
+      const info = cls ? ManeuverService.getClassManeuverInfo(cls.name, cls.level + 1) : null;
+      const prev = cls ? ManeuverService.getClassManeuverInfo(cls.name, cls.level) : null;
+      const budget = Math.max(0, (info?.maneuversKnown ?? 0) - (prev?.maneuversKnown ?? 0)) + list.length;
+      while (dialog._selectedManeuverUuids.length > budget) dialog._selectedManeuverUuids.pop();
+    } else {
+      const cls = LevelUpService.getActorClasses(dialog.actor)
+        .find(c => c.id === dialog._selectedClassId);
+      const limit = cls
+        ? (ManeuverService.getClassManeuverInfo(cls.name, cls.level + 1)?.replaceable ?? 0)
+        : 0;
+      if (list.length >= limit) {
+        ui.notifications.warn(game.i18n.format('am.levelup.replace-limit', { n: limit }));
+        return;
+      }
+      list.push(id);
+    }
+    dialog.render(false);
+  }
+
+  /** Same for a known spell — known casters may trade one per level. */
+  static luReplaceSpell(_event, btn) {
+    const dialog = AM.levelUpDialog;
+    const id = btn?.dataset.itemId;
+    if (!dialog || !id) return;
+
+    const list = dialog._replacedSpellIds;
+    const at = list.indexOf(id);
+
+    if (at >= 0) {
+      list.splice(at, 1);
+      while (dialog._selectedSpellUuids.length > list.length) dialog._selectedSpellUuids.pop();
+    } else {
+      const cls = LevelUpService.getActorClasses(dialog.actor)
+        .find(c => c.id === dialog._selectedClassId);
+      const limit = SpellService.replaceableOnLevelUp(cls?.name ?? '');
+      if (list.length >= limit) {
+        ui.notifications.warn(game.i18n.format('am.levelup.replace-limit', { n: limit }));
+        return;
+      }
+      list.push(id);
+    }
+    dialog.render(false);
+  }
+
   /** Pick or unpick one option of this level's grants. */
   static luToggleGrantOption(_event, btn) {
     const dialog = AM.levelUpDialog;
@@ -812,9 +948,27 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       dialog.actor, cls.id, hpGained
     );
 
+    // Trade-ins go first, so the replacement never trips the duplicate check
+    // against the item it is replacing.
+    const traded = [...dialog._replacedManeuverIds, ...dialog._replacedSpellIds]
+      .filter(id => dialog.actor.items.get(id));
+    if (traded.length) {
+      try {
+        await dialog.actor.deleteEmbeddedDocuments('Item', traded);
+        AM.log(3, `Replaced ${traded.length} known item(s) on level up`);
+      } catch (err) {
+        AM.log(1, 'Could not remove the replaced items:', err);
+      }
+    }
+
     if (dialog._selectedManeuverUuids.length || dialog._selectedTraditions.length) {
       await ManeuverService.applyManeuversToActor(
         dialog.actor, dialog._selectedManeuverUuids, dialog._selectedTraditions
+      );
+    }
+    if (dialog._selectedCantripUuids.length || dialog._selectedSpellUuids.length) {
+      await SpellService.applySpellsToActor(
+        dialog.actor, [...dialog._selectedCantripUuids, ...dialog._selectedSpellUuids]
       );
     }
   }

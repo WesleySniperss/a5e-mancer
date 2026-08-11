@@ -406,5 +406,9 @@
   "am.app.lore.none": "Choose a destiny or background to see its roll tables here.",
   "am.app.lore.table-n": "Table {n}",
   "am.settings.dnd5e-packs.name": "Include the 5e conversion compendiums",
-  "am.settings.dnd5e-packs.hint": "The a5e system ships D&D 5e SRD conversions (D&D5E Spells, Items, Class Features…) alongside its own books. They are skipped by default, since every converted spell otherwise appears twice in the pickers. Turn this on only if your table actually uses them."
+  "am.settings.dnd5e-packs.hint": "The a5e system ships D&D 5e SRD conversions (D&D5E Spells, Items, Class Features…) alongside its own books. They are skipped by default, since every converted spell otherwise appears twice in the pickers. Turn this on only if your table actually uses them.",
+  "am.levelup.replace-maneuver-title": "Replace a Known Maneuver",
+  "am.levelup.replace-spell-title": "Replace a Known Spell",
+  "am.levelup.replace-hint": "Optional — you may trade in up to {n} per level. Each one you mark frees an extra pick above.",
+  "am.levelup.replace-limit": "You may replace {n} per level. Unmark one first."
 }

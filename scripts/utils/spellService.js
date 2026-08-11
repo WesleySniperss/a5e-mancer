@@ -112,6 +112,19 @@ export class SpellService {
   }
 
   /**
+   * How many known spells may be swapped when a level in this class is gained.
+   *
+   * A5e gives this to *known* casters — "whenever you gain a level in this class
+   * you can replace one spell you know with another from the class's list".
+   * Prepared casters (wizard, cleric, druid, herald, artificer) rearrange their
+   * prepared list freely instead, so they get none.
+   */
+  static replaceableOnLevelUp(className) {
+    const info = this.getClassSpellInfo(className);
+    return info?.type === 'known' ? 1 : 0;
+  }
+
+  /**
    * Dynamically load spellcasting info from a class compendium item.
    * Sets _dynamicIsSpellcaster=true for any spellcasting class, even half-casters
    * that don't get spells at level 1. _dynamicSpellInfo is only set for classes

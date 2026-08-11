@@ -174,6 +174,14 @@ export class ManeuverService {
   }
 
   /**
+   * How many known maneuvers may be swapped out when a level in this class is
+   * gained. A5e's Combat Maneuvers feature reads "whenever you gain a level in
+   * this class, you can replace one maneuver you know with another", so it is one
+   * per level for every class that has maneuvers at all.
+   */
+  static MANEUVER_REPLACEMENTS_PER_LEVEL = 1;
+
+  /**
    * Get maneuver table info for a class at a given level.
    */
   static getClassManeuverInfo(className, level) {
@@ -189,7 +197,9 @@ export class ManeuverService {
       traditions:  table.traditions,
       allowedTraditions: table.allowedTraditions ?? null, // null = any tradition
       maneuversKnown,
-      maxDegree:   table.maxDegree[lvl] ?? 0
+      maxDegree:   table.maxDegree[lvl] ?? 0,
+      // Only when a level is actually being gained — not at character creation
+      replaceable: lvl > 1 ? this.MANEUVER_REPLACEMENTS_PER_LEVEL : 0
     };
   }
 

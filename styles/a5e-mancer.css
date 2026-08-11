@@ -5311,3 +5311,37 @@ input.am-cs-stat-val {
 }
 
 .am-lore-input { width: 100%; resize: vertical; }
+
+/* ── Trading in a known maneuver/spell on level up ──────────────────────── */
+.am-replace-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 0.3rem;
+}
+
+.am-replace-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.25rem 0.4rem;
+  text-align: left;
+  border: 1px solid var(--am-gold-border) !important;
+  border-radius: var(--am-border-radius);
+  background: rgba(255,255,255,0.03) !important;
+  color: var(--am-text-dim);
+  cursor: pointer;
+  font-size: 0.8rem;
+
+  &:hover { border-color: var(--am-gold) !important; color: var(--am-text-primary); }
+
+  /* Marked for replacement: struck through, so it reads as "on its way out" */
+  &.am-replace-marked {
+    border-color: #e05040 !important;
+    background: rgba(224,80,64,0.10) !important;
+    .am-replace-name { text-decoration: line-through; opacity: 0.75; }
+  }
+}
+
+.am-replace-img { width: 1.4rem; height: 1.4rem; flex: 0 0 auto; border: none !important; border-radius: 3px; }
+.am-replace-name { flex: 1; min-width: 0; font-weight: 600; }
