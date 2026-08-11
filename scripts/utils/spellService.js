@@ -1,4 +1,5 @@
 import { AM } from '../a5e-mancer.js';
+import { PackFilter } from './packFilter.js';
 import { iconForItem, applyItemIcon } from '../data/a5eIcons.js';
 
 /**
@@ -228,7 +229,7 @@ export class SpellService {
     const byLevel = new Map();
     for (let i = 0; i <= 9; i++) byLevel.set(i, []);
 
-    const packs = game.packs.filter(p => p.metadata.type === 'Item');
+    const packs = PackFilter.itemPacks();
 
     for (const pack of packs) {
       try {

@@ -1,4 +1,5 @@
 import { AM } from '../a5e-mancer.js';
+import { PackFilter } from './packFilter.js';
 import { DocumentService } from './documentService.js';
 import { A5E_CLASS_DATA, classKey as classKeyOf } from '../data/a5eClassData.js';
 import { iconForItem } from '../data/a5eIcons.js';
@@ -148,7 +149,7 @@ export class LevelUpService {
    */
   static async getCompendiumClasses() {
     const results = [];
-    for (const pack of game.packs.filter(p => p.metadata.type === 'Item')) {
+    for (const pack of PackFilter.itemPacks()) {
       try {
         const index = await pack.getIndex({ fields: ['name', 'type', 'img', 'system'] });
         for (const entry of index) {
@@ -287,7 +288,7 @@ export class LevelUpService {
    */
   static async getFeats() {
     const results = [];
-    const featPacks = game.packs.filter(p => p.metadata.type === 'Item');
+    const featPacks = PackFilter.itemPacks();
     for (const pack of featPacks) {
       try {
         const index = await pack.getIndex({ fields: ['name', 'type', 'img', 'system'] });
@@ -319,7 +320,7 @@ export class LevelUpService {
    */
   static async getExplorationKnacks(className = null) {
     const key   = className ? classKeyOf(className) : null;
-    const packs = game.packs.filter(p => p.metadata.type === 'Item');
+    const packs = PackFilter.itemPacks();
 
     // Singular/plural-tolerant stem so "Elective Study" matches "Elective Studies".
     const norm = s => (s ?? '').toLowerCase().replace(/[^a-z]/g, '');

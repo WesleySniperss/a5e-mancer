@@ -3,6 +3,7 @@ import { LevelUpDialog } from './LevelUpDialog.js';
 import { ManeuverDialog } from './ManeuverDialog.js';
 import { SpellDialog } from './SpellDialog.js';
 import { SpellService } from '../utils/spellService.js';
+import { PackFilter } from '../utils/packFilter.js';
 
 const MODULE_ID = 'a5e-mancer';
 
@@ -1459,7 +1460,7 @@ export class A5eCharacterSheet extends ActorSheet {
 
   async #openFeatPicker() {
     // Build a searchable dialog from compendium feats
-    const packs  = game.packs.filter(p => p.metadata.type === 'Item');
+    const packs  = PackFilter.itemPacks();
     const feats  = [];
 
     for (const pack of packs) {

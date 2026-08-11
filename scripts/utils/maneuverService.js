@@ -1,4 +1,5 @@
 import { AM } from '../a5e-mancer.js';
+import { PackFilter } from './packFilter.js';
 import { iconForItem, applyItemIcon } from '../data/a5eIcons.js';
 
 /**
@@ -119,7 +120,7 @@ export class ManeuverService {
       byTradition.set(key, new Map());
     }
 
-    const packs = game.packs.filter(p => p.metadata.type === 'Item');
+    const packs = PackFilter.itemPacks();
     for (const pack of packs) {
       try {
         const index = await pack.getIndex({

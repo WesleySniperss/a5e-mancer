@@ -1,4 +1,5 @@
 import { AM } from '../a5e-mancer.js';
+import { PackFilter } from './packFilter.js';
 import { iconForItem } from '../data/a5eIcons.js';
 
 /** Resolve an equipment item's display icon (site override → compendium → default). */
@@ -94,7 +95,7 @@ export class EquipmentService {
     // Prefer the same pack first, then all item packs
     const packs = [
       ...(packId ? [game.packs.get(packId)].filter(Boolean) : []),
-      ...game.packs.filter(p => p.metadata.type === 'Item' && p.collection !== packId)
+      ...PackFilter.itemPacks().filter(p => p.collection !== packId)
     ];
 
     for (const pack of packs) {

@@ -110,6 +110,13 @@ export function registerSettings() {
 
   // Since a5e's grant dialog is where the picks happen, make it a better place to
   // pick: enforce the trait allowance it states and show what each option is.
+  // The a5e system ships 5e SRD conversions next to its own books (dnd5e-spells,
+  // dnd5e-items, …). Reading both returned every converted spell twice.
+  game.settings.register(AM.ID, 'includeDnd5ePacks', {
+    name: 'am.settings.dnd5e-packs.name', hint: 'am.settings.dnd5e-packs.hint',
+    scope: 'world', config: true, type: Boolean, default: false
+  });
+
   game.settings.register(AM.ID, 'enhanceGrantDialog', {
     name: 'am.settings.enhance-grants.name', hint: 'am.settings.enhance-grants.hint',
     scope: 'world', config: true, type: Boolean, default: true

@@ -15,3 +15,4 @@ export { GrantDialogEnhancer } from './grantDialogEnhancer.js';
 export { GrantAbsorber } from './grantAbsorber.js';
 export { ItemDescPanel } from './itemDescPanel.js';
 export { LoreTableService } from './loreTableService.js';
+export { PackFilter } from './packFilter.js';

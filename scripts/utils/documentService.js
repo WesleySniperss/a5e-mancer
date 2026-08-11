@@ -1,4 +1,5 @@
 import { AM } from '../a5e-mancer.js';
+import { PackFilter } from './packFilter.js';
 import { classKey } from '../data/a5eClassData.js';
 import { CLASS_DESCRIPTIONS, HERITAGE_DESCRIPTIONS } from '../data/a5eDescriptions.js';
 import { iconForItem } from '../data/a5eIcons.js';
@@ -61,7 +62,7 @@ export class DocumentService {
    */
   static async #fetchByType(type) {
     const selectedPacks = game.settings.get(AM.ID, `${type}Packs`) || [];
-    const itemPacks = game.packs.filter(p => p.metadata.type === 'Item');
+    const itemPacks = PackFilter.itemPacks();
 
     let packs;
     if (selectedPacks.length) {
