@@ -27,17 +27,15 @@ export class GrantAbsorber {
    * @param {object} doc  compendium item (background, culture, …)
    * @returns {Array<{id, type, label, total, options: Array<{key,label}>, base: string[]}>}
    */
-  static describe(doc) {
+  static describe(doc, lv = {}) {
     // Prepared objects, so requiresConfig/getSelectionComponentProps are available
-    const prepared = doc?.grants && typeof doc.grants.values === 'function'
-      ? [...doc.grants.values()]
-      : Object.values(doc?.system?.grants ?? {});
+    const prepared = this.#preparedGrants(doc);
     if (!prepared.length) return [];
 
     const out = [];
     for (const grant of prepared) {
       if (grant?.grantType === 'feature') continue;  // described separately
-      if (!this.#isSupported(grant)) continue;
+      if (!this.#isSupported(grant, lv)) continue;
       if (!this.#needsConfig(grant)) continue;       // applied without asking
 
       const spec    = this.#specOf(grant);
@@ -58,6 +56,13 @@ export class GrantAbsorber {
     return out;
   }
 
+  /** Prepared grant objects, falling back to the raw entries if unprepared. */
+  static #preparedGrants(doc) {
+    return doc?.grants && typeof doc.grants.values === 'function'
+      ? [...doc.grants.values()]
+      : Object.values(doc?.system?.grants ?? {});
+  }
+
   /**
    * Grants the builder owns elsewhere, so they must not appear as pickers here
    * and are stripped from the item data before creation:
@@ -71,6 +76,30 @@ export class GrantAbsorber {
         && grant.traits?.traitType === 'maneuverTraditions';
   }
 
+  /**
+   * Does this grant belong to the level being applied?
+   *
+   * a5e checks `level` against the CHARACTER level for `levelType: 'character'`
+   * and against the CLASS level otherwise, and skips anything above it. Ignoring
+   * that handed out every level's grants at once — the heritage traits meant for
+   * later levels all arrived at 1st.
+   *
+   * @param {object} lv  { charLevel, clsLevel }
+   */
+  static #appliesAtLevel(grant, { charLevel = 1, clsLevel = 1 } = {}) {
+    const level = Number(grant?.level ?? 0) || 0;
+    if (level <= 0) return true;                       // ungated
+    const ceiling = grant.levelType === 'character' ? charLevel : clsLevel;
+    return level <= ceiling;
+  }
+
+  /** Only the grants introduced *at* this level — what a level-up must ask for. */
+  static #isExactlyAtLevel(grant, { charLevel = 1, clsLevel = 1 } = {}) {
+    const level = Number(grant?.level ?? 0) || 0;
+    if (level <= 0) return charLevel <= 1 && clsLevel <= 1;
+    return level === (grant.levelType === 'character' ? charLevel : clsLevel);
+  }
+
   /** Does this grant have anything to ask the player? a5e's own test. */
   static #needsConfig(grant) {
     try { return !!grant.requiresConfig?.(); }
@@ -82,10 +111,10 @@ export class GrantAbsorber {
    * getApplyData writes it straight out, exactly as a5e does when it decides its
    * dialog is unnecessary — or asks something we can list as options.
    */
-  static #isSupported(grant, level = 1) {
+  static #isSupported(grant, lv = {}) {
     if (!grant?.grantType) return false;
     if (this.#isOwnedElsewhere(grant)) return false;
-    if (grant.level && grant.level > level) return false;
+    if (!this.#appliesAtLevel(grant, lv)) return false;
     if (!this.#needsConfig(grant)) return true;
     return !!this.#specOf(grant)?.options.length;
   }
@@ -183,7 +212,7 @@ export class GrantAbsorber {
    * @param {Item}  item       the embedded item, whose `.grants` we drive
    * @param {object} choices   { [grantId]: string[] }
    */
-  static async apply(actor, item, choices = {}, depth = 0, level = 1) {
+  static async apply(actor, item, choices = {}, lv = {}, depth = 0) {
     if (!actor || !item) return;
     if (depth > this.#MAX_DEPTH) {
       AM.log(2, `Grant nesting too deep at ${item.name}; leaving the rest to a5e`);
@@ -200,8 +229,9 @@ export class GrantAbsorber {
 
     for (const [id, grant] of grantMap.entries?.() ?? []) {
       // a5e's grant routines skip anything above the level being applied;
-      // without the same guard a class's 5th-level feature landed at creation.
-      if (grant?.level && grant.level > level) continue;
+      // without the same guard a class's 5th-level feature landed at creation,
+      // and a heritage handed out every level's traits at once.
+      if (!this.#appliesAtLevel(grant, lv)) continue;
       if (this.#isOwnedElsewhere(grant)) continue;
 
       if (grant?.grantType === 'feature') {
@@ -217,7 +247,7 @@ export class GrantAbsorber {
         continue;
       }
 
-      if (!this.#isSupported(grant, level)) continue;
+      if (!this.#isSupported(grant, lv)) continue;
       const spec = this.#specOf(grant) ?? { base: [], options: [], total: 0 };
 
       // Chosen keys, capped at what the grant allows; base is always included.
@@ -252,7 +282,7 @@ export class GrantAbsorber {
     // The features we just created were made with noGrant, so their own grants
     // did not fire — a5e resolves this chain recursively and so must we.
     for (const feature of spawned) {
-      await this.apply(actor, feature, choices, depth + 1, level);
+      await this.apply(actor, feature, choices, lv, depth + 1);
     }
   }
 
@@ -275,7 +305,7 @@ export class GrantAbsorber {
    * @returns {boolean} whether the level actually changed
    */
   static async levelUpWithoutDialog(actor, classItem, newLevel, choices = {},
-                                    { hpValue = 0, charLevel = 0 } = {}) {
+                                    { hpValue = 0, charLevel = 0, lv = null } = {}) {
     if (!actor || !classItem) return false;
 
     const manager = actor.grants;
@@ -308,15 +338,25 @@ export class GrantAbsorber {
 
     // Now the level's own grants, with the picks made in the dialog
     const fresh = actor.items.get(classItem.id) ?? classItem;
-    await this.apply(actor, fresh, choices, 0, newLevel);
+    await this.apply(actor, fresh, choices,
+                     lv ?? { charLevel: charLevel || newLevel, clsLevel: newLevel });
     return true;
   }
 
   /** Grants that belong to exactly this level — what a level-up has to ask for. */
-  static describeForLevel(doc, level) {
-    return this.describe(doc).filter(g => {
+  static describeForLevel(doc, lv = {}) {
+    return this.describe(doc, lv).filter(g => {
       const grant = doc?.grants?.get?.(g.id);
-      return (grant?.level ?? 1) === level;
+      return grant && this.#isExactlyAtLevel(grant, lv);
+    });
+  }
+
+  /** Feature grants introduced at exactly this level. */
+  static async describeFeaturesForLevel(doc, lv = {}) {
+    const all = await this.describeFeatures(doc, lv);
+    return all.filter(f => {
+      const grant = doc?.grants?.get?.(f.id);
+      return grant && this.#isExactlyAtLevel(grant, lv);
     });
   }
 
@@ -425,38 +465,32 @@ export class GrantAbsorber {
    * which means walking into the features a grant hands out, because those carry
    * grants of their own and a5e resolves them recursively.
    */
-  static async canAbsorb(doc, depth = 0, seen = new Set()) {
-    const grants = doc?.system?.grants;
-    if (!grants || typeof grants !== 'object') return depth > 0;   // leaf feature: fine
+  static async canAbsorb(doc, lv = {}, depth = 0, seen = new Set()) {
+    const prepared = this.#preparedGrants(doc);
+    if (!prepared.length) return depth > 0;          // leaf feature: fine
 
     if (depth > this.#MAX_DEPTH) return false;
-
-    // Prepared grant objects carry requiresConfig/getSelectionComponentProps;
-    // the raw system.grants entries do not.
-    const prepared = doc?.grants && typeof doc.grants.values === 'function'
-      ? [...doc.grants.values()]
-      : Object.values(grants);
 
     for (const grant of prepared) {
       const type = grant?.grantType;
       if (!type) continue;
       if (this.#isOwnedElsewhere(grant)) continue;   // stripped before creation
       // A grant for a later level does not block absorption at this one
-      if (grant.level && grant.level > 1) continue;
+      if (!this.#appliesAtLevel(grant, lv)) continue;
       if (type === 'feature') {
-        if (await this.#featuresAbsorbable(grant, depth, seen)) continue;
+        if (await this.#featuresAbsorbable(grant, lv, depth, seen)) continue;
         return false;
       }
-      if (this.#isSupported(grant)) continue;
+      if (this.#isSupported(grant, lv)) continue;
       return false;                                  // asks something we cannot show
     }
     return true;
   }
 
   /** Every feature this grant can hand out must itself be absorbable. */
-  static async #featuresAbsorbable(grant, depth, seen) {
-    const uuids = [...(grant.features?.base ?? []), ...(grant.features?.options ?? [])]
-      .map(f => f?.uuid).filter(Boolean);
+  static async #featuresAbsorbable(grant, lv, depth, seen) {
+    const props = this.#specOf(grant);
+    const uuids = [...(props?.base ?? []), ...(props?.options ?? [])];
 
     for (const uuid of uuids) {
       if (seen.has(uuid)) continue;                  // already cleared (or cycling)
@@ -464,9 +498,8 @@ export class GrantAbsorber {
       try {
         const doc = await fromUuid(uuid);
         if (!doc) return false;
-        const nested = doc.system?.grants;
-        if (!nested || !Object.keys(nested).length) continue;   // flat feature
-        if (!await this.canAbsorb(doc, depth + 1, seen)) return false;
+        if (!this.#preparedGrants(doc).length) continue;   // flat feature
+        if (!await this.canAbsorb(doc, lv, depth + 1, seen)) return false;
       } catch {
         return false;                                // unreadable — do not gamble
       }
@@ -475,27 +508,23 @@ export class GrantAbsorber {
   }
 
   /** Feature grants on this item, as a UI model (base always granted). */
-  static async describeFeatures(doc) {
-    const grants = doc?.system?.grants;
-    if (!grants || typeof grants !== 'object') return [];
-
+  static async describeFeatures(doc, lv = {}) {
     const out = [];
-    for (const [id, grant] of Object.entries(grants)) {
-      if (grant?.grantType !== 'feature') continue;
-      if (grant.level && grant.level > 1) continue;   // a later level's feature
-      const base    = grant.features?.base ?? [];
-      const options = grant.features?.options ?? [];
-      const total   = Number(grant.features?.total ?? 0) || 0;
+    const name = async (uuid) => {
+      try { return (await fromUuid(uuid))?.name ?? uuid; } catch { return uuid; }
+    };
 
-      const name = async (uuid) => {
-        try { return (await fromUuid(uuid))?.name ?? uuid; } catch { return uuid; }
-      };
+    for (const grant of this.#preparedGrants(doc)) {
+      if (grant?.grantType !== 'feature') continue;
+      if (!this.#appliesAtLevel(grant, lv)) continue;   // a later level's feature
+
+      const spec = this.#specOf(grant) ?? { base: [], options: [], total: 0 };
       out.push({
-        id,
+        id:    grant._id,
         label: grant.label || game.i18n.localize('am.grants.type-feature'),
-        total,
-        baseLabels: await Promise.all(base.map(f => name(f.uuid))),
-        options: await Promise.all(options.map(async f => ({ key: f.uuid, label: await name(f.uuid) })))
+        total: spec.total,
+        baseLabels: await Promise.all(spec.base.map(name)),
+        options:    await Promise.all(spec.options.map(async u => ({ key: u, label: await name(u) })))
       });
     }
     return out;

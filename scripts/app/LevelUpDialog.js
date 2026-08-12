@@ -217,16 +217,20 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!classItem) return;
 
     try {
-      if (!await GrantAbsorber.canAbsorb(classItem, newLevel)) {
+      // a5e gates 'character' grants on total level and the rest on class level,
+      // so both have to be passed — not one number standing in for both.
+      const lv = { charLevel: context.newTotalLevel, clsLevel: newLevel };
+
+      if (!await GrantAbsorber.canAbsorb(classItem, lv)) {
         AM.log(3, `${classItem.name} level ${newLevel}: grants left to a5e`);
         return;
       }
       const store = {
         absorb:   true,
         level:    newLevel,
-        grants:   GrantAbsorber.describeForLevel(classItem, newLevel),
-        features: (await GrantAbsorber.describeFeatures(classItem, newLevel))
-                    .filter(f => (classItem.grants?.get(f.id)?.level ?? 1) === newLevel),
+        lv,
+        grants:   GrantAbsorber.describeForLevel(classItem, lv),
+        features: await GrantAbsorber.describeFeaturesForLevel(classItem, lv),
         choices:  this._levelChoices ?? {}
       };
       // The per-level hit points a5e would have written, without CON — it adds

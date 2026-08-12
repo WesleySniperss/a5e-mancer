@@ -191,7 +191,7 @@ export class ActorCreationService {
       if (store?.absorb) {
         const [created] = await actor.createEmbeddedDocuments('Item', [data], { noGrant: true });
         if (created) {
-          await GrantAbsorber.apply(actor, created, store.choices ?? {});
+          await GrantAbsorber.apply(actor, created, store.choices ?? {}, { charLevel: 1, clsLevel: 1 });
           // The class needs the non-grant tail a5e's routine ends with
           if (data.type === 'class') {
             await GrantAbsorber.applyClassTail(actor, created, {

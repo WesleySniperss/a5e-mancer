@@ -244,8 +244,9 @@ export class LevelUpService {
     const absorbed = AM.levelUpGrants?.absorb
       ? await GrantAbsorber.levelUpWithoutDialog(
           actor, classItem, newLevel, AM.levelUpGrants.choices ?? {},
-          { hpValue: AM.levelUpGrants.hpValue ?? 0,
-            charLevel: AM.levelUpGrants.charLevel ?? 0 })
+          { hpValue:   AM.levelUpGrants.hpValue ?? 0,
+            charLevel: AM.levelUpGrants.charLevel ?? 0,
+            lv:        AM.levelUpGrants.lv ?? null })
       : false;
 
     if (!absorbed) {

@@ -418,14 +418,16 @@ export class DOMManager {
     try {
       const doc = await fromUuid(uuid);
       if (!doc) return;
-      if (!await GrantAbsorber.canAbsorb(doc)) {
+      // Creation is always 1st level, for both the character and the class
+      const lv = { charLevel: 1, clsLevel: 1 };
+      if (!await GrantAbsorber.canAbsorb(doc, lv)) {
         AM.log(3, `${type} ${doc.name}: grants left to a5e (unsupported grant present)`);
         return;
       }
       const store = {
         absorb:   true,
-        grants:   GrantAbsorber.describe(doc),
-        features: await GrantAbsorber.describeFeatures(doc),
+        grants:   GrantAbsorber.describe(doc, lv),
+        features: await GrantAbsorber.describeFeatures(doc, lv),
         choices:  {}
       };
       if (type === 'class') {
