@@ -66,6 +66,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       luSelectArchetype:         LevelUpDialog.luSelectArchetype,
       luToggleMMSchool:          LevelUpDialog.luToggleMMSchool,
       luToggleMagicManeuver:     LevelUpDialog.luToggleMagicManeuver,
+      luReplaceMagicManeuver:    LevelUpDialog.luReplaceMagicManeuver,
     },
     classes: ['am-app', 'am-levelup-dialog'],
     position: { width: 680, height: 760 },
@@ -373,25 +374,35 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
    * between two levels, so a character who missed a threshold is offered the
    * backlog rather than losing it.
    */
-  #magicManeuverContext(context, newTotalLevel, incomingClass = '') {
+  #magicManeuverContext(context, _unusedTotalLevel, incomingClass = '') {
     if (!MagicManeuverService.isEligible(this.actor, incomingClass)) return;
 
-    const pending = MagicManeuverService.pendingAt(this.actor, newTotalLevel);
+    // Read the table at the maneuver level — the sum of levels in classes that
+    // grant them — not the character level. Taking a level in one of those
+    // classes advances it by one; taking a fighter level does not.
+    const gainsLevel = incomingClass
+      ? MagicManeuvers.isEligibleClass(incomingClass)
+      : MagicManeuvers.isEligibleClass(context.selectedClass?.name ?? '');
+
+    const level = MagicManeuverService.maneuverLevel(this.actor) + (gainsLevel ? 1 : 0);
+    const pending = MagicManeuverService.pendingAt(this.actor, level);
     if (!pending.schoolsOwed && !pending.maneuversOwed) return;
 
     // Schools first: a maneuver cannot be learned until its school is open, so
     // the picks made here feed the list below within the same dialog.
     const chosenSchools = this._mmSchools ?? [];
     const chosenIds     = this._mmManeuvers ?? [];
-    const openNow       = [...pending.openSchools, ...chosenSchools];
+    const replaced      = this._mmReplaced ?? [];
 
+    // Each maneuver traded in frees a pick, exactly as with combat maneuvers —
+    // which is what makes a level that grants none still worth opening.
     context.mmSchoolsOwed   = Math.max(0, pending.schoolsOwed - chosenSchools.length);
-    context.mmManeuversOwed = Math.max(0, pending.maneuversOwed - chosenIds.length);
+    context.mmManeuversOwed = Math.max(0, pending.maneuversOwed + replaced.length - chosenIds.length);
     context.mmMaxDegree     = pending.maxDegree;
     context.mmExertion      = MagicManeuverService.exertionPool(this.actor);
     context.mmSaveDC        = MagicManeuverService.saveDC(this.actor);
 
-    context.mmSchools = MagicManeuverService.schoolOptions(this.actor, newTotalLevel)
+    context.mmSchools = MagicManeuverService.schoolOptions(this.actor, level)
       .map(s => ({
         ...s,
         open:      s.open || chosenSchools.includes(s.key),
@@ -400,7 +411,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       }));
 
     context.mmGroups = MagicManeuverService
-      .maneuverOptions(this.actor, newTotalLevel, chosenIds)
+      .maneuverOptions(this.actor, level, chosenIds)
       .map(g => ({
         ...g,
         open: g.open || chosenSchools.includes(g.key),
@@ -413,6 +424,16 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         }))
       }))
       .filter(g => g.open);
+
+    // Trading one in, offered once the character actually knows something
+    const replaceLimit = MagicManeuverService.replacementsPerLevel(pending.level);
+    if (replaceLimit && pending.knownIds.length) {
+      context.mmReplaceLimit = replaceLimit;
+      context.mmReplaceUsed  = replaced.length;
+      context.mmKnownList = MagicManeuverService.known(this.actor).map(m => ({
+        ...m, replaced: replaced.includes(m.id)
+      }));
+    }
 
     context.hasMagicManeuvers = true;
   }
@@ -497,6 +518,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     this._archetypeSkipped  = false;
     this._mmSchools         = [];
     this._mmManeuvers       = [];
+    this._mmReplaced        = [];
     AM.levelUpGrants        = null;
   }
 
@@ -909,6 +931,37 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     dialog.render(false);
   }
 
+  /**
+   * Trade in a known magic maneuver. Same shape as the combat-maneuver swap:
+   * marking one frees a pick above, unmarking hands it back and drops the newest
+   * selection if it had already been spent.
+   */
+  static luReplaceMagicManeuver(_event, btn) {
+    const dialog = AM.levelUpDialog;
+    const id = btn?.dataset.maneuverId;
+    if (!dialog || !id) return;
+
+    dialog._mmReplaced ??= [];
+    const at = dialog._mmReplaced.indexOf(id);
+
+    if (at >= 0) {
+      dialog._mmReplaced.splice(at, 1);
+      const level   = MagicManeuverService.maneuverLevel(dialog.actor) + 1;
+      const pending = MagicManeuverService.pendingAt(dialog.actor, level);
+      const budget  = pending.maneuversOwed + dialog._mmReplaced.length;
+      while ((dialog._mmManeuvers?.length ?? 0) > budget) dialog._mmManeuvers.pop();
+    } else {
+      const level = MagicManeuverService.maneuverLevel(dialog.actor) + 1;
+      const limit = MagicManeuverService.replacementsPerLevel(level);
+      if (dialog._mmReplaced.length >= limit) {
+        ui.notifications.warn(game.i18n.format('am.levelup.replace-limit', { n: limit }));
+        return;
+      }
+      dialog._mmReplaced.push(id);
+    }
+    dialog.render(false);
+  }
+
   /** Open a school with one of this level's school slots. */
   static luToggleMMSchool(_event, btn) {
     const dialog = AM.levelUpDialog;
@@ -1093,10 +1146,11 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
           dialog.actor, [...dialog._selectedCantripUuids, ...dialog._selectedSpellUuids]
         );
       }
-      if (dialog._mmSchools?.length || dialog._mmManeuvers?.length) {
+      if (dialog._mmSchools?.length || dialog._mmManeuvers?.length || dialog._mmReplaced?.length) {
         await MagicManeuverService.apply(dialog.actor, {
           schools:   dialog._mmSchools ?? [],
-          maneuvers: dialog._mmManeuvers ?? []
+          maneuvers: dialog._mmManeuvers ?? [],
+          replaced:  dialog._mmReplaced ?? []
         });
       }
       return;
@@ -1142,10 +1196,11 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
     // Magic maneuvers. Applied after the level so the entitlement is read at the
     // new level; the service validates the picks again rather than trusting them.
-    if (dialog._mmSchools?.length || dialog._mmManeuvers?.length) {
+    if (dialog._mmSchools?.length || dialog._mmManeuvers?.length || dialog._mmReplaced?.length) {
       await MagicManeuverService.apply(dialog.actor, {
         schools:   dialog._mmSchools ?? [],
-        maneuvers: dialog._mmManeuvers ?? []
+        maneuvers: dialog._mmManeuvers ?? [],
+        replaced:  dialog._mmReplaced ?? []
       });
     }
   }

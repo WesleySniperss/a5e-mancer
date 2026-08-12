@@ -1,5 +1,5 @@
 import { AM } from '../a5e-mancer.js';
-import { MagicManeuvers, MM_SCHOOLS } from '../data/magicManeuvers.js';
+import { MagicManeuvers, MM_SCHOOLS, MM_SCHOOL_LORE } from '../data/magicManeuvers.js';
 
 /**
  * Actor-side half of magic maneuvers: what a character knows, which schools they
@@ -26,11 +26,24 @@ export class MagicManeuverService {
     };
   }
 
-  /** Character level across all classes — the table is keyed on that, not class level. */
-  static characterLevel(actor) {
-    return (actor?.items ?? [])
-      .filter(i => i.type === 'class')
+  /**
+   * The level the progression table is read at: the sum of levels in classes
+   * that grant magic maneuvers — not the character level.
+   *
+   * So a wizard 5 / fighter 3 reads the table at 5, because the fighter levels
+   * bring no maneuvers. A wizard 5 / cleric 3 reads it at 8: both qualify, and
+   * the pool advances evenly across them rather than each class tracking its own.
+   *
+   * @param {string} [incomingClass]  a class about to be taken, counted as one
+   *   level, since its item is not on the actor yet
+   */
+  static maneuverLevel(actor, incomingClass = '') {
+    let level = (actor?.items ?? [])
+      .filter(i => i.type === 'class' && MagicManeuvers.isEligibleClass(i.name))
       .reduce((n, i) => n + (i.system?.classLevels ?? i.system?.levels ?? i.system?.level ?? 1), 0);
+
+    if (incomingClass && MagicManeuvers.isEligibleClass(incomingClass)) level += 1;
+    return level;
   }
 
   /**
@@ -55,7 +68,7 @@ export class MagicManeuverService {
    * before this feature existed — is offered the backlog instead of losing it.
    */
   static pendingAt(actor, level = null) {
-    const lvl   = level ?? this.characterLevel(actor);
+    const lvl   = level ?? this.maneuverLevel(actor);
     const row   = MagicManeuvers.progressionAt(lvl);
     const state = this.stateOf(actor);
 
@@ -73,11 +86,12 @@ export class MagicManeuverService {
   /** Schools that may still be opened, as a UI model. */
   static schoolOptions(actor, level = null) {
     const state = this.stateOf(actor);
-    const lvl   = level ?? this.characterLevel(actor);
+    const lvl   = level ?? this.maneuverLevel(actor);
     return Object.entries(MM_SCHOOLS).map(([key, label]) => {
       const check = MagicManeuvers.canOpenSchool(key, { level: lvl, openSchools: state.openSchools });
       return {
         key, label,
+        lore:      MM_SCHOOL_LORE[key] ?? '',
         open:      state.openSchools.includes(key),
         available: check.ok,
         reason:    check.reason ?? null,
@@ -93,7 +107,7 @@ export class MagicManeuverService {
    */
   static maneuverOptions(actor, level = null, extraChosen = []) {
     const state = this.stateOf(actor);
-    const lvl   = level ?? this.characterLevel(actor);
+    const lvl   = level ?? this.maneuverLevel(actor);
     const known = [...state.knownIds, ...extraChosen];
 
     const grouped = {};
@@ -101,6 +115,7 @@ export class MagicManeuverService {
       (grouped[m.school] ??= {
         key: m.school,
         label: MM_SCHOOLS[m.school],
+        lore:  MM_SCHOOL_LORE[m.school] ?? '',
         open: state.openSchools.includes(m.school),
         maneuvers: []
       }).maneuvers.push({
@@ -110,6 +125,15 @@ export class MagicManeuverService {
       });
     }
     return Object.values(grouped);
+  }
+
+  /**
+   * How many known maneuvers may be traded in when a level is gained — one,
+   * matching the system's rule for combat maneuvers. Nothing to trade below the
+   * level the first ones are learned at.
+   */
+  static replacementsPerLevel(level) {
+    return MagicManeuvers.progressionAt(level).known > 0 ? 1 : 0;
   }
 
   /* ── resources ────────────────────────────────────────── */
@@ -133,9 +157,9 @@ export class MagicManeuverService {
    * Commit a level's picks. Both lists are validated again here rather than
    * trusted from the dialog, so a stale form cannot exceed the entitlement.
    */
-  static async apply(actor, { schools = [], maneuvers = [] } = {}, level = null) {
+  static async apply(actor, { schools = [], maneuvers = [], replaced = [] } = {}, level = null) {
     if (!actor) return false;
-    const lvl   = level ?? this.characterLevel(actor);
+    const lvl   = level ?? this.maneuverLevel(actor);
     const state = this.stateOf(actor);
 
     const openSchools = [...state.openSchools];
@@ -145,7 +169,12 @@ export class MagicManeuverService {
       openSchools.push(school);
     }
 
-    const knownIds = [...state.knownIds];
+    // Traded-in maneuvers go first, so the replacement is not rejected for
+    // filling the slot the one it replaces is still occupying.
+    const dropped = replaced.filter(id => state.knownIds.includes(id))
+                            .slice(0, this.replacementsPerLevel(lvl));
+    const knownIds = state.knownIds.filter(id => !dropped.includes(id));
+
     for (const id of maneuvers) {
       const maneuver = MagicManeuvers.byId(id);
       const check = MagicManeuvers.canLearn(maneuver, { level: lvl, openSchools, knownIds });
@@ -153,8 +182,10 @@ export class MagicManeuverService {
       knownIds.push(id);
     }
 
-    if (openSchools.length === state.openSchools.length
-        && knownIds.length === state.knownIds.length) return false;
+    const unchanged = openSchools.length === state.openSchools.length
+      && knownIds.length === state.knownIds.length
+      && knownIds.every((id, i) => id === state.knownIds[i]);
+    if (unchanged) return false;
 
     await actor.setFlag(AM.ID, this.FLAG, { openSchools, knownIds });
     AM.log(3, `Magic maneuvers: ${knownIds.length} known, schools [${openSchools.join(', ')}]`);
@@ -167,6 +198,6 @@ export class MagicManeuverService {
       .map(id => MagicManeuvers.byId(id))
       .filter(Boolean)
       .sort((a, b) => a.school.localeCompare(b.school) || a.degree - b.degree || a.name.localeCompare(b.name))
-      .map(m => ({ ...m, schoolLabel: MM_SCHOOLS[m.school] }));
+      .map(m => ({ ...m, schoolLabel: MM_SCHOOLS[m.school], schoolLore: MM_SCHOOL_LORE[m.school] ?? '' }));
   }
 }

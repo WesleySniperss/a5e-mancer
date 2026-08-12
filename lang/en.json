@@ -429,5 +429,6 @@
   "am.mm.reason.degree-too-high": "That degree is beyond your level.",
   "am.mm.reason.no-slots-left": "No maneuvers left to learn at this level.",
   "am.mm.reason.unknown-maneuver": "Unknown maneuver.",
-  "am.mm.sheet-title": "Magic Maneuvers"
+  "am.mm.sheet-title": "Magic Maneuvers",
+  "am.mm.replace": "Replace a known maneuver"
 }

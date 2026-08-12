@@ -418,6 +418,7 @@
                     class="am-filter-pill {{#if this.chosen}}am-pill-active{{/if}} {{#if this.open}}am-pill-used{{/if}}"
                     data-action="luToggleMMSchool"
                     data-school="{{this.key}}"
+                    data-tooltip="{{this.lore}}"
                     {{#unless this.available}}{{#unless this.chosen}}disabled{{/unless}}{{/unless}}>
               {{this.label}} <small>({{this.count}})</small>
               {{#if this.open}}<i class="fa-solid fa-check am-pill-check"></i>{{/if}}
@@ -459,6 +460,34 @@
       </div>
     {{else}}
       <p class="am-hint">{{localize 'am.mm.open-a-school-first'}}</p>
+    {{/if}}
+
+    {{!-- Trading one in, the same way combat maneuvers work: each marked entry
+          frees a pick above. --}}
+    {{#if mmKnownList}}
+      <div class="am-grant-block">
+        <div class="am-grant-head">
+          <span class="am-grant-label">{{localize 'am.mm.replace'}}</span>
+          <span class="am-counter-badge am-badge-info">
+            {{mmReplaceUsed}}/{{mmReplaceLimit}}
+          </span>
+        </div>
+        <p class="am-hint">{{localize 'am.levelup.replace-hint' n=mmReplaceLimit}}</p>
+        <div class="am-replace-list">
+          {{#each mmKnownList}}
+            <button type="button"
+                    class="am-replace-row {{#if this.replaced}}am-replace-marked{{/if}}"
+                    data-action="luReplaceMagicManeuver"
+                    data-maneuver-id="{{this.id}}"
+                    data-tooltip="{{this.effect}}">
+              <span class="am-mm-degree">{{this.degree}}°</span>
+              <span class="am-replace-name">{{this.name}}</span>
+              <span class="am-hint">{{this.schoolLabel}}</span>
+              <i class="fa-solid {{#if this.replaced}}fa-rotate-left{{else}}fa-xmark{{/if}}"></i>
+            </button>
+          {{/each}}
+        </div>
+      </div>
     {{/if}}
   </section>
   {{/if}}
