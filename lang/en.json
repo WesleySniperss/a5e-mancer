@@ -416,5 +416,18 @@
   "am.levelup.archetype-optional": "This level offers an archetype. Choose one, or carry on without — both are fine.",
   "am.levelup.archetype-none": "No archetype",
   "am.levelup.archetype-none-hint": "Level up without taking an archetype",
-  "am.levelup.archetype-none-chosen": "Levelling up without an archetype."
+  "am.levelup.archetype-none-chosen": "Levelling up without an archetype.",
+  "am.mm.title": "Magic Maneuvers",
+  "am.mm.resources": "Exertion pool {pool} · save DC {dc} · degree {degree} and below",
+  "am.mm.open-school": "Open a school",
+  "am.mm.learn": "Learn maneuvers",
+  "am.mm.open-a-school-first": "Open a school above to see the maneuvers it offers.",
+  "am.mm.no-slots": "You may learn {n} more at this level. Deselect one first.",
+  "am.mm.reason.level-too-low": "Magic maneuvers begin at 3rd level.",
+  "am.mm.reason.already-known": "You already know that maneuver.",
+  "am.mm.reason.school-not-open": "That school is not open yet.",
+  "am.mm.reason.degree-too-high": "That degree is beyond your level.",
+  "am.mm.reason.no-slots-left": "No maneuvers left to learn at this level.",
+  "am.mm.reason.unknown-maneuver": "Unknown maneuver.",
+  "am.mm.sheet-title": "Magic Maneuvers"
 }

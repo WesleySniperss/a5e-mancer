@@ -398,6 +398,29 @@
         {{!-- ▸ MARTIAL ───────────────────────────────────────────────── --}}
         <section class="tab" data-tab="martial" data-group="primary">
 
+          {{!-- Magic maneuvers: applied to your own spell as you cast it, paid
+                from the same exertion pool as the combat maneuvers below. --}}
+          {{#if hasMagicManeuvers}}
+            <div class="am-cs-mm-header">
+              <span class="am-cs-mm-title">
+                <i class="fa-solid fa-wand-sparkles"></i> {{localize 'am.mm.sheet-title'}}
+              </span>
+              <span class="am-cs-muted">
+                DC {{magicManeuverInfo.dc}} · <i class="fa-solid fa-bolt"></i> {{magicManeuverInfo.exertion}}
+              </span>
+            </div>
+            <div class="am-cs-mm-list">
+              {{#each magicManeuvers}}
+                <div class="am-cs-mm-row" data-tooltip="{{this.effect}}">
+                  <span class="am-mm-degree">{{this.degree}}°</span>
+                  <span class="am-mm-name">{{this.name}}</span>
+                  <span class="am-cs-muted am-cs-mm-school">{{this.schoolLabel}}</span>
+                  <span class="am-ex-cost"><i class="fa-solid fa-bolt"></i>{{this.cost}}</span>
+                </div>
+              {{/each}}
+            </div>
+          {{/if}}
+
           {{#if hasManeuvers}}
             {{!-- Exertion pool + manage button --}}
             <div class="am-cs-martial-header">

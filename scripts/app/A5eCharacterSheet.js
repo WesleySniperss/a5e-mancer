@@ -4,6 +4,7 @@ import { ManeuverDialog } from './ManeuverDialog.js';
 import { SpellDialog } from './SpellDialog.js';
 import { SpellService } from '../utils/spellService.js';
 import { PackFilter } from '../utils/packFilter.js';
+import { MagicManeuverService } from '../utils/magicManeuverService.js';
 
 const MODULE_ID = 'a5e-mancer';
 
@@ -322,6 +323,14 @@ export class A5eCharacterSheet extends ActorSheet {
       destinyDesc:    await enrichDesc(descOf(_dItem?.system),  actor),
     };
 
+    /* Magic maneuvers — homebrew, kept in a module flag since a5e has no field */
+    const magicManeuvers = MagicManeuverService.known(actor);
+    const magicManeuverInfo = magicManeuvers.length ? {
+      exertion: MagicManeuverService.exertionPool(actor),
+      dc:       MagicManeuverService.saveDC(actor),
+      schools:  MagicManeuverService.stateOf(actor).openSchools.length
+    } : null;
+
     /* Biography written by the creation wizard. Kept as a flag because a5e's
        details schema has no field for backstory, connections, mementos or the
        destiny table results — see ActorCreationService#applyBiography. */
@@ -351,6 +360,8 @@ export class A5eCharacterSheet extends ActorSheet {
       fatiguePips, strifePips, exertionPips,
       fatigueDesc, strifeDesc, statusConditions,
       attunementItems, attuneCount, passivePerception, charInfo, bio,
+      magicManeuvers, magicManeuverInfo,
+      hasMagicManeuvers: magicManeuvers.length > 0,
       hasWeapons:          weapons.length        > 0,
       hasManeuvers:        maneuvers.length      > 0,
       hasSpells:           spells.length         > 0,

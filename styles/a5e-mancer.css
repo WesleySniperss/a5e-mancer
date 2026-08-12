@@ -5352,3 +5352,74 @@ input.am-cs-stat-val {
   justify-content: center;
 }
 .am-card-none-icon { font-size: 1.6rem; opacity: 0.55; }
+
+/* ── Magic maneuvers ────────────────────────────────────────────────────── */
+.am-mm-school { margin-block: 0.4rem; }
+.am-mm-school-name {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--am-gold);
+  opacity: 0.8;
+  margin-block-end: 0.2rem;
+}
+.am-mm-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.25rem;
+}
+.am-mm-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.22rem 0.4rem;
+  text-align: left;
+  font-size: 0.78rem;
+  border: 1px solid var(--am-gold-border) !important;
+  border-radius: var(--am-border-radius);
+  background: rgba(255,255,255,0.03) !important;
+  color: var(--am-text-dim);
+  cursor: pointer;
+
+  &:hover:not(:disabled) { border-color: var(--am-gold) !important; color: var(--am-text-primary); }
+  &.am-mm-chosen {
+    border-color: var(--am-gold) !important;
+    background: rgba(212,175,55,0.12) !important;
+    color: var(--am-gold);
+  }
+  &.am-mm-owned, &:disabled { opacity: 0.5; cursor: default; }
+}
+.am-mm-degree {
+  flex: 0 0 auto;
+  min-width: 1.4rem;
+  text-align: center;
+  font-weight: bold;
+  color: var(--am-gold);
+}
+.am-mm-name  { flex: 1; min-width: 0; font-weight: 600; }
+.am-mm-check { color: #4a9a4a; }
+
+/* Magic maneuvers on the character sheet */
+.am-cs-mm-header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.5rem; margin-block-end: 0.35rem;
+  padding-block-end: 0.25rem;
+  border-bottom: 1px solid var(--cs-border);
+}
+.am-cs-mm-title { font-weight: bold; color: var(--cs-gold); font-size: 0.8rem; }
+.am-cs-mm-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 0.2rem;
+  margin-block-end: 0.7rem;
+}
+.am-cs-mm-row {
+  display: flex; align-items: center; gap: 0.4rem;
+  padding: 0.2rem 0.35rem;
+  font-size: 0.76rem;
+  background: var(--cs-bg3);
+  border: 1px solid var(--cs-border);
+  border-radius: 3px;
+  color: var(--cs-text);
+}
+.am-cs-mm-school { font-size: 0.68rem; }
