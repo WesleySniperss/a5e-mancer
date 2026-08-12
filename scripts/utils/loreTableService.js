@@ -1,13 +1,19 @@
 import { AM } from '../a5e-mancer.js';
+import { PackFilter } from './packFilter.js';
 
 /**
  * Finds the roll tables inside an item's description so every one of them can be
  * rolled in the builder, instead of the two that used to be guessed at.
  *
  * A5e destinies carry several — source of inspiration, goals, connections and so
- * on — and backgrounds carry their own. They are plain HTML in the description,
- * not RollTable documents, so they have to be read out of the markup: either a
- * <table> (numbered first column, or just positional rows) or an <ol>/<ul>.
+ * on — and backgrounds carry their own. They arrive in three different shapes,
+ * and all three are handled, because relying on any one of them left destinies
+ * looking like they had no tables at all:
+ *
+ *   1. inline HTML in the description — a <table> (numbered first column, or
+ *      just positional rows) or an <ol>/<ul>
+ *   2. @UUID links to real RollTable documents in the `a5e-roll-tables` pack
+ *   3. RollTables named after the item, when the text links nothing
  *
  * The die is taken from the number of entries, which is how these tables are
  * written: a six-row table is a d6.
@@ -55,6 +61,101 @@ export class LoreTableService {
     if (!table?.entries?.length) return '';
     const n = 1 + Math.floor(Math.random() * table.entries.length);
     return table.entries[n - 1] ?? '';
+  }
+
+  /* ── RollTable documents ──────────────────────────────── */
+
+  /**
+   * A5e also ships its lore tables as real RollTable documents in
+   * `a5e-roll-tables`, referenced from the item text as @UUID links — the HTML
+   * parser above finds nothing in those descriptions, which is why a destiny
+   * looked like it had no tables at all.
+   *
+   * Both routes are used: whatever is written inline, plus whatever the text
+   * links to.
+   */
+  static async fromRollTableLinks(html, source, startIndex = 0) {
+    if (!html) return [];
+
+    // @UUID[Compendium.a5e.a5e-roll-tables.RollTable.abc123]{Label}
+    const re = /@UUID\[([^\]]+)\](?:\{([^}]*)\})?/g;
+    const out = [];
+    const seen = new Set();
+    let m;
+
+    while ((m = re.exec(html))) {
+      const uuid = m[1];
+      if (!uuid || seen.has(uuid)) continue;
+      seen.add(uuid);
+      if (!/RollTable/i.test(uuid)) continue;
+
+      try {
+        const doc = await fromUuid(uuid);
+        const entries = this.#fromRollTable(doc);
+        if (entries.length < 2) continue;
+
+        const index = startIndex + out.length;
+        out.push({
+          source,
+          index,
+          key:     `${source}.${index}`,
+          heading: m[2]?.trim() || doc.name || game.i18n.format('am.app.lore.table-n', { n: index + 1 }),
+          die:     entries.length,
+          entries
+        });
+      } catch (err) {
+        AM.log(2, `Roll table ${uuid} could not be read:`, err);
+      }
+    }
+    return out;
+  }
+
+  /** Result text from a RollTable document, across Foundry versions. */
+  static #fromRollTable(doc) {
+    const results = doc?.results;
+    if (!results || typeof results.map !== 'function') return [];
+    return [...results]
+      .map(r => {
+        const raw = r.description ?? r.text ?? r.name ?? '';
+        // Results can carry HTML; the field the player edits is plain text
+        const div = document.createElement('div');
+        div.innerHTML = String(raw);
+        return div.textContent.trim();
+      })
+      .filter(Boolean);
+  }
+
+  /**
+   * RollTables whose name starts with the item's, for content that links its
+   * tables by nothing but a shared naming convention.
+   */
+  static async byItemName(itemName, source, startIndex = 0) {
+    const name = String(itemName ?? '').trim().toLowerCase();
+    if (!name) return [];
+
+    const out = [];
+    for (const pack of PackFilter.packsOfType('RollTable')) {
+      try {
+        const index = await pack.getIndex();
+        for (const entry of index) {
+          const n = entry.name?.toLowerCase() ?? '';
+          if (!n.startsWith(name)) continue;
+          const doc = await pack.getDocument(entry._id);
+          const entries = this.#fromRollTable(doc);
+          if (entries.length < 2) continue;
+
+          const i = startIndex + out.length;
+          out.push({
+            source, index: i, key: `${source}.${i}`,
+            // Drop the item name prefix so the label reads as the table's subject
+            heading: (entry.name.slice(itemName.length).replace(/^[\s:–—-]+/, '') || entry.name),
+            die: entries.length,
+            entries
+          });
+        }
+      } catch { /* unreadable pack — skip */ }
+    }
+    return out;
   }
 
   /* ── parsing ──────────────────────────────────────────── */
@@ -115,17 +216,38 @@ export class LoreTableService {
 
   /* ── loading ──────────────────────────────────────────── */
 
-  /** Read the tables out of a compendium item, by uuid. */
+  /**
+   * Every table an item offers, from all three places a5e puts them:
+   * inline HTML, @UUID links to RollTable documents, and — failing both — tables
+   * named after the item in the RollTable compendium.
+   */
   static async load(uuid, source) {
     if (!uuid) return [];
     try {
       const doc = await fromUuid(uuid);
       if (!doc) return [];
+
       const raw = typeof doc.system?.description === 'string'
         ? doc.system.description
         : (doc.system?.description?.value ?? '');
-      const tables = this.extract(raw, source);
-      AM.log(3, `${source}: found ${tables.length} lore table(s)`);
+
+      const inline = this.extract(raw, source);
+      const linked = await this.fromRollTableLinks(raw, source, inline.length);
+      let tables = [...inline, ...linked];
+
+      if (!tables.length) tables = await this.byItemName(doc.name, source, 0);
+
+      // Same table reached two ways — keep the first
+      const seen = new Set();
+      tables = tables.filter(t => {
+        const sig = `${t.heading}|${t.entries.length}|${t.entries[0] ?? ''}`;
+        if (seen.has(sig)) return false;
+        seen.add(sig);
+        return true;
+      }).map((t, i) => ({ ...t, index: i, key: `${source}.${i}` }));
+
+      AM.log(3, `${source}: ${tables.length} lore table(s) `
+                + `(${inline.length} inline, ${linked.length} linked)`);
       return tables;
     } catch (err) {
       AM.log(2, `Could not read ${source} lore tables:`, err);
