@@ -1,5 +1,6 @@
 import { AM } from '../a5e-mancer.js';
 import { PackFilter } from './packFilter.js';
+import { MagicManeuverPack } from './magicManeuverPack.js';
 import { iconForItem, applyItemIcon } from '../data/a5eIcons.js';
 
 /**
@@ -123,11 +124,16 @@ export class ManeuverService {
     const packs = PackFilter.itemPacks();
     for (const pack of packs) {
       try {
+        // flags is needed for the magic-maneuver check below — the index omits
+        // it unless asked, so without it every one of them would slip through.
         const index = await pack.getIndex({
-          fields: ['name', 'type', 'img', 'system']
+          fields: ['name', 'type', 'img', 'system', 'flags']
         });
         for (const entry of index) {
           if (entry.type !== 'maneuver') continue;
+          // Magic maneuvers are maneuver items too, so they would otherwise show
+          // up in the combat pickers — they belong to schools, not traditions.
+          if (MagicManeuverPack.isMagicManeuver(entry)) continue;
 
           // tradition is a camelCase key in the data
           const tradition = entry.system?.tradition ?? entry.system?.combatTradition ?? '';

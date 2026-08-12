@@ -3,7 +3,7 @@ import { A5eMancer } from './app/A5eMancer.js';
 import { LevelUpDialog } from './app/LevelUpDialog.js';
 import { A5eCharacterSheet } from './app/A5eCharacterSheet.js';
 import { A5eNPCSheet } from './app/A5eNPCSheet.js';
-import { DocumentService, StatRoller, Beyond20Service, GrantDialogEnhancer } from './utils/index.js';
+import { DocumentService, StatRoller, Beyond20Service, GrantDialogEnhancer, MagicManeuverPack } from './utils/index.js';
 import { iconForItem } from './data/a5eIcons.js';
 import { installCompendiumFilterFix } from './utils/compendiumIndexFix.js';
 
@@ -197,6 +197,8 @@ Hooks.once('ready', () => {
   // Adds trait limits and descriptions to a5e's own grant dialog — see
   // grantDialogEnhancer.js. Registered here so it is live before any level-up.
   GrantDialogEnhancer.register();
+  // Homebrew compendium, built from inside Foundry — see magicManeuverPack.js
+  MagicManeuverPack.ensure().catch(err => AM.log(1, 'Magic maneuver pack:', err));
 });
 
 /* ── Ready ──────────────────────────────────────────────── */

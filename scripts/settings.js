@@ -117,6 +117,18 @@ export function registerSettings() {
     scope: 'world', config: true, type: Boolean, default: false
   });
 
+  // Magic maneuvers are homebrew, so the compendium is built on request rather
+  // than appearing in every world that installs the module.
+  game.settings.register(AM.ID, 'buildMagicManeuverPack', {
+    name: 'am.settings.mm-pack.name', hint: 'am.settings.mm-pack.hint',
+    scope: 'world', config: true, type: Boolean, default: false,
+    onChange: () => {
+      import('./utils/magicManeuverPack.js')
+        .then(({ MagicManeuverPack }) => MagicManeuverPack.ensure({ force: true }))
+        .catch(err => AM.log(1, 'Magic maneuver pack build failed:', err));
+    }
+  });
+
   game.settings.register(AM.ID, 'enhanceGrantDialog', {
     name: 'am.settings.enhance-grants.name', hint: 'am.settings.enhance-grants.hint',
     scope: 'world', config: true, type: Boolean, default: true
