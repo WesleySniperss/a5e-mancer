@@ -324,10 +324,22 @@ export class GrantAbsorber {
     try {
       // Returning true keeps _preUpdate happy; the grants are ours to apply.
       proto.createLeveledGrants = async () => true;
+
+      // If the assignment did not take (a frozen or redefined prototype), a5e's
+      // routine is still live. Applying ours too would double everything, so
+      // hand the whole level back instead.
+      if (proto.createLeveledGrants === original) {
+        AM.log(2, 'createLeveledGrants could not be suppressed — a5e will handle this level');
+        return false;
+      }
+
       const update = { [path]: newLevel };
       // a5e's routine also writes the level's hit points. Suppressing it means
       // writing them here, or the character gains a level with no hit points.
-      if (hpValue > 0 && charLevel > 0) update[`system.hp.levels.${charLevel}`] = hpValue;
+      // hp.levels is a schema of keys 1–20, so anything outside that is skipped.
+      if (hpValue > 0 && charLevel >= 1 && charLevel <= 20) {
+        update[`system.hp.levels.${charLevel}`] = hpValue;
+      }
       await classItem.update(update);
     } catch (err) {
       AM.log(1, 'Level update failed:', err);
@@ -336,10 +348,19 @@ export class GrantAbsorber {
       proto.createLeveledGrants = original;
     }
 
-    // Now the level's own grants, with the picks made in the dialog
-    const fresh = actor.items.get(classItem.id) ?? classItem;
-    await this.apply(actor, fresh, choices,
-                     lv ?? { charLevel: charLevel || newLevel, clsLevel: newLevel });
+    // The level is committed at this point. A failure here would leave the
+    // character levelled with none of the level's grants and a5e's routine
+    // already skipped, so it is reported rather than thrown.
+    try {
+      const fresh = actor.items.get(classItem.id) ?? classItem;
+      await this.apply(actor, fresh, choices,
+                       lv ?? { charLevel: charLevel || newLevel, clsLevel: newLevel });
+    } catch (err) {
+      AM.log(1, `Applying the level ${newLevel} grants failed:`, err);
+      ui.notifications.error(
+        `${AM.NAME}: the level was gained but its features could not be applied — see the console.`
+      );
+    }
     return true;
   }
 
@@ -479,10 +500,15 @@ export class GrantAbsorber {
       if (!this.#appliesAtLevel(grant, lv)) continue;
       if (type === 'feature') {
         if (await this.#featuresAbsorbable(grant, lv, depth, seen)) continue;
+        AM.log(2, `Absorption declined: feature grant "${grant.label ?? type}" `
+                + `on ${doc?.name} has something the builder cannot model`);
         return false;
       }
       if (this.#isSupported(grant, lv)) continue;
-      return false;                                  // asks something we cannot show
+      // Name the culprit — otherwise "a5e's window appeared" has no explanation
+      AM.log(2, `Absorption declined: ${type} grant "${grant.label ?? ''}" on ${doc?.name} `
+              + `asks for something with no listable options`);
+      return false;
     }
     return true;
   }
@@ -556,11 +582,29 @@ export class GrantAbsorber {
       } catch (err) { AM.log(2, `Feature ${uuid} could not be read:`, err); }
     }
 
-    let ids = [], items = [];
-    if (datas.length) {
-      const created = await actor.createEmbeddedDocuments('Item', datas, { noGrant: true, keepId: true });
-      ids   = created.map(i => i.id);
-      items = [...created];
+    // Features keep their compendium _id, so anything the actor already has would
+    // collide and make createEmbeddedDocuments throw — which is what stopped a
+    // level-up dead. a5e filters the same way and counts the existing ones as
+    // part of the grant's documentIds.
+    const alreadyOwned = datas
+      .map(d => d._id)
+      .filter(id => id && actor.items.get(id));
+    const fresh = datas.filter(d => !alreadyOwned.includes(d._id));
+
+    let ids = [...alreadyOwned], items = [];
+    if (fresh.length) {
+      try {
+        const created = await actor.createEmbeddedDocuments('Item', fresh, { noGrant: true, keepId: true });
+        ids = [...ids, ...created.map(i => i.id)];
+        items = [...created];
+      } catch (err) {
+        // Retry without keepId rather than abandoning the level: a duplicate id
+        // is worth working around, a lost feature is not.
+        AM.log(2, 'Feature creation with keepId failed; retrying without it:', err);
+        const created = await actor.createEmbeddedDocuments('Item', fresh, { noGrant: true });
+        ids = [...ids, ...created.map(i => i.id)];
+        items = [...created];
+      }
     }
     return { update: grant.getApplyData(actor, { uuids }) ?? {}, ids, items };
   }

@@ -256,7 +256,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         .filter(f => f.total > 0 || f.baseLabels.length);
       context.hasBgGrants = context.bgGrants.length > 0 || context.bgFeatures.length > 0;
     } catch (err) {
-      AM.log(2, 'Could not read level-up grants:', err);
+      AM.log(1, 'Could not read level-up grants — a5e will handle this level:', err);
       AM.levelUpGrants = null;
     }
   }
