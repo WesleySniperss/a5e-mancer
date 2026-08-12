@@ -403,9 +403,12 @@
   <section class="lu-section">
     <h3><i class="fa-solid fa-sitemap"></i> {{localize 'am.levelup.archetype-title'}}</h3>
     <p class="am-hint">
-      {{#if archetypeNeeded}}
-        <i class="fa-solid fa-triangle-exclamation" style="color:var(--am-gold)"></i>
-        {{localize 'am.levelup.archetype-required'}}
+      {{#if archetypeSkipped}}
+        <i class="fa-solid fa-circle-check" style="color:#4a9a4a"></i>
+        {{localize 'am.levelup.archetype-none-chosen'}}
+      {{else if archetypeUnset}}
+        <i class="fa-solid fa-circle-info" style="color:var(--am-gold)"></i>
+        {{localize 'am.levelup.archetype-optional'}}
       {{else}}
         {{localize 'am.levelup.archetype-chosen'}} <strong>{{archetypeName}}</strong>
       {{/if}}
@@ -423,6 +426,17 @@
           <span class="am-card-name">{{this.name}}</span>
         </button>
       {{/each}}
+
+      {{!-- Going without one is a real choice, not an oversight --}}
+      <button type="button"
+              class="am-card am-card-none {{#if archetypeSkipped}}am-card-selected{{/if}}"
+              role="listitem"
+              data-action="luSelectArchetype"
+              data-skip="1"
+              data-tooltip="{{localize 'am.levelup.archetype-none-hint'}}">
+        <i class="fa-solid fa-ban am-card-none-icon"></i>
+        <span class="am-card-name">{{localize 'am.levelup.archetype-none'}}</span>
+      </button>
     </div>
   </section>
   {{/if}}

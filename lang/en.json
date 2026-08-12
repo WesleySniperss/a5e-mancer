@@ -412,6 +412,9 @@
   "am.levelup.replace-hint": "Optional — you may trade in up to {n} per level. Each one you mark frees an extra pick above.",
   "am.levelup.replace-limit": "You may replace {n} per level. Unmark one first.",
   "am.levelup.archetype-title": "Archetype",
-  "am.levelup.archetype-required": "This level chooses your archetype — pick one to continue.",
-  "am.levelup.archetype-chosen": "Archetype:"
+  "am.levelup.archetype-chosen": "Archetype:",
+  "am.levelup.archetype-optional": "This level offers an archetype. Choose one, or carry on without — both are fine.",
+  "am.levelup.archetype-none": "No archetype",
+  "am.levelup.archetype-none-hint": "Level up without taking an archetype",
+  "am.levelup.archetype-none-chosen": "Levelling up without an archetype."
 }

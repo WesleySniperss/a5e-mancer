@@ -251,7 +251,11 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         context.archetypeChoices = store.archetypes.map(a => ({
           ...a, selected: a.uuid === store.archetypeUuid
         }));
-        context.archetypeNeeded = store.archetypes.length > 0 && !store.archetypeUuid;
+        // Optional: playing without one is a legitimate choice, so this only
+        // reads as unanswered until the player has said either way.
+        context.archetypeUnset  = store.archetypes.length > 0
+                                  && !store.archetypeUuid && !this._archetypeSkipped;
+        context.archetypeSkipped = !!this._archetypeSkipped;
         context.archetypeName   = store.archetypes.find(a => a.uuid === store.archetypeUuid)?.name ?? '';
       }
 
@@ -431,6 +435,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     // Grant picks belong to one class at one level — switching either invalidates them
     this._levelChoices      = {};
     this._archetypeUuid     = null;
+    this._archetypeSkipped  = false;
     AM.levelUpGrants        = null;
   }
 
@@ -823,11 +828,23 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     dialog.render(false);
   }
 
-  /** Choose the class's archetype, at the level the class allows it. */
+  /**
+   * Choose the class's archetype, at the level the class allows it — or
+   * deliberately go without one, which A5e permits and some tables prefer.
+   */
   static luSelectArchetype(_event, btn) {
     const dialog = AM.levelUpDialog;
-    if (!dialog || !btn?.dataset.uuid) return;
-    dialog._archetypeUuid = dialog._archetypeUuid === btn.dataset.uuid ? null : btn.dataset.uuid;
+    if (!dialog) return;
+
+    if (btn?.dataset.skip !== undefined) {
+      dialog._archetypeSkipped = !dialog._archetypeSkipped;
+      if (dialog._archetypeSkipped) dialog._archetypeUuid = null;
+    } else if (btn?.dataset.uuid) {
+      dialog._archetypeUuid = dialog._archetypeUuid === btn.dataset.uuid ? null : btn.dataset.uuid;
+      if (dialog._archetypeUuid) dialog._archetypeSkipped = false;
+    } else {
+      return;
+    }
     dialog.render(false);
   }
 
@@ -970,14 +987,6 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     const cls     = classes.find(c => c.id === dialog._selectedClassId) ?? classes[0];
     if (!cls) return;
 
-    // An archetype level with nothing chosen would pass silently and leave the
-    // character without one, so the submit is refused instead.
-    const store = AM.levelUpGrants;
-    if (store?.archetypeLevel && store.archetypes?.length && !store.archetypeUuid) {
-      AM.levelUpDialog = dialog;          // keep the dialog alive
-      ui.notifications.warn(game.i18n.localize('am.levelup.archetype-required'));
-      return;
-    }
 
     const hpGained = dialog.#systemOwnsHp()
       ? 0

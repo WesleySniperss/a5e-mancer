@@ -5345,3 +5345,10 @@ input.am-cs-stat-val {
 
 .am-replace-img { width: 1.4rem; height: 1.4rem; flex: 0 0 auto; border: none !important; border-radius: 3px; }
 .am-replace-name { flex: 1; min-width: 0; font-weight: 600; }
+
+/* "No archetype" — a deliberate choice, styled apart from the real options */
+.am-card.am-card-none {
+  border-style: dashed !important;
+  justify-content: center;
+}
+.am-card-none-icon { font-size: 1.6rem; opacity: 0.55; }
