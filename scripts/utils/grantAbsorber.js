@@ -381,6 +381,46 @@ export class GrantAbsorber {
     });
   }
 
+  /**
+   * Add the archetype chosen for a class, with its own grants applied here.
+   *
+   * a5e creates it at the end of its grant routine and then sets its spellcasting
+   * ability. Because that routine is suppressed, skipping this would mean the
+   * archetype level passes and no archetype is ever gained.
+   */
+  static async applyArchetype(actor, uuid, lv = {}) {
+    if (!actor || !uuid) return false;
+    try {
+      const doc = await fromUuid(uuid);
+      if (!doc) { AM.log(1, 'Archetype not found:', uuid); return false; }
+
+      const data = doc.toObject();
+      data._stats = data._stats || {};
+      data._stats.compendiumSource = uuid;
+
+      const [created] = await actor.createEmbeddedDocuments('Item', [data], { noGrant: true });
+      if (!created) return false;
+
+      await this.apply(actor, created, {}, lv);
+
+      // Archetypes can carry their own spellcasting ability, same as a class
+      const options = created.system?.spellcasting?.ability?.options ?? [];
+      const ability = options[0] ?? created.system?.spellcasting?.ability?.base ?? '';
+      if (ability && ability !== 'none') {
+        await created.update({ 'system.spellcasting.ability.value': ability });
+      }
+
+      AM.log(3, `Archetype added: ${created.name}`);
+      return true;
+    } catch (err) {
+      AM.log(1, 'Archetype could not be applied:', err);
+      ui.notifications.error(
+        `${AM.NAME}: the archetype could not be applied — see the console.`
+      );
+      return false;
+    }
+  }
+
   /* ── class tail ───────────────────────────────────────── */
 
   /**

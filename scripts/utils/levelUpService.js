@@ -275,6 +275,14 @@ export class LevelUpService {
     // Class features, the knack and the ASI/feat are applied by a5e's grant engine
     // (triggered by the classLevels update above) — see the method doc comment.
 
+    // The archetype belongs to this level and a5e's routine — which would have
+    // asked for it — was suppressed, so it is added here.
+    if (absorbed && AM.levelUpGrants?.archetypeUuid) {
+      await GrantAbsorber.applyArchetype(
+        actor, AM.levelUpGrants.archetypeUuid, AM.levelUpGrants.lv ?? {}
+      );
+    }
+
     AM.levelUpGrants = null;   // consumed
 
     ui.notifications.info(
@@ -282,6 +290,42 @@ export class LevelUpService {
       { permanent: false }
     );
     return true;
+  }
+
+  /**
+   * The level at which a class picks its archetype, per the class item itself.
+   */
+  static archetypeLevelOf(classItem) {
+    return Number(classItem?.system?.archetypeLevel ?? 0) || 0;
+  }
+
+  /**
+   * Archetypes available to a class. a5e matches them on the class's slug, and
+   * offers them only at the class's archetypeLevel.
+   */
+  static async getArchetypesForClass(classItem) {
+    const slug = classItem?.slug
+      ?? classItem?.system?.slug
+      ?? String(classItem?.name ?? '').slugify?.({ strict: true })
+      ?? '';
+    if (!slug) return [];
+
+    const results = [];
+    for (const pack of PackFilter.itemPacks()) {
+      try {
+        const index = await pack.getIndex({ fields: ['name', 'type', 'img', 'system'] });
+        for (const entry of index) {
+          if (entry.type !== 'archetype') continue;
+          if (entry.system?.class !== slug) continue;
+          results.push({
+            name: entry.name,
+            uuid: `Compendium.${pack.collection}.${entry._id}`,
+            img:  entry.img
+          });
+        }
+      } catch { /* unreadable pack */ }
+    }
+    return results.sort((a, b) => a.name.localeCompare(b.name));
   }
 
   /**

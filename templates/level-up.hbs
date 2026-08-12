@@ -396,6 +396,37 @@
   </section>
   {{/unless}}
 
+  {{!-- Archetype, at the level the class allows it. a5e asked for this at the end
+        of its grant routine; that routine is suppressed, so it is asked here. --}}
+  {{#if archetypeChoices}}
+  <hr />
+  <section class="lu-section">
+    <h3><i class="fa-solid fa-sitemap"></i> {{localize 'am.levelup.archetype-title'}}</h3>
+    <p class="am-hint">
+      {{#if archetypeNeeded}}
+        <i class="fa-solid fa-triangle-exclamation" style="color:var(--am-gold)"></i>
+        {{localize 'am.levelup.archetype-required'}}
+      {{else}}
+        {{localize 'am.levelup.archetype-chosen'}} <strong>{{archetypeName}}</strong>
+      {{/if}}
+    </p>
+    <div class="am-card-grid am-inline-card-grid" role="list">
+      {{#each archetypeChoices}}
+        <button type="button"
+                class="am-card {{#if this.selected}}am-card-selected{{/if}}"
+                role="listitem"
+                data-action="luSelectArchetype"
+                data-uuid="{{this.uuid}}"
+                data-name="{{this.name}}"
+                data-tooltip="{{this.name}}">
+          <img class="am-card-img" src="{{this.img}}" alt="" loading="lazy">
+          <span class="am-card-name">{{this.name}}</span>
+        </button>
+      {{/each}}
+    </div>
+  </section>
+  {{/if}}
+
   {{!-- Trading in what you already know. A5e lets a maneuver class swap one
         maneuver per class level, and a known caster swap one spell — which is why
         a level that grants nothing new can still be worth opening. Each item

@@ -410,5 +410,8 @@
   "am.levelup.replace-maneuver-title": "Replace a Known Maneuver",
   "am.levelup.replace-spell-title": "Replace a Known Spell",
   "am.levelup.replace-hint": "Optional — you may trade in up to {n} per level. Each one you mark frees an extra pick above.",
-  "am.levelup.replace-limit": "You may replace {n} per level. Unmark one first."
+  "am.levelup.replace-limit": "You may replace {n} per level. Unmark one first.",
+  "am.levelup.archetype-title": "Archetype",
+  "am.levelup.archetype-required": "This level chooses your archetype — pick one to continue.",
+  "am.levelup.archetype-chosen": "Archetype:"
 }

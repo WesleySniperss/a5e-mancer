@@ -61,6 +61,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       toggleGrantOption:         LevelUpDialog.luToggleGrantOption,
       luReplaceManeuver:         LevelUpDialog.luReplaceManeuver,
       luReplaceSpell:            LevelUpDialog.luReplaceSpell,
+      luSelectArchetype:         LevelUpDialog.luSelectArchetype,
     },
     classes: ['am-app', 'am-levelup-dialog'],
     position: { width: 680, height: 760 },
@@ -238,6 +239,22 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       store.charLevel = context.newTotalLevel;
       store.hpValue   = Math.max(1, LevelUpDialog.#hpFor(this, selectedClass.hitDie, 0));
 
+      // The archetype level. a5e asks for this at the end of its grant routine,
+      // so suppressing that routine without asking here would let the level pass
+      // with no archetype at all.
+      const archLevel = LevelUpService.archetypeLevelOf(classItem);
+      if (archLevel && newLevel === archLevel) {
+        store.archetypeLevel = true;
+        store.archetypes = await LevelUpService.getArchetypesForClass(classItem);
+        store.archetypeUuid = this._archetypeUuid ?? null;
+
+        context.archetypeChoices = store.archetypes.map(a => ({
+          ...a, selected: a.uuid === store.archetypeUuid
+        }));
+        context.archetypeNeeded = store.archetypes.length > 0 && !store.archetypeUuid;
+        context.archetypeName   = store.archetypes.find(a => a.uuid === store.archetypeUuid)?.name ?? '';
+      }
+
       AM.levelUpGrants = store;
       this._levelChoices = store.choices;
 
@@ -413,6 +430,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     this._spellFilter       = { level: null, school: null };
     // Grant picks belong to one class at one level — switching either invalidates them
     this._levelChoices      = {};
+    this._archetypeUuid     = null;
     AM.levelUpGrants        = null;
   }
 
@@ -805,6 +823,14 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     dialog.render(false);
   }
 
+  /** Choose the class's archetype, at the level the class allows it. */
+  static luSelectArchetype(_event, btn) {
+    const dialog = AM.levelUpDialog;
+    if (!dialog || !btn?.dataset.uuid) return;
+    dialog._archetypeUuid = dialog._archetypeUuid === btn.dataset.uuid ? null : btn.dataset.uuid;
+    dialog.render(false);
+  }
+
   /** Pick or unpick one option of this level's grants. */
   static luToggleGrantOption(_event, btn) {
     const dialog = AM.levelUpDialog;
@@ -943,6 +969,15 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     const classes = LevelUpService.getActorClasses(dialog.actor);
     const cls     = classes.find(c => c.id === dialog._selectedClassId) ?? classes[0];
     if (!cls) return;
+
+    // An archetype level with nothing chosen would pass silently and leave the
+    // character without one, so the submit is refused instead.
+    const store = AM.levelUpGrants;
+    if (store?.archetypeLevel && store.archetypes?.length && !store.archetypeUuid) {
+      AM.levelUpDialog = dialog;          // keep the dialog alive
+      ui.notifications.warn(game.i18n.localize('am.levelup.archetype-required'));
+      return;
+    }
 
     const hpGained = dialog.#systemOwnsHp()
       ? 0
