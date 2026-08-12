@@ -142,6 +142,9 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
       this.#addManeuverBrowserContext(context, maneuverInfo);
       this.#addSpellBrowserContext(context, spellInfo);
+      // Multiclassing counts too — the table is keyed on character level, and the
+      // new class may be the one that qualifies the character in the first place.
+      this.#magicManeuverContext(context, newTotalLevel, newClass?.name ?? '');
       return context;
     }
 
@@ -370,8 +373,8 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
    * between two levels, so a character who missed a threshold is offered the
    * backlog rather than losing it.
    */
-  #magicManeuverContext(context, newTotalLevel) {
-    if (!MagicManeuverService.isEligible(this.actor)) return;
+  #magicManeuverContext(context, newTotalLevel, incomingClass = '') {
+    if (!MagicManeuverService.isEligible(this.actor, incomingClass)) return;
 
     const pending = MagicManeuverService.pendingAt(this.actor, newTotalLevel);
     if (!pending.schoolsOwed && !pending.maneuversOwed) return;
@@ -1089,6 +1092,12 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         await SpellService.applySpellsToActor(
           dialog.actor, [...dialog._selectedCantripUuids, ...dialog._selectedSpellUuids]
         );
+      }
+      if (dialog._mmSchools?.length || dialog._mmManeuvers?.length) {
+        await MagicManeuverService.apply(dialog.actor, {
+          schools:   dialog._mmSchools ?? [],
+          maneuvers: dialog._mmManeuvers ?? []
+        });
       }
       return;
     }

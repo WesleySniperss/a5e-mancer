@@ -33,8 +33,16 @@ export class MagicManeuverService {
       .reduce((n, i) => n + (i.system?.classLevels ?? i.system?.levels ?? i.system?.level ?? 1), 0);
   }
 
-  /** Does this actor have any of the four classes that get maneuvers? */
-  static isEligible(actor) {
+  /**
+   * Does this actor have any of the four classes that get maneuvers?
+   *
+   * @param {string} [incomingClass]  a class about to be added, for the
+   *   multiclass case — its item does not exist on the actor yet, so without
+   *   this a character multiclassing into wizard would be told they qualify only
+   *   on the level after.
+   */
+  static isEligible(actor, incomingClass = '') {
+    if (incomingClass && MagicManeuvers.isEligibleClass(incomingClass)) return true;
     return (actor?.items ?? []).some(i =>
       i.type === 'class' && MagicManeuvers.isEligibleClass(i.name));
   }
