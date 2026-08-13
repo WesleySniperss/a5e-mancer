@@ -33,7 +33,7 @@ export class GrantAbsorber {
     if (!prepared.length) return [];
 
     const out = [];
-    for (const grant of prepared) {
+    for (const [id, grant] of prepared) {
       if (grant?.grantType === 'feature') continue;  // described separately
       if (!this.#isSupported(grant, lv)) continue;
       if (!this.#needsConfig(grant)) continue;       // applied without asking
@@ -44,7 +44,7 @@ export class GrantAbsorber {
       if (!options.length) continue;   // nothing to choose — a5e applies the base set
 
       out.push({
-        id: grant._id,
+        id,
         type:    grant.grantType,
         label:   grant.label || this.#defaultLabel(grant),
         total:   spec.total,
@@ -56,11 +56,29 @@ export class GrantAbsorber {
     return out;
   }
 
-  /** Prepared grant objects, falling back to the raw entries if unprepared. */
+  /**
+   * Prepared grants as [id, grant] pairs, falling back to the raw entries if the
+   * document is unprepared.
+   *
+   * The id is the RECORD KEY, never `grant._id`, and that distinction is the
+   * whole point. Across the a5e packs 785 grants carry no `_id` at all and
+   * another 275 share one with a sibling grant on the same item — the archetype
+   * feature rows are copies of each other, `_id` included. Keying the pickers on
+   * `_id` therefore gave several rows one shared bucket of choices, so picking in
+   * one row filled another's allowance, and the ones with no `_id` produced an
+   * empty `data-grant-id` that the click handler rejected outright: the row
+   * simply did not respond.
+   *
+   * `apply` has always read the record key — it is the path a5e itself updates
+   * (`system.grants.<key>`) — so describing by `_id` also meant the choices were
+   * filed under an id the apply step never looked up.
+   */
   static #preparedGrants(doc) {
-    return doc?.grants && typeof doc.grants.values === 'function'
-      ? [...doc.grants.values()]
-      : Object.values(doc?.system?.grants ?? {});
+    if (doc?.grants && typeof doc.grants.entries === 'function') return [...doc.grants.entries()];
+    if (doc?.grants && typeof doc.grants.values === 'function') {
+      return [...doc.grants.values()].map(g => [g?._id ?? '', g]);
+    }
+    return Object.entries(doc?.system?.grants ?? {});
   }
 
   /**
@@ -135,10 +153,11 @@ export class GrantAbsorber {
     try {
       const props = grant.getSelectionComponentProps?.({});
       if (props) {
+        const options = flatten(props.choices);
         return {
           base:    flatten(props.base),
-          options: flatten(props.choices),
-          total:   Number(props.count ?? 0) || 0
+          options,
+          total:   this.#allowance(props.count, options.length)
         };
       }
     } catch { /* fall through to the raw shapes */ }
@@ -150,11 +169,33 @@ export class GrantAbsorber {
                  : grant.grantType === 'skillSpecialty' ? grant.keys
                  : null;
     if (!bucket) return null;
+    const options = flatten(bucket.options);
     return {
       base:    flatten(bucket.base),
-      options: flatten(bucket.options),
-      total:   Number(bucket.total ?? 0) || 0
+      options,
+      total:   this.#allowance(bucket.total, options.length)
     };
+  }
+
+  /**
+   * How many of a grant's options may be picked.
+   *
+   * Taken at face value this is just the grant's `total`, but 34 grants across
+   * the a5e packs offer options and state no usable total — Battle Master lists
+   * three abilities with `total: 0`, Beach Raider lists 27 languages with
+   * `total: -1`. Read literally that is an allowance of none: the row renders,
+   * refuses every click, and reports a limit of zero.
+   *
+   * One is the reading that matches the text in every one of those cases ("choose
+   * a language", "+1 to one of three"), and it is the floor a5e's own rules
+   * assume whenever a grant bothers to offer a choice at all. It is also the safe
+   * direction to be wrong in: too few picks can be topped up by hand, whereas
+   * handing out all 27 languages cannot be taken back without noticing.
+   */
+  static #allowance(total, optionCount) {
+    const n = Number(total);
+    if (Number.isFinite(n) && n > 0) return n;
+    return optionCount > 0 ? 1 : 0;
   }
 
   /** Human label for one option key, from the matching CONFIG.A5E table. */
@@ -388,7 +429,7 @@ export class GrantAbsorber {
    * ability. Because that routine is suppressed, skipping this would mean the
    * archetype level passes and no archetype is ever gained.
    */
-  static async applyArchetype(actor, uuid, lv = {}) {
+  static async applyArchetype(actor, uuid, lv = {}, choices = {}) {
     if (!actor || !uuid) return false;
     try {
       const doc = await fromUuid(uuid);
@@ -401,7 +442,7 @@ export class GrantAbsorber {
       const [created] = await actor.createEmbeddedDocuments('Item', [data], { noGrant: true });
       if (!created) return false;
 
-      await this.apply(actor, created, {}, lv);
+      await this.apply(actor, created, choices, lv);
 
       // Archetypes can carry their own spellcasting ability, same as a class
       const options = created.system?.spellcasting?.ability?.options ?? [];
@@ -532,7 +573,7 @@ export class GrantAbsorber {
 
     if (depth > this.#MAX_DEPTH) return false;
 
-    for (const grant of prepared) {
+    for (const [, grant] of prepared) {
       const type = grant?.grantType;
       if (!type) continue;
       if (this.#isOwnedElsewhere(grant)) continue;   // stripped before creation
@@ -580,13 +621,13 @@ export class GrantAbsorber {
       try { return (await fromUuid(uuid))?.name ?? uuid; } catch { return uuid; }
     };
 
-    for (const grant of this.#preparedGrants(doc)) {
+    for (const [id, grant] of this.#preparedGrants(doc)) {
       if (grant?.grantType !== 'feature') continue;
       if (!this.#appliesAtLevel(grant, lv)) continue;   // a later level's feature
 
       const spec = this.#specOf(grant) ?? { base: [], options: [], total: 0 };
       out.push({
-        id:    grant._id,
+        id,
         label: grant.label || game.i18n.localize('am.grants.type-feature'),
         total: spec.total,
         baseLabels: await Promise.all(spec.base.map(name)),
@@ -601,10 +642,13 @@ export class GrantAbsorber {
    * does, so the grant can still be removed cleanly later.
    */
   static async #applyFeatureGrant(actor, grant, chosenUuids) {
-    const base  = (grant.features?.base ?? []).map(f => f.uuid).filter(Boolean);
-    const total = Number(grant.features?.total ?? 0) || 0;
+    const base    = (grant.features?.base ?? []).map(f => f.uuid).filter(Boolean);
+    const options = (grant.features?.options ?? []);
+    // Same allowance rule the picker was drawn with, or a choice the player was
+    // shown and made would be silently dropped here.
+    const total = this.#allowance(grant.features?.total, options.length);
     const picked = (chosenUuids ?? [])
-      .filter(u => (grant.features?.options ?? []).some(f => f.uuid === u))
+      .filter(u => options.some(f => f.uuid === u))
       .slice(0, total);
 
     const uuids = [...new Set([...base, ...picked])];

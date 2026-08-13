@@ -45,14 +45,22 @@
         <p class="am-hint">{{localize 'am.grants.always-granted'}}: {{#each this.baseLabels}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}</p>
       {{/if}}
       {{#if this.options.length}}
+        {{!-- Feature options are real documents, so the shared description panel
+              can show what each actually grants — right-click, as on the maneuver
+              and spell cards. The hint is there because right-click is not
+              something anyone discovers on their own. --}}
+        <p class="am-hint am-grant-desc-hint">
+          <i class="fa-solid fa-arrow-pointer"></i> {{localize 'am.grants.right-click-hint'}}
+        </p>
         <div class="am-filter-pills">
           {{#each this.options}}
             <button type="button"
-              class="am-filter-pill {{#if this.selected}}am-pill-active{{/if}}"
+              class="am-filter-pill am-grant-feature-pill {{#if this.selected}}am-pill-active{{/if}}"
               data-action="toggleGrantOption"
               data-grant-source="{{../grantType}}"
               data-grant-id="{{../id}}"
-              data-key="{{this.key}}">{{this.label}}</button>
+              data-uuid="{{this.key}}"
+              data-key="{{this.key}}">{{this.label}}<i class="fa-solid fa-circle-info am-pill-info"></i></button>
           {{/each}}
         </div>
       {{/if}}

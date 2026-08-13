@@ -5,6 +5,7 @@ import { SpellDialog } from './SpellDialog.js';
 import { SpellService } from '../utils/spellService.js';
 import { PackFilter } from '../utils/packFilter.js';
 import { MagicManeuverService } from '../utils/magicManeuverService.js';
+import { MagicManeuverDialog } from './MagicManeuverDialog.js';
 import { ManeuverService } from '../utils/maneuverService.js';
 
 const MODULE_ID = 'a5e-mancer';
@@ -370,7 +371,9 @@ export class A5eCharacterSheet extends ActorSheet {
       fatigueDesc, strifeDesc, statusConditions,
       attunementItems, attuneCount, passivePerception, charInfo, bio,
       magicManeuvers, magicManeuverInfo,
-      hasMagicManeuvers: magicManeuvers.length > 0,
+      // The section shows for anyone whose class gets them, not only once some
+      // are known — otherwise there is nowhere to press to learn the first one.
+      canHaveMagicManeuvers: MagicManeuverService.isEligible(actor),
       hasWeapons:          weapons.length        > 0,
       hasManeuvers:        maneuvers.length      > 0,
       hasSpells:           spells.length         > 0,
@@ -1326,6 +1329,11 @@ export class A5eCharacterSheet extends ActorSheet {
        the character's class tables. GMs get an unlock toggle inside it. */
     el.querySelector('[data-action="manage-maneuvers"]')?.addEventListener('click', () =>
       new ManeuverDialog(this.actor).render(true)
+    );
+
+    /* Manage magic maneuvers — same freedom, same caps-from-the-table approach. */
+    el.querySelector('[data-action="manage-magic-maneuvers"]')?.addEventListener('click', () =>
+      new MagicManeuverDialog(this.actor).render(true)
     );
 
     /* Manage spells. Spell level cap follows the caster's class level; a5e has no

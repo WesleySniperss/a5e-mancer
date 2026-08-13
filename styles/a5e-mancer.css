@@ -5431,3 +5431,69 @@ input.am-cs-stat-val {
   color: var(--cs-text); cursor: pointer;
 }
 .am-cs-mm-use:hover { background: var(--cs-bg2); color: var(--cs-accent, inherit); }
+.am-cs-mm-empty { margin: 0.2rem 0 0.5rem; }
+
+/* ── Magic maneuver management dialog ──────────────────────────────────
+   Laid out like the combat maneuver dialog: fixed head and footer, the
+   list scrolling between them. */
+.am-mmd { display: flex; flex-direction: column; height: 100%; gap: 0.5rem; }
+.am-mmd-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.5rem; flex-wrap: wrap; flex: 0 0 auto;
+}
+.am-mmd-counters { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.am-mmd-search { flex: 1 1 12rem; min-width: 8rem; }
+/* min-height:0 — without it the grid/flex parent refuses to let this shrink and
+   overflow-y never engages, which is the same trap the tab panels hit. */
+.am-mmd-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 0.25rem; }
+
+.am-mmd-schools {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: 0.4rem; margin-bottom: 0.5rem;
+}
+.am-mmd-school {
+  border: 1px solid var(--am-border, #4a4a4a); border-radius: 4px;
+  padding: 0.3rem 0.4rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem;
+}
+.am-mmd-school-open { border-color: var(--am-gold, #c9a227); }
+.am-mmd-school-btn {
+  flex: 1 1 auto; display: flex; align-items: center; gap: 0.4rem;
+  background: none; border: none; cursor: pointer; text-align: left;
+  color: inherit; padding: 0; font-size: 0.85rem;
+}
+.am-mmd-lore-btn {
+  flex: 0 0 auto; background: none; border: none; cursor: pointer;
+  color: inherit; opacity: 0.6; padding: 0 0.2rem;
+}
+.am-mmd-lore-btn:hover { opacity: 1; }
+.am-mmd-lore { flex: 1 1 100%; margin: 0.25rem 0 0; font-size: 0.75rem; opacity: 0.85; }
+
+.am-mmd-group { margin-bottom: 0.6rem; }
+.am-mmd-group-head { margin: 0.3rem 0; font-size: 0.85rem; opacity: 0.9; }
+.am-mmd-list { display: flex; flex-direction: column; gap: 0.2rem; }
+.am-mmd-row {
+  display: flex; align-items: center; gap: 0.4rem; width: 100%;
+  padding: 0.25rem 0.4rem; font-size: 0.78rem; text-align: left;
+  background: none; border: 1px solid transparent; border-radius: 3px;
+  color: inherit; cursor: pointer;
+}
+.am-mmd-row:hover { border-color: var(--am-border, #4a4a4a); }
+.am-mmd-known { border-color: var(--am-gold, #c9a227); }
+/* Still clickable — the reason is shown rather than the row being dead */
+.am-mmd-locked { opacity: 0.45; }
+.am-mmd-why { margin-left: auto; font-size: 0.68rem; }
+.am-mmd-row .am-ex-cost { flex: 0 0 auto; }
+.am-mmd-locked .am-ex-cost { margin-left: 0; }
+
+.am-mmd-footer {
+  flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
+  gap: 0.5rem; padding-top: 0.4rem; border-top: 1px solid var(--am-border, #4a4a4a);
+}
+.am-mmd-footer-right { display: flex; gap: 0.4rem; margin-left: auto; }
+.am-mmd-unlock { font-size: 0.75rem; }
+.am-badge-warn { background: #7a3b3b; color: #fff; }
+
+/* Feature grant options carry a description; the icon says so without a tooltip */
+.am-pill-info { margin-left: 0.3rem; opacity: 0.5; font-size: 0.75em; }
+.am-grant-feature-pill:hover .am-pill-info { opacity: 1; }
+.am-grant-desc-hint { margin: 0.1rem 0 0.3rem; font-size: 0.7rem; opacity: 0.7; }

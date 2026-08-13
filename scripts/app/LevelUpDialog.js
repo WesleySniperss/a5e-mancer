@@ -74,8 +74,36 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   };
 
   static PARTS = {
-    main: { template: 'modules/a5e-mancer/templates/level-up.hbs' }
+    main: {
+      template:   'modules/a5e-mancer/templates/level-up.hbs',
+      scrollable: ['', '.am-description-panel']
+    }
   };
+
+  /**
+   * Keep the dialog where the player left it.
+   *
+   * Every pick re-renders the one part, and this dialog scrolls on
+   * `.window-content` — the window chrome, outside the part — so `scrollable`
+   * cannot reach it. Replacing the part's contents collapses that container's
+   * scrollHeight for an instant, the browser clamps scrollTop to 0, and the
+   * dialog snaps back to the top on each click.
+   */
+  _preSyncPartState(partId, newElement, priorElement, state) {
+    super._preSyncPartState(partId, newElement, priorElement, state);
+    state.amWindowScroll = this.element?.querySelector('.window-content')?.scrollTop ?? 0;
+  }
+
+  _syncPartState(partId, newElement, priorElement, state) {
+    super._syncPartState(partId, newElement, priorElement, state);
+    const top = state.amWindowScroll;
+    if (!top) return;
+    // After layout, or the height it is being restored into does not exist yet
+    requestAnimationFrame(() => {
+      const content = this.element?.querySelector('.window-content');
+      if (content) content.scrollTop = top;
+    });
+  }
 
   get title() {
     return game.i18n.format('am.levelup.title', { name: this.actor.name });
@@ -266,6 +294,18 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
                                   && !store.archetypeUuid && !this._archetypeSkipped;
         context.archetypeSkipped = !!this._archetypeSkipped;
         context.archetypeName   = store.archetypes.find(a => a.uuid === store.archetypeUuid)?.name ?? '';
+
+        // An archetype brings grants of its own, and applyArchetype used to run
+        // them with no choices at all — so anything it offered was decided by
+        // taking the base set and saying nothing. Ask here instead.
+        if (store.archetypeUuid) {
+          const picked = await LevelUpDialog.#archetypeGrantModels(store.archetypeUuid, lv);
+          store.archetypeGrants   = picked.grants;
+          store.archetypeFeatures = picked.features;
+          store.grants   = [...store.grants,   ...picked.grants];
+          store.features = [...store.features, ...picked.features];
+          context.archetypeAbsorbed = picked.absorbed;
+        }
       }
 
       AM.levelUpGrants = store;
@@ -285,9 +325,13 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       context.bgFeatures = store.features.map(withState)
         .filter(f => f.total > 0 || f.baseLabels.length);
       context.hasBgGrants = context.bgGrants.length > 0 || context.bgFeatures.length > 0;
+      // Whether a5e will open its window at all — which is not the same question
+      // as whether this level happens to offer a choice.
+      context.grantsAbsorbed = true;
     } catch (err) {
       AM.log(1, 'Could not read level-up grants — a5e will handle this level:', err);
       AM.levelUpGrants = null;
+      context.grantsAbsorbed = false;
     }
   }
 
@@ -1013,6 +1057,50 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     }
     dialog._mmManeuvers.push(id);
     dialog.render(false);
+  }
+
+  /**
+   * The archetype's own grants, as picker models.
+   *
+   * Ids are prefixed so they cannot collide with the class's grant ids — both
+   * sets share one choices bucket, and the record keys are only unique within
+   * their own item. The prefix is stripped again in #archetypeChoicesFrom.
+   *
+   * If the archetype has anything the builder cannot model, nothing is returned
+   * and `absorbed` is false: the level-up then says plainly that a5e will ask,
+   * rather than quietly dropping the choice as before.
+   */
+  static async #archetypeGrantModels(uuid, lv) {
+    const empty = { grants: [], features: [], absorbed: false };
+    try {
+      const doc = await fromUuid(uuid);
+      if (!doc) return empty;
+      if (!await GrantAbsorber.canAbsorb(doc, lv)) {
+        AM.log(2, `Archetype ${doc.name}: grants left to a5e`);
+        return empty;
+      }
+      const tag = (g) => ({ ...g, id: `${LevelUpDialog.#ARCH_PREFIX}${g.id}`, fromArchetype: true });
+      return {
+        grants:   GrantAbsorber.describe(doc, lv).map(tag),
+        features: (await GrantAbsorber.describeFeatures(doc, lv)).map(tag),
+        absorbed: true
+      };
+    } catch (err) {
+      AM.log(2, 'Could not read archetype grants:', err);
+      return empty;
+    }
+  }
+
+  static #ARCH_PREFIX = 'arch:';
+
+  /** Split the level's choices back into the class's and the archetype's. */
+  static archetypeChoicesFrom(choices = {}) {
+    const out = {};
+    for (const [id, picked] of Object.entries(choices)) {
+      if (!id.startsWith(LevelUpDialog.#ARCH_PREFIX)) continue;
+      out[id.slice(LevelUpDialog.#ARCH_PREFIX.length)] = picked;
+    }
+    return out;
   }
 
   /** Pick or unpick one option of this level's grants. */

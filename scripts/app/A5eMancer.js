@@ -6,6 +6,7 @@ import {
 } from '../utils/index.js';
 import { SpellService, CLASS_SPELL_TABLES } from '../utils/spellService.js';
 import { LoreTableService } from '../utils/loreTableService.js';
+import { ItemDescPanel } from '../utils/itemDescPanel.js';
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -62,23 +63,37 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     }
   };
 
+  /**
+   * `scrollable` is what keeps a tab where the player left it. Picking a grant
+   * re-renders that part, and without this every pick threw the page back to the
+   * top — the pills are usually far enough down that you lost your place on each
+   * click. The empty selector means the part's own root, which is the element
+   * carrying `overflow-y: auto` here; the description panel scrolls on its own
+   * and is named separately.
+   */
+  static #TAB = (name) => ({
+    template:   `modules/a5e-mancer/templates/tab-${name}.hbs`,
+    classes:    ['am-app-tab-content'],
+    scrollable: ['', '.am-description-panel']
+  });
+
   static PARTS = {
-    header:      { template: 'modules/a5e-mancer/templates/app-header.hbs',      classes: ['am-app-header'] },
-    tabs:        { template: 'modules/a5e-mancer/templates/app-nav.hbs',         classes: ['am-app-nav'] },
-    start:       { template: 'modules/a5e-mancer/templates/tab-start.hbs',       classes: ['am-app-tab-content'] },
-    heritage:    { template: 'modules/a5e-mancer/templates/tab-heritage.hbs',    classes: ['am-app-tab-content'] },
-    heritageGift:{ template: 'modules/a5e-mancer/templates/tab-heritage-gift.hbs', classes: ['am-app-tab-content'] },
-    culture:     { template: 'modules/a5e-mancer/templates/tab-culture.hbs',     classes: ['am-app-tab-content'] },
-    background:  { template: 'modules/a5e-mancer/templates/tab-background.hbs', classes: ['am-app-tab-content'] },
-    destiny:     { template: 'modules/a5e-mancer/templates/tab-destiny.hbs',     classes: ['am-app-tab-content'] },
-    class:       { template: 'modules/a5e-mancer/templates/tab-class.hbs',       classes: ['am-app-tab-content'] },
-    abilities:   { template: 'modules/a5e-mancer/templates/tab-abilities.hbs',   classes: ['am-app-tab-content'] },
-    maneuvers:   { template: 'modules/a5e-mancer/templates/tab-maneuvers.hbs',   classes: ['am-app-tab-content'] },
-    spells:      { template: 'modules/a5e-mancer/templates/tab-spells.hbs',      classes: ['am-app-tab-content'] },
-    equipment:   { template: 'modules/a5e-mancer/templates/tab-equipment.hbs',   classes: ['am-app-tab-content'] },
-    biography:   { template: 'modules/a5e-mancer/templates/tab-biography.hbs',   classes: ['am-app-tab-content'] },
-    finalize:    { template: 'modules/a5e-mancer/templates/tab-finalize.hbs',    classes: ['am-app-tab-content'] },
-    footer:      { template: 'modules/a5e-mancer/templates/app-footer.hbs',      classes: ['am-app-footer'] }
+    header:      { template: 'modules/a5e-mancer/templates/app-header.hbs', classes: ['am-app-header'] },
+    tabs:        { template: 'modules/a5e-mancer/templates/app-nav.hbs',    classes: ['am-app-nav'] },
+    start:        this.#TAB('start'),
+    heritage:     this.#TAB('heritage'),
+    heritageGift: this.#TAB('heritage-gift'),
+    culture:      this.#TAB('culture'),
+    background:   this.#TAB('background'),
+    destiny:      this.#TAB('destiny'),
+    class:        this.#TAB('class'),
+    abilities:    this.#TAB('abilities'),
+    maneuvers:    this.#TAB('maneuvers'),
+    spells:       this.#TAB('spells'),
+    equipment:    this.#TAB('equipment'),
+    biography:    this.#TAB('biography'),
+    finalize:     this.#TAB('finalize'),
+    footer:      { template: 'modules/a5e-mancer/templates/app-footer.hbs', classes: ['am-app-footer'] }
   };
 
   #isRendering = false;
@@ -345,10 +360,20 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
       DOMManager.updateTabIndicators(this.element);
       DOMManager.updateReviewTab(this.element);
       DOMManager.updateProgressBar(this.element);
+
+      // Right-click a grant option to read what it grants — the same panel the
+      // maneuver and spell cards use, so the gesture is the same everywhere.
+      this.#detachDescPanel?.();
+      this.#detachDescPanel = ItemDescPanel.attach(
+        this.element,
+        '.am-card[data-uuid], .am-grant-feature-pill[data-uuid]'
+      );
     } finally {
       this.#isRendering = false;
     }
   }
+
+  #detachDescPanel = null;
 
   _onChangeForm(config, event) {
     super._onChangeForm(config, event);
@@ -357,6 +382,9 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
 
   async _preClose() {
     await super._preClose();
+    this.#detachDescPanel?.();
+    this.#detachDescPanel = null;
+    ItemDescPanel.close();
     DOMManager.cleanup();
     return true;
   }

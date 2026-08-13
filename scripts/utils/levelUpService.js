@@ -278,8 +278,14 @@ export class LevelUpService {
     // The archetype belongs to this level and a5e's routine — which would have
     // asked for it — was suppressed, so it is added here.
     if (absorbed && AM.levelUpGrants?.archetypeUuid) {
+      // Its own grants were asked for in the dialog alongside the class's, under
+      // prefixed ids; hand back the archetype's half.
+      const { LevelUpDialog } = await import('../app/LevelUpDialog.js');
       await GrantAbsorber.applyArchetype(
-        actor, AM.levelUpGrants.archetypeUuid, AM.levelUpGrants.lv ?? {}
+        actor,
+        AM.levelUpGrants.archetypeUuid,
+        AM.levelUpGrants.lv ?? {},
+        LevelUpDialog.archetypeChoicesFrom(AM.levelUpGrants.choices ?? {})
       );
     }
 

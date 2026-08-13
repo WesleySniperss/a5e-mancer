@@ -291,14 +291,22 @@
   </section>
   {{/if}}
 
-  {{!-- The new class's level-1 features, knack and proficiencies are applied by
-        a5e's grant engine when the class is added. --}}
+  {{!-- Only worth saying when a5e really will ask. When the builder took the
+        grants over, the choices are already on this page and promising a window
+        that never opens just makes the player wait for one. --}}
+  {{#unless hasBgGrants}}
   <hr />
   <section class="lu-section lu-grants-note">
     <p class="am-hint">
-      <i class="fa-solid fa-circle-info"></i> {{localize 'am.levelup.features-note-multiclass'}}
+      <i class="fa-solid fa-circle-info"></i>
+      {{#if grantsAbsorbed}}
+        {{localize 'am.levelup.features-here'}}
+      {{else}}
+        {{localize 'am.levelup.features-note-multiclass'}}
+      {{/if}}
     </p>
   </section>
+  {{/unless}}
 
   {{/if}}{{!-- /newClass --}}
 
@@ -597,15 +605,21 @@
   </section>
   {{/if}}
 
-  {{!-- Class features, knack & ASI/feat: a5e's own grant engine handles these when
-        the class level changes, so we only tell the player what's coming. --}}
+  {{!-- What this level brings. The wording turns on whether a5e will actually
+        open its window: gating it on "are there choices on this page" meant a
+        level with nothing to pick still announced a window that never came. --}}
   {{#if grantsFeatures}}
   {{#unless hasBgGrants}}
   <hr />
   <section class="lu-section lu-grants-note">
     <h3><i class="fa-solid fa-wand-magic-sparkles"></i> {{localize 'am.levelup.features-title'}}</h3>
     <p class="am-hint">
-      <i class="fa-solid fa-circle-info"></i> {{localize 'am.levelup.features-note'}}
+      <i class="fa-solid fa-circle-info"></i>
+      {{#if grantsAbsorbed}}
+        {{localize 'am.levelup.features-here'}}
+      {{else}}
+        {{localize 'am.levelup.features-note'}}
+      {{/if}}
     </p>
     <ul class="lu-grants-list">
       <li><i class="fa-solid fa-check"></i> {{localize 'am.levelup.features-classfeatures'}}</li>

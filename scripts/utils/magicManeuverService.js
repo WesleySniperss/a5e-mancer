@@ -194,6 +194,49 @@ export class MagicManeuverService {
     return true;
   }
 
+  /**
+   * Replace what the character knows outright.
+   *
+   * `apply` only ever adds, because it exists to commit one level's picks. That
+   * left magic maneuvers editable at level-up and nowhere else, while combat
+   * maneuvers can be managed from the sheet at any time — a difference with no
+   * justification in the rules. This is the same job ManeuverDialog does for the
+   * combat side: take the full intended set, keep it inside the entitlement, and
+   * write it.
+   *
+   * @param {object} state    { openSchools, knownIds } — the complete new set
+   * @param {boolean} force   GM override, skips the entitlement caps entirely
+   * @returns {{openSchools: string[], knownIds: string[], dropped: string[]}}
+   */
+  static async setState(actor, { openSchools = [], knownIds = [] } = {}, { force = false } = {}) {
+    if (!actor) return { openSchools: [], knownIds: [], dropped: [] };
+
+    const level = this.maneuverLevel(actor);
+    const row   = MagicManeuvers.progressionAt(level);
+
+    let schools = [...new Set(openSchools.filter(s => MM_SCHOOLS[s]))];
+    if (!force) schools = schools.slice(0, row.schools);
+
+    const dropped = [];
+    const known = [];
+    for (const id of [...new Set(knownIds)]) {
+      const maneuver = MagicManeuvers.byId(id);
+      if (!maneuver) continue;
+      if (!force) {
+        if (!schools.includes(maneuver.school))  { dropped.push(id); continue; }
+        if (maneuver.degree > row.maxDegree)     { dropped.push(id); continue; }
+        if (known.length >= row.known)           { dropped.push(id); continue; }
+      }
+      known.push(id);
+    }
+
+    await actor.setFlag(AM.ID, this.FLAG, { openSchools: schools, knownIds: known });
+    await this.syncItems(actor, known);
+    AM.log(3, `Magic maneuvers set: ${known.length} known, schools [${schools.join(', ')}]`
+             + (dropped.length ? `, ${dropped.length} dropped` : ''));
+    return { openSchools: schools, knownIds: known, dropped };
+  }
+
   /* ── items ────────────────────────────────────────────── */
 
   /**

@@ -1,0 +1,103 @@
+{{!-- Manage magic maneuvers. Mirrors the combat maneuver dialog: open any time,
+      change anything, nothing is written until Save. --}}
+<div class="am-mmd">
+
+  <div class="am-mmd-head">
+    <div class="am-mmd-counters">
+      <span class="am-counter-badge {{#if overSchools}}am-badge-warn{{else}}{{#if schools.length}}am-badge-success{{/if}}{{/if}}">
+        <i class="fa-solid fa-book-sparkles"></i>
+        {{localize 'am.mm.schools-label'}} {{schoolsUsed}}/{{schoolsMax}}
+      </span>
+      <span class="am-counter-badge {{#if overKnown}}am-badge-warn{{else}}am-badge-success{{/if}}">
+        <i class="fa-solid fa-wand-sparkles"></i>
+        {{localize 'am.mm.known-label'}} {{knownUsed}}/{{knownMax}}
+      </span>
+      <span class="am-cs-muted">
+        {{localize 'am.mm.max-degree' degree=maxDegree}} ·
+        DC {{dc}} · <i class="fa-solid fa-bolt"></i> {{exertion}}
+      </span>
+    </div>
+    <input type="text" class="am-mmd-search form-input"
+      placeholder="{{localize 'am.mm.search-placeholder'}}" value="{{search}}" autocomplete="off">
+  </div>
+
+  {{#if tooEarly}}
+    <div class="am-info-placeholder">
+      <i class="fa-solid fa-hourglass-start fa-xl" style="opacity:0.4"></i>
+      <p>{{localize 'am.mm.reason.level-too-low'}}</p>
+    </div>
+  {{/if}}
+
+  <div class="am-mmd-body">
+
+    {{!-- ── Schools ── --}}
+    <h3><i class="fa-solid fa-book-sparkles"></i> {{localize 'am.mm.schools-title'}}</h3>
+    <p class="am-hint">{{localize 'am.mm.schools-hint'}}</p>
+    <div class="am-mmd-schools">
+      {{#each schools}}
+        <div class="am-mmd-school {{#if this.open}}am-mmd-school-open{{/if}}">
+          <button type="button" class="am-mmd-school-btn"
+            data-action="mmToggleSchool" data-school="{{this.key}}">
+            <i class="fa-solid {{#if this.open}}fa-circle-check{{else}}fa-circle{{/if}}"></i>
+            <span class="am-mmd-school-name">{{this.label}}</span>
+            {{#if this.count}}<span class="am-counter-badge">{{this.count}}</span>{{/if}}
+          </button>
+          <button type="button" class="am-mmd-lore-btn"
+            data-action="mmToggleLore" data-school="{{this.key}}"
+            data-tooltip="{{localize 'am.mm.show-lore'}}">
+            <i class="fa-solid {{#if this.loreOpen}}fa-chevron-up{{else}}fa-circle-info{{/if}}"></i>
+          </button>
+          {{#if this.loreOpen}}
+            <p class="am-mmd-lore">{{this.lore}}</p>
+          {{/if}}
+        </div>
+      {{/each}}
+    </div>
+
+    {{!-- ── Maneuvers ── --}}
+    <hr />
+    {{#each groups}}
+      <div class="am-mmd-group">
+        <h4 class="am-mmd-group-head">{{this.label}}</h4>
+        <div class="am-mmd-list">
+          {{#each this.maneuvers}}
+            <button type="button"
+              class="am-mmd-row {{#if this.known}}am-mmd-known{{/if}} {{#unless this.selectable}}am-mmd-locked{{/unless}}"
+              data-action="mmToggleManeuver" data-maneuver="{{this.id}}"
+              data-tooltip="{{this.effect}}">
+              <i class="fa-solid {{#if this.known}}fa-square-check{{else}}fa-square{{/if}}"></i>
+              <span class="am-mm-degree">{{this.degree}}°</span>
+              <span class="am-mm-name">{{this.name}}</span>
+              <span class="am-ex-cost"><i class="fa-solid fa-bolt"></i>{{this.cost}}</span>
+              {{#unless this.schoolOpen}}
+                <span class="am-cs-muted am-mmd-why">{{localize 'am.mm.reason.school-not-open'}}</span>
+              {{else}}
+                {{#unless this.degreeOk}}
+                  <span class="am-cs-muted am-mmd-why">{{localize 'am.mm.reason.degree-too-high'}}</span>
+                {{/unless}}
+              {{/unless}}
+            </button>
+          {{/each}}
+        </div>
+      </div>
+    {{/each}}
+
+  </div>
+
+  <div class="am-mmd-footer">
+    {{#if isGM}}
+      <button type="button" class="am-mmd-unlock {{#if unlocked}}am-pill-active{{/if}}"
+        data-action="mmToggleUnlock" data-tooltip="{{localize 'am.mm.unlock-hint'}}">
+        <i class="fa-solid {{#if unlocked}}fa-lock-open{{else}}fa-lock{{/if}}"></i>
+        {{localize 'am.mm.unlock'}}
+      </button>
+    {{/if}}
+    <div class="am-mmd-footer-right">
+      <button type="button" data-action="mmCancel">{{localize 'am.mm.cancel'}}</button>
+      <button type="button" class="am-primary-btn" data-action="mmSave">
+        <i class="fa-solid fa-check"></i> {{localize 'am.mm.save'}}
+      </button>
+    </div>
+  </div>
+
+</div>
