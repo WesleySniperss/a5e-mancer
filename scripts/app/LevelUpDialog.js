@@ -62,6 +62,9 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       luReplaceManeuver:         LevelUpDialog.luReplaceManeuver,
       luReplaceSpell:            LevelUpDialog.luReplaceSpell,
       luSelectArchetype:         LevelUpDialog.luSelectArchetype,
+      luSetAsiMode:              LevelUpDialog.luSetAsiMode,
+      luSelectFeat:              LevelUpDialog.luSelectFeat,
+      luToggleFeatEligible:      LevelUpDialog.luToggleFeatEligible,
     },
     classes: ['am-app', 'am-levelup-dialog'],
     position: { width: 680, height: 760 },
@@ -265,12 +268,15 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         AM.log(3, `${classItem.name} level ${newLevel}: grants left to a5e`);
         return;
       }
+      // The whole tree at this level. Knacks and the like are feature grants on
+      // the features a class grants, so the top level alone showed none of them.
+      const tree = await GrantAbsorber.describeTreeForLevel(classItem, lv);
       const store = {
         absorb:   true,
         level:    newLevel,
         lv,
-        grants:   GrantAbsorber.describeForLevel(classItem, lv),
-        features: await GrantAbsorber.describeFeaturesForLevel(classItem, lv),
+        grants:   tree.grants,
+        features: tree.features,
         choices:  this._levelChoices ?? {}
       };
       // The per-level hit points a5e would have written, without CON — it adds
@@ -327,9 +333,22 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       // report, so the heading never stands over an empty section.
       const shows = (g) => g.options.length > 0 || g.baseLabels.length > 0;
 
-      context.bgGrants   = store.grants.map(withState).filter(shows);
+      // The ability points this level brings are pulled out of the ordinary grant
+      // list: a5e states them as two one-point `ability` grants and says nothing
+      // about the feat you may take instead, so the choice has to be offered here.
+      const asiIds = store.grants
+        .filter(g => g.type === 'ability' && !g.fromArchetype)
+        .map(g => g.id);
+      store.asiIds = asiIds;
+
+      const asiGrants = store.grants.filter(g => asiIds.includes(g.id));
+      const rest      = store.grants.filter(g => !asiIds.includes(g.id));
+
+      context.bgGrants   = rest.map(withState).filter(shows);
       context.bgFeatures = store.features.map(withState).filter(shows);
       context.hasBgGrants = context.bgGrants.length > 0 || context.bgFeatures.length > 0;
+
+      if (asiGrants.length) await this.#addAsiContext(context, store, asiGrants, withState, lv);
       // Whether a5e will open its window at all — not the same question as
       // whether this level happens to offer a choice.
       context.grantsAbsorbed = true;
@@ -428,7 +447,11 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     const info = ManeuverService.getClassManeuverInfo(cls.name, newClassLevel);
     if (!info?.replaceable) return;
 
-    const known = ManeuverService.getActorManeuvers(this.actor);
+    // Only the ones the player chose. A maneuver handed out by a class feature is
+    // part of that feature, not a pick, so trading it away would quietly delete a
+    // class ability and leave the grant that produced it pointing at nothing.
+    const known = ManeuverService.getActorManeuvers(this.actor)
+      .filter(m => !ManeuverService.isGrantedManeuver(this.actor, m.id));
     if (!known.length) return;
 
     context.maneuverReplaceLimit = info.replaceable;
@@ -496,6 +519,10 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     // Grant picks belong to one class at one level — switching either invalidates them
     this._levelChoices      = {};
     this._archetypeUuid     = null;
+    this._asiMode           = 'ability';
+    this._featUuid          = null;
+    this._featSearch        = '';
+    this._featOnlyEligible  = false;
     this._archetypeSkipped  = false;
     AM.levelUpGrants        = null;
   }
@@ -591,12 +618,33 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   /* ── render lifecycle ────────────────────────────────────────────────── */
 
   async _onRender(_ctx, _opts) {
-    /* ── Right-click a maneuver/spell card for its full text and costs ── */
+    /* ── Right-click a maneuver/spell/feat card for its full text and costs ── */
     this._detachDescPanel?.();
-    this._detachDescPanel = ItemDescPanel.attach(this.element);
+    this._detachDescPanel = ItemDescPanel.attach(
+      this.element,
+      '.am-card[data-uuid], .am-maneuver-card[data-uuid], .am-spell-card[data-uuid], .am-feat-row[data-uuid]'
+    );
 
-    /* ── Mode toggle ── */
-    this.element.querySelectorAll('.lu-mode-btn').forEach(btn => {
+    /* ── Feat search ── */
+    const featSearch = this.element.querySelector('.am-feat-search');
+    if (featSearch) {
+      featSearch.addEventListener('input', (e) => {
+        this._featSearch = e.target.value ?? '';
+        this._featSearchFocused = true;
+        this.render(false);
+      });
+      // The re-render replaces the field being typed into
+      if (this._featSearchFocused) {
+        featSearch.focus();
+        featSearch.setSelectionRange(featSearch.value.length, featSearch.value.length);
+      }
+    }
+
+    /* ── Mode toggle ──
+       Scoped to its own section: the ASI toggle reuses these classes for the
+       same look, and an unscoped selector made picking "feat" switch the whole
+       dialog to multiclass mode and wipe every selection. */
+    this.element.querySelectorAll('.lu-mode-section .lu-mode-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
         const newMode = btn.dataset.mode;
         if (newMode === this._mode) return;
@@ -910,6 +958,44 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /**
+   * The "ability score increase OR a feat" choice.
+   *
+   * a5e carries only the two ability grants, so the alternative is ours to offer.
+   * Choosing the feat marks those grants skipped rather than deleting them, which
+   * keeps a5e's own record of the level intact.
+   */
+  async #addAsiContext(context, store, asiGrants, withState, lv) {
+    store.asiMode = this._asiMode ?? 'ability';
+    store.featUuid = this._featUuid ?? null;
+
+    context.hasAsi     = true;
+    context.asiMode    = store.asiMode;
+    context.asiGrants  = asiGrants.map(withState);
+    context.asiPoints  = asiGrants.reduce((n, g) => n + (g.total || 0), 0);
+    context.asiChosen  = asiGrants.reduce((n, g) => n + (store.choices[g.id]?.length ?? 0), 0);
+
+    if (store.asiMode !== 'feat') return;
+
+    try {
+      const { FeatService } = await import('../utils/featService.js');
+      const feats = await FeatService.optionsFor(this.actor, {
+        search:       this._featSearch ?? '',
+        onlyEligible: !!this._featOnlyEligible
+      });
+      context.featSearch       = this._featSearch ?? '';
+      context.featOnlyEligible = !!this._featOnlyEligible;
+      context.featTotal        = feats.length;
+      // Capped for the sake of the DOM; the search box is the way through 600+.
+      context.feats = feats.slice(0, 60).map(f => ({ ...f, selected: f.uuid === store.featUuid }));
+      context.featTruncated = feats.length > context.feats.length;
+      context.featChosen    = feats.find(f => f.uuid === store.featUuid) ?? null;
+    } catch (err) {
+      AM.log(1, 'Could not load feats:', err);
+      context.featError = true;
+    }
+  }
+
+  /**
    * The archetype's own grants, as picker models.
    *
    * Ids are prefixed so they cannot collide with the class's grant ids — both
@@ -929,10 +1015,13 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         AM.log(2, `Archetype ${doc.name}: grants left to a5e`);
         return empty;
       }
-      const tag = (g) => ({ ...g, id: `${LevelUpDialog.#ARCH_PREFIX}${g.id}`, fromArchetype: true });
+      const tag  = (g) => ({ ...g, id: `${LevelUpDialog.#ARCH_PREFIX}${g.id}`, fromArchetype: true });
+      // The archetype's nested grants matter as much as a class's — this is where
+      // an archetype's own knack- or specialisation-style choices live.
+      const tree = await GrantAbsorber.describeTree(doc, lv);
       return {
-        grants:   GrantAbsorber.describe(doc, lv).map(tag),
-        features: (await GrantAbsorber.describeFeatures(doc, lv)).map(tag),
+        grants:   tree.grants.map(tag),
+        features: tree.features.map(tag),
         absorbed: true
       };
     } catch (err) {
@@ -951,6 +1040,38 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       out[id.slice(LevelUpDialog.#ARCH_PREFIX.length)] = picked;
     }
     return out;
+  }
+
+  /* ── ASI or feat ────────────────────────────────────────────────────── */
+
+  static luSetAsiMode(_event, btn) {
+    const dialog = AM.levelUpDialog;
+    const mode   = btn.dataset.mode;
+    if (!dialog || !['ability', 'feat'].includes(mode)) return;
+    dialog._asiMode = mode;
+    // Switching away drops the other side's answer, so a stale pick from the
+    // mode you abandoned cannot be applied alongside the one you kept.
+    if (mode === 'feat') {
+      for (const id of AM.levelUpGrants?.asiIds ?? []) delete AM.levelUpGrants.choices[id];
+    } else {
+      dialog._featUuid = null;
+    }
+    dialog.render(false);
+  }
+
+  static luSelectFeat(_event, btn) {
+    const dialog = AM.levelUpDialog;
+    if (!dialog) return;
+    const uuid = btn.dataset.uuid;
+    dialog._featUuid = dialog._featUuid === uuid ? null : uuid;
+    dialog.render(false);
+  }
+
+  static luToggleFeatEligible() {
+    const dialog = AM.levelUpDialog;
+    if (!dialog) return;
+    dialog._featOnlyEligible = !dialog._featOnlyEligible;
+    dialog.render(false);
   }
 
   /** Pick or unpick one option of this level's grants. */

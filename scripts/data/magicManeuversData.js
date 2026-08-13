@@ -4,29 +4,30 @@
  * Data only: names, schools, degrees, costs, triggers, flavour and effect text,
  * plus the level table. No Foundry calls, so it can be verified on its own.
  *
- * Flavour and school text are the author's, from the specification. Item
- * descriptions are built as italic flavour followed by the mechanical text; the
- * school text belongs to the school, not repeated on every maneuver.
+ * The flavour lines and school text are translations of the author's originals
+ * from the specification. Item descriptions are built as italic flavour followed
+ * by the mechanical text; the school text belongs to the school and is not
+ * repeated on every maneuver.
  */
 
 /** Schools. Ids are transliterations of the working names in the spec. */
 export const MM_SCHOOLS = {
-  stykhia:      'Стихія',
-  esentsia:     'Есенція',
-  probiy:       'Пробій',
-  vlada:        'Влада',
-  utrymannia:   'Утримання',
-  provydinnia:  'Провидіння'
+  stykhia:      'Elements',
+  esentsia:     'Essence',
+  probiy:       'Breach',
+  vlada:        'Dominion',
+  utrymannia:   'Hold',
+  provydinnia:  'Foresight'
 };
 
 /** School text, shown on the school rather than duplicated onto each maneuver. */
 export const MM_SCHOOL_LORE = {
-  stykhia:     `Стихія, що не гасне з ударом, а лишається на цілі: сковує, розʼїдає, тліє.`,
-  esentsia:    `Шкода поза стихіями — та, що бʼє не тіло, а суть.`,
-  probiy:      `Магія, що дістає ворога там, де він певен, що недосяжний.`,
-  vlada:       `Панування над чужою волею, чужими чарами й тілом: вкласти думку, обернути закляття проти хазяїна. А рукою — вповні відновити зламане й змити з союзника скверну.`,
-  utrymannia:  `Магія чіпкості: концентрація встоює попри провал, убивчий надлишок не зникає, а перекидається далі, щит бʼє у відповідь. Ніщо не гасне раніше часу.`,
-  provydinnia: `Кастуючи, ти торкаєшся плетіння — і читаєш крізь нього більше, ніж саме закляття: чим ціль захищена, де вона тонка, що зробить наступної миті. Спел лишається твоїм, а знання з нього — зброя всієї команди.`
+  stykhia:     `An element that does not go out on impact but stays on the target: binding, eating away, smouldering.`,
+  esentsia:    `Damage beyond the elements — the kind that strikes not the body but the essence.`,
+  probiy:      `Magic that reaches an enemy where they are certain they cannot be reached.`,
+  vlada:       `Mastery over another's will, another's spells and another's body: to plant a thought, to turn a spell against its owner. And with an open hand, to mend what is broken and wash the taint from an ally.`,
+  utrymannia:  `The magic of tenacity: concentration holds despite a failure, lethal overflow carries onward instead of vanishing, a shield strikes back. Nothing ends before its time.`,
+  provydinnia: `In casting you touch the weave — and read through it more than the spell itself: what the target is warded against, where it is thin, what it will do a moment from now. The spell stays yours; what you learn from it arms the whole party.`
 };
 
 /** Only these four full casters have access. Sorcerer/Warlock/Witch do not. */
@@ -62,140 +63,140 @@ export const MM_PROGRESSION = [
  *               when the maneuver carries a duration of its own
  */
 export const MAGIC_MANEUVERS = [
-  /* ── Стихія ───────────────────────────────────────────── */
-  { id: 'ice', name: 'Лід', school: 'stykhia', degree: 1, cost: 1,
+  /* ── Elements ─────────────────────────────────────────── */
+  { id: 'ice', name: 'Ice', school: 'stykhia', degree: 1, cost: 1,
     trigger: 'damageType', damageType: 'cold', activation: 'cast', consumesState: true,
-    flavor: `Стужа сковує суглоби, плоть крихне.`,
-    effect: `Наступна атака по цілі: вразливість до дробильної шкоди. Швидкість цілі −10 фт до початку твого наступного ходу.` },
+    flavor: `The chill binds the joints; flesh turns brittle.`,
+    effect: `The next attack against the target: vulnerability to bludgeoning damage. The target's speed is reduced by 10 ft until the start of your next turn.` },
 
-  { id: 'acid', name: 'Кислота', school: 'stykhia', degree: 1, cost: 1,
+  { id: 'acid', name: 'Acid', school: 'stykhia', degree: 1, cost: 1,
     trigger: 'damageType', damageType: 'acid', activation: 'cast', consumesState: true,
-    flavor: `Розʼїдена шкіра розходиться під лезом.`,
-    effect: `Наступна атака по цілі: вразливість до рубальної шкоди.` },
+    flavor: `Eaten-through hide parts under the blade.`,
+    effect: `The next attack against the target: vulnerability to slashing damage.` },
 
-  { id: 'fire', name: 'Вогонь', school: 'stykhia', degree: 1, cost: 1,
+  { id: 'fire', name: 'Fire', school: 'stykhia', degree: 1, cost: 1,
     trigger: 'damageType', damageType: 'fire', activation: 'cast', consumesState: false,
-    flavor: `Полумʼя чіпляється й доїдає.`,
-    effect: `Ціль горить: та сама шкода знову на початку її наступного ходу (одноразово).` },
+    flavor: `Flame catches hold and finishes the meal.`,
+    effect: `The target burns: the same damage again at the start of its next turn (once).` },
 
-  { id: 'thunder', name: 'Грім', school: 'stykhia', degree: 2, cost: 2,
+  { id: 'thunder', name: 'Thunder', school: 'stykhia', degree: 2, cost: 2,
     trigger: 'damageType', damageType: 'thunder', activation: 'cast', consumesState: false,
-    flavor: `Удар глушить світ у вухах.`,
-    effect: `Ціль оглушена і не може кастувати закляття з вербальним компонентом — до початку твого наступного ходу.` },
+    flavor: `The blow deafens the world.`,
+    effect: `The target is deafened and cannot cast spells with a verbal component, until the start of your next turn.` },
 
-  { id: 'lightning', name: 'Блискавка', school: 'stykhia', degree: 2, cost: 2,
+  { id: 'lightning', name: 'Lightning', school: 'stykhia', degree: 2, cost: 2,
     trigger: 'damageType', damageType: 'lightning', activation: 'cast', consumesState: false,
-    flavor: `По воді розряд знаходить кожного.`,
-    effect: `Якщо ціль на мокрій поверхні, у воді або під дощем — шкода шириться на всіх ворогів у межах 15 фт від цілі.` },
+    flavor: `Across water the charge finds everyone.`,
+    effect: `If the target is on a wet surface, in water, or in the rain, the damage spreads to every enemy within 15 ft of the target.` },
 
-  { id: 'poison', name: 'Отрута', school: 'stykhia', degree: 3, cost: 3,
+  { id: 'poison', name: 'Poison', school: 'stykhia', degree: 3, cost: 3,
     trigger: 'damageType', damageType: 'poison', activation: 'cast', consumesState: false,
-    flavor: `Трута тліє, доки тіло не переможе її.`,
-    effect: `До 1 хвилини: на початку кожного свого ходу ціль робить рятівний кидок (DC маневру, стат за спелом). Провал — лишається отруєною і має −1 до своїх кидків d20; успіх — ефект спадає.` },
+    flavor: `The venom smoulders until the body beats it.`,
+    effect: `For up to 1 minute: at the start of each of its turns the target makes a saving throw (maneuver DC, ability from the spell). On a failure it remains poisoned and takes −1 to its d20 rolls; on a success the effect ends.` },
 
-  /* ── Есенція ──────────────────────────────────────────── */
-  { id: 'force', name: 'Сила', school: 'esentsia', degree: 1, cost: 1,
+  /* ── Essence ──────────────────────────────────────────── */
+  { id: 'force', name: 'Force', school: 'esentsia', degree: 1, cost: 1,
     trigger: 'damageType', damageType: 'force', activation: 'cast', consumesState: true,
-    flavor: `Кінетичний удар лишає тіло відкритим для проколу.`,
-    effect: `Наступна атака по цілі: вразливість до колючої шкоди.` },
+    flavor: `The kinetic blow leaves the body open to the point.`,
+    effect: `The next attack against the target: vulnerability to piercing damage.` },
 
-  { id: 'psychic', name: 'Психіка', school: 'esentsia', degree: 1, cost: 1,
+  { id: 'psychic', name: 'Psychic', school: 'esentsia', degree: 1, cost: 1,
     trigger: 'damageType', damageType: 'psychic', activation: 'cast', consumesState: false,
-    flavor: `Розум надламаний і беззахисний.`,
-    effect: `Наступний ментальний рятівний кидок цілі (Інт/Мдр/Хар) — з перешкодою, до початку твого наступного ходу.` },
+    flavor: `The mind is cracked open and defenceless.`,
+    effect: `The target's next mental saving throw (Int/Wis/Cha) is made with disadvantage, until the start of your next turn.` },
 
-  { id: 'necrotic', name: 'Некротика', school: 'esentsia', degree: 2, cost: 3,
+  { id: 'necrotic', name: 'Necrotic', school: 'esentsia', degree: 2, cost: 3,
     trigger: 'damageType', damageType: 'necrotic', activation: 'cast', consumesState: false,
-    flavor: `Наступна рана нагодує тебе.`,
-    effect: `Поки власник при свідомості: наступна атака по ворогу в межах 30 фт від власника лікує власника на половину завданої нею шкоди (одноразово).` },
+    flavor: `The next wound will feed you.`,
+    effect: `While the owner is conscious: the next attack against an enemy within 30 ft of the owner heals the owner for half the damage it deals (once).` },
 
-  { id: 'radiant', name: 'Радіант', school: 'esentsia', degree: 2, cost: 2,
+  { id: 'radiant', name: 'Radiant', school: 'esentsia', degree: 2, cost: 2,
     trigger: 'damageType', damageType: 'radiant', activation: 'cast', consumesState: false,
-    flavor: `Друге сяйво знаходить те, що сховалось від першого.`,
-    effect: `Якщо власник вразив цю ціль радіантом у попередньому раунді — цей радіант-спел кидається з перевагою (або ціль з перешкодою на його рятівний кидок).` },
+    flavor: `A second light finds what hid from the first.`,
+    effect: `If the owner struck this target with radiant damage in the previous round, this radiant spell is rolled with advantage (or the target has disadvantage on its saving throw against it).` },
 
-  { id: 'peak', name: 'Пік', school: 'esentsia', degree: 3, cost: 3,
+  { id: 'peak', name: 'Peak', school: 'esentsia', degree: 3, cost: 3,
     trigger: 'damageType', damageType: 'any', activation: 'cast', consumesState: false,
     maxSpellLevel: 5,
-    flavor: `Магія вивершена до межі.`,
-    effect: `Максимізуй усі кості шкоди цього спела (кожна кість = макс. грань). Тільки спели рівня 5 і нижче. Не реакція — застосовується як частина касту.` },
+    flavor: `Magic carried to its limit.`,
+    effect: `Maximize every damage die of this spell (each die counts as its highest face). Spells of 5th level and lower only. Not a reaction — applied as part of the cast.` },
 
-  /* ── Пробій ───────────────────────────────────────────── */
-  { id: 'bypass', name: 'Обхід', school: 'probiy', degree: 1, cost: 1,
+  /* ── Breach ───────────────────────────────────────────── */
+  { id: 'bypass', name: 'Bypass', school: 'probiy', degree: 1, cost: 1,
     trigger: 'spellAttack', activation: 'cast', consumesState: false,
-    flavor: `Ні щит, ні мур не рятують.`,
-    effect: `Спел-атака цього касту ігнорує бонус КЗ від щита й укриття цілі.` },
+    flavor: `Neither shield nor wall will serve.`,
+    effect: `The spell attack of this cast ignores the target's AC bonus from a shield and from cover.` },
 
-  { id: 'reflection', name: 'Відзеркалення', school: 'probiy', degree: 2, cost: 2,
+  { id: 'reflection', name: 'Reflection', school: 'probiy', degree: 2, cost: 2,
     trigger: 'touchRange', activation: 'cast', consumesState: false,
-    flavor: `Дотик крізь скло й воду.`,
-    effect: `Спел із дальністю «Дотик» отримує дальність = дистанція зору, якщо ціль видно крізь прозоре або відбивне (скло, вода, дзеркало).` },
+    flavor: `A touch through glass and water.`,
+    effect: `A spell with a range of Touch gains a range equal to line of sight, provided the target is visible through something transparent or reflective (glass, water, a mirror).` },
 
-  { id: 'bend', name: 'Вигин', school: 'probiy', degree: 2, cost: 2,
+  { id: 'bend', name: 'Bend', school: 'probiy', degree: 2, cost: 2,
     trigger: 'lineOrRay', activation: 'cast', consumesState: false,
-    flavor: `Промінь огинає ріг.`,
-    effect: `Промінь або лінію можна зігнути один раз під кутом — обійти укриття чи ріг.` },
+    flavor: `The beam turns the corner.`,
+    effect: `A ray or line may be bent once at an angle, to get around cover or a corner.` },
 
-  { id: 'pressure', name: 'Дотиск', school: 'probiy', degree: 1, cost: 1,
+  { id: 'pressure', name: 'Pressure', school: 'probiy', degree: 1, cost: 1,
     trigger: 'damagingSpell', activation: 'cast', consumesState: false,
-    flavor: `Магія черкає навіть повз ціль.`,
-    effect: `Якщо спел-атака промахнулась АБО ціль пройшла рятівний кидок — ціль однаково отримує половину шкоди спела.` },
+    flavor: `The magic grazes even as it passes by.`,
+    effect: `If the spell attack missed OR the target succeeded on its saving throw, the target still takes half the spell's damage.` },
 
-  /* ── Влада ────────────────────────────────────────────── */
-  { id: 'suggestion', name: 'Навіювання', school: 'vlada', degree: 1, cost: 2,
+  /* ── Dominion ─────────────────────────────────────────── */
+  { id: 'suggestion', name: 'Suggestion', school: 'vlada', degree: 1, cost: 2,
     trigger: 'enchantment', activation: 'cast', consumesState: false,
-    flavor: `Думка лягає, і слід стирається.`,
-    effect: `Enchantment-спел не має видимого джерела; при успіху ціль не усвідомлює, що була зачарована.` },
+    flavor: `The thought settles, and the trace is wiped away.`,
+    effect: `The enchantment spell has no visible source; on a success the target does not realise it was charmed.` },
 
-  { id: 'countercast', name: 'Контркаст', school: 'vlada', degree: 3, cost: 3,
+  { id: 'countercast', name: 'Countercast', school: 'vlada', degree: 3, cost: 3,
     trigger: 'enemyCast', activation: 'reaction', consumesState: false,
-    flavor: `Чужий чар обертається проти хазяїна.`,
-    effect: `Реакція на ворожий каст у полі зору: обертаєш той спел проти його ж джерела за половину його вартості, якщо цей самий спел є у власника підготовленим або відомим. Контест spellcasting ability (власник проти ворога).` },
+    flavor: `Another's charm turns on its owner.`,
+    effect: `Reaction to an enemy cast in sight: you turn that spell against its own source for half its cost, provided the owner has that same spell prepared or known. Contest of spellcasting ability (owner against enemy).` },
 
-  { id: 'generous-hand', name: 'Щедра длань', school: 'vlada', degree: 2, cost: 2,
+  { id: 'generous-hand', name: 'Open Hand', school: 'vlada', degree: 2, cost: 2,
     trigger: 'healing', activation: 'cast', consumesState: false,
-    flavor: `Милосердя ллється вповні.`,
-    effect: `Кості лікування цього спела рахуються як максимальні.` },
+    flavor: `Mercy poured out in full.`,
+    effect: `This spell's healing dice count as maximum.` },
 
-  { id: 'cleansing', name: 'Очищення', school: 'vlada', degree: 2, cost: 2,
+  { id: 'cleansing', name: 'Cleansing', school: 'vlada', degree: 2, cost: 2,
     trigger: 'healing', activation: 'cast', consumesState: false,
-    flavor: `Де благодать повна — там скверна тікає.`,
-    effect: `Якщо кості лікування цього спела випали максимумом (natural max), спел додатково знімає з цілі один негативний стан.` },
+    flavor: `Where the grace is whole, the taint flees.`,
+    effect: `If this spell's healing dice came up at their natural maximum, the spell additionally removes one negative condition from the target.` },
 
-  /* ── Утримання ────────────────────────────────────────── */
-  { id: 'recall', name: 'Відклик', school: 'utrymannia', degree: 1, cost: 1,
+  /* ── Hold ─────────────────────────────────────────────── */
+  { id: 'recall', name: 'Recall', school: 'utrymannia', degree: 1, cost: 1,
     trigger: 'readiedSpell', activation: 'special', consumesState: false,
-    flavor: `Занесене закляття вертаєш, доки не пізно.`,
-    effect: `Можеш прибрати спел зі своїх занотованих (readied) дій — spell slot при цьому не витрачається.` },
+    flavor: `You call back the raised spell before it is too late.`,
+    effect: `You may remove a spell from your readied actions — the spell slot is not spent.` },
 
-  { id: 'harvest', name: 'Жнива', school: 'utrymannia', degree: 2, cost: 1,
+  { id: 'harvest', name: 'Harvest', school: 'utrymannia', degree: 2, cost: 1,
     trigger: 'onKill', activation: 'reaction', consumesState: false,
-    flavor: `Смерть однієї живить наступний удар.`,
-    effect: `Коли твій спел убиває ворога, надлишкову шкоду (понад його поточні HP) переносиш на іншого ворога в межах 15 фт.` },
+    flavor: `One death feeds the next blow.`,
+    effect: `When your spell kills an enemy, the excess damage (beyond its current HP) carries to another enemy within 15 ft.` },
 
-  { id: 'riposte', name: 'Відсіч', school: 'utrymannia', degree: 2, cost: 4,
+  { id: 'riposte', name: 'Riposte', school: 'utrymannia', degree: 2, cost: 4,
     trigger: 'shield', activation: 'reaction', consumesState: false,
-    flavor: `Щит бʼє у відповідь.`,
-    effect: `Коли твій ward або shield-ефект поглинає шкоду від рукопашної атаки — повертає половину поглиненого нападнику.` },
+    flavor: `The shield strikes back.`,
+    effect: `When your ward or shield effect absorbs damage from a melee attack, it returns half of what it absorbed to the attacker.` },
 
-  { id: 'steadfast', name: 'Незрушність', school: 'utrymannia', degree: 3, cost: 4,
+  { id: 'steadfast', name: 'Steadfast', school: 'utrymannia', degree: 3, cost: 4,
     trigger: 'concentration', activation: 'triggered', consumesState: false,
-    flavor: `Вкорінений, ти не зрушиш — і чар не впаде.`,
-    effect: `Коли власник провалює concentration save, спел не спадає — тримається ще один раунд попри провал. Поки триває цей ефект, швидкість власника зменшена наполовину.` },
+    flavor: `Rooted, you will not be moved — and the charm will not fall.`,
+    effect: `When the owner fails a concentration save, the spell does not end: it holds for one more round despite the failure. While this effect lasts, the owner's speed is halved.` },
 
-  /* ── Провидіння ───────────────────────────────────────── */
-  { id: 'insight', name: 'Прозріння', school: 'provydinnia', degree: 1, cost: 1,
+  /* ── Foresight ────────────────────────────────────────── */
+  { id: 'insight', name: 'Insight', school: 'provydinnia', degree: 1, cost: 1,
     trigger: 'any', activation: 'cast', consumesState: false,
-    flavor: `Бачиш, чим ціль захищена.`,
-    effect: `При касті власного спела власник дізнається спротиви та імунітети цілі свого спела.` },
+    flavor: `You see what the target is warded against.`,
+    effect: `On casting their own spell, the owner learns the resistances and immunities of that spell's target.` },
 
-  { id: 'premonition', name: 'Передчуття', school: 'provydinnia', degree: 2, cost: 1,
+  { id: 'premonition', name: 'Premonition', school: 'provydinnia', degree: 2, cost: 1,
     trigger: 'any', activation: 'cast', consumesState: false,
-    flavor: `Відчуваєш, де вона тонка.`,
-    effect: `При касті власник дізнається найслабший рятівний кидок цілі свого спела.` },
+    flavor: `You feel where it is thin.`,
+    effect: `On casting, the owner learns the weakest saving throw of their spell's target.` },
 
-  { id: 'farsight', name: 'Віще око', school: 'provydinnia', degree: 3, cost: 3,
+  { id: 'farsight', name: 'Farsight', school: 'provydinnia', degree: 3, cost: 3,
     trigger: 'any', activation: 'cast', consumesState: false,
-    flavor: `Зазираєш на хід уперед.`,
-    effect: `При касті власник дізнається конкретний спел або дію, яку один ворог у полі зору виконає наступного раунду.` }
+    flavor: `You look a turn ahead.`,
+    effect: `On casting, the owner learns the specific spell or action one enemy in sight will take next round.` }
 ];

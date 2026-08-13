@@ -241,12 +241,18 @@ export class LevelUpService {
     // 1. Raise the level. When the builder asked for this level's grants itself,
     //    a5e's window is suppressed and we apply them; otherwise the plain update
     //    fires its grant engine as before.
+    // Taking a feat means the level's ability points are not applied. They are
+    // skipped rather than removed, so a5e's own record of the level stays whole.
+    const takingFeat = AM.levelUpGrants?.asiMode === 'feat' && AM.levelUpGrants?.featUuid;
+    const skip = takingFeat ? new Set(AM.levelUpGrants.asiIds ?? []) : null;
+
     const absorbed = AM.levelUpGrants?.absorb
       ? await GrantAbsorber.levelUpWithoutDialog(
           actor, classItem, newLevel, AM.levelUpGrants.choices ?? {},
           { hpValue:   AM.levelUpGrants.hpValue ?? 0,
             charLevel: AM.levelUpGrants.charLevel ?? 0,
-            lv:        AM.levelUpGrants.lv ?? null })
+            lv:        AM.levelUpGrants.lv ?? null,
+            skip })
       : false;
 
     if (!absorbed) {
@@ -277,6 +283,16 @@ export class LevelUpService {
 
     // The archetype belongs to this level and a5e's routine — which would have
     // asked for it — was suppressed, so it is added here.
+    // The feat chosen in place of the ability points, with its own grants taken
+    // over where possible so no window opens for it either.
+    if (takingFeat) {
+      const { FeatService } = await import('./featService.js');
+      await FeatService.addToActor(
+        actor, AM.levelUpGrants.featUuid, AM.levelUpGrants.choices ?? {},
+        AM.levelUpGrants.lv ?? {}
+      );
+    }
+
     if (absorbed && AM.levelUpGrants?.archetypeUuid) {
       // Its own grants were asked for in the dialog alongside the class's, under
       // prefixed ids; hand back the archetype's half.

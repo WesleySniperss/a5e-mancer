@@ -420,5 +420,15 @@
   "am.levelup.archetype-none-hint": "Level up without taking an archetype",
   "am.levelup.archetype-none-chosen": "Levelling up without an archetype.",
   "am.settings.mm-pack.name": "Build the Magic Maneuvers compendium",
-  "am.settings.mm-pack.hint": "Creates a world compendium containing the 26 magic maneuvers as maneuver items, so they can be browsed, dragged and read like any other maneuver. Rebuilt automatically when the module updates them. They never appear in the combat maneuver pickers."
+  "am.settings.mm-pack.hint": "Creates a world compendium containing the 26 magic maneuvers as maneuver items, so they can be browsed, dragged and read like any other maneuver. Rebuilt automatically when the module updates them. They never appear in the combat maneuver pickers.",
+  "am.asi.title": "Ability Score Increase",
+  "am.asi.mode-ability": "Raise abilities ({n} points)",
+  "am.asi.mode-feat": "Take a feat instead",
+  "am.asi.feat-search": "Search feats…",
+  "am.asi.feat-eligible-only": "Only ones I qualify for",
+  "am.asi.feat-chosen": "Taking",
+  "am.asi.feat-none": "No feat matches that search.",
+  "am.asi.feat-truncated": "Showing the first 60 of {n}. Narrow the search to see the rest.",
+  "am.asi.feat-error": "The feats could not be loaded — see the console.",
+  "am.asi.feat-prereq-unknown": "Prerequisite could not be checked automatically — read it and judge."
 }

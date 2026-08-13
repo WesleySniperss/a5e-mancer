@@ -19,7 +19,7 @@ import { MAGIC_MANEUVERS, MM_SCHOOLS, MM_SCHOOL_LORE } from '../data/magicManeuv
 export class MagicManeuverPack {
 
   static PACK_NAME = 'a5e-mancer-magic-maneuvers';
-  static VERSION   = 4;          // bump to force a rebuild after data changes
+  static VERSION   = 5;          // bump to force a rebuild after data changes
   static FLAG      = 'magicManeuverPack';
 
   static get collection() { return `world.${this.PACK_NAME}`; }
@@ -161,10 +161,10 @@ export class MagicManeuverPack {
    */
   static #describe(m, schoolLabel) {
     const when = {
-      cast:      'При касті власного закляття',
-      reaction:  'Реакція',
-      triggered: 'За тригером',
-      special:   'Особлива умова'
+      cast:      'When you cast your own spell',
+      reaction:  'Reaction',
+      triggered: 'On its trigger',
+      special:   'Special condition'
     }[m.activation] ?? '';
 
     return [
@@ -172,7 +172,7 @@ export class MagicManeuverPack {
       `<p>${m.effect}</p>`,
       `<hr>`,
       `<p class="am-mm-meta"><strong>${schoolLabel}</strong> · ${m.degree}° · `
-        + `<i class="fa-solid fa-bolt"></i> ${m.cost} виснаження · ${when}</p>`
+        + `<i class="fa-solid fa-bolt"></i> ${m.cost} exertion · ${when}</p>`
     ].filter(Boolean).join('\n');
   }
 

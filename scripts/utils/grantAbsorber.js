@@ -45,6 +45,7 @@ export class GrantAbsorber {
 
       out.push({
         id,
+        grant,                       // kept so the level can be re-checked later
         type:    grant.grantType,
         label:   grant.label || this.#defaultLabel(grant),
         total:   spec.total,
@@ -244,6 +245,95 @@ export class GrantAbsorber {
     return game.i18n.localize('am.grants.type-generic');
   }
 
+  /**
+   * The separator between a granted feature's source uuid and a grant key inside
+   * it. Nested choices are filed under `<feature uuid>|<grant key>` so they can be
+   * handed back to the right document when that feature is created.
+   */
+  static NEST = '|';
+
+  /**
+   * Every grant on an item AND inside the features it grants, flattened.
+   *
+   * This is the fix for the thing that made whole class features disappear.
+   * `canAbsorb` has always walked the full tree to decide whether the builder can
+   * take an item over, but `describe` only ever looked at the top level — so the
+   * builder promised to handle everything and then asked about a fraction of it.
+   * A5e nests the interesting choices one level down: a class grants "1st Level
+   * Class Features", that feature is "Soldiering Knacks", and the knacks are
+   * feature grants on IT. Nothing asked, so every one of them silently took its
+   * base set, which is empty. That is why knacks did not exist.
+   *
+   * @returns {Promise<{grants: object[], features: object[]}>} models whose ids
+   *   are paths — `key` at the top, `<uuid>|key` one level down, and so on.
+   */
+  static async describeTree(doc, lv = {}, { depth = 0, prefix = '', seen = new Set() } = {}) {
+    const out = { grants: [], features: [] };
+    if (!doc || depth > this.#MAX_DEPTH) return out;
+
+    const tag = (g) => ({ ...g, id: `${prefix}${g.id}`, source: doc.name ?? '' });
+    out.grants.push(...this.describe(doc, lv).map(tag));
+
+    const features = (await this.describeFeatures(doc, lv)).map(tag);
+    out.features.push(...features);
+
+    // Walk into everything a feature grant can hand out, base and options alike:
+    // a base feature is granted outright, and its own choices still need asking.
+    for (const model of features) {
+      const uuids = [...model.baseUuids ?? [], ...model.options.map(o => o.key)];
+      for (const uuid of uuids) {
+        if (seen.has(uuid)) continue;               // already walked (or cycling)
+        seen.add(uuid);
+        try {
+          const child = await fromUuid(uuid);
+          if (!child) continue;
+          const nested = await this.describeTree(child, lv, {
+            depth: depth + 1,
+            prefix: `${uuid}${this.NEST}`,
+            seen
+          });
+          out.grants.push(...nested.grants);
+          out.features.push(...nested.features);
+        } catch (err) {
+          AM.log(2, `Could not read nested grants of ${uuid}:`, err);
+        }
+      }
+    }
+    return out;
+  }
+
+  /** describeTree, keeping only what this level introduces. */
+  static async describeTreeForLevel(doc, lv = {}) {
+    const all = await this.describeTree(doc, lv);
+    const atLevel = (model) => {
+      const grant = this.#grantFor(model);
+      return grant ? this.#isExactlyAtLevel(grant, lv) : false;
+    };
+    return { grants: all.grants.filter(atLevel), features: all.features.filter(atLevel) };
+  }
+
+  /**
+   * The grant object a model was built from, so its level can be re-checked.
+   * Cached on the model at describe time — re-resolving a nested uuid here would
+   * mean another round of pack reads for every row.
+   */
+  static #grantFor(model) {
+    return model?.grant ?? null;
+  }
+
+  /**
+   * Split a flat choices object into the part belonging to this document and the
+   * parts belonging to the features it grants.
+   */
+  static #choicesFor(choices, uuid) {
+    const pre = `${uuid}${this.NEST}`;
+    const out = {};
+    for (const [id, picked] of Object.entries(choices ?? {})) {
+      if (id.startsWith(pre)) out[id.slice(pre.length)] = picked;
+    }
+    return out;
+  }
+
   /* ── applying ─────────────────────────────────────────── */
 
   /**
@@ -252,8 +342,12 @@ export class GrantAbsorber {
    * @param {Actor} actor
    * @param {Item}  item       the embedded item, whose `.grants` we drive
    * @param {object} choices   { [grantId]: string[] }
+   * @param {object} [opts]
+   * @param {Set<string>} [opts.skip]  grant ids to leave unapplied — how taking a
+   *   feat instead of an ability score increase is expressed, since a5e has no
+   *   grant for that choice and simply carries the two ability points.
    */
-  static async apply(actor, item, choices = {}, lv = {}, depth = 0) {
+  static async apply(actor, item, choices = {}, lv = {}, depth = 0, { skip } = {}) {
     if (!actor || !item) return;
     if (depth > this.#MAX_DEPTH) {
       AM.log(2, `Grant nesting too deep at ${item.name}; leaving the rest to a5e`);
@@ -274,6 +368,7 @@ export class GrantAbsorber {
       // and a heritage handed out every level's traits at once.
       if (!this.#appliesAtLevel(grant, lv)) continue;
       if (this.#isOwnedElsewhere(grant)) continue;
+      if (skip?.has(id)) { AM.log(3, `Grant ${id} skipped by choice`); continue; }
 
       if (grant?.grantType === 'feature') {
         try {
@@ -322,8 +417,15 @@ export class GrantAbsorber {
 
     // The features we just created were made with noGrant, so their own grants
     // did not fire — a5e resolves this chain recursively and so must we.
+    //
+    // Each one gets the slice of the choices filed under its own uuid. Passing
+    // the whole object down was the other half of the missing-knacks bug: the
+    // nested grant looked for its record key, the dialog had stored it under
+    // `<uuid>|<key>`, nothing matched, and the choice was dropped.
     for (const feature of spawned) {
-      await this.apply(actor, feature, choices, lv, depth + 1);
+      const uuid = feature._stats?.compendiumSource ?? '';
+      const sub  = uuid ? this.#choicesFor(choices, uuid) : {};
+      await this.apply(actor, feature, sub, lv, depth + 1, { skip });
     }
   }
 
@@ -346,7 +448,7 @@ export class GrantAbsorber {
    * @returns {boolean} whether the level actually changed
    */
   static async levelUpWithoutDialog(actor, classItem, newLevel, choices = {},
-                                    { hpValue = 0, charLevel = 0, lv = null } = {}) {
+                                    { hpValue = 0, charLevel = 0, lv = null, skip = null } = {}) {
     if (!actor || !classItem) return false;
 
     const manager = actor.grants;
@@ -395,7 +497,8 @@ export class GrantAbsorber {
     try {
       const fresh = actor.items.get(classItem.id) ?? classItem;
       await this.apply(actor, fresh, choices,
-                       lv ?? { charLevel: charLevel || newLevel, clsLevel: newLevel });
+                       lv ?? { charLevel: charLevel || newLevel, clsLevel: newLevel },
+                       0, { skip });
     } catch (err) {
       AM.log(1, `Applying the level ${newLevel} grants failed:`, err);
       ui.notifications.error(
@@ -628,8 +731,12 @@ export class GrantAbsorber {
       const spec = this.#specOf(grant) ?? { base: [], options: [], total: 0 };
       out.push({
         id,
+        grant,                       // kept so the level can be re-checked later
+        type:  'feature',
         label: grant.label || game.i18n.localize('am.grants.type-feature'),
         total: spec.total,
+        base:      spec.base,
+        baseUuids: spec.base,        // describeTree walks these for nested grants
         baseLabels: await Promise.all(spec.base.map(name)),
         options:    await Promise.all(spec.options.map(async u => ({ key: u, label: await name(u) })))
       });

@@ -286,6 +286,24 @@ export class ManeuverService {
   }
 
   /**
+   * Was this maneuver handed out by a grant rather than chosen?
+   *
+   * a5e records the items a feature grant produced in `documentIds` on the grant
+   * itself, so anything listed there arrived as part of a class feature. Those
+   * must not be offered as level-up trade-ins: swapping one away deletes a class
+   * ability and leaves its grant pointing at an item that no longer exists.
+   */
+  static isGrantedManeuver(actor, itemId) {
+    if (!actor || !itemId) return false;
+    const grants = actor.system?.grants ?? {};
+    const all = grants instanceof Map ? [...grants.values()] : Object.values(grants);
+    return all.some(g => {
+      const ids = g?.documentIds ?? [];
+      return Array.isArray(ids) ? ids.includes(itemId) : false;
+    });
+  }
+
+  /**
    * Get currently known maneuvers on an actor (items of type maneuver).
    */
   static getActorManeuvers(actor) {

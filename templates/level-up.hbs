@@ -500,6 +500,95 @@
   </section>
   {{/if}}
 
+  {{!-- Ability score increase, or a feat instead. a5e carries only the two
+        ability points, so the alternative is offered here. --}}
+  {{#if hasAsi}}
+  <hr />
+  <section class="lu-section">
+    <h3><i class="fa-solid fa-arrow-trend-up"></i> {{localize 'am.asi.title'}}</h3>
+
+    <div class="lu-mode-toggle am-asi-toggle">
+      <button type="button" class="lu-mode-btn {{#if (eq asiMode 'ability')}}lu-mode-active{{/if}}"
+        data-action="luSetAsiMode" data-mode="ability">
+        <i class="fa-solid fa-dumbbell"></i> {{localize 'am.asi.mode-ability' n=asiPoints}}
+      </button>
+      <button type="button" class="lu-mode-btn {{#if (eq asiMode 'feat')}}lu-mode-active{{/if}}"
+        data-action="luSetAsiMode" data-mode="feat">
+        <i class="fa-solid fa-star"></i> {{localize 'am.asi.mode-feat'}}
+      </button>
+    </div>
+
+    {{#if (eq asiMode 'ability')}}
+      <div class="am-selection-header">
+        <div class="am-counter-badge {{#if (gte asiChosen asiPoints)}}am-badge-success{{else}}am-badge-pending{{/if}}">
+          {{asiChosen}}/{{asiPoints}}
+        </div>
+      </div>
+      {{#each asiGrants}}
+        <div class="am-grant-block">
+          <div class="am-grant-head">
+            <span class="am-grant-label">{{this.label}}</span>
+            <span class="am-counter-badge {{#if this.complete}}am-badge-success{{else}}am-badge-pending{{/if}}">
+              {{this.chosen}}/{{this.total}}
+            </span>
+          </div>
+          <div class="am-filter-pills">
+            {{#each this.options}}
+              <button type="button"
+                class="am-filter-pill {{#if this.selected}}am-pill-active{{/if}}"
+                data-action="toggleGrantOption"
+                data-grant-source="levelup"
+                data-grant-id="{{../id}}"
+                data-key="{{this.key}}">{{this.label}}</button>
+            {{/each}}
+          </div>
+        </div>
+      {{/each}}
+    {{else}}
+      {{#if featError}}
+        <p class="am-hint">{{localize 'am.asi.feat-error'}}</p>
+      {{else}}
+        <div class="am-selection-header am-feat-controls">
+          <input type="text" class="am-feat-search form-input"
+            placeholder="{{localize 'am.asi.feat-search'}}" value="{{featSearch}}" autocomplete="off">
+          <button type="button"
+            class="am-filter-pill {{#if featOnlyEligible}}am-pill-active{{/if}}"
+            data-action="luToggleFeatEligible">
+            <i class="fa-solid fa-filter"></i> {{localize 'am.asi.feat-eligible-only'}}
+          </button>
+        </div>
+
+        {{#if featChosen}}
+          <p class="am-hint"><i class="fa-solid fa-circle-check" style="color:#4a9a4a"></i>
+            {{localize 'am.asi.feat-chosen'}} <strong>{{featChosen.name}}</strong></p>
+        {{/if}}
+
+        <div class="am-feat-list" role="list">
+          {{#each feats}}
+            <button type="button" role="listitem"
+              class="am-feat-row {{#if this.selected}}am-feat-selected{{/if}} {{#unless this.met}}am-feat-unmet{{/unless}}"
+              data-action="luSelectFeat" data-uuid="{{this.uuid}}" data-name="{{this.name}}">
+              <img class="am-feat-img" src="{{this.img}}" alt="" loading="lazy">
+              <span class="am-feat-name">{{this.name}}</span>
+              {{#if this.preText}}
+                <span class="am-feat-pre {{#unless this.met}}am-feat-pre-fail{{/unless}}">
+                  {{#if this.unknown}}<i class="fa-solid fa-circle-question"></i>{{/if}}
+                  {{this.preText}}
+                </span>
+              {{/if}}
+            </button>
+          {{else}}
+            <p class="am-hint">{{localize 'am.asi.feat-none'}}</p>
+          {{/each}}
+        </div>
+        {{#if featTruncated}}
+          <p class="am-hint">{{localize 'am.asi.feat-truncated' n=featTotal}}</p>
+        {{/if}}
+      {{/if}}
+    {{/if}}
+  </section>
+  {{/if}}
+
   {{!-- This level's grants, asked here so a5e's window never opens. Falls back to
         the heads-up note below when the builder cannot account for all of them. --}}
   {{#if hasBgGrants}}

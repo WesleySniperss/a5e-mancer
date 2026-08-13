@@ -433,10 +433,14 @@ export class DOMManager {
         AM.log(3, `${type} ${doc.name}: grants left to a5e (unsupported grant present)`);
         return;
       }
+      // The whole tree, not just the top level: a5e nests the choices that matter
+      // inside the features an item grants, and asking only the top level meant
+      // every one of those silently took its base set.
+      const tree = await GrantAbsorber.describeTree(doc, lv);
       const store = {
         absorb:   true,
-        grants:   GrantAbsorber.describe(doc, lv),
-        features: await GrantAbsorber.describeFeatures(doc, lv),
+        grants:   tree.grants,
+        features: tree.features,
         choices:  {}
       };
       if (type === 'class') {
