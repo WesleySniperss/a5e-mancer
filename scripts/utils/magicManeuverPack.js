@@ -19,7 +19,7 @@ import { MAGIC_MANEUVERS, MM_SCHOOLS, MM_SCHOOL_LORE } from '../data/magicManeuv
 export class MagicManeuverPack {
 
   static PACK_NAME = 'a5e-mancer-magic-maneuvers';
-  static VERSION   = 1;          // bump to force a rebuild after data changes
+  static VERSION   = 2;          // bump to force a rebuild after data changes
   static FLAG      = 'magicManeuverPack';
 
   static get collection() { return `world.${this.PACK_NAME}`; }
@@ -115,7 +115,11 @@ export class MagicManeuverPack {
     };
   }
 
-  /** Item description: what it does, when, and the school it comes from. */
+  /**
+   * Item description: italic flavour first, then the mechanical text, as the
+   * specification asks. The school's own text belongs to the school and is not
+   * repeated onto every maneuver.
+   */
   static #describe(m, schoolLabel) {
     const when = {
       cast:      'При касті власного закляття',
@@ -124,13 +128,12 @@ export class MagicManeuverPack {
       special:   'Особлива умова'
     }[m.activation] ?? '';
 
-    const lore = MM_SCHOOL_LORE[m.school] ?? '';
-
     return [
-      `<p><strong>${schoolLabel}</strong> · ${m.degree}° · `
-        + `<i class="fa-solid fa-bolt"></i> ${m.cost} виснаження · ${when}</p>`,
+      m.flavor ? `<p><em>${m.flavor}</em></p>` : '',
       `<p>${m.effect}</p>`,
-      lore ? `<hr><p><em>${lore}</em></p>` : ''
+      `<hr>`,
+      `<p class="am-mm-meta"><strong>${schoolLabel}</strong> · ${m.degree}° · `
+        + `<i class="fa-solid fa-bolt"></i> ${m.cost} виснаження · ${when}</p>`
     ].filter(Boolean).join('\n');
   }
 
