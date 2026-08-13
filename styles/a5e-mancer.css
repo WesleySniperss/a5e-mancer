@@ -5427,3 +5427,55 @@ input.am-cs-stat-val {
 .am-pill-info { margin-left: 0.3rem; opacity: 0.5; font-size: 0.75em; }
 .am-grant-feature-pill:hover .am-pill-info { opacity: 1; }
 .am-grant-desc-hint { margin: 0.1rem 0 0.3rem; font-size: 0.7rem; opacity: 0.7; }
+
+/* ── Granted features, with the text that says what they do ──────────────
+   Named one per row rather than as a comma list: these are what the player is
+   actually being asked about, and a bare name says nothing. */
+.am-feature-rows { display: flex; flex-direction: column; gap: 0.2rem; margin: 0.2rem 0 0.4rem; }
+.am-feature-row {
+  border: 1px solid transparent; border-radius: 3px; padding: 0.15rem 0.3rem;
+}
+.am-feature-row:hover { border-color: var(--am-border, #4a4a4a); }
+.am-feature-selected { border-color: var(--am-gold, #c9a227); }
+.am-feature-head { display: flex; align-items: center; gap: 0.4rem; }
+.am-feature-pick {
+  flex: 1 1 auto; display: flex; align-items: center; gap: 0.4rem;
+  background: none; border: none; color: inherit; cursor: pointer;
+  text-align: left; padding: 0; font-size: 0.82rem;
+}
+.am-feature-name { flex: 1 1 auto; min-width: 0; }
+.am-feature-tick { color: #4a9a4a; flex: 0 0 auto; }
+.am-feature-granted .am-feature-name { flex: 1 1 auto; font-size: 0.82rem; }
+.am-feature-info {
+  flex: 0 0 auto; background: none; border: none; cursor: pointer;
+  color: inherit; opacity: 0.55; padding: 0 0.2rem;
+}
+.am-feature-info:hover { opacity: 1; }
+.am-feature-desc {
+  margin: 0.25rem 0 0.15rem; padding: 0.35rem 0.5rem;
+  font-size: 0.78rem; max-height: 16rem; overflow-y: auto;
+  border-left: 2px solid var(--am-gold, #c9a227);
+}
+
+.am-feat-entry { border: 1px solid transparent; border-radius: 3px; }
+.am-feat-entry:hover { border-color: var(--am-border, #4a4a4a); }
+.am-feat-entry.am-feat-selected { border-color: var(--am-gold, #c9a227); }
+.am-feat-pick {
+  flex: 1 1 auto; display: flex; align-items: center; gap: 0.5rem;
+  background: none; border: none; color: inherit; cursor: pointer;
+  text-align: left; padding: 0; min-width: 0;
+}
+.am-feat-pager {
+  display: flex; align-items: center; justify-content: center; gap: 0.6rem;
+  margin-top: 0.4rem;
+}
+.am-feat-pager button { padding: 0.1rem 0.5rem; }
+.am-feat-pager button[disabled] { opacity: 0.35; cursor: default; }
+
+/* Trade-ins are collapsed by default; the header is the control */
+.am-replace-toggle {
+  display: flex; align-items: center; gap: 0.4rem; width: 100%;
+  background: none; border: none; color: inherit; cursor: pointer;
+  padding: 0.2rem 0; font-size: 0.9rem; font-weight: 600; text-align: left;
+}
+.am-replace-toggle:hover { color: var(--am-gold, #c9a227); }

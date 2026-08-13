@@ -197,7 +197,6 @@
   "am.grants.hover-hint": "Hover an option to read what it is.",
   "am.grants.tradition-not-allowed": "This class cannot choose that combat tradition.",
   "am.grants.limit-reached": "You may choose {n} here. Deselect one first.",
-  "am.grants.right-click-hint": "Right-click an option to read what it grants.",
   "am.grants.cap-note": "Choose up to {n}.",
   "am.grants.background-title": "Background Benefits",
   "am.grants.background-hint": "Everything below is applied when you finish. Choose your options here — the a5e system will not ask again.",
@@ -428,7 +427,8 @@
   "am.asi.feat-eligible-only": "Only ones I qualify for",
   "am.asi.feat-chosen": "Taking",
   "am.asi.feat-none": "No feat matches that search.",
-  "am.asi.feat-truncated": "Showing the first 60 of {n}. Narrow the search to see the rest.",
   "am.asi.feat-error": "The feats could not be loaded — see the console.",
-  "am.asi.feat-prereq-unknown": "Prerequisite could not be checked automatically — read it and judge."
+  "am.asi.feat-prereq-unknown": "Prerequisite could not be checked automatically — read it and judge.",
+  "am.grants.what-it-does": "What this does",
+  "am.asi.feat-page": "Page {page} of {pages} · {total} feats"
 }

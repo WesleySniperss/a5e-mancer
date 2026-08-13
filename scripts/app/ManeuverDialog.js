@@ -1,6 +1,7 @@
 import { AM } from '../a5e-mancer.js';
 import { ManeuverService, getTraditions } from '../utils/maneuverService.js';
 import { ItemDescPanel } from '../utils/itemDescPanel.js';
+import { MM_SCHOOLS, MM_SCHOOL_LORE } from '../data/magicManeuvers.js';
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -396,6 +397,18 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
   async #lookupCompendiumDesc(name) {
     if (this._compendiumCache.has(name)) return this._compendiumCache.get(name);
+
+    // The magic schools are traditions with no compendium entry of their own —
+    // their text is in the module. Without this they showed "no description",
+    // which is exactly what a school is meant to explain.
+    const school = Object.entries(MM_SCHOOLS)
+      .find(([, label]) => label.toLowerCase().trim() === name.toLowerCase().trim());
+    if (school) {
+      const lore = `<p>${MM_SCHOOL_LORE[school[0]] ?? ''}</p>`;
+      this._compendiumCache.set(name, lore);
+      return lore;
+    }
+
     const q = name.toLowerCase().trim();
     for (const pack of game.packs) {
       if (!['JournalEntry', 'Item'].includes(pack.metadata.type)) continue;

@@ -59,9 +59,45 @@ export class FeatService {
   /** Drop the cache so a newly installed module's feats show up. */
   static invalidate() { this.#cache = null; }
 
+  /**
+   * A feat is `feature` + `featureType: 'feat'`.
+   *
+   * Checked against the packs: of 732 documents in a5e's feats pack, 625 match
+   * and the 107 that do not are class features, knacks and natural weapons —
+   * none of which should be offered here. One class feature (Water's Balm) is
+   * labelled `feat` in a5e's own data; that is their mislabel, not a filter to
+   * work around.
+   */
   static isFeat(entryOrItem) {
     return entryOrItem?.type === 'feature'
         && (entryOrItem.system?.featureType ?? '') === 'feat';
+  }
+
+  /**
+   * A feat's own text, fetched on demand.
+   *
+   * Not loaded with the list: 700-odd descriptions is a great deal of HTML to
+   * enrich for a panel showing forty at a time, and most are never opened.
+   */
+  static #descCache = new Map();
+
+  static async describe(uuid) {
+    if (this.#descCache.has(uuid)) return this.#descCache.get(uuid);
+    let html = '';
+    try {
+      const doc = await fromUuid(uuid);
+      const raw = typeof doc?.system?.description === 'string'
+        ? doc.system.description
+        : (doc?.system?.description?.value ?? '');
+      if (raw) {
+        const TE = foundry.applications?.ux?.TextEditor?.implementation ?? TextEditor;
+        html = await TE.enrichHTML(raw, { async: true, relativeTo: doc });
+      }
+    } catch (err) {
+      AM.log(2, `Could not read the description of ${uuid}:`, err);
+    }
+    this.#descCache.set(uuid, html);
+    return html;
   }
 
   /* ── prerequisites ────────────────────────────────────── */

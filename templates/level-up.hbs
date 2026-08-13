@@ -199,96 +199,7 @@
 
   {{!-- Spells (multiclass) --}}
   {{#if spellInfo}}
-  <hr />
-  <section class="lu-section">
-    <h3><i class="fa-solid fa-sparkles"></i> {{localize 'am.levelup.spells-title'}}</h3>
-    <p class="am-hint">{{localize 'am.levelup.spells-hint'}}</p>
-
-    <div class="am-selection-header">
-      {{#if spellInfo.cantrips}}
-        <div class="am-counter-badge {{#if (gte selectedCantripCount spellInfo.cantrips)}}am-badge-success{{else}}am-badge-pending{{/if}}">
-          <i class="fa-solid fa-sparkles"></i>
-          {{localize 'am.app.spells.cantrips'}}: {{selectedCantripCount}}/{{spellInfo.cantrips}}
-        </div>
-      {{/if}}
-      {{#if (eq spellInfo.type 'known')}}
-        <div class="am-counter-badge {{#if (gte selectedSpellCount spellInfo.spellsKnown)}}am-badge-success{{else}}am-badge-pending{{/if}}">
-          <i class="fa-solid fa-book-sparkles"></i>
-          {{localize 'am.app.spells.spells-label'}}: {{selectedSpellCount}}/{{spellInfo.spellsKnown}}
-        </div>
-      {{/if}}
-    </div>
-
-    {{#if spellsLoaded}}
-      {{#if spellLevelPills.length}}
-        <div class="am-filter-pills" role="toolbar">
-          <button type="button"
-                  class="am-filter-pill {{#if spellLevelAllActive}}am-pill-active{{/if}}"
-                  data-action="luFilterSpellLevel" data-level="">
-            {{localize 'am.app.spells.filter-all'}}
-          </button>
-          {{#each spellLevelPills}}
-            <button type="button"
-                    class="am-filter-pill {{#if this.active}}am-pill-active{{/if}}"
-                    data-action="luFilterSpellLevel"
-                    data-level="{{this.level}}">
-              {{this.label}}
-            </button>
-          {{/each}}
-        </div>
-      {{/if}}
-      {{#if spellSchoolPills.length}}
-        <div class="am-filter-pills am-filter-pills-sm" role="toolbar">
-          <button type="button"
-                  class="am-filter-pill {{#if spellSchoolAllActive}}am-pill-active{{/if}}"
-                  data-action="luFilterSpellSchool" data-school="">
-            {{localize 'am.app.spells.filter-all-schools'}}
-          </button>
-          {{#each spellSchoolPills}}
-            <button type="button"
-                    class="am-filter-pill {{#if this.active}}am-pill-active{{/if}}"
-                    data-action="luFilterSpellSchool"
-                    data-school="{{this.key}}">
-              {{this.label}}
-            </button>
-          {{/each}}
-        </div>
-      {{/if}}
-      {{#if visibleSpells.length}}
-        <div class="am-card-grid am-inline-card-grid am-spell-inline-grid" role="list">
-          {{#each visibleSpells}}
-            <button type="button"
-                    class="am-card {{#if this.isSelected}}am-card-selected am-card-selected-spell{{/if}}"
-                    role="listitem"
-                    data-action="luToggleSpell"
-                    data-uuid="{{this.uuid}}"
-                    data-level="{{this.level}}"
-                    data-name="{{this.name}}">
-              <img class="am-card-img" src="{{this.img}}" alt="" loading="lazy">
-              <span class="am-card-name">{{this.name}}</span>
-              <div class="am-card-meta">
-                {{#if this.isCantrip}}
-                  <span class="am-level-pip am-cantrip-pip">C</span>
-                {{else}}
-                  <span class="am-level-pip">{{this.level}}</span>
-                {{/if}}
-                {{#if this.concentration}}
-                  <span class="am-conc-tag" title="Concentration">C</span>
-                {{/if}}
-              </div>
-            </button>
-          {{/each}}
-        </div>
-      {{else}}
-        <p class="am-hint">{{localize 'am.spells.none-found'}}</p>
-      {{/if}}
-      <div class="am-inline-description overflow-vert-only">
-        <p class="am-hint am-inline-desc-hint">{{localize 'am.app.hover-for-description'}}</p>
-      </div>
-    {{else}}
-      <p class="am-loading"><i class="fas fa-spinner fa-spin"></i> {{localize 'am.app.loading'}}</p>
-    {{/if}}
-  </section>
+  {{> am-spell-browser}}
   {{/if}}
 
   {{!-- Only worth saying when a5e really will ask. When the builder took the
@@ -454,49 +365,59 @@
         maneuver per class level, and a known caster swap one spell — which is why
         a level that grants nothing new can still be worth opening. Each item
         marked here frees one pick in the browsers above. --}}
+  {{!-- Collapsed by default. Swapping something out is the rare case, and a full
+        list of everything known pushed the actual choices off the screen. --}}
   {{#if knownManeuverList}}
   <hr />
-  <section class="lu-section">
-    <h3><i class="fa-solid fa-right-left"></i> {{localize 'am.levelup.replace-maneuver-title'}}</h3>
-    <p class="am-hint">
-      {{localize 'am.levelup.replace-hint' n=maneuverReplaceLimit}}
-      <strong>({{maneuverReplaceUsed}}/{{maneuverReplaceLimit}})</strong>
-    </p>
-    <div class="am-replace-list">
-      {{#each knownManeuverList}}
-        <button type="button"
-                class="am-replace-row {{#if this.replaced}}am-replace-marked{{/if}}"
-                data-action="luReplaceManeuver" data-item-id="{{this.id}}">
-          <img src="{{this.img}}" alt="" class="am-replace-img">
-          <span class="am-replace-name">{{this.name}}</span>
-          <span class="am-hint">{{this.traditionLabel}} · {{this.degree}}°</span>
-          <i class="fa-solid {{#if this.replaced}}fa-rotate-left{{else}}fa-xmark{{/if}}"></i>
-        </button>
-      {{/each}}
-    </div>
+  <section class="lu-section am-replace-section">
+    <button type="button" class="am-replace-toggle" data-action="luToggleReplace" data-what="maneuver">
+      <i class="fa-solid {{#if showReplaceManeuver}}fa-chevron-down{{else}}fa-chevron-right{{/if}}"></i>
+      <i class="fa-solid fa-right-left"></i>
+      {{localize 'am.levelup.replace-maneuver-title'}}
+      <span class="am-hint">({{maneuverReplaceUsed}}/{{maneuverReplaceLimit}})</span>
+    </button>
+    {{#if showReplaceManeuver}}
+      <p class="am-hint">{{localize 'am.levelup.replace-hint' n=maneuverReplaceLimit}}</p>
+      <div class="am-replace-list">
+        {{#each knownManeuverList}}
+          <button type="button"
+                  class="am-replace-row {{#if this.replaced}}am-replace-marked{{/if}}"
+                  data-action="luReplaceManeuver" data-item-id="{{this.id}}">
+            <img src="{{this.img}}" alt="" class="am-replace-img">
+            <span class="am-replace-name">{{this.name}}</span>
+            <span class="am-hint">{{this.traditionLabel}} · {{this.degree}}°</span>
+            <i class="fa-solid {{#if this.replaced}}fa-rotate-left{{else}}fa-xmark{{/if}}"></i>
+          </button>
+        {{/each}}
+      </div>
+    {{/if}}
   </section>
   {{/if}}
 
   {{#if knownSpellList}}
   <hr />
-  <section class="lu-section">
-    <h3><i class="fa-solid fa-right-left"></i> {{localize 'am.levelup.replace-spell-title'}}</h3>
-    <p class="am-hint">
-      {{localize 'am.levelup.replace-hint' n=spellReplaceLimit}}
-      <strong>({{spellReplaceUsed}}/{{spellReplaceLimit}})</strong>
-    </p>
-    <div class="am-replace-list">
-      {{#each knownSpellList}}
-        <button type="button"
-                class="am-replace-row {{#if this.replaced}}am-replace-marked{{/if}}"
-                data-action="luReplaceSpell" data-item-id="{{this.id}}">
-          <img src="{{this.img}}" alt="" class="am-replace-img">
-          <span class="am-replace-name">{{this.name}}</span>
-          <span class="am-hint">{{localize 'am.spells.level-n' n=this.level}}</span>
-          <i class="fa-solid {{#if this.replaced}}fa-rotate-left{{else}}fa-xmark{{/if}}"></i>
-        </button>
-      {{/each}}
-    </div>
+  <section class="lu-section am-replace-section">
+    <button type="button" class="am-replace-toggle" data-action="luToggleReplace" data-what="spell">
+      <i class="fa-solid {{#if showReplaceSpell}}fa-chevron-down{{else}}fa-chevron-right{{/if}}"></i>
+      <i class="fa-solid fa-right-left"></i>
+      {{localize 'am.levelup.replace-spell-title'}}
+      <span class="am-hint">({{spellReplaceUsed}}/{{spellReplaceLimit}})</span>
+    </button>
+    {{#if showReplaceSpell}}
+      <p class="am-hint">{{localize 'am.levelup.replace-hint' n=spellReplaceLimit}}</p>
+      <div class="am-replace-list">
+        {{#each knownSpellList}}
+          <button type="button"
+                  class="am-replace-row {{#if this.replaced}}am-replace-marked{{/if}}"
+                  data-action="luReplaceSpell" data-item-id="{{this.id}}">
+            <img src="{{this.img}}" alt="" class="am-replace-img">
+            <span class="am-replace-name">{{this.name}}</span>
+            <span class="am-hint">{{localize 'am.spells.level-n' n=this.level}}</span>
+            <i class="fa-solid {{#if this.replaced}}fa-rotate-left{{else}}fa-xmark{{/if}}"></i>
+          </button>
+        {{/each}}
+      </div>
+    {{/if}}
   </section>
   {{/if}}
 
@@ -565,24 +486,49 @@
 
         <div class="am-feat-list" role="list">
           {{#each feats}}
-            <button type="button" role="listitem"
-              class="am-feat-row {{#if this.selected}}am-feat-selected{{/if}} {{#unless this.met}}am-feat-unmet{{/unless}}"
-              data-action="luSelectFeat" data-uuid="{{this.uuid}}" data-name="{{this.name}}">
-              <img class="am-feat-img" src="{{this.img}}" alt="" loading="lazy">
-              <span class="am-feat-name">{{this.name}}</span>
-              {{#if this.preText}}
-                <span class="am-feat-pre {{#unless this.met}}am-feat-pre-fail{{/unless}}">
-                  {{#if this.unknown}}<i class="fa-solid fa-circle-question"></i>{{/if}}
-                  {{this.preText}}
-                </span>
+            <div class="am-feat-entry {{#if this.selected}}am-feat-selected{{/if}} {{#unless this.met}}am-feat-unmet{{/unless}}"
+                 role="listitem">
+              <div class="am-feat-row">
+                <button type="button" class="am-feat-pick"
+                  data-action="luSelectFeat" data-uuid="{{this.uuid}}" data-name="{{this.name}}">
+                  <img class="am-feat-img" src="{{this.img}}" alt="" loading="lazy">
+                  <span class="am-feat-name">{{this.name}}</span>
+                </button>
+                {{#if this.preText}}
+                  <span class="am-feat-pre {{#unless this.met}}am-feat-pre-fail{{/unless}}"
+                    {{#if this.unknown}}data-tooltip="{{localize 'am.asi.feat-prereq-unknown'}}"{{/if}}>
+                    {{#if this.unknown}}<i class="fa-solid fa-circle-question"></i>{{/if}}
+                    {{this.preText}}
+                  </span>
+                {{/if}}
+                <button type="button" class="am-feature-info"
+                  data-action="toggleGrantDesc" data-key="{{this.uuid}}"
+                  data-tooltip="{{localize 'am.grants.what-it-does'}}">
+                  <i class="fa-solid fa-circle-info"></i>
+                </button>
+              </div>
+              {{#if this.expanded}}
+                <div class="am-feature-desc am-description-panel">
+                  {{#if this.desc}}{{{this.desc}}}
+                  {{else}}<p class="am-hint">{{localize 'am.app.no-description'}}</p>{{/if}}
+                </div>
               {{/if}}
-            </button>
+            </div>
           {{else}}
             <p class="am-hint">{{localize 'am.asi.feat-none'}}</p>
           {{/each}}
         </div>
-        {{#if featTruncated}}
-          <p class="am-hint">{{localize 'am.asi.feat-truncated' n=featTotal}}</p>
+
+        {{#if (gt featPages 1)}}
+          <div class="am-feat-pager">
+            <button type="button" data-action="luFeatPage" data-dir="-1" {{#unless featHasPrev}}disabled{{/unless}}>
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <span class="am-hint">{{localize 'am.asi.feat-page' page=featPage pages=featPages total=featTotal}}</span>
+            <button type="button" data-action="luFeatPage" data-dir="1" {{#unless featHasNext}}disabled{{/unless}}>
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
         {{/if}}
       {{/if}}
     {{/if}}
@@ -625,6 +571,12 @@
     </ul>
   </section>
   {{/unless}}
+  {{/if}}
+
+  {{!-- Spells (level-up mode). This branch had no spell section at all, so a
+        caster gaining a level could neither learn nor swap anything. --}}
+  {{#if spellInfo}}
+  {{> am-spell-browser}}
   {{/if}}
 
   {{!-- Maneuvers (level-up mode) --}}

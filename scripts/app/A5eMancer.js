@@ -28,6 +28,7 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
       rollAbilityPool:        A5eMancer.rollAbilityPool,
       clearAbilityPool:       A5eMancer.clearAbilityPool,
       toggleGrantOption:      A5eMancer.toggleGrantOption,
+      toggleGrantDesc:        A5eMancer.toggleGrantDesc,
       setCastingAbility:      A5eMancer.setCastingAbility,
       rollWealth:             A5eMancer.rollWealth,
       selectCharacterArt:     CharacterArtPicker.selectCharacterArt,
@@ -101,6 +102,36 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
   get title() { return `${AM.NAME} | ${game.user.name}`; }
 
   /* ── context ─────────────────────────────────────────── */
+
+  /**
+   * Keep every scroll position in a part, not just the part's own.
+   *
+   * `scrollable` handles one element per selector, and the tabs have several
+   * independent scrollers — the card grids carry their own `overflow-y` with a
+   * max-height, so picking a spell reset the grid to the top even though the tab
+   * itself had not moved. Everything that can scroll is recorded by its position
+   * among its peers, which survives a re-render because the markup is rebuilt in
+   * the same order.
+   */
+  static #SCROLLERS = '.am-card-grid, .am-description-panel, .am-feature-desc, .am-feat-list';
+
+  _preSyncPartState(partId, newElement, priorElement, state) {
+    super._preSyncPartState(partId, newElement, priorElement, state);
+    state.amScroll = [...priorElement.querySelectorAll(A5eMancer.#SCROLLERS)]
+      .map(el => el.scrollTop);
+  }
+
+  _syncPartState(partId, newElement, priorElement, state) {
+    super._syncPartState(partId, newElement, priorElement, state);
+    const tops = state.amScroll;
+    if (!tops?.some(Boolean)) return;
+    // After layout: the elements exist but have no height until the browser has
+    // laid them out, and scrollTop on a zero-height box is silently dropped.
+    requestAnimationFrame(() => {
+      const els = this.element?.querySelectorAll(A5eMancer.#SCROLLERS) ?? [];
+      els.forEach((el, i) => { if (tops[i]) el.scrollTop = tops[i]; });
+    });
+  }
 
   _prepareContext(options) {
     try {
@@ -280,6 +311,18 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
           context.loreTables    = rows;
           context.hasLoreTables = rows.length > 0;
 
+          // The fixed narrative fields below predate the lore tables. Now that
+          // the tables are actually found — including the ones inside a destiny's
+          // linked features — they ask for the same things twice, and only the
+          // table half can be rolled. Each fixed field is hidden when a real
+          // table covers it.
+          const covers = (re, src = null) => rows.some(r =>
+            re.test(r.heading) && (!src || r.source === src));
+          context.needsConnections        = !covers(/connection/i, 'background');
+          context.needsMementos           = !covers(/memento|keepsake|trinket/i);
+          context.needsDestinyConnection  = !covers(/connection/i, 'destiny');
+          context.needsDestinyFulfillment = !covers(/fulfil/i);
+
           context.alignments = (game.settings.get(AM.ID, 'alignments') || '')
             .split(',').map(s => s.trim()).filter(Boolean);
           context.enableAlignmentFaithInputs = game.settings.get(AM.ID, 'enableAlignmentFaithInputs');
@@ -452,6 +495,15 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     await AM.app?.render(false, { parts: ['class'] });
   }
 
+  /** Show or hide what a granted feature actually does. */
+  static async toggleGrantDesc(_event, btn) {
+    const key = btn.dataset.key;
+    if (!key) return;
+    if (AM.expandedGrantDescs.has(key)) AM.expandedGrantDescs.delete(key);
+    else AM.expandedGrantDescs.add(key);
+    await AM.app?.render(false, { parts: [AM.app.tabGroups['a5e-mancer-tabs']] });
+  }
+
   static async toggleGrantOption(_event, btn) {
     const type    = btn.dataset.grantSource;
     const grantId = btn.dataset.grantId;
@@ -563,12 +615,18 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     const store = AM.itemGrants?.[type];
     if (!context.selectedItem || !store?.absorb) return;
 
+    AM.expandedGrantDescs ??= new Set();
+    const expanded = AM.expandedGrantDescs;
+
     const withState = (g) => {
       const picked = store.choices[g.id] ?? [];
       return {
         ...g,
         grantType: type,
-        options:   g.options.map(o => ({ ...o, selected: picked.includes(o.key) })),
+        options:   (g.options ?? []).map(o => ({
+          ...o, selected: picked.includes(o.key), expanded: expanded.has(o.key)
+        })),
+        baseEntries: (g.baseEntries ?? []).map(e => ({ ...e, expanded: expanded.has(e.key) })),
         chosen:    picked.length,
         complete:  picked.length >= g.total
       };

@@ -1,0 +1,93 @@
+{{!-- The spell browser, shared by the multiclass and level-up branches.
+      Level-up used to have no spell section at all, so a wizard gaining a
+      level had nowhere to learn or swap anything. --}}
+  <hr />
+  <section class="lu-section">
+    <h3><i class="fa-solid fa-sparkles"></i> {{localize 'am.levelup.spells-title'}}</h3>
+    <p class="am-hint">{{localize 'am.levelup.spells-hint'}}</p>
+
+    <div class="am-selection-header">
+      {{#if spellInfo.cantrips}}
+        <div class="am-counter-badge {{#if (gte selectedCantripCount spellInfo.cantrips)}}am-badge-success{{else}}am-badge-pending{{/if}}">
+          <i class="fa-solid fa-sparkles"></i>
+          {{localize 'am.app.spells.cantrips'}}: {{selectedCantripCount}}/{{spellInfo.cantrips}}
+        </div>
+      {{/if}}
+      {{#if (eq spellInfo.type 'known')}}
+        <div class="am-counter-badge {{#if (gte selectedSpellCount spellInfo.spellsKnown)}}am-badge-success{{else}}am-badge-pending{{/if}}">
+          <i class="fa-solid fa-book-sparkles"></i>
+          {{localize 'am.app.spells.spells-label'}}: {{selectedSpellCount}}/{{spellInfo.spellsKnown}}
+        </div>
+      {{/if}}
+    </div>
+
+    {{#if spellsLoaded}}
+      {{#if spellLevelPills.length}}
+        <div class="am-filter-pills" role="toolbar">
+          <button type="button"
+                  class="am-filter-pill {{#if spellLevelAllActive}}am-pill-active{{/if}}"
+                  data-action="luFilterSpellLevel" data-level="">
+            {{localize 'am.app.spells.filter-all'}}
+          </button>
+          {{#each spellLevelPills}}
+            <button type="button"
+                    class="am-filter-pill {{#if this.active}}am-pill-active{{/if}}"
+                    data-action="luFilterSpellLevel"
+                    data-level="{{this.level}}">
+              {{this.label}}
+            </button>
+          {{/each}}
+        </div>
+      {{/if}}
+      {{#if spellSchoolPills.length}}
+        <div class="am-filter-pills am-filter-pills-sm" role="toolbar">
+          <button type="button"
+                  class="am-filter-pill {{#if spellSchoolAllActive}}am-pill-active{{/if}}"
+                  data-action="luFilterSpellSchool" data-school="">
+            {{localize 'am.app.spells.filter-all-schools'}}
+          </button>
+          {{#each spellSchoolPills}}
+            <button type="button"
+                    class="am-filter-pill {{#if this.active}}am-pill-active{{/if}}"
+                    data-action="luFilterSpellSchool"
+                    data-school="{{this.key}}">
+              {{this.label}}
+            </button>
+          {{/each}}
+        </div>
+      {{/if}}
+      {{#if visibleSpells.length}}
+        <div class="am-card-grid am-inline-card-grid am-spell-inline-grid" role="list">
+          {{#each visibleSpells}}
+            <button type="button"
+                    class="am-card {{#if this.isSelected}}am-card-selected am-card-selected-spell{{/if}}"
+                    role="listitem"
+                    data-action="luToggleSpell"
+                    data-uuid="{{this.uuid}}"
+                    data-level="{{this.level}}"
+                    data-name="{{this.name}}">
+              <img class="am-card-img" src="{{this.img}}" alt="" loading="lazy">
+              <span class="am-card-name">{{this.name}}</span>
+              <div class="am-card-meta">
+                {{#if this.isCantrip}}
+                  <span class="am-level-pip am-cantrip-pip">C</span>
+                {{else}}
+                  <span class="am-level-pip">{{this.level}}</span>
+                {{/if}}
+                {{#if this.concentration}}
+                  <span class="am-conc-tag" title="Concentration">C</span>
+                {{/if}}
+              </div>
+            </button>
+          {{/each}}
+        </div>
+      {{else}}
+        <p class="am-hint">{{localize 'am.spells.none-found'}}</p>
+      {{/if}}
+      <div class="am-inline-description overflow-vert-only">
+        <p class="am-hint am-inline-desc-hint">{{localize 'am.app.hover-for-description'}}</p>
+      </div>
+    {{else}}
+      <p class="am-loading"><i class="fas fa-spinner fa-spin"></i> {{localize 'am.app.loading'}}</p>
+    {{/if}}
+  </section>

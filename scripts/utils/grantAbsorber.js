@@ -238,6 +238,23 @@ export class GrantAbsorber {
     return String(key).replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
   }
 
+  /**
+   * A document's description, enriched so @UUID links and embeds resolve.
+   * a5e declares description as a plain HTMLField — there is no `.value`.
+   */
+  static async #enrich(doc) {
+    const raw = typeof doc?.system?.description === 'string'
+      ? doc.system.description
+      : (doc?.system?.description?.value ?? '');
+    if (!raw) return '';
+    try {
+      const TE = foundry.applications?.ux?.TextEditor?.implementation ?? TextEditor;
+      return await TE.enrichHTML(raw, { async: true, relativeTo: doc });
+    } catch {
+      return raw;
+    }
+  }
+
   static #defaultLabel(grant) {
     if (grant.grantType === 'ability')     return game.i18n.localize('am.grants.type-ability');
     if (grant.grantType === 'proficiency') return game.i18n.localize('am.grants.type-proficiency');
@@ -717,12 +734,28 @@ export class GrantAbsorber {
     return true;
   }
 
-  /** Feature grants on this item, as a UI model (base always granted). */
+  /**
+   * Feature grants on this item, as a UI model (base always granted).
+   *
+   * Each feature carries its own description. They are what the player is
+   * actually being asked about — a heritage gift, a background feature, an
+   * elective study — and a bare name says nothing about what it does. The
+   * document is already being read for the name, so the text costs no extra
+   * lookup.
+   */
   static async describeFeatures(doc, lv = {}) {
     const out = [];
-    const name = async (uuid) => {
-      try { return (await fromUuid(uuid))?.name ?? uuid; } catch { return uuid; }
+
+    const entryFor = async (uuid) => {
+      try {
+        const d = await fromUuid(uuid);
+        if (!d) return { key: uuid, label: uuid, desc: '' };
+        return { key: uuid, label: d.name ?? uuid, desc: await this.#enrich(d) };
+      } catch {
+        return { key: uuid, label: uuid, desc: '' };
+      }
     };
+    const name = async (uuid) => (await entryFor(uuid)).label;
 
     for (const [id, grant] of this.#preparedGrants(doc)) {
       if (grant?.grantType !== 'feature') continue;
@@ -738,7 +771,9 @@ export class GrantAbsorber {
         base:      spec.base,
         baseUuids: spec.base,        // describeTree walks these for nested grants
         baseLabels: await Promise.all(spec.base.map(name)),
-        options:    await Promise.all(spec.options.map(async u => ({ key: u, label: await name(u) })))
+        // Granted outright, but still the thing the player wants to read about
+        baseEntries: await Promise.all(spec.base.map(entryFor)),
+        options:     await Promise.all(spec.options.map(entryFor))
       });
     }
     return out;

@@ -59,12 +59,15 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       luFilterSpellSchool:       LevelUpDialog.luFilterSpellSchool,
       luToggleSpell:             LevelUpDialog.luToggleSpell,
       toggleGrantOption:         LevelUpDialog.luToggleGrantOption,
+      toggleGrantDesc:           LevelUpDialog.luToggleGrantDesc,
+      luToggleReplace:           LevelUpDialog.luToggleReplace,
       luReplaceManeuver:         LevelUpDialog.luReplaceManeuver,
       luReplaceSpell:            LevelUpDialog.luReplaceSpell,
       luSelectArchetype:         LevelUpDialog.luSelectArchetype,
       luSetAsiMode:              LevelUpDialog.luSetAsiMode,
       luSelectFeat:              LevelUpDialog.luSelectFeat,
       luToggleFeatEligible:      LevelUpDialog.luToggleFeatEligible,
+      luFeatPage:                LevelUpDialog.luFeatPage,
     },
     classes: ['am-app', 'am-levelup-dialog'],
     position: { width: 680, height: 760 },
@@ -87,19 +90,28 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
    * scrollHeight for an instant, the browser clamps scrollTop to 0, and the
    * dialog snaps back to the top on each click.
    */
+  static #SCROLLERS = '.am-card-grid, .am-description-panel, .am-feature-desc, .am-feat-list, .am-replace-list';
+
   _preSyncPartState(partId, newElement, priorElement, state) {
     super._preSyncPartState(partId, newElement, priorElement, state);
     state.amWindowScroll = this.element?.querySelector('.window-content')?.scrollTop ?? 0;
+    // The inner grids scroll independently of the window — picking a spell reset
+    // the grid to the top even when the window itself had not moved.
+    state.amScroll = [...priorElement.querySelectorAll(LevelUpDialog.#SCROLLERS)]
+      .map(el => el.scrollTop);
   }
 
   _syncPartState(partId, newElement, priorElement, state) {
     super._syncPartState(partId, newElement, priorElement, state);
-    const top = state.amWindowScroll;
-    if (!top) return;
-    // After layout, or the height it is being restored into does not exist yet
+    const top  = state.amWindowScroll;
+    const tops = state.amScroll;
+    if (!top && !tops?.some(Boolean)) return;
+    // After layout, or the height being restored into does not exist yet
     requestAnimationFrame(() => {
       const content = this.element?.querySelector('.window-content');
-      if (content) content.scrollTop = top;
+      if (content && top) content.scrollTop = top;
+      const els = this.element?.querySelectorAll(LevelUpDialog.#SCROLLERS) ?? [];
+      els.forEach((el, i) => { if (tops?.[i]) el.scrollTop = tops[i]; });
     });
   }
 
@@ -319,12 +331,18 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       AM.levelUpGrants = store;
       this._levelChoices = store.choices;
 
+      AM.expandedGrantDescs ??= new Set();
+      const expanded = AM.expandedGrantDescs;
+
       const withState = (g) => {
         const picked = store.choices[g.id] ?? [];
         return {
           ...g,
           grantType: 'levelup',
-          options:   g.options.map(o => ({ ...o, selected: picked.includes(o.key) })),
+          options:   (g.options ?? []).map(o => ({
+            ...o, selected: picked.includes(o.key), expanded: expanded.has(o.key)
+          })),
+          baseEntries: (g.baseEntries ?? []).map(e => ({ ...e, expanded: expanded.has(e.key) })),
           chosen:    picked.length,
           complete:  picked.length >= g.total
         };
@@ -456,6 +474,8 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
     context.maneuverReplaceLimit = info.replaceable;
     context.maneuverReplaceUsed  = this._replacedManeuverIds.length;
+    // Opened once something is marked, so a swap in progress is never hidden
+    context.showReplaceManeuver  = !!this._showReplaceManeuver || this._replacedManeuverIds.length > 0;
     context.knownManeuverList = known.map(m => ({
       id: m.id, name: m.name, img: m.img,
       degree: m.degree, traditionLabel: m.traditionLabel,
@@ -474,6 +494,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
     context.spellReplaceLimit = limit;
     context.spellReplaceUsed  = this._replacedSpellIds.length;
+    context.showReplaceSpell  = !!this._showReplaceSpell || this._replacedSpellIds.length > 0;
     context.knownSpellList = known.map(s => ({
       id: s.id, name: s.name, img: s.img, level: s.level,
       replaced: this._replacedSpellIds.includes(s.id)
@@ -630,6 +651,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     if (featSearch) {
       featSearch.addEventListener('input', (e) => {
         this._featSearch = e.target.value ?? '';
+        this._featPage = 0;
         this._featSearchFocused = true;
         this.render(false);
       });
@@ -978,17 +1000,36 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
     try {
       const { FeatService } = await import('../utils/featService.js');
+      // Defaults to the ones the character qualifies for: 600-odd entries, most
+      // of them unreachable, is not a list anyone can use.
+      this._featOnlyEligible ??= true;
+
       const feats = await FeatService.optionsFor(this.actor, {
         search:       this._featSearch ?? '',
         onlyEligible: !!this._featOnlyEligible
       });
+
+      const PAGE = 40;
+      const pages = Math.max(1, Math.ceil(feats.length / PAGE));
+      const page  = Math.min(Math.max(0, this._featPage ?? 0), pages - 1);
+      this._featPage = page;
+
       context.featSearch       = this._featSearch ?? '';
       context.featOnlyEligible = !!this._featOnlyEligible;
       context.featTotal        = feats.length;
-      // Capped for the sake of the DOM; the search box is the way through 600+.
-      context.feats = feats.slice(0, 60).map(f => ({ ...f, selected: f.uuid === store.featUuid }));
-      context.featTruncated = feats.length > context.feats.length;
-      context.featChosen    = feats.find(f => f.uuid === store.featUuid) ?? null;
+      context.featPage         = page + 1;
+      context.featPages        = pages;
+      context.featHasPrev      = page > 0;
+      context.featHasNext      = page < pages - 1;
+
+      const slice = feats.slice(page * PAGE, page * PAGE + PAGE);
+      context.feats = await Promise.all(slice.map(async f => ({
+        ...f,
+        selected: f.uuid === store.featUuid,
+        expanded: AM.expandedGrantDescs.has(f.uuid),
+        desc:     AM.expandedGrantDescs.has(f.uuid) ? await FeatService.describe(f.uuid) : ''
+      })));
+      context.featChosen = feats.find(f => f.uuid === store.featUuid) ?? null;
     } catch (err) {
       AM.log(1, 'Could not load feats:', err);
       context.featError = true;
@@ -1071,7 +1112,33 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     const dialog = AM.levelUpDialog;
     if (!dialog) return;
     dialog._featOnlyEligible = !dialog._featOnlyEligible;
+    dialog._featPage = 0;               // the list just changed length
     dialog.render(false);
+  }
+
+  static luFeatPage(_event, btn) {
+    const dialog = AM.levelUpDialog;
+    if (!dialog) return;
+    dialog._featPage = Math.max(0, (dialog._featPage ?? 0) + Number(btn.dataset.dir ?? 0));
+    dialog.render(false);
+  }
+
+  /** Open or close the trade-in list. Collapsed by default — see the template. */
+  static luToggleReplace(_event, btn) {
+    const dialog = AM.levelUpDialog;
+    if (!dialog) return;
+    if (btn.dataset.what === 'spell') dialog._showReplaceSpell = !dialog._showReplaceSpell;
+    else                              dialog._showReplaceManeuver = !dialog._showReplaceManeuver;
+    dialog.render(false);
+  }
+
+  /** Show or hide what a feature this level grants actually does. */
+  static luToggleGrantDesc(_event, btn) {
+    const key = btn.dataset.key;
+    if (!key) return;
+    if (AM.expandedGrantDescs.has(key)) AM.expandedGrantDescs.delete(key);
+    else AM.expandedGrantDescs.add(key);
+    AM.levelUpDialog?.render(false);
   }
 
   /** Pick or unpick one option of this level's grants. */

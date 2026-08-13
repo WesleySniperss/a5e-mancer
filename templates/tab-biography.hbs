@@ -118,24 +118,32 @@
       </div>
     </section>
 
-    {{!-- A5e-specific: Connections & Mementos --}}
+    {{!-- A5e-specific: Connections & Mementos. Shown only when the background's
+          own rollable tables below do not already ask for them — otherwise the
+          same question appeared twice, and only the table half could be rolled. --}}
+    {{#if (or needsConnections needsMementos)}}
     <hr />
     <section aria-labelledby="connections-heading">
       <h2 id="connections-heading">{{localize 'am.app.biography.connections'}}</h2>
       <p class="am-hint">{{localize 'am.app.biography.connections-hint'}}</p>
       <div class="grid grid-2-col gap-md">
+        {{#if needsConnections}}
         <div class="form-group">
           <label for="connections">{{localize 'am.app.biography.connections-label'}}</label>
           <textarea id="connections" name="connections" class="form-input" rows="3"
             placeholder="{{localize 'am.app.biography.connections-placeholder'}}"></textarea>
         </div>
+        {{/if}}
+        {{#if needsMementos}}
         <div class="form-group">
           <label for="mementos">{{localize 'am.app.biography.mementos'}}</label>
           <textarea id="mementos" name="mementos" class="form-input" rows="3"
             placeholder="{{localize 'am.app.biography.mementos-placeholder'}}"></textarea>
         </div>
+        {{/if}}
       </div>
     </section>
+    {{/if}}
 
     {{!-- A5e Destiny rolls --}}
     <hr />
@@ -188,7 +196,9 @@
       {{!-- Row 2: narrative fields --}}
       <div class="grid grid-2-col gap-md" style="margin-top:0.75rem">
 
-        {{!-- Connection to destiny --}}
+        {{!-- Connection to destiny. Hidden when the destiny's own "Connection to
+              Your Destiny" table is found above — that one can be rolled. --}}
+        {{#if needsDestinyConnection}}
         <div class="form-group">
           <label for="destinyConnection">
             <i class="fa-solid fa-link fa-xs"></i>
@@ -198,8 +208,10 @@
           <textarea id="destinyConnection" name="destinyConnection" class="form-input" rows="4"
             placeholder="{{localize 'am.app.biography.destiny-connection-placeholder'}}"></textarea>
         </div>
+        {{/if}}
 
-        {{!-- Path to fulfillment --}}
+        {{!-- Path to fulfillment, same rule --}}
+        {{#if needsDestinyFulfillment}}
         <div class="form-group">
           <label for="destinyFulfillment">
             <i class="fa-solid fa-trophy fa-xs"></i>
@@ -209,6 +221,7 @@
           <textarea id="destinyFulfillment" name="destinyFulfillment" class="form-input" rows="4"
             placeholder="{{localize 'am.app.biography.destiny-fulfillment-placeholder'}}"></textarea>
         </div>
+        {{/if}}
 
       </div>
 

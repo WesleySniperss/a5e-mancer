@@ -33,6 +33,9 @@ export class AM {
   // (heritage, culture, background, destiny). Each entry:
   // { absorb: bool, grants: [uiModel], features: [uiModel], choices: { grantId: key[] } }
   static itemGrants        = {};
+  // Feature keys whose description is expanded. Shared by the builder and the
+  // level-up so a feature stays open across a re-render of either.
+  static expandedGrantDescs = new Set();
   // Roll tables found in the destiny/background descriptions, and what was rolled.
   // { destiny: [table], background: [table] } and { 'destiny.0': 'text', … }
   static loreTables        = {};
@@ -212,14 +215,20 @@ Hooks.once('ready', async () => {
 
   // The origin tabs share one grant-picker block; it lives in a file rather than
   // being a fourth inline copy, so it has to be compiled and registered by hand.
-  try {
-    const getTpl = foundry.applications?.handlebars?.getTemplate ?? globalThis.getTemplate;
-    const tpl = await getTpl('modules/a5e-mancer/templates/partial-item-grants.hbs');
-    Handlebars.registerPartial('am-item-grants', tpl);
-  } catch (err) {
-    // Without it the origin tabs would throw on render — register a no-op instead
-    Handlebars.registerPartial('am-item-grants', '');
-    AM.log(1, 'Could not register the item-grants partial:', err);
+  const getTpl = foundry.applications?.handlebars?.getTemplate ?? globalThis.getTemplate;
+  for (const [name, file] of [
+    ['am-item-grants',   'partial-item-grants.hbs'],
+    // The spell browser is used by both level-up branches; the level-up half had
+    // no spell section at all before it was pulled out here.
+    ['am-spell-browser', 'partial-spell-browser.hbs']
+  ]) {
+    try {
+      Handlebars.registerPartial(name, await getTpl(`modules/a5e-mancer/templates/${file}`));
+    } catch (err) {
+      // Without it the tab would throw on render — register a no-op instead
+      Handlebars.registerPartial(name, '');
+      AM.log(1, `Could not register the ${name} partial:`, err);
+    }
   }
 
   await DocumentService.loadAndInitializeDocuments();
