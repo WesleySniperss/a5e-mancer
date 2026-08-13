@@ -411,11 +411,18 @@
             </div>
             <div class="am-cs-mm-list">
               {{#each magicManeuvers}}
-                <div class="am-cs-mm-row" data-tooltip="{{this.effect}}">
+                <div class="am-cs-mm-row" data-tooltip="{{this.effect}}" data-item-id="{{this.itemId}}">
                   <span class="am-mm-degree">{{this.degree}}°</span>
                   <span class="am-mm-name">{{this.name}}</span>
                   <span class="am-cs-muted am-cs-mm-school">{{this.schoolLabel}}</span>
                   <span class="am-ex-cost"><i class="fa-solid fa-bolt"></i>{{this.cost}}</span>
+                  {{#if this.itemId}}
+                    {{!-- The item spends the exertion; the effect is applied at the table --}}
+                    <button type="button" class="am-cs-mm-use" data-action="item-use"
+                      data-id="{{this.itemId}}" data-tooltip="{{localize 'am.mm.use'}}">
+                      <i class="fa-solid fa-bolt-lightning"></i>
+                    </button>
+                  {{/if}}
                 </div>
               {{/each}}
             </div>

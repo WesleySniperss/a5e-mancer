@@ -210,12 +210,24 @@ export class ManeuverService {
   }
 
   /**
+   * A maneuver item that belongs to the combat side of the rules.
+   *
+   * Magic maneuvers are maneuver items too, so that a5e rolls them and spends
+   * their exertion. That makes the bare type check wrong everywhere the combat
+   * entitlement is concerned: left in, they would count against the maneuvers a
+   * class knows and be offered as trade-ins at level-up.
+   */
+  static isCombatManeuver(item) {
+    return item?.type === 'maneuver' && !MagicManeuverPack.isMagicManeuver(item);
+  }
+
+  /**
    * Get currently known maneuvers on an actor (items of type maneuver).
    */
   static getActorManeuvers(actor) {
     const tradConfig = CONFIG?.A5E?.maneuverTraditions ?? {};
     return actor.items
-      .filter(i => i.type === 'maneuver')
+      .filter(i => this.isCombatManeuver(i))
       .map(i => {
         const tradition = i.system?.tradition ?? i.system?.combatTradition ?? '';
         const i18nKey   = tradConfig[tradition];
@@ -245,7 +257,7 @@ export class ManeuverService {
     const keys = new Set();
     if (!actor) return keys;
     for (const item of actor.items) {
-      if (item.type !== 'maneuver') continue;
+      if (!this.isCombatManeuver(item)) continue;
       const src = item._stats?.compendiumSource ?? item.flags?.core?.sourceId ?? '';
       if (src) keys.add(src);
       keys.add(item.name.toLowerCase());
@@ -288,7 +300,7 @@ export class ManeuverService {
     }
     if (!found) return null;
 
-    const knownCount      = actor.items.filter(i => i.type === 'maneuver').length;
+    const knownCount      = actor.items.filter(i => this.isCombatManeuver(i)).length;
     const knownTraditions = this.getActorTraditions(actor).length;
 
     return {

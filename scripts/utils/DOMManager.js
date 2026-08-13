@@ -300,6 +300,15 @@ export class DOMManager {
   /* ── Heritage Gift ──────────────────────────────────── */
 
   static async #onHeritageChanged(uuid, form) {
+    // Gifts are the heritage's feature grants. If loadItemGrants took those on —
+    // it runs just before this — then asking again here is the same choice twice.
+    if (AM.itemGrants?.heritage?.absorb) {
+      AM.heritageGifts = [];
+      AM.SELECTED.heritageGift = { name: '', uuid: '' };
+      await AM.app?.render(false, { parts: ['tabs', 'heritageGift'] });
+      return;
+    }
+
     // Show loading state on gift tab
     const giftPanel = form.querySelector('[data-tab="heritageGift"]');
     if (giftPanel) {
@@ -326,7 +335,7 @@ export class DOMManager {
   static #clearHeritageGifts(form) {
     AM.heritageGifts = [];
     AM.SELECTED.heritageGift = null;
-    AM.app?.render(false, { parts: ['heritageGift'] });
+    AM.app?.render(false, { parts: ['tabs', 'heritageGift'] });
   }
 
   static #onGiftSelected(radio, form) {
@@ -468,6 +477,10 @@ export class DOMManager {
       const el = panel.querySelector(`.review-${type}`);
       if (!el) continue;
       if (type === 'heritageGift') {
+        // Hidden outright when the Heritage tab covers it — an empty row here
+        // would read as something the player forgot to pick
+        const row = el.closest('.review-item');
+        if (row) row.hidden = !!AM.itemGrants?.heritage?.absorb;
         el.textContent = AM.SELECTED.heritageGift?.name || '—';
       } else {
         el.textContent = this.#getSelectedName(type, form) || '—';

@@ -5,6 +5,7 @@ import { SpellDialog } from './SpellDialog.js';
 import { SpellService } from '../utils/spellService.js';
 import { PackFilter } from '../utils/packFilter.js';
 import { MagicManeuverService } from '../utils/magicManeuverService.js';
+import { ManeuverService } from '../utils/maneuverService.js';
 
 const MODULE_ID = 'a5e-mancer';
 
@@ -158,7 +159,9 @@ export class A5eCharacterSheet extends ActorSheet {
     /* Items categorised — A5e uses type='object' + system.objectType for all physical items */
     const weapons   = items.filter(i => i.type === 'object' && i.system?.objectType === 'weapon')
                             .map(i => this.#weapon(i));
-    const maneuvers = items.filter(i => i.type === 'maneuver').map(i => this.#maneuver(i));
+    // Magic maneuvers are maneuver items as well, but they have their own
+    // section further down; listing them here too would show each one twice.
+    const maneuvers = items.filter(i => ManeuverService.isCombatManeuver(i)).map(i => this.#maneuver(i));
     const spells    = items.filter(i => i.type === 'spell').map(i => this.#spell(i));
     const features  = items.filter(i => ['feature','background','heritage','culture','destiny'].includes(i.type))
                             .map(i => this.#feature(i));
@@ -324,6 +327,12 @@ export class A5eCharacterSheet extends ActorSheet {
     };
 
     /* Magic maneuvers — homebrew, kept in a module flag since a5e has no field */
+    // Characters levelled before the items existed get them here, once. Not
+    // awaited: the write triggers its own re-render, and blocking this one on a
+    // document create would stall the sheet for everyone else.
+    MagicManeuverService.backfillItems(actor).catch(err =>
+      AM.log(2, 'Magic maneuver backfill failed:', err));
+
     const magicManeuvers = MagicManeuverService.known(actor);
     const magicManeuverInfo = magicManeuvers.length ? {
       exertion: MagicManeuverService.exertionPool(actor),

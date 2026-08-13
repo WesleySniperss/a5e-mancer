@@ -431,6 +431,7 @@
   "am.mm.reason.unknown-maneuver": "Unknown maneuver.",
   "am.mm.sheet-title": "Magic Maneuvers",
   "am.mm.replace": "Replace a known maneuver",
+  "am.mm.use": "Spend the exertion — apply the effect yourself",
   "am.settings.mm-pack.name": "Build the Magic Maneuvers compendium",
   "am.settings.mm-pack.hint": "Creates a world compendium containing the 26 magic maneuvers as maneuver items, so they can be browsed, dragged and read like any other maneuver. Rebuilt automatically when the module updates them. They never appear in the combat maneuver pickers."
 }

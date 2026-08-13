@@ -239,6 +239,9 @@ export class ActorCreationService {
   /* ── Heritage Gift ──────────────────────────────────── */
 
   static async #addHeritageGift(actor, fd) {
+    // Absorbed heritages grant the gift through their feature grant already;
+    // a stale hidden field from before the switch must not add it a second time.
+    if (AM.itemGrants?.heritage?.absorb) return;
     const uuid = fd['heritageGiftUuid'];
     if (!uuid) return;
     try {

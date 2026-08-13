@@ -151,9 +151,12 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
           break;
 
         case 'heritageGift':
-          // Gifts are loaded dynamically by DOMManager when heritage is selected
-          context.heritageSelected = !!AM.SELECTED.heritage?.uuid;
-          context.heritageGifts   = AM.heritageGifts || [];
+          // Gifts ARE the heritage's feature grants. Once the Heritage tab asks
+          // for those itself, this tab would be the same choice a second time —
+          // and picking in both would apply it twice.
+          context.absorbedByHeritage = !!AM.itemGrants?.heritage?.absorb;
+          context.heritageSelected   = !!AM.SELECTED.heritage?.uuid;
+          context.heritageGifts      = context.absorbedByHeritage ? [] : (AM.heritageGifts || []);
           break;
 
         case 'maneuvers': {
@@ -304,8 +307,17 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     };
     const nonTabs = ['header', 'tabs', 'footer'];
 
+    // The gift IS a heritage feature grant. When the Heritage tab asks for those
+    // itself this tab has nothing left to offer, so it goes away rather than
+    // standing empty — and anyone sitting on it gets moved back to Heritage.
+    const giftAbsorbed = !!AM.itemGrants?.heritage?.absorb;
+    if (giftAbsorbed && this.tabGroups[group] === 'heritageGift') {
+      this.tabGroups[group] = 'heritage';
+    }
+
     return parts.reduce((acc, id) => {
       if (nonTabs.includes(id) || !icons[id]) return acc;
+      if (id === 'heritageGift' && giftAbsorbed) return acc;
       acc[id] = {
         id, group,
         label:    game.i18n.localize(`am.app.tab-names.${id}`),

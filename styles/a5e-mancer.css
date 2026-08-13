@@ -5423,3 +5423,11 @@ input.am-cs-stat-val {
   color: var(--cs-text);
 }
 .am-cs-mm-school { font-size: 0.68rem; }
+/* Pushed to the right so the row reads name-first and ends on the one control */
+.am-cs-mm-use {
+  flex: 0 0 auto; margin-left: auto;
+  width: 1.4rem; height: 1.4rem; padding: 0; line-height: 1;
+  background: transparent; border: 1px solid var(--cs-border); border-radius: 3px;
+  color: var(--cs-text); cursor: pointer;
+}
+.am-cs-mm-use:hover { background: var(--cs-bg2); color: var(--cs-accent, inherit); }

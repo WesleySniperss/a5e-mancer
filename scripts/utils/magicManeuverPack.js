@@ -19,7 +19,7 @@ import { MAGIC_MANEUVERS, MM_SCHOOLS, MM_SCHOOL_LORE } from '../data/magicManeuv
 export class MagicManeuverPack {
 
   static PACK_NAME = 'a5e-mancer-magic-maneuvers';
-  static VERSION   = 2;          // bump to force a rebuild after data changes
+  static VERSION   = 3;          // bump to force a rebuild after data changes
   static FLAG      = 'magicManeuverPack';
 
   static get collection() { return `world.${this.PACK_NAME}`; }
@@ -74,7 +74,7 @@ export class MagicManeuverPack {
         await Item.deleteDocuments(existing.map(d => d.id), { pack: pack.collection });
       }
 
-      await Item.createDocuments(MAGIC_MANEUVERS.map(m => this.#toItemData(m)),
+      await Item.createDocuments(MAGIC_MANEUVERS.map(m => this.itemData(m)),
                                  { pack: pack.collection, keepId: false });
       AM.log(3, `Magic maneuver compendium filled with ${MAGIC_MANEUVERS.length} entries`);
     } finally {
@@ -88,9 +88,18 @@ export class MagicManeuverPack {
    * `system.tradition` is deliberately left empty: these belong to schools, not
    * combat traditions, and writing a tradition key would file them under a
    * tradition the character may not even have.
+   *
+   * The action matters more than it looks. `system.exertionCost` is display only
+   * — the system spends exertion through a resource consumer on an action, so
+   * without one the card would advertise a cost and charge nothing. With it,
+   * using the maneuver deducts the points through a5e's own path, which is the
+   * whole automation these need: the effects are narrated and applied by hand.
    */
-  static #toItemData(m) {
+  static itemData(m) {
     const schoolLabel = MM_SCHOOLS[m.school] ?? m.school;
+    const actionId    = foundry.utils.randomID();
+    const consumerId  = foundry.utils.randomID();
+
     return {
       name: m.name,
       type: 'maneuver',
@@ -100,7 +109,26 @@ export class MagicManeuverPack {
         degree:       m.degree,
         exertionCost: m.cost,
         tradition:    '',
-        source:       'A5e Mancer — Magic Maneuvers'
+        source:       'A5e Mancer — Magic Maneuvers',
+        actions: {
+          [actionId]: {
+            id:      actionId,
+            name:    m.name,
+            default: true,
+            activation: { cost: 1, type: this.#activationType(m), reactionTrigger: '' },
+            consumers: {
+              [consumerId]: {
+                type:            'resource',
+                resource:        'exertion',
+                quantity:        m.cost,
+                classIdentifier: '',
+                restore:         false,
+                default:         true,
+                label:           ''
+              }
+            }
+          }
+        }
       },
       flags: {
         [AM.ID]: {
@@ -113,6 +141,15 @@ export class MagicManeuverPack {
         }
       }
     };
+  }
+
+  /**
+   * Our activation vocabulary onto a5e's. `cast` and `triggered` both become
+   * `special`: they ride along with something else the character is already
+   * doing, so calling them an action would misstate the cost.
+   */
+  static #activationType(m) {
+    return m.activation === 'reaction' ? 'reaction' : 'special';
   }
 
   /**

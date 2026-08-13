@@ -1,5 +1,6 @@
 import { AM } from '../a5e-mancer.js';
 import { MagicManeuvers, MM_SCHOOLS, MM_SCHOOL_LORE } from '../data/magicManeuvers.js';
+import { MagicManeuverPack } from './magicManeuverPack.js';
 
 /**
  * Actor-side half of magic maneuvers: what a character knows, which schools they
@@ -188,16 +189,109 @@ export class MagicManeuverService {
     if (unchanged) return false;
 
     await actor.setFlag(AM.ID, this.FLAG, { openSchools, knownIds });
+    await this.syncItems(actor, knownIds);
     AM.log(3, `Magic maneuvers: ${knownIds.length} known, schools [${openSchools.join(', ')}]`);
     return true;
   }
 
-  /** Known maneuvers as full records, for the sheet. */
+  /* ── items ────────────────────────────────────────────── */
+
+  /**
+   * Give every known maneuver a real item on the actor, and take away the ones
+   * traded in at level-up.
+   *
+   * This is what makes them behave like maneuvers rather than a list on a tab:
+   * the item sits in a5e's own maneuver section, rolls its own chat card, and
+   * spends exertion through the system when used. No hook of ours is involved —
+   * which is deliberate, because the effects are meant to be applied by hand.
+   *
+   * The flag stays the source of truth for what is known; the items are derived
+   * from it and rewritten whenever the picks change.
+   */
+  static async syncItems(actor, knownIds = null) {
+    if (!actor) return;
+    const wanted = knownIds ?? this.stateOf(actor).knownIds;
+
+    const seen    = new Map();
+    const toDelete = [];
+    for (const item of actor.items) {
+      if (item.type !== 'maneuver' || !item.getFlag?.(AM.ID, 'magicManeuver')) continue;
+      const id = item.getFlag(AM.ID, 'maneuverId');
+      // Unknown, no longer known, or a second copy — all go
+      if (!id || !wanted.includes(id) || seen.has(id)) toDelete.push(item.id);
+      else seen.set(id, item);
+    }
+
+    const toCreate = wanted
+      .filter(id => !seen.has(id))
+      .map(id => MagicManeuvers.byId(id))
+      .filter(Boolean)
+      .map(m => MagicManeuverPack.itemData(m));
+
+    try {
+      if (toDelete.length) await actor.deleteEmbeddedDocuments('Item', toDelete);
+      if (toCreate.length) await actor.createEmbeddedDocuments('Item', toCreate, { noGrant: true });
+      if (toDelete.length || toCreate.length) {
+        AM.log(3, `Magic maneuver items: +${toCreate.length} / -${toDelete.length}`);
+      }
+    } catch (err) {
+      // The flag is already written, so the character keeps the maneuvers even
+      // if the items fail — the sheet tab still lists them.
+      AM.log(2, 'Could not sync magic maneuver items:', err);
+    }
+  }
+
+  /**
+   * Characters who learned maneuvers before the items existed have the flag and
+   * nothing on the sheet. Give them the items once.
+   *
+   * The trigger is deliberately "knows some, has none": a character missing a
+   * single item deleted it on purpose, and recreating it would be us arguing
+   * with the player. Only the all-or-nothing case is an upgrade artefact.
+   */
+  static async backfillItems(actor) {
+    if (!actor?.isOwner) return false;
+    const known = this.stateOf(actor).knownIds;
+    if (!known.length) return false;
+
+    const hasAny = actor.items.some(i =>
+      i.type === 'maneuver' && i.getFlag?.(AM.ID, 'magicManeuver'));
+    if (hasAny) return false;
+
+    AM.log(3, `Backfilling ${known.length} magic maneuver item(s) on ${actor.name}`);
+    await this.syncItems(actor, known);
+    return true;
+  }
+
+  /**
+   * Known maneuvers as full records, for the sheet.
+   *
+   * `itemId` is what makes the row usable: it points at the actor's own item, so
+   * the sheet's existing use button spends the exertion through a5e rather than
+   * the module inventing a second way to do it.
+   */
   static known(actor) {
+    const items = new Map();
+    for (const item of (actor?.items ?? [])) {
+      if (item.type !== 'maneuver' || !item.getFlag?.(AM.ID, 'magicManeuver')) continue;
+      const id = item.getFlag(AM.ID, 'maneuverId');
+      if (id && !items.has(id)) items.set(id, item.id);
+    }
+
     return this.stateOf(actor).knownIds
       .map(id => MagicManeuvers.byId(id))
       .filter(Boolean)
       .sort((a, b) => a.school.localeCompare(b.school) || a.degree - b.degree || a.name.localeCompare(b.name))
-      .map(m => ({ ...m, schoolLabel: MM_SCHOOLS[m.school], schoolLore: MM_SCHOOL_LORE[m.school] ?? '' }));
+      .map(m => ({
+        ...m,
+        itemId:     items.get(m.id) ?? null,
+        schoolLabel: MM_SCHOOLS[m.school],
+        schoolLore:  MM_SCHOOL_LORE[m.school] ?? ''
+      }));
+  }
+
+  /** Is this actor item one of ours? Keeps them out of combat-maneuver counts. */
+  static isMagicManeuverItem(item) {
+    return item?.type === 'maneuver' && !!item?.getFlag?.(AM.ID, 'magicManeuver');
   }
 }
