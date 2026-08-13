@@ -4,8 +4,6 @@ import { ManeuverDialog } from './ManeuverDialog.js';
 import { SpellDialog } from './SpellDialog.js';
 import { SpellService } from '../utils/spellService.js';
 import { PackFilter } from '../utils/packFilter.js';
-import { MagicManeuverService } from '../utils/magicManeuverService.js';
-import { MagicManeuverDialog } from './MagicManeuverDialog.js';
 import { ManeuverService } from '../utils/maneuverService.js';
 
 const MODULE_ID = 'a5e-mancer';
@@ -327,19 +325,8 @@ export class A5eCharacterSheet extends ActorSheet {
       destinyDesc:    await enrichDesc(descOf(_dItem?.system),  actor),
     };
 
-    /* Magic maneuvers — homebrew, kept in a module flag since a5e has no field */
-    // Characters levelled before the items existed get them here, once. Not
-    // awaited: the write triggers its own re-render, and blocking this one on a
-    // document create would stall the sheet for everyone else.
-    MagicManeuverService.backfillItems(actor).catch(err =>
-      AM.log(2, 'Magic maneuver backfill failed:', err));
-
-    const magicManeuvers = MagicManeuverService.known(actor);
-    const magicManeuverInfo = magicManeuvers.length ? {
-      exertion: MagicManeuverService.exertionPool(actor),
-      dc:       MagicManeuverService.saveDC(actor),
-      schools:  MagicManeuverService.stateOf(actor).openSchools.length
-    } : null;
+    /* Magic maneuvers need nothing here any more: their school is a tradition, so
+       they are listed, grouped and managed by the maneuver code above. */
 
     /* Biography written by the creation wizard. Kept as a flag because a5e's
        details schema has no field for backstory, connections, mementos or the
@@ -370,10 +357,6 @@ export class A5eCharacterSheet extends ActorSheet {
       fatiguePips, strifePips, exertionPips,
       fatigueDesc, strifeDesc, statusConditions,
       attunementItems, attuneCount, passivePerception, charInfo, bio,
-      magicManeuvers, magicManeuverInfo,
-      // The section shows for anyone whose class gets them, not only once some
-      // are known — otherwise there is nowhere to press to learn the first one.
-      canHaveMagicManeuvers: MagicManeuverService.isEligible(actor),
       hasWeapons:          weapons.length        > 0,
       hasManeuvers:        maneuvers.length      > 0,
       hasSpells:           spells.length         > 0,
@@ -1329,11 +1312,6 @@ export class A5eCharacterSheet extends ActorSheet {
        the character's class tables. GMs get an unlock toggle inside it. */
     el.querySelector('[data-action="manage-maneuvers"]')?.addEventListener('click', () =>
       new ManeuverDialog(this.actor).render(true)
-    );
-
-    /* Manage magic maneuvers — same freedom, same caps-from-the-table approach. */
-    el.querySelector('[data-action="manage-magic-maneuvers"]')?.addEventListener('click', () =>
-      new MagicManeuverDialog(this.actor).render(true)
     );
 
     /* Manage spells. Spell level cap follows the caster's class level; a5e has no

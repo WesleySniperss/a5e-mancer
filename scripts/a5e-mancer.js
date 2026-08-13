@@ -4,6 +4,7 @@ import { LevelUpDialog } from './app/LevelUpDialog.js';
 import { A5eCharacterSheet } from './app/A5eCharacterSheet.js';
 import { A5eNPCSheet } from './app/A5eNPCSheet.js';
 import { DocumentService, StatRoller, Beyond20Service, GrantDialogEnhancer, MagicManeuverPack } from './utils/index.js';
+import { registerMagicSchools } from './utils/maneuverService.js';
 import { iconForItem } from './data/a5eIcons.js';
 import { installCompendiumFilterFix } from './utils/compendiumIndexFix.js';
 
@@ -193,6 +194,10 @@ Hooks.once('ready', () => { installCompendiumFilterFix(); });
    roll while the compendium indexes are still being read. */
 Hooks.once('ready', () => {
   if (!game.settings.get(AM.ID, 'enable')) return;
+  // Before anything reads a tradition label. The six magic schools are traditions
+  // as far as the rest of the code is concerned, which is what makes their
+  // maneuvers behave identically to a fighter's.
+  registerMagicSchools();
   Beyond20Service.init();
   // Adds trait limits and descriptions to a5e's own grant dialog — see
   // grantDialogEnhancer.js. Registered here so it is live before any level-up.

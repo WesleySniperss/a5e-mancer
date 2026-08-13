@@ -110,7 +110,11 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
         backgroundDocs: AM.documents.background  || [],
         destinyDocs:    AM.documents.destiny     || [],
         classDocs:      AM.documents.class       || [],
-        tabs:    this._getTabs(options.parts),
+        // Every part, never `options.parts`. A partial re-render passes only the
+        // parts being redrawn, so building the nav from that list meant any
+        // render that touched `tabs` rebuilt it with a single entry and the whole
+        // left-hand menu vanished until the window was reopened.
+        tabs:    this._getTabs(Object.keys(this.constructor.PARTS)),
         players: game.users.map(u => ({ id: u.id, name: u.name, color: u.color.css }))
       };
     } catch (err) {
@@ -570,9 +574,13 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
       };
     };
 
-    context.bgGrants   = store.grants.map(withState);
-    context.bgFeatures = store.features.map(withState)
-      .filter(f => f.total > 0 || f.baseLabels.length);
+    // A block is worth showing only if it has something to pick or something to
+    // report. Without this the heading and its hint could stand over nothing at
+    // all, which reads as a section that failed to load.
+    const shows = (g) => g.options.length > 0 || g.baseLabels.length > 0;
+
+    context.bgGrants   = store.grants.map(withState).filter(shows);
+    context.bgFeatures = store.features.map(withState).filter(shows);
     context.hasBgGrants = context.bgGrants.length > 0 || context.bgFeatures.length > 0;
   }
 

@@ -16,5 +16,4 @@ export { GrantAbsorber } from './grantAbsorber.js';
 export { ItemDescPanel } from './itemDescPanel.js';
 export { LoreTableService } from './loreTableService.js';
 export { PackFilter } from './packFilter.js';
-export { MagicManeuverService } from './magicManeuverService.js';
 export { MagicManeuverPack } from './magicManeuverPack.js';

@@ -1,6 +1,6 @@
 import { AM } from '../a5e-mancer.js';
 import { PackFilter } from './packFilter.js';
-import { MagicManeuverPack } from './magicManeuverPack.js';
+import { MM_SCHOOLS, MM_CLASSES, MM_PROGRESSION } from '../data/magicManeuvers.js';
 import { iconForItem, applyItemIcon } from '../data/a5eIcons.js';
 
 /**
@@ -49,9 +49,45 @@ export const TRADITIONS = TRADITION_KEYS;
  *   maneuversKnown[lvl] — cumulative maneuvers known at that level
  *   maxDegree[lvl]      — highest maneuver degree the class can select
  */
+/**
+ * Magic maneuvers are maneuvers. The only thing that sets them apart is who may
+ * take them, so they are described the same way everything else here is: a class
+ * table whose allowed traditions are the six schools.
+ *
+ * Everything downstream — the management dialog, the level-up picker, trading one
+ * in, the description panel, the chat card — then treats them exactly like a
+ * fighter's, because they go through the same code. The previous version built a
+ * parallel set of all of that, which is why they looked and behaved differently.
+ *
+ * Built from MM_PROGRESSION, which states thresholds; the rows between a
+ * threshold and the next repeat it.
+ */
+function magicManeuverTable() {
+  const known = new Array(21).fill(0);
+  const degree = new Array(21).fill(0);
+  let schools = 0;
+
+  for (let lvl = 1; lvl <= 20; lvl++) {
+    let row = null;
+    for (const entry of MM_PROGRESSION) if (entry.level <= lvl) row = entry;
+    known[lvl]  = row?.known ?? 0;
+    degree[lvl] = row?.maxDegree ?? 0;
+    schools = Math.max(schools, row?.schools ?? 0);
+  }
+  return {
+    traditions: schools,
+    allowedTraditions: Object.keys(MM_SCHOOLS),
+    maneuversKnown: known,
+    maxDegree: degree,
+    magic: true
+  };
+}
+
 export const CLASS_MANEUVER_TABLES = {
   fighter: {
-    traditions: 2, allowedTraditions: null, // any tradition of your choice
+    // Explicit rather than null: once the schools are registered as traditions,
+    // "any tradition" would have let a fighter take magic maneuvers.
+    traditions: 2, allowedTraditions: [...TRADITION_KEYS],
     maneuversKnown: [0, 3, 4, 4, 5, 6, 7, 7, 8, 9, 10, 10, 11, 12, 13, 13, 14, 15, 16, 16, 17],
     maxDegree:      [0, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 5]
   },
@@ -91,11 +127,37 @@ export const CLASS_MANEUVER_TABLES = {
     maxDegree:      [0, 0, 1, 1, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 5]
   },
   trooper: {
-    traditions: 2, allowedTraditions: null, // any tradition of your choice
+    traditions: 2, allowedTraditions: [...TRADITION_KEYS], // any combat tradition, not the magic schools
     maneuversKnown: [0, 0, 2, 2, 3, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10],
     maxDegree:      [0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4]
   }
 };
+
+// The homebrew casters take their maneuvers from the schools, on the schools'
+// own progression. Same table shape, same code path, same everything.
+for (const cls of MM_CLASSES) CLASS_MANEUVER_TABLES[cls] = magicManeuverTable();
+
+/**
+ * Make the six schools first-class traditions.
+ *
+ * Everything in this module and in ManeuverDialog reads tradition labels from
+ * CONFIG.A5E.maneuverTraditions, so registering them there is what makes a magic
+ * maneuver render, group, sort and read exactly like a combat one. Called once
+ * on setup; the labels are the school names, already localized in the data.
+ */
+export function registerMagicSchools() {
+  CONFIG.A5E ??= {};
+  CONFIG.A5E.maneuverTraditions ??= {};
+  for (const [key, label] of Object.entries(MM_SCHOOLS)) {
+    // The config holds i18n keys elsewhere; a literal label localizes to itself
+    CONFIG.A5E.maneuverTraditions[key] ??= label;
+  }
+}
+
+/** Is this tradition key one of the magic schools? */
+export function isMagicSchool(key) {
+  return Object.hasOwn(MM_SCHOOLS, key);
+}
 
 export class ManeuverService {
 
@@ -131,9 +193,10 @@ export class ManeuverService {
         });
         for (const entry of index) {
           if (entry.type !== 'maneuver') continue;
-          // Magic maneuvers are maneuver items too, so they would otherwise show
-          // up in the combat pickers — they belong to schools, not traditions.
-          if (MagicManeuverPack.isMagicManeuver(entry)) continue;
+          // Magic maneuvers are not filtered out: their school IS their tradition,
+          // so they load, group and display through this same path. Which class
+          // may take them is decided by allowedTraditions, as for every other
+          // maneuver — that is the only difference the rules actually state.
 
           // tradition is a camelCase key in the data
           const tradition = entry.system?.tradition ?? entry.system?.combatTradition ?? '';
@@ -210,15 +273,16 @@ export class ManeuverService {
   }
 
   /**
-   * A maneuver item that belongs to the combat side of the rules.
+   * Every maneuver item on the actor, magic and combat alike.
    *
-   * Magic maneuvers are maneuver items too, so that a5e rolls them and spends
-   * their exertion. That makes the bare type check wrong everywhere the combat
-   * entitlement is concerned: left in, they would count against the maneuvers a
-   * class knows and be offered as trade-ins at level-up.
+   * These used to be told apart so magic ones would not eat the combat budget.
+   * They no longer need to be: a caster's budget comes from their own class
+   * table, and a maneuver counts against whichever class allows its tradition.
+   * Keeping them separate was what made them look and behave like a second,
+   * unrelated system.
    */
-  static isCombatManeuver(item) {
-    return item?.type === 'maneuver' && !MagicManeuverPack.isMagicManeuver(item);
+  static isManeuver(item) {
+    return item?.type === 'maneuver';
   }
 
   /**
@@ -227,7 +291,7 @@ export class ManeuverService {
   static getActorManeuvers(actor) {
     const tradConfig = CONFIG?.A5E?.maneuverTraditions ?? {};
     return actor.items
-      .filter(i => this.isCombatManeuver(i))
+      .filter(i => this.isManeuver(i))
       .map(i => {
         const tradition = i.system?.tradition ?? i.system?.combatTradition ?? '';
         const i18nKey   = tradConfig[tradition];
@@ -257,7 +321,7 @@ export class ManeuverService {
     const keys = new Set();
     if (!actor) return keys;
     for (const item of actor.items) {
-      if (!this.isCombatManeuver(item)) continue;
+      if (!this.isManeuver(item)) continue;
       const src = item._stats?.compendiumSource ?? item.flags?.core?.sourceId ?? '';
       if (src) keys.add(src);
       keys.add(item.name.toLowerCase());
@@ -300,7 +364,7 @@ export class ManeuverService {
     }
     if (!found) return null;
 
-    const knownCount      = actor.items.filter(i => this.isCombatManeuver(i)).length;
+    const knownCount      = actor.items.filter(i => this.isManeuver(i)).length;
     const knownTraditions = this.getActorTraditions(actor).length;
 
     return {

@@ -19,7 +19,7 @@ import { MAGIC_MANEUVERS, MM_SCHOOLS, MM_SCHOOL_LORE } from '../data/magicManeuv
 export class MagicManeuverPack {
 
   static PACK_NAME = 'a5e-mancer-magic-maneuvers';
-  static VERSION   = 3;          // bump to force a rebuild after data changes
+  static VERSION   = 4;          // bump to force a rebuild after data changes
   static FLAG      = 'magicManeuverPack';
 
   static get collection() { return `world.${this.PACK_NAME}`; }
@@ -85,9 +85,11 @@ export class MagicManeuverPack {
   /**
    * One maneuver as an a5e maneuver item.
    *
-   * `system.tradition` is deliberately left empty: these belong to schools, not
-   * combat traditions, and writing a tradition key would file them under a
-   * tradition the character may not even have.
+   * `system.tradition` is the school. The school IS the tradition — that is what
+   * lets these load, group, sort and display through a5e's and the module's
+   * existing maneuver code instead of a parallel copy of it. Which classes may
+   * take them is settled by CLASS_MANEUVER_TABLES.allowedTraditions, exactly as
+   * for every other maneuver.
    *
    * The action matters more than it looks. `system.exertionCost` is display only
    * — the system spends exertion through a resource consumer on an action, so
@@ -108,7 +110,7 @@ export class MagicManeuverPack {
         description:  this.#describe(m, schoolLabel),
         degree:       m.degree,
         exertionCost: m.cost,
-        tradition:    '',
+        tradition:    m.school,
         source:       'A5e Mancer — Magic Maneuvers',
         actions: {
           [actionId]: {

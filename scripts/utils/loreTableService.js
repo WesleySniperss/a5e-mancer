@@ -227,13 +227,23 @@ export class LoreTableService {
       const doc = await fromUuid(uuid);
       if (!doc) return [];
 
-      const raw = typeof doc.system?.description === 'string'
-        ? doc.system.description
-        : (doc.system?.description?.value ?? '');
+      const raw = this.#descriptionOf(doc);
 
       const inline = this.extract(raw, source);
       const linked = await this.fromRollTableLinks(raw, source, inline.length);
       let tables = [...inline, ...linked];
+
+      // A destiny's own description holds only the source of inspiration. The
+      // tables players actually fill in — Connection to Your Destiny, Path of
+      // Fulfillment — live in the feature documents it points at, so reading the
+      // destiny alone found neither of them.
+      for (const related of await this.#relatedDocs(doc)) {
+        const text = this.#descriptionOf(related);
+        if (!text) continue;
+        const own    = this.extract(text, source);
+        const linked2 = await this.fromRollTableLinks(text, source, tables.length + own.length);
+        tables = [...tables, ...own, ...linked2];
+      }
 
       if (!tables.length) tables = await this.byItemName(doc.name, source, 0);
 
@@ -253,5 +263,37 @@ export class LoreTableService {
       AM.log(2, `Could not read ${source} lore tables:`, err);
       return [];
     }
+  }
+
+  /** a5e declares description as a plain HTMLField — there is no `.value`. */
+  static #descriptionOf(doc) {
+    return typeof doc?.system?.description === 'string'
+      ? doc.system.description
+      : (doc?.system?.description?.value ?? '');
+  }
+
+  /**
+   * Documents an item points at whose text carries tables of its own.
+   *
+   * A destiny names three features by uuid rather than embedding them, and two of
+   * those hold the tables the biography is meant to be filled from. Backgrounds
+   * use `feature` the same way. Unknown or unreadable uuids are skipped rather
+   * than failing the whole load.
+   */
+  static async #relatedDocs(doc) {
+    const sys = doc?.system ?? {};
+    const uuids = [
+      sys.sourceOfInspiration, sys.inspirationFeature, sys.fulfillmentFeature,
+      sys.feature
+    ].filter(u => typeof u === 'string' && u);
+
+    const out = [];
+    for (const u of [...new Set(uuids)]) {
+      try {
+        const related = await fromUuid(u);
+        if (related) out.push(related);
+      } catch { /* skip */ }
+    }
+    return out;
   }
 }

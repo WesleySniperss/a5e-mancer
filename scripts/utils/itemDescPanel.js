@@ -36,18 +36,22 @@ export class ItemDescPanel {
     this.close();
 
     // Render immediately from what the card knows, then fill in from the document
-    const panel = this.#build({ ...seed, resources: seed.resources ?? [], description: '' });
+    const panel = this.#build({ ...seed, resources: seed.resources ?? [], description: '', loading: true });
     this.#place(panel, x, y);
     this.#el = panel;
 
     const detail = await this.#load(uuid);
     if (this.#el !== panel || !panel.isConnected) return;   // superseded/closed
 
+    // `loading: false` is the whole point of the flag. The placeholder used to be
+    // driven by "description is empty", so anything genuinely without one — most
+    // traits, plenty of features — sat on "Loading…" forever.
     const merged = {
       name: seed.name || detail.name,
       img:  seed.img  || detail.img,
       resources: [...(seed.resources ?? []), ...detail.resources],
-      description: detail.description
+      description: detail.description,
+      loading: false
     };
     const fresh = this.#build(merged);
     panel.replaceWith(fresh);
@@ -148,7 +152,7 @@ export class ItemDescPanel {
 
   /* ── markup ───────────────────────────────────────────── */
 
-  static #build({ name = '', img = '', resources = [], description = '' }) {
+  static #build({ name = '', img = '', resources = [], description = '', loading = false }) {
     const panel = document.createElement('div');
     panel.className = 'am-item-desc-panel';
 
@@ -167,7 +171,8 @@ export class ItemDescPanel {
         <button class="am-item-desc-close" type="button" aria-label="Close">✕</button>
       </div>
       <div class="am-item-desc-body">
-        ${description || `<p class="am-hint"><em>${game.i18n.localize('am.app.loading')}</em></p>`}
+        ${description || `<p class="am-hint"><em>${game.i18n.localize(
+            loading ? 'am.app.loading' : 'am.app.no-description')}</em></p>`}
       </div>`;
 
     panel.querySelector('.am-item-desc-close')

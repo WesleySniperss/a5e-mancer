@@ -121,7 +121,7 @@ export function registerSettings() {
   // than appearing in every world that installs the module.
   game.settings.register(AM.ID, 'buildMagicManeuverPack', {
     name: 'am.settings.mm-pack.name', hint: 'am.settings.mm-pack.hint',
-    scope: 'world', config: true, type: Boolean, default: false,
+    scope: 'world', config: true, type: Boolean, default: true,
     onChange: () => {
       import('./utils/magicManeuverPack.js')
         .then(({ MagicManeuverPack }) => MagicManeuverPack.ensure({ force: true }))

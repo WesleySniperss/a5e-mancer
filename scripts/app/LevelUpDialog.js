@@ -5,8 +5,6 @@ import { ManeuverService, CLASS_MANEUVER_TABLES, getTraditions } from '../utils/
 import { SpellService, CLASS_SPELL_TABLES } from '../utils/spellService.js';
 import { ItemDescPanel } from '../utils/itemDescPanel.js';
 import { GrantAbsorber } from '../utils/grantAbsorber.js';
-import { MagicManeuverService } from '../utils/magicManeuverService.js';
-import { MagicManeuvers } from '../data/magicManeuvers.js';
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -64,9 +62,6 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       luReplaceManeuver:         LevelUpDialog.luReplaceManeuver,
       luReplaceSpell:            LevelUpDialog.luReplaceSpell,
       luSelectArchetype:         LevelUpDialog.luSelectArchetype,
-      luToggleMMSchool:          LevelUpDialog.luToggleMMSchool,
-      luToggleMagicManeuver:     LevelUpDialog.luToggleMagicManeuver,
-      luReplaceMagicManeuver:    LevelUpDialog.luReplaceMagicManeuver,
     },
     classes: ['am-app', 'am-levelup-dialog'],
     position: { width: 680, height: 760 },
@@ -171,9 +166,6 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
       this.#addManeuverBrowserContext(context, maneuverInfo);
       this.#addSpellBrowserContext(context, spellInfo);
-      // Multiclassing counts too — the table is keyed on character level, and the
-      // new class may be the one that qualifies the character in the first place.
-      this.#magicManeuverContext(context, newTotalLevel, newClass?.name ?? '');
       return context;
     }
 
@@ -221,16 +213,26 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       newClass: null,
     };
 
-    this.#magicManeuverContext(context, newTotalLevel);
     this.#maneuverReplacementContext(context, selectedClass, newClassLevel);
     this.#spellReplacementContext(context, selectedClass, newClassLevel);
 
-    // A known caster may swap a spell even on a level that grants none, so the
-    // spell browser has to open whenever there is a replacement in play.
-    if (context.spellReplaceLimit && !context.spellInfo) {
+    // A caster gets the spell browser on every level-up, not only when a swap is
+    // in play. It used to open solely off spellReplaceLimit, so a wizard gaining
+    // a level had nowhere to learn anything — the one thing levelling a caster is
+    // mostly for.
+    //
+    // The count is left open rather than quota'd: a5e ships no spells-known-per-
+    // level table, and inventing one would be worse than trusting the player,
+    // which is what the sheet's Manage Spells already does.
+    if (!context.spellInfo) {
       const info = SpellService.getClassSpellInfo(selectedClass?.name ?? '');
       if (info) {
-        context.spellInfo = { ...info, spellsKnown: this._replacedSpellIds.length };
+        context.spellInfo = {
+          ...info,
+          maxLevel:    SpellService.maxSpellLevelFor?.(selectedClass?.name ?? '', newClassLevel) ?? info.maxLevel,
+          spellsKnown: -1                     // open-ended, as on the sheet
+        };
+        context.spellFreeform = !context.spellReplaceLimit;
         this.#addSpellBrowserContext(context, context.spellInfo);
       }
     }
@@ -321,10 +323,16 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
           complete:  picked.length >= g.total
         };
       };
-      context.bgGrants   = store.grants.map(withState);
-      context.bgFeatures = store.features.map(withState)
-        .filter(f => f.total > 0 || f.baseLabels.length);
+      // Same rule as the builder: only blocks with something to pick or to
+      // report, so the heading never stands over an empty section.
+      const shows = (g) => g.options.length > 0 || g.baseLabels.length > 0;
+
+      context.bgGrants   = store.grants.map(withState).filter(shows);
+      context.bgFeatures = store.features.map(withState).filter(shows);
       context.hasBgGrants = context.bgGrants.length > 0 || context.bgFeatures.length > 0;
+      // Whether a5e will open its window at all — not the same question as
+      // whether this level happens to offer a choice.
+      context.grantsAbsorbed = true;
       // Whether a5e will open its window at all — which is not the same question
       // as whether this level happens to offer a choice.
       context.grantsAbsorbed = true;
@@ -412,77 +420,6 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /**
-   * Magic maneuvers owed at the new character level.
-   *
-   * The owed counts are entitlement minus what is held, not the difference
-   * between two levels, so a character who missed a threshold is offered the
-   * backlog rather than losing it.
-   */
-  #magicManeuverContext(context, _unusedTotalLevel, incomingClass = '') {
-    if (!MagicManeuverService.isEligible(this.actor, incomingClass)) return;
-
-    // Read the table at the maneuver level — the sum of levels in classes that
-    // grant them — not the character level. Taking a level in one of those
-    // classes advances it by one; taking a fighter level does not.
-    const gainsLevel = incomingClass
-      ? MagicManeuvers.isEligibleClass(incomingClass)
-      : MagicManeuvers.isEligibleClass(context.selectedClass?.name ?? '');
-
-    const level = MagicManeuverService.maneuverLevel(this.actor) + (gainsLevel ? 1 : 0);
-    const pending = MagicManeuverService.pendingAt(this.actor, level);
-    if (!pending.schoolsOwed && !pending.maneuversOwed) return;
-
-    // Schools first: a maneuver cannot be learned until its school is open, so
-    // the picks made here feed the list below within the same dialog.
-    const chosenSchools = this._mmSchools ?? [];
-    const chosenIds     = this._mmManeuvers ?? [];
-    const replaced      = this._mmReplaced ?? [];
-
-    // Each maneuver traded in frees a pick, exactly as with combat maneuvers —
-    // which is what makes a level that grants none still worth opening.
-    context.mmSchoolsOwed   = Math.max(0, pending.schoolsOwed - chosenSchools.length);
-    context.mmManeuversOwed = Math.max(0, pending.maneuversOwed + replaced.length - chosenIds.length);
-    context.mmMaxDegree     = pending.maxDegree;
-    context.mmExertion      = MagicManeuverService.exertionPool(this.actor);
-    context.mmSaveDC        = MagicManeuverService.saveDC(this.actor);
-
-    context.mmSchools = MagicManeuverService.schoolOptions(this.actor, level)
-      .map(s => ({
-        ...s,
-        open:      s.open || chosenSchools.includes(s.key),
-        chosen:    chosenSchools.includes(s.key),
-        available: s.available && context.mmSchoolsOwed > 0 && !chosenSchools.includes(s.key)
-      }));
-
-    context.mmGroups = MagicManeuverService
-      .maneuverOptions(this.actor, level, chosenIds)
-      .map(g => ({
-        ...g,
-        open: g.open || chosenSchools.includes(g.key),
-        maneuvers: g.maneuvers.map(m => ({
-          ...m,
-          // Schools opened a moment ago count immediately
-          canLearn: m.canLearn
-            || (m.reason === 'school-not-open' && chosenSchools.includes(m.school)
-                && m.degree <= pending.maxDegree && context.mmManeuversOwed > 0)
-        }))
-      }))
-      .filter(g => g.open);
-
-    // Trading one in, offered once the character actually knows something
-    const replaceLimit = MagicManeuverService.replacementsPerLevel(pending.level);
-    if (replaceLimit && pending.knownIds.length) {
-      context.mmReplaceLimit = replaceLimit;
-      context.mmReplaceUsed  = replaced.length;
-      context.mmKnownList = MagicManeuverService.known(this.actor).map(m => ({
-        ...m, replaced: replaced.includes(m.id)
-      }));
-    }
-
-    context.hasMagicManeuvers = true;
-  }
-
-  /**
    * Known maneuvers offered for replacement, plus how many may still be swapped.
    * a5e allows one per class level gained.
    */
@@ -560,9 +497,6 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     this._levelChoices      = {};
     this._archetypeUuid     = null;
     this._archetypeSkipped  = false;
-    this._mmSchools         = [];
-    this._mmManeuvers       = [];
-    this._mmReplaced        = [];
     AM.levelUpGrants        = null;
   }
 
@@ -976,90 +910,6 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /**
-   * Trade in a known magic maneuver. Same shape as the combat-maneuver swap:
-   * marking one frees a pick above, unmarking hands it back and drops the newest
-   * selection if it had already been spent.
-   */
-  static luReplaceMagicManeuver(_event, btn) {
-    const dialog = AM.levelUpDialog;
-    const id = btn?.dataset.maneuverId;
-    if (!dialog || !id) return;
-
-    dialog._mmReplaced ??= [];
-    const at = dialog._mmReplaced.indexOf(id);
-
-    if (at >= 0) {
-      dialog._mmReplaced.splice(at, 1);
-      const level   = MagicManeuverService.maneuverLevel(dialog.actor) + 1;
-      const pending = MagicManeuverService.pendingAt(dialog.actor, level);
-      const budget  = pending.maneuversOwed + dialog._mmReplaced.length;
-      while ((dialog._mmManeuvers?.length ?? 0) > budget) dialog._mmManeuvers.pop();
-    } else {
-      const level = MagicManeuverService.maneuverLevel(dialog.actor) + 1;
-      const limit = MagicManeuverService.replacementsPerLevel(level);
-      if (dialog._mmReplaced.length >= limit) {
-        ui.notifications.warn(game.i18n.format('am.levelup.replace-limit', { n: limit }));
-        return;
-      }
-      dialog._mmReplaced.push(id);
-    }
-    dialog.render(false);
-  }
-
-  /** Open a school with one of this level's school slots. */
-  static luToggleMMSchool(_event, btn) {
-    const dialog = AM.levelUpDialog;
-    const key = btn?.dataset.school;
-    if (!dialog || !key) return;
-
-    dialog._mmSchools ??= [];
-    const at = dialog._mmSchools.indexOf(key);
-    if (at >= 0) {
-      dialog._mmSchools.splice(at, 1);
-      // Maneuvers picked from that school are no longer legal
-      const gone = new Set(MagicManeuvers.bySchool(key).map(m => m.id));
-      dialog._mmManeuvers = (dialog._mmManeuvers ?? []).filter(id => !gone.has(id));
-    } else {
-      dialog._mmSchools.push(key);
-    }
-    dialog.render(false);
-  }
-
-  /** Learn one of this level's maneuvers. */
-  static luToggleMagicManeuver(_event, btn) {
-    const dialog = AM.levelUpDialog;
-    const id = btn?.dataset.maneuverId;
-    if (!dialog || !id) return;
-
-    dialog._mmManeuvers ??= [];
-    const at = dialog._mmManeuvers.indexOf(id);
-    if (at >= 0) {
-      dialog._mmManeuvers.splice(at, 1);
-      dialog.render(false);
-      return;
-    }
-
-    // Re-check against the rules rather than trusting the rendered button
-    const level = LevelUpService.getTotalLevel(dialog.actor) + 1;
-    const pending = MagicManeuverService.pendingAt(dialog.actor, level);
-    if (dialog._mmManeuvers.length >= pending.maneuversOwed) {
-      ui.notifications.warn(game.i18n.format('am.mm.no-slots', { n: pending.maneuversOwed }));
-      return;
-    }
-    const check = MagicManeuvers.canLearn(MagicManeuvers.byId(id), {
-      level,
-      openSchools: [...pending.openSchools, ...(dialog._mmSchools ?? [])],
-      knownIds:    [...pending.knownIds, ...dialog._mmManeuvers]
-    });
-    if (!check.ok) {
-      ui.notifications.warn(game.i18n.localize(`am.mm.reason.${check.reason}`));
-      return;
-    }
-    dialog._mmManeuvers.push(id);
-    dialog.render(false);
-  }
-
-  /**
    * The archetype's own grants, as picker models.
    *
    * Ids are prefixed so they cannot collide with the class's grant ids — both
@@ -1234,13 +1084,6 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
           dialog.actor, [...dialog._selectedCantripUuids, ...dialog._selectedSpellUuids]
         );
       }
-      if (dialog._mmSchools?.length || dialog._mmManeuvers?.length || dialog._mmReplaced?.length) {
-        await MagicManeuverService.apply(dialog.actor, {
-          schools:   dialog._mmSchools ?? [],
-          maneuvers: dialog._mmManeuvers ?? [],
-          replaced:  dialog._mmReplaced ?? []
-        });
-      }
       return;
     }
 
@@ -1282,14 +1125,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       );
     }
 
-    // Magic maneuvers. Applied after the level so the entitlement is read at the
-    // new level; the service validates the picks again rather than trusting them.
-    if (dialog._mmSchools?.length || dialog._mmManeuvers?.length || dialog._mmReplaced?.length) {
-      await MagicManeuverService.apply(dialog.actor, {
-        schools:   dialog._mmSchools ?? [],
-        maneuvers: dialog._mmManeuvers ?? [],
-        replaced:  dialog._mmReplaced ?? []
-      });
-    }
+    // Magic maneuvers need nothing here: their school is a tradition, so they go
+    // through the maneuver path above like every other maneuver.
   }
 }

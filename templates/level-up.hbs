@@ -404,101 +404,6 @@
   </section>
   {{/unless}}
 
-  {{!-- Magic maneuvers. Schools first, since a maneuver cannot be learned until
-        its school is open, and a school opened here counts immediately. --}}
-  {{#if hasMagicManeuvers}}
-  <hr />
-  <section class="lu-section">
-    <h3><i class="fa-solid fa-wand-sparkles"></i> {{localize 'am.mm.title'}}</h3>
-    <p class="am-hint">
-      {{localize 'am.mm.resources' pool=mmExertion dc=mmSaveDC degree=mmMaxDegree}}
-    </p>
-
-    {{#if mmSchoolsOwed}}
-      <div class="am-grant-block">
-        <div class="am-grant-head">
-          <span class="am-grant-label">{{localize 'am.mm.open-school'}}</span>
-          <span class="am-counter-badge am-badge-pending">{{mmSchoolsOwed}}</span>
-        </div>
-        <div class="am-filter-pills">
-          {{#each mmSchools}}
-            <button type="button"
-                    class="am-filter-pill {{#if this.chosen}}am-pill-active{{/if}} {{#if this.open}}am-pill-used{{/if}}"
-                    data-action="luToggleMMSchool"
-                    data-school="{{this.key}}"
-                    data-tooltip="{{this.lore}}"
-                    {{#unless this.available}}{{#unless this.chosen}}disabled{{/unless}}{{/unless}}>
-              {{this.label}} <small>({{this.count}})</small>
-              {{#if this.open}}<i class="fa-solid fa-check am-pill-check"></i>{{/if}}
-            </button>
-          {{/each}}
-        </div>
-      </div>
-    {{/if}}
-
-    {{#if mmGroups.length}}
-      <div class="am-grant-block">
-        <div class="am-grant-head">
-          <span class="am-grant-label">{{localize 'am.mm.learn'}}</span>
-          <span class="am-counter-badge {{#if mmManeuversOwed}}am-badge-pending{{else}}am-badge-success{{/if}}">
-            {{mmManeuversOwed}}
-          </span>
-        </div>
-
-        {{#each mmGroups}}
-          <div class="am-mm-school">
-            <div class="am-mm-school-name">{{this.label}}</div>
-            <div class="am-mm-list">
-              {{#each this.maneuvers}}
-                <button type="button"
-                        class="am-mm-row {{#if this.chosen}}am-mm-chosen{{/if}} {{#if this.owned}}am-mm-owned{{/if}}"
-                        data-action="luToggleMagicManeuver"
-                        data-maneuver-id="{{this.id}}"
-                        data-tooltip="{{this.effect}}"
-                        {{#if this.owned}}disabled{{/if}}>
-                  <span class="am-mm-degree">{{this.degree}}°</span>
-                  <span class="am-mm-name">{{this.name}}</span>
-                  <span class="am-ex-cost"><i class="fa-solid fa-bolt"></i>{{this.cost}}</span>
-                  {{#if this.owned}}<i class="fa-solid fa-check am-mm-check"></i>{{/if}}
-                </button>
-              {{/each}}
-            </div>
-          </div>
-        {{/each}}
-      </div>
-    {{else}}
-      <p class="am-hint">{{localize 'am.mm.open-a-school-first'}}</p>
-    {{/if}}
-
-    {{!-- Trading one in, the same way combat maneuvers work: each marked entry
-          frees a pick above. --}}
-    {{#if mmKnownList}}
-      <div class="am-grant-block">
-        <div class="am-grant-head">
-          <span class="am-grant-label">{{localize 'am.mm.replace'}}</span>
-          <span class="am-counter-badge am-badge-info">
-            {{mmReplaceUsed}}/{{mmReplaceLimit}}
-          </span>
-        </div>
-        <p class="am-hint">{{localize 'am.levelup.replace-hint' n=mmReplaceLimit}}</p>
-        <div class="am-replace-list">
-          {{#each mmKnownList}}
-            <button type="button"
-                    class="am-replace-row {{#if this.replaced}}am-replace-marked{{/if}}"
-                    data-action="luReplaceMagicManeuver"
-                    data-maneuver-id="{{this.id}}"
-                    data-tooltip="{{this.effect}}">
-              <span class="am-mm-degree">{{this.degree}}°</span>
-              <span class="am-replace-name">{{this.name}}</span>
-              <span class="am-hint">{{this.schoolLabel}}</span>
-              <i class="fa-solid {{#if this.replaced}}fa-rotate-left{{else}}fa-xmark{{/if}}"></i>
-            </button>
-          {{/each}}
-        </div>
-      </div>
-    {{/if}}
-  </section>
-  {{/if}}
 
   {{!-- Archetype, at the level the class allows it. a5e asked for this at the end
         of its grant routine; that routine is suppressed, so it is asked here. --}}
@@ -599,8 +504,9 @@
         the heads-up note below when the builder cannot account for all of them. --}}
   {{#if hasBgGrants}}
   <hr />
+  {{!-- The partial prints the heading itself; adding one here showed "Benefits"
+        twice, one directly above the other. --}}
   <section class="lu-section">
-    <h3><i class="fa-solid fa-award"></i> {{localize 'am.grants.item-title'}}</h3>
     {{> am-item-grants}}
   </section>
   {{/if}}

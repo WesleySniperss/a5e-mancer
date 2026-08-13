@@ -119,6 +119,29 @@ export class SpellService {
    * Prepared casters (wizard, cleric, druid, herald, artificer) rearrange their
    * prepared list freely instead, so they get none.
    */
+  /**
+   * Highest spell level a caster of this class level can take.
+   *
+   * Full casters gain a level of spells every other class level; a5e keeps the
+   * standard 5e progression, so this is the familiar ceil(level / 2) capped at 9.
+   * Half casters (herald, artificer) come online at 2nd and climb half as fast.
+   * Returns 0 for a class that casts nothing, so callers can tell "no spells" from
+   * "cantrips only".
+   */
+  static maxSpellLevelFor(className, classLevel) {
+    const key  = String(className ?? '').toLowerCase();
+    const info = CLASS_SPELL_TABLES[key];
+    if (!info) return 0;
+
+    const lvl = Math.max(1, Math.min(20, Number(classLevel) || 1));
+    const half = key === 'herald' || key === 'artificer';
+    // Half casters: 1st-level spells at 2nd, then one more at 5th, 9th, 13th, 17th
+    const slotLevel = half
+      ? (lvl < 2 ? 0 : Math.floor((lvl + 3) / 4))
+      : Math.ceil(lvl / 2);
+    return Math.max(0, Math.min(9, slotLevel));
+  }
+
   static replaceableOnLevelUp(className) {
     const info = this.getClassSpellInfo(className);
     return info?.type === 'known' ? 1 : 0;

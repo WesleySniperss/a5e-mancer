@@ -398,45 +398,6 @@
         {{!-- ▸ MARTIAL ───────────────────────────────────────────────── --}}
         <section class="tab" data-tab="martial" data-group="primary">
 
-          {{!-- Magic maneuvers: applied to your own spell as you cast it, paid
-                from the same exertion pool as the combat maneuvers below. --}}
-          {{#if canHaveMagicManeuvers}}
-            <div class="am-cs-mm-header">
-              <span class="am-cs-mm-title">
-                <i class="fa-solid fa-wand-sparkles"></i> {{localize 'am.mm.sheet-title'}}
-              </span>
-              {{#if magicManeuverInfo}}
-                <span class="am-cs-muted">
-                  DC {{magicManeuverInfo.dc}} · <i class="fa-solid fa-bolt"></i> {{magicManeuverInfo.exertion}}
-                </span>
-              {{/if}}
-              {{!-- Same freedom the combat maneuvers below have: revise any time --}}
-              <button type="button" class="am-cs-manage-btn" data-action="manage-magic-maneuvers">
-                <i class="fa-solid fa-plus"></i> {{localize 'am.mm.manage'}}
-              </button>
-            </div>
-            {{#unless magicManeuvers.length}}
-              <p class="am-hint am-cs-mm-empty">{{localize 'am.mm.none-yet'}}</p>
-            {{/unless}}
-            <div class="am-cs-mm-list">
-              {{#each magicManeuvers}}
-                <div class="am-cs-mm-row" data-tooltip="{{this.effect}}" data-item-id="{{this.itemId}}">
-                  <span class="am-mm-degree">{{this.degree}}°</span>
-                  <span class="am-mm-name">{{this.name}}</span>
-                  <span class="am-cs-muted am-cs-mm-school">{{this.schoolLabel}}</span>
-                  <span class="am-ex-cost"><i class="fa-solid fa-bolt"></i>{{this.cost}}</span>
-                  {{#if this.itemId}}
-                    {{!-- The item spends the exertion; the effect is applied at the table --}}
-                    <button type="button" class="am-cs-mm-use" data-action="item-use"
-                      data-id="{{this.itemId}}" data-tooltip="{{localize 'am.mm.use'}}">
-                      <i class="fa-solid fa-bolt-lightning"></i>
-                    </button>
-                  {{/if}}
-                </div>
-              {{/each}}
-            </div>
-          {{/if}}
-
           {{#if hasManeuvers}}
             {{!-- Exertion pool + manage button --}}
             <div class="am-cs-martial-header">
