@@ -486,8 +486,9 @@
 
         <div class="am-feat-list" role="list">
           {{#each feats}}
+            {{!-- Right-click for the full text, as on every other card here --}}
             <div class="am-feat-entry {{#if this.selected}}am-feat-selected{{/if}} {{#unless this.met}}am-feat-unmet{{/unless}}"
-                 role="listitem">
+                 role="listitem" data-uuid="{{this.uuid}}" data-name="{{this.name}}">
               <div class="am-feat-row">
                 <button type="button" class="am-feat-pick"
                   data-action="luSelectFeat" data-uuid="{{this.uuid}}" data-name="{{this.name}}">
@@ -501,18 +502,7 @@
                     {{this.preText}}
                   </span>
                 {{/if}}
-                <button type="button" class="am-feature-info"
-                  data-action="toggleGrantDesc" data-key="{{this.uuid}}"
-                  data-tooltip="{{localize 'am.grants.what-it-does'}}">
-                  <i class="fa-solid fa-circle-info"></i>
-                </button>
               </div>
-              {{#if this.expanded}}
-                <div class="am-feature-desc am-description-panel">
-                  {{#if this.desc}}{{{this.desc}}}
-                  {{else}}<p class="am-hint">{{localize 'am.app.no-description'}}</p>{{/if}}
-                </div>
-              {{/if}}
             </div>
           {{else}}
             <p class="am-hint">{{localize 'am.asi.feat-none'}}</p>

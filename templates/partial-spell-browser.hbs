@@ -6,17 +6,26 @@
     <h3><i class="fa-solid fa-sparkles"></i> {{localize 'am.levelup.spells-title'}}</h3>
     <p class="am-hint">{{localize 'am.levelup.spells-hint'}}</p>
 
+    {{!-- A count of -1 means "open-ended": the level-up cannot know how many are
+          owed, because a5e ships no spells-known-per-level table. Showing a
+          quota there would promise a limit the click does not enforce. --}}
     <div class="am-selection-header">
-      {{#if spellInfo.cantrips}}
+      {{#if (gt spellInfo.cantrips 0)}}
         <div class="am-counter-badge {{#if (gte selectedCantripCount spellInfo.cantrips)}}am-badge-success{{else}}am-badge-pending{{/if}}">
           <i class="fa-solid fa-sparkles"></i>
           {{localize 'am.app.spells.cantrips'}}: {{selectedCantripCount}}/{{spellInfo.cantrips}}
         </div>
       {{/if}}
-      {{#if (eq spellInfo.type 'known')}}
+      {{#if (and (eq spellInfo.type 'known') (gt spellInfo.spellsKnown 0))}}
         <div class="am-counter-badge {{#if (gte selectedSpellCount spellInfo.spellsKnown)}}am-badge-success{{else}}am-badge-pending{{/if}}">
           <i class="fa-solid fa-book-sparkles"></i>
           {{localize 'am.app.spells.spells-label'}}: {{selectedSpellCount}}/{{spellInfo.spellsKnown}}
+        </div>
+      {{/if}}
+      {{#if (lt spellInfo.spellsKnown 0)}}
+        <div class="am-counter-badge am-badge-success">
+          <i class="fa-solid fa-book-sparkles"></i>
+          {{localize 'am.levelup.spells-picked' n=selectedSpellCount}}
         </div>
       {{/if}}
     </div>

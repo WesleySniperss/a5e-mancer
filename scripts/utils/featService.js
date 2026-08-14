@@ -73,33 +73,6 @@ export class FeatService {
         && (entryOrItem.system?.featureType ?? '') === 'feat';
   }
 
-  /**
-   * A feat's own text, fetched on demand.
-   *
-   * Not loaded with the list: 700-odd descriptions is a great deal of HTML to
-   * enrich for a panel showing forty at a time, and most are never opened.
-   */
-  static #descCache = new Map();
-
-  static async describe(uuid) {
-    if (this.#descCache.has(uuid)) return this.#descCache.get(uuid);
-    let html = '';
-    try {
-      const doc = await fromUuid(uuid);
-      const raw = typeof doc?.system?.description === 'string'
-        ? doc.system.description
-        : (doc?.system?.description?.value ?? '');
-      if (raw) {
-        const TE = foundry.applications?.ux?.TextEditor?.implementation ?? TextEditor;
-        html = await TE.enrichHTML(raw, { async: true, relativeTo: doc });
-      }
-    } catch (err) {
-      AM.log(2, `Could not read the description of ${uuid}:`, err);
-    }
-    this.#descCache.set(uuid, html);
-    return html;
-  }
-
   /* ── prerequisites ────────────────────────────────────── */
 
   /**

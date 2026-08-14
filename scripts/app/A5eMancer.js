@@ -28,7 +28,6 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
       rollAbilityPool:        A5eMancer.rollAbilityPool,
       clearAbilityPool:       A5eMancer.clearAbilityPool,
       toggleGrantOption:      A5eMancer.toggleGrantOption,
-      toggleGrantDesc:        A5eMancer.toggleGrantDesc,
       setCastingAbility:      A5eMancer.setCastingAbility,
       rollWealth:             A5eMancer.rollWealth,
       selectCharacterArt:     CharacterArtPicker.selectCharacterArt,
@@ -413,7 +412,7 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
       this.#detachDescPanel?.();
       this.#detachDescPanel = ItemDescPanel.attach(
         this.element,
-        '.am-card[data-uuid], .am-grant-feature-pill[data-uuid]'
+        '.am-card[data-uuid], .am-feature-row[data-uuid]'
       );
     } finally {
       this.#isRendering = false;
@@ -493,15 +492,6 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!store?.absorb || !btn.dataset.ability) return;
     store.spellcastingAbility = btn.dataset.ability;
     await AM.app?.render(false, { parts: ['class'] });
-  }
-
-  /** Show or hide what a granted feature actually does. */
-  static async toggleGrantDesc(_event, btn) {
-    const key = btn.dataset.key;
-    if (!key) return;
-    if (AM.expandedGrantDescs.has(key)) AM.expandedGrantDescs.delete(key);
-    else AM.expandedGrantDescs.add(key);
-    await AM.app?.render(false, { parts: [AM.app.tabGroups['a5e-mancer-tabs']] });
   }
 
   static async toggleGrantOption(_event, btn) {
@@ -615,18 +605,14 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     const store = AM.itemGrants?.[type];
     if (!context.selectedItem || !store?.absorb) return;
 
-    AM.expandedGrantDescs ??= new Set();
-    const expanded = AM.expandedGrantDescs;
-
     const withState = (g) => {
       const picked = store.choices[g.id] ?? [];
       return {
         ...g,
         grantType: type,
         options:   (g.options ?? []).map(o => ({
-          ...o, selected: picked.includes(o.key), expanded: expanded.has(o.key)
+          ...o, selected: picked.includes(o.key)
         })),
-        baseEntries: (g.baseEntries ?? []).map(e => ({ ...e, expanded: expanded.has(e.key) })),
         chosen:    picked.length,
         complete:  picked.length >= g.total
       };

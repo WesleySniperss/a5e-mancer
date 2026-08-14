@@ -59,7 +59,6 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       luFilterSpellSchool:       LevelUpDialog.luFilterSpellSchool,
       luToggleSpell:             LevelUpDialog.luToggleSpell,
       toggleGrantOption:         LevelUpDialog.luToggleGrantOption,
-      toggleGrantDesc:           LevelUpDialog.luToggleGrantDesc,
       luToggleReplace:           LevelUpDialog.luToggleReplace,
       luReplaceManeuver:         LevelUpDialog.luReplaceManeuver,
       luReplaceSpell:            LevelUpDialog.luReplaceSpell,
@@ -245,7 +244,10 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         context.spellInfo = {
           ...info,
           maxLevel:    SpellService.maxSpellLevelFor?.(selectedClass?.name ?? '', newClassLevel) ?? info.maxLevel,
-          spellsKnown: -1                     // open-ended, as on the sheet
+          // Open-ended, as on the sheet — and it must match what luToggleSpell
+          // enforces, or the counter would promise what the click refuses.
+          spellsKnown: -1,
+          cantrips:    -1
         };
         context.spellFreeform = !context.spellReplaceLimit;
         this.#addSpellBrowserContext(context, context.spellInfo);
@@ -331,18 +333,14 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       AM.levelUpGrants = store;
       this._levelChoices = store.choices;
 
-      AM.expandedGrantDescs ??= new Set();
-      const expanded = AM.expandedGrantDescs;
-
       const withState = (g) => {
         const picked = store.choices[g.id] ?? [];
         return {
           ...g,
           grantType: 'levelup',
           options:   (g.options ?? []).map(o => ({
-            ...o, selected: picked.includes(o.key), expanded: expanded.has(o.key)
+            ...o, selected: picked.includes(o.key)
           })),
-          baseEntries: (g.baseEntries ?? []).map(e => ({ ...e, expanded: expanded.has(e.key) })),
           chosen:    picked.length,
           complete:  picked.length >= g.total
         };
@@ -643,7 +641,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     this._detachDescPanel?.();
     this._detachDescPanel = ItemDescPanel.attach(
       this.element,
-      '.am-card[data-uuid], .am-maneuver-card[data-uuid], .am-spell-card[data-uuid], .am-feat-row[data-uuid]'
+      '.am-card[data-uuid], .am-maneuver-card[data-uuid], .am-spell-card[data-uuid], .am-feat-entry[data-uuid], .am-feature-row[data-uuid]'
     );
 
     /* ── Feat search ── */
@@ -851,6 +849,23 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     dialog.render(false);
   }
 
+  /**
+   * The spell allowance in force, whichever mode the dialog is in.
+   *
+   * Multiclass reads the class being taken; a level-up reads the class being
+   * levelled, with an open-ended count because a5e has no spells-known table.
+   */
+  static #spellInfoFor(dialog) {
+    if (dialog._mode === 'multiclass') {
+      const cls = (dialog._compendiumClasses ?? []).find(c => c.uuid === dialog._newClassUuid);
+      return cls ? (CLASS_SPELL_TABLES[cls.name.toLowerCase()] ?? null) : null;
+    }
+    const classes = LevelUpService.getActorClasses(dialog.actor);
+    const cls = classes.find(c => c.id === dialog._selectedClassId) ?? classes[0];
+    const info = cls ? SpellService.getClassSpellInfo(cls.name) : null;
+    return info ? { ...info, spellsKnown: -1, cantrips: -1 } : null;
+  }
+
   static luToggleSpell(_event, btn) {
     const dialog = AM.levelUpDialog;
     if (!dialog) return;
@@ -859,9 +874,12 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     const level = parseInt(btn.dataset.level ?? '0');
     if (!uuid) return;
 
-    const newClass = (dialog._compendiumClasses ?? []).find(c => c.uuid === dialog._newClassUuid);
-    if (!newClass) return;
-    const spellInfo = CLASS_SPELL_TABLES[newClass.name.toLowerCase()];
+    // This was written when the spell browser existed only in multiclass mode:
+    // it looked up the class being multiclassed INTO and returned if there was
+    // none. In level-up mode there never is, so every click on a spell was
+    // dropped on the first line — the card highlighted on hover and then did
+    // nothing.
+    const spellInfo = LevelUpDialog.#spellInfoFor(dialog);
     if (!spellInfo) return;
 
     const isCantrip = level === 0;
@@ -873,8 +891,11 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       if (idx >= 0) {
         cantrips.splice(idx, 1);
       } else {
-        if (cantrips.length >= (spellInfo.cantrips ?? 0)) {
-          ui.notifications.warn(game.i18n.format('am.spells.cantrips-full', { n: spellInfo.cantrips }));
+        // Same open-ended rule as spells: -1 means the level-up does not know
+        // how many are owed, so it does not stand in the way.
+        const cap = spellInfo.cantrips ?? 0;
+        if (cap >= 0 && cantrips.length >= cap) {
+          ui.notifications.warn(game.i18n.format('am.spells.cantrips-full', { n: cap }));
           return;
         }
         cantrips.push(uuid);
@@ -884,8 +905,12 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       if (idx >= 0) {
         spells.splice(idx, 1);
       } else {
-        if (spellInfo.type === 'known' && spells.length >= (spellInfo.spellsKnown ?? 0)) {
-          ui.notifications.warn(game.i18n.format('am.spells.spells-full', { n: spellInfo.spellsKnown }));
+        // spellsKnown -1 means open-ended, which is what a level-up uses: a5e
+        // ships no spells-known-per-level table. Comparing against it directly
+        // would refuse the very first pick.
+        const cap = spellInfo.spellsKnown ?? 0;
+        if (spellInfo.type === 'known' && cap >= 0 && spells.length >= cap) {
+          ui.notifications.warn(game.i18n.format('am.spells.spells-full', { n: cap }));
           return;
         }
         spells.push(uuid);
@@ -1022,13 +1047,10 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       context.featHasPrev      = page > 0;
       context.featHasNext      = page < pages - 1;
 
+      // Descriptions are not loaded here: the shared panel fetches on right-click,
+      // which is the gesture used everywhere else and costs nothing until asked.
       const slice = feats.slice(page * PAGE, page * PAGE + PAGE);
-      context.feats = await Promise.all(slice.map(async f => ({
-        ...f,
-        selected: f.uuid === store.featUuid,
-        expanded: AM.expandedGrantDescs.has(f.uuid),
-        desc:     AM.expandedGrantDescs.has(f.uuid) ? await FeatService.describe(f.uuid) : ''
-      })));
+      context.feats = slice.map(f => ({ ...f, selected: f.uuid === store.featUuid }));
       context.featChosen = feats.find(f => f.uuid === store.featUuid) ?? null;
     } catch (err) {
       AM.log(1, 'Could not load feats:', err);
@@ -1130,15 +1152,6 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     if (btn.dataset.what === 'spell') dialog._showReplaceSpell = !dialog._showReplaceSpell;
     else                              dialog._showReplaceManeuver = !dialog._showReplaceManeuver;
     dialog.render(false);
-  }
-
-  /** Show or hide what a feature this level grants actually does. */
-  static luToggleGrantDesc(_event, btn) {
-    const key = btn.dataset.key;
-    if (!key) return;
-    if (AM.expandedGrantDescs.has(key)) AM.expandedGrantDescs.delete(key);
-    else AM.expandedGrantDescs.add(key);
-    AM.levelUpDialog?.render(false);
   }
 
   /** Pick or unpick one option of this level's grants. */

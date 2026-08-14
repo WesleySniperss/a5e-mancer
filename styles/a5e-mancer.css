@@ -5423,10 +5423,6 @@ input.am-cs-stat-val {
 .am-feat-pre { margin-left: auto; font-size: 0.68rem; opacity: 0.75; text-align: right; }
 .am-feat-pre-fail { color: #c98080; }
 
-/* Feature grant options carry a description; the icon says so without a tooltip */
-.am-pill-info { margin-left: 0.3rem; opacity: 0.5; font-size: 0.75em; }
-.am-grant-feature-pill:hover .am-pill-info { opacity: 1; }
-.am-grant-desc-hint { margin: 0.1rem 0 0.3rem; font-size: 0.7rem; opacity: 0.7; }
 
 /* ── Granted features, with the text that says what they do ──────────────
    Named one per row rather than as a comma list: these are what the player is
@@ -5446,11 +5442,6 @@ input.am-cs-stat-val {
 .am-feature-name { flex: 1 1 auto; min-width: 0; }
 .am-feature-tick { color: #4a9a4a; flex: 0 0 auto; }
 .am-feature-granted .am-feature-name { flex: 1 1 auto; font-size: 0.82rem; }
-.am-feature-info {
-  flex: 0 0 auto; background: none; border: none; cursor: pointer;
-  color: inherit; opacity: 0.55; padding: 0 0.2rem;
-}
-.am-feature-info:hover { opacity: 1; }
 .am-feature-desc {
   margin: 0.25rem 0 0.15rem; padding: 0.35rem 0.5rem;
   font-size: 0.78rem; max-height: 16rem; overflow-y: auto;

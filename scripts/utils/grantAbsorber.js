@@ -35,7 +35,7 @@ export class GrantAbsorber {
     const out = [];
     for (const [id, grant] of prepared) {
       if (grant?.grantType === 'feature') continue;  // described separately
-      if (!this.#isSupported(grant, lv)) continue;
+      if (!this.#isSupported(grant, lv, doc?.type)) continue;
       if (!this.#needsConfig(grant)) continue;       // applied without asking
 
       const spec    = this.#specOf(grant);
@@ -89,10 +89,17 @@ export class GrantAbsorber {
    *   – combat tradition traits → the Maneuvers tab claims one as you pick from it
    * See ActorCreationService#stripBuilderOwnedGrants, which must stay in step.
    */
-  static #isOwnedElsewhere(grant) {
-    if (grant?.grantType === 'item') return true;
+  static #isOwnedElsewhere(grant, ownerType = '') {
+    // The Equipment tab covers the starting gear a class and a background hand
+    // out — and nothing else. Stripping every item grant meant the four heritage
+    // features that grant an item lost it silently: removed here, and offered
+    // nowhere, because no tab claims them.
+    if (grant?.grantType === 'item') return ownerType === 'class' || ownerType === 'background';
+
+    // Likewise the Maneuvers tab claims a tradition only from the class table.
     return grant?.grantType === 'trait'
-        && grant.traits?.traitType === 'maneuverTraditions';
+        && grant.traits?.traitType === 'maneuverTraditions'
+        && ownerType === 'class';
   }
 
   /**
@@ -130,9 +137,9 @@ export class GrantAbsorber {
    * getApplyData writes it straight out, exactly as a5e does when it decides its
    * dialog is unnecessary — or asks something we can list as options.
    */
-  static #isSupported(grant, lv = {}) {
+  static #isSupported(grant, lv = {}, ownerType = '') {
     if (!grant?.grantType) return false;
-    if (this.#isOwnedElsewhere(grant)) return false;
+    if (this.#isOwnedElsewhere(grant, ownerType)) return false;
     if (!this.#appliesAtLevel(grant, lv)) return false;
     if (!this.#needsConfig(grant)) return true;
     return !!this.#specOf(grant)?.options.length;
@@ -236,23 +243,6 @@ export class GrantAbsorber {
     if (raw && typeof raw === 'object' && raw.label) return game.i18n.localize(raw.label);
     // Fall back to a readable form of the key
     return String(key).replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
-  }
-
-  /**
-   * A document's description, enriched so @UUID links and embeds resolve.
-   * a5e declares description as a plain HTMLField — there is no `.value`.
-   */
-  static async #enrich(doc) {
-    const raw = typeof doc?.system?.description === 'string'
-      ? doc.system.description
-      : (doc?.system?.description?.value ?? '');
-    if (!raw) return '';
-    try {
-      const TE = foundry.applications?.ux?.TextEditor?.implementation ?? TextEditor;
-      return await TE.enrichHTML(raw, { async: true, relativeTo: doc });
-    } catch {
-      return raw;
-    }
   }
 
   static #defaultLabel(grant) {
@@ -384,7 +374,7 @@ export class GrantAbsorber {
       // without the same guard a class's 5th-level feature landed at creation,
       // and a heritage handed out every level's traits at once.
       if (!this.#appliesAtLevel(grant, lv)) continue;
-      if (this.#isOwnedElsewhere(grant)) continue;
+      if (this.#isOwnedElsewhere(grant, item?.type)) continue;
       if (skip?.has(id)) { AM.log(3, `Grant ${id} skipped by choice`); continue; }
 
       if (grant?.grantType === 'feature') {
@@ -400,7 +390,7 @@ export class GrantAbsorber {
         continue;
       }
 
-      if (!this.#isSupported(grant, lv)) continue;
+      if (!this.#isSupported(grant, lv, item?.type)) continue;
       const spec = this.#specOf(grant) ?? { base: [], options: [], total: 0 };
 
       // Chosen keys, capped at what the grant allows; base is always included.
@@ -696,7 +686,7 @@ export class GrantAbsorber {
     for (const [, grant] of prepared) {
       const type = grant?.grantType;
       if (!type) continue;
-      if (this.#isOwnedElsewhere(grant)) continue;   // stripped before creation
+      if (this.#isOwnedElsewhere(grant, doc?.type)) continue;   // stripped before creation
       // A grant for a later level does not block absorption at this one
       if (!this.#appliesAtLevel(grant, lv)) continue;
       if (type === 'feature') {
@@ -705,7 +695,7 @@ export class GrantAbsorber {
                 + `on ${doc?.name} has something the builder cannot model`);
         return false;
       }
-      if (this.#isSupported(grant, lv)) continue;
+      if (this.#isSupported(grant, lv, doc?.type)) continue;
       // Name the culprit — otherwise "a5e's window appeared" has no explanation
       AM.log(2, `Absorption declined: ${type} grant "${grant.label ?? ''}" on ${doc?.name} `
               + `asks for something with no listable options`);
@@ -749,10 +739,10 @@ export class GrantAbsorber {
     const entryFor = async (uuid) => {
       try {
         const d = await fromUuid(uuid);
-        if (!d) return { key: uuid, label: uuid, desc: '' };
-        return { key: uuid, label: d.name ?? uuid, desc: await this.#enrich(d) };
+        if (!d) return { key: uuid, label: uuid };
+        return { key: uuid, label: d.name ?? uuid };
       } catch {
-        return { key: uuid, label: uuid, desc: '' };
+        return { key: uuid, label: uuid };
       }
     };
     const name = async (uuid) => (await entryFor(uuid)).label;

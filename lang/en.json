@@ -429,6 +429,6 @@
   "am.asi.feat-none": "No feat matches that search.",
   "am.asi.feat-error": "The feats could not be loaded — see the console.",
   "am.asi.feat-prereq-unknown": "Prerequisite could not be checked automatically — read it and judge.",
-  "am.grants.what-it-does": "What this does",
-  "am.asi.feat-page": "Page {page} of {pages} · {total} feats"
+  "am.asi.feat-page": "Page {page} of {pages} · {total} feats",
+  "am.levelup.spells-picked": "Spells picked: {n}"
 }

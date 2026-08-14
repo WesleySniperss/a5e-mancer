@@ -41,27 +41,19 @@
           </span>
         {{/if}}
       </div>
-      {{!-- Always granted. Named one per row rather than as a comma list, so each
-            one can carry the text that says what it actually does. --}}
+      {{!-- Always granted. One per row rather than a comma list so each carries a
+            name worth right-clicking; the description opens in the shared panel,
+            the same gesture as everywhere else in the module. --}}
       {{#if this.baseEntries.length}}
         <p class="am-hint">{{localize 'am.grants.always-granted'}}:</p>
         <div class="am-feature-rows">
           {{#each this.baseEntries}}
-            <div class="am-feature-row am-feature-granted">
+            <div class="am-feature-row am-feature-granted"
+                 data-uuid="{{this.key}}" data-name="{{this.label}}">
               <div class="am-feature-head">
                 <i class="fa-solid fa-check am-feature-tick"></i>
                 <span class="am-feature-name">{{this.label}}</span>
-                {{#if this.desc}}
-                  <button type="button" class="am-feature-info"
-                    data-action="toggleGrantDesc" data-key="{{this.key}}"
-                    data-tooltip="{{localize 'am.grants.what-it-does'}}">
-                    <i class="fa-solid fa-circle-info"></i>
-                  </button>
-                {{/if}}
               </div>
-              {{#if this.expanded}}
-                <div class="am-feature-desc am-description-panel">{{{this.desc}}}</div>
-              {{/if}}
             </div>
           {{/each}}
         </div>
@@ -70,29 +62,19 @@
       {{#if this.options.length}}
         <div class="am-feature-rows">
           {{#each this.options}}
-            <div class="am-feature-row {{#if this.selected}}am-feature-selected{{/if}}">
+            <div class="am-feature-row {{#if this.selected}}am-feature-selected{{/if}}"
+                 data-uuid="{{this.key}}" data-name="{{this.label}}">
               <div class="am-feature-head">
                 <button type="button"
                   class="am-feature-pick"
                   data-action="toggleGrantOption"
                   data-grant-source="{{../grantType}}"
                   data-grant-id="{{../id}}"
-                  data-uuid="{{this.key}}"
                   data-key="{{this.key}}">
                   <i class="fa-solid {{#if this.selected}}fa-square-check{{else}}fa-square{{/if}}"></i>
                   <span class="am-feature-name">{{this.label}}</span>
                 </button>
-                {{#if this.desc}}
-                  <button type="button" class="am-feature-info"
-                    data-action="toggleGrantDesc" data-key="{{this.key}}"
-                    data-tooltip="{{localize 'am.grants.what-it-does'}}">
-                    <i class="fa-solid fa-circle-info"></i>
-                  </button>
-                {{/if}}
               </div>
-              {{#if this.expanded}}
-                <div class="am-feature-desc am-description-panel">{{{this.desc}}}</div>
-              {{/if}}
             </div>
           {{/each}}
         </div>

@@ -226,11 +226,20 @@ export class ActorCreationService {
   static #stripBuilderOwnedGrants(data) {
     const grants = data.system?.grants;
     if (!grants || typeof grants !== 'object') return;
+
+    // Only from the item types whose tab really does claim them. Stripping every
+    // item grant regardless of owner meant a heritage feature that grants gear
+    // lost it outright: removed here and offered on no tab. Must stay in step
+    // with GrantAbsorber#isOwnedElsewhere.
+    const ownsEquipment = data.type === 'class' || data.type === 'background';
+    const ownsTradition = data.type === 'class';
+
     let removed = 0;
     for (const [id, grant] of Object.entries(grants)) {
-      const isEquipment = grant?.grantType === 'item';
+      const isEquipment = grant?.grantType === 'item' && ownsEquipment;
       const isTradition = grant?.grantType === 'trait'
-                          && grant.traits?.traitType === 'maneuverTraditions';
+                          && grant.traits?.traitType === 'maneuverTraditions'
+                          && ownsTradition;
       if (isEquipment || isTradition) { delete grants[id]; removed++; }
     }
     if (removed) AM.log(3, `Removed ${removed} builder-owned grant(s) from ${data.name}`);
