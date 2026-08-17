@@ -5,6 +5,7 @@ import { ManeuverService, CLASS_MANEUVER_TABLES, getTraditions } from '../utils/
 import { SpellService, CLASS_SPELL_TABLES } from '../utils/spellService.js';
 import { ItemDescPanel } from '../utils/itemDescPanel.js';
 import { GrantAbsorber } from '../utils/grantAbsorber.js';
+import { ProficiencyLedger } from '../utils/proficiencyLedger.js';
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -287,13 +288,29 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       // so both have to be passed — not one number standing in for both.
       const lv = { charLevel: context.newTotalLevel, clsLevel: newLevel };
 
-      if (!await GrantAbsorber.canAbsorb(classItem, lv)) {
+      // Also cached: canAbsorb walks the same tree to reach its verdict, and the
+      // verdict cannot change while the dialog is open.
+      const absorbKey = `${classItem.id}|${newLevel}|${context.newTotalLevel}`;
+      if (this._absorbCache?.key !== absorbKey) {
+        this._absorbCache = { key: absorbKey, ok: await GrantAbsorber.canAbsorb(classItem, lv) };
+      }
+      if (!this._absorbCache.ok) {
         AM.log(3, `${classItem.name} level ${newLevel}: grants left to a5e`);
         return;
       }
       // The whole tree at this level. Knacks and the like are feature grants on
       // the features a class grants, so the top level alone showed none of them.
-      const tree = await GrantAbsorber.describeTreeForLevel(classItem, lv);
+      //
+      // Cached, because _prepareContext runs on every click and this walk reads
+      // a document and enriches its HTML for every option it finds — a class
+      // with knacks is dozens of reads, repeated for each pick the player made.
+      // The key covers everything the walk depends on.
+      const cacheKey = `${classItem.id}|${newLevel}|${context.newTotalLevel}`;
+      let tree = this._treeCache?.key === cacheKey ? this._treeCache.tree : null;
+      if (!tree) {
+        tree = await GrantAbsorber.describeTreeForLevel(classItem, lv);
+        this._treeCache = { key: cacheKey, tree };
+      }
       const store = {
         absorb:   true,
         level:    newLevel,
@@ -330,7 +347,11 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         // them with no choices at all — so anything it offered was decided by
         // taking the base set and saying nothing. Ask here instead.
         if (store.archetypeUuid) {
-          const picked = await LevelUpDialog.#archetypeGrantModels(store.archetypeUuid, lv);
+          if (this._archCache?.key !== store.archetypeUuid) {
+            this._archCache = { key: store.archetypeUuid,
+                                models: await LevelUpDialog.#archetypeGrantModels(store.archetypeUuid, lv) };
+          }
+          const picked = this._archCache.models;
           store.archetypeGrants   = picked.grants;
           store.archetypeFeatures = picked.features;
           store.grants   = [...store.grants,   ...picked.grants];
@@ -344,11 +365,16 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
       const withState = (g) => {
         const picked = store.choices[g.id] ?? [];
+        // At a level-up the actor exists, so what they already have counts too —
+        // not just what the rest of this level is granting.
+        const held = ProficiencyLedger.held(this.actor, g, { id: g.id });
         return {
           ...g,
           grantType: 'levelup',
           options:   (g.options ?? []).map(o => ({
-            ...o, selected: picked.includes(o.key)
+            ...o,
+            selected:  picked.includes(o.key),
+            duplicate: !picked.includes(o.key) && held.has(o.key)
           })),
           chosen:    picked.length,
           complete:  picked.length >= g.total
@@ -557,6 +583,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     // Grant picks belong to one class at one level — switching either invalidates them
     this._levelChoices      = {};
     this._archetypeUuid     = null;
+    this._treeCache = this._absorbCache = this._archCache = this._featCache = null;
     this._asiMode           = 'ability';
     this._featUuid          = null;
     this._featSearch        = '';
@@ -1089,7 +1116,11 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       // which never holds the feat's keys, so every one of them silently took
       // its base set. Ask for them here, under a prefix of their own.
       if (store.featUuid) {
-        const picked = await LevelUpDialog.#featGrantModels(store.featUuid, lv);
+        if (this._featCache?.key !== store.featUuid) {
+          this._featCache = { key: store.featUuid,
+                              models: await LevelUpDialog.#featGrantModels(store.featUuid, lv) };
+        }
+        const picked = this._featCache.models;
         store.grants   = [...store.grants,   ...picked.grants];
         store.features = [...store.features, ...picked.features];
         context.featAbsorbed = picked.absorbed;
@@ -1255,6 +1286,12 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     } else {
       if (picked.length >= model.total) {
         ui.notifications.warn(game.i18n.format('am.grants.limit-reached', { n: model.total, label: model.label }));
+        return;
+      }
+      // Already held — from this level's other grants or from the character.
+      // Taking it again gains nothing and burns the choice.
+      if (ProficiencyLedger.blocks(dialog.actor, model, key, { id: grantId })) {
+        ui.notifications.warn(game.i18n.localize('am.grants.duplicate-warn'));
         return;
       }
       picked.push(key);

@@ -49,6 +49,10 @@ export class GrantAbsorber {
         id,
         grant,                       // kept so the level can be re-checked later
         type:    grant.grantType,
+        // What kind of proficiency or trait this is. Two grants can only collide
+        // when these match, so the duplicate check needs them on the model.
+        proficiencyType: grant.proficiencyType ?? '',
+        traitType:       grant.traits?.traitType ?? '',
         label:   grant.label || this.#defaultLabel(grant),
         total:   spec.total,
         base:    spec.base,

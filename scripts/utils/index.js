@@ -18,3 +18,4 @@ export { ItemDescPanel } from './itemDescPanel.js';
 export { LoreTableService } from './loreTableService.js';
 export { PackFilter } from './packFilter.js';
 export { MagicManeuverPack } from './magicManeuverPack.js';
+export { ProficiencyLedger } from './proficiencyLedger.js';

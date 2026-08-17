@@ -20,10 +20,11 @@
       {{/if}}
       <div class="am-filter-pills">
         {{#each this.options}}
-          {{!-- `duplicate` means something else in this build already grants it,
-                so taking it here spends the pick on nothing. --}}
+          {{!-- `duplicate` means the character already has it, from themselves or from
+                another choice in this build, so picking it would gain nothing. --}}
           <button type="button"
             class="am-filter-pill {{#if this.selected}}am-pill-active{{/if}} {{#if this.duplicate}}am-pill-duplicate{{/if}}"
+            {{#if this.duplicate}}disabled aria-disabled="true"{{/if}}
             data-action="toggleGrantOption"
             data-grant-source="{{../grantType}}"
             data-grant-id="{{../id}}"

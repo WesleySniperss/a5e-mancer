@@ -8,6 +8,7 @@ import { SpellService, CLASS_SPELL_TABLES } from '../utils/spellService.js';
 import { LoreTableService } from '../utils/loreTableService.js';
 import { ItemDescPanel } from '../utils/itemDescPanel.js';
 import { GrantAbsorber } from '../utils/grantAbsorber.js';
+import { ProficiencyLedger } from '../utils/proficiencyLedger.js';
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -562,12 +563,12 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
         ui.notifications.warn(game.i18n.format('am.grants.limit-reached', { n: model.total, label: model.label }));
         return;
       }
-      // Allowed, but said out loud: something else in this build already grants
-      // it, so the pick buys nothing. The player may still want it — a5e leaves
-      // what you get instead to the individual feature — so this warns rather
-      // than blocks.
-      if (A5eMancer.takenElsewhere(type, grantId, model.type).has(key)) {
+      // Refused outright. Taking a proficiency twice gains nothing and costs the
+      // option that could have been taken instead — which is the whole reason to
+      // stop it rather than merely note it.
+      if (ProficiencyLedger.blocks(null, model, key, { type, id: grantId })) {
         ui.notifications.warn(game.i18n.localize('am.grants.duplicate-warn'));
+        return;
       }
       picked.push(key);
     }
@@ -655,51 +656,22 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /** Fill in the grant pickers for an origin tab, if we took its grants over. */
-  /**
-   * Everything of one grant kind the character is already getting elsewhere.
-   *
-   * A heritage, a culture and a background routinely offer overlapping skill
-   * lists, and taking the same skill twice spends a pick on nothing. a5e's own
-   * features acknowledge the case — "if you are already proficient, you instead
-   * gain an expertise die" — but state it per feature, not as a general rule, so
-   * the builder marks the duplicate and leaves the decision alone. Substituting
-   * something silently would be inventing a rule that is not written down.
-   *
-   * @param {string} skipType  the origin asking, so a grant is not compared to itself
-   * @param {string} skipId    the grant asking
-   * @param {string} grantType only grants of the same kind can collide
-   */
-  static takenElsewhere(skipType, skipId, grantType) {
-    const taken = new Set();
-    if (!grantType) return taken;
-
-    for (const t of ['heritage', 'culture', 'background', 'destiny', 'class']) {
-      const store = AM.itemGrants?.[t];
-      if (!store?.absorb) continue;
-      for (const g of [...(store.grants ?? []), ...(store.features ?? [])]) {
-        if (g.type !== grantType) continue;
-        for (const k of (g.base ?? [])) taken.add(k);        // always granted
-        if (t === skipType && g.id === skipId) continue;      // not against itself
-        for (const k of (store.choices?.[g.id] ?? [])) taken.add(k);
-      }
-    }
-    return taken;
-  }
-
   static #addGrantContext(context, type) {
     const store = AM.itemGrants?.[type];
     if (!context.selectedItem || !store?.absorb) return;
 
     const withState = (g) => {
       const picked = store.choices[g.id] ?? [];
-      const taken  = A5eMancer.takenElsewhere(type, g.id, g.type);
+      // Everything of this kind already held, from the other origins and — when
+      // one exists — from the character themselves.
+      const held = ProficiencyLedger.held(null, g, { type, id: g.id });
       return {
         ...g,
         grantType: type,
         options:   (g.options ?? []).map(o => ({
           ...o,
           selected:  picked.includes(o.key),
-          duplicate: !picked.includes(o.key) && taken.has(o.key)
+          duplicate: !picked.includes(o.key) && held.has(o.key)
         })),
         chosen:    picked.length,
         complete:  picked.length >= g.total

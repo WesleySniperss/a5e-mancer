@@ -5474,7 +5474,7 @@ input.am-cs-stat-val {
 }
 
 /* Something else in the build already grants this option */
-.am-pill-duplicate { opacity: 0.6; border-style: dashed; }
+.am-pill-duplicate { opacity: 0.45; border-style: dashed; cursor: not-allowed; }
 
 /* Mixed heritage — only the gift comes from elsewhere */
 .am-mixed-body { margin-top: 0.4rem; padding-left: 0.5rem; border-left: 2px solid var(--am-gold, #c9a227); }
