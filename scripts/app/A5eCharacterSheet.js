@@ -981,6 +981,35 @@ export class A5eCharacterSheet extends ActorSheet {
     );
 
     /* Inspiration toggle */
+    /* Heal / Damage — the two buttons under the HP bar. They were drawn from the
+       first version of this sheet and never wired to anything, so pressing them
+       did nothing at all. Damage goes through temporary hit points first, which
+       is the part worth automating; healing never exceeds max. */
+    for (const [action, sign] of [['heal-hp', 1], ['damage-hp', -1]]) {
+      el.querySelector(`[data-action="${action}"]`)?.addEventListener('click', async () => {
+        const amount = await A5eCharacterSheet.#askAmount(
+          game.i18n.localize(sign > 0 ? 'am.sheet.heal-title' : 'am.sheet.damage-title'));
+        if (!amount) return;
+
+        const hp = this.actor.system?.attributes?.hp ?? {};
+        const max = Number(hp.max ?? 0);
+        let value = Number(hp.value ?? 0);
+        let temp  = Number(hp.temp ?? 0);
+
+        if (sign > 0) {
+          value = Math.min(max || value + amount, value + amount);
+        } else {
+          const fromTemp = Math.min(temp, amount);
+          temp  -= fromTemp;
+          value  = Math.max(0, value - (amount - fromTemp));
+        }
+        await this.actor.update({
+          'system.attributes.hp.value': value,
+          'system.attributes.hp.temp':  temp
+        });
+      });
+    }
+
     el.querySelector('[data-action="toggle-inspiration"]')?.addEventListener('click', async () => {
       const cur  = this.actor.system.attributes?.inspiration ?? this.actor.system.inspiration;
       const path = this.actor.system.attributes?.inspiration !== undefined
@@ -1597,6 +1626,27 @@ export class A5eCharacterSheet extends ActorSheet {
       const val = parseInt(e.target.value);
       if (!isNaN(val)) await this.actor.update(pathFn(val)).catch(() => {});
     });
+  }
+
+  /**
+   * Ask for a positive whole number. Used by the Heal and Damage buttons, which
+   * need one value and nothing else.
+   */
+  static async #askAmount(title) {
+    try {
+      const html = `<input type="number" name="amount" min="1" step="1" autofocus
+                      style="width:100%" placeholder="0">`;
+      const result = await foundry.applications.api.DialogV2.prompt({
+        window: { title },
+        content: html,
+        ok: { label: game.i18n.localize('am.sheet.apply'),
+              callback: (_e, btn) => btn.form.elements.amount.value }
+      });
+      const n = Math.floor(Number(result));
+      return Number.isFinite(n) && n > 0 ? n : 0;
+    } catch {
+      return 0;                       // dismissed
+    }
   }
 
   async close(options = {}) {

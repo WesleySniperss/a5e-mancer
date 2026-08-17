@@ -446,5 +446,8 @@
   "am.mixed.enable": "Take the gift from another heritage",
   "am.mixed.source": "Heritage to take the gift from",
   "am.mixed.choose-source": "Choose which heritage the gift comes from.",
-  "am.mixed.pick": "Gifts offered by {name}:"
+  "am.mixed.pick": "Gifts offered by {name}:",
+  "am.sheet.heal-title": "Heal how much?",
+  "am.sheet.damage-title": "Damage how much?",
+  "am.sheet.apply": "Apply"
 }

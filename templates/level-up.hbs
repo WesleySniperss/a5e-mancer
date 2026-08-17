@@ -557,13 +557,16 @@
                       {{#if this.preText}}data-tooltip="{{this.preText}}"{{/if}}>
                 <img class="am-card-img" src="{{this.img}}" alt="" loading="lazy">
                 <span class="am-card-name">{{this.name}}</span>
+                {{!-- The prerequisite reads on the card, not only in a tooltip:
+                      an icon alone gives no reason, and a feat you cannot take
+                      is worth explaining without making the player hover. --}}
+                {{#if this.preText}}
+                  <span class="am-card-pre {{#unless this.met}}am-card-pre-fail{{/unless}}">
+                    {{#if this.unknown}}<i class="fa-solid fa-circle-question"></i>{{/if}}
+                    {{this.preText}}
+                  </span>
+                {{/if}}
                 <div class="am-card-meta">
-                  {{#if this.preText}}
-                    <span class="am-card-pre {{#unless this.met}}am-card-pre-fail{{/unless}}">
-                      {{#if this.unknown}}<i class="fa-solid fa-circle-question"></i>
-                      {{else}}<i class="fa-solid fa-lock"></i>{{/if}}
-                    </span>
-                  {{/if}}
                   {{#if this.selected}}
                     <span class="am-known-pip"><i class="fa-solid fa-check"></i></span>
                   {{/if}}
