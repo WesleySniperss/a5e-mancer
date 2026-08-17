@@ -35,6 +35,9 @@ export class AM {
   static itemGrants        = {};
   // Roll tables found in the destiny/background descriptions, and what was rolled.
   // { destiny: [table], background: [table] } and { 'destiny.0': 'text', … }
+  // Spells a heritage/culture hands out in its text rather than through a grant
+  // — a5e has no grant type for spells. { heritage: {name, rows:[{level,count}]} }
+  static originSpells      = {};
   static loreTables        = {};
   static loreRolls         = {};
   static app               = null;

@@ -4,6 +4,23 @@
   <fieldset>
     <legend>{{localize 'am.app.spells.tooltip'}}</legend>
 
+    {{!-- Spells an origin gives in its own text. a5e has no grant type for
+          spells, so these are recorded nowhere and were never gained. Shown
+          before the class block because they apply even to a non-caster. --}}
+    {{#if hasOriginSpells}}
+      <div class="am-origin-spells">
+        <p class="am-hint">
+          <i class="fa-solid fa-circle-info"></i> {{localize 'am.spells.origin-note'}}
+        </p>
+        <ul class="am-origin-spell-list">
+          {{#each originSpells}}
+            <li><strong>{{this.source}}</strong> — {{this.label}}</li>
+          {{/each}}
+        </ul>
+      </div>
+      <hr />
+    {{/if}}
+
     {{#if classSelected}}
 
       {{#if spellInfo}}

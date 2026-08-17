@@ -257,6 +257,10 @@ export class DOMManager {
       await this.#loadDescription(type, uuid, form);
       // Grants we can ask for ourselves, so a5e's window stays shut for this item
       await this.loadItemGrants(type, uuid);
+      // Spells an origin gives in its text. a5e has no grant type for spells, so
+      // these are written in prose and recorded nowhere; without this they were
+      // never gained at all.
+      await this.loadOriginSpells(type, uuid);
       // Lore tables live in the description; the Biography tab rolls them
       if (type === 'destiny' || type === 'background') {
         AM.loreTables[type] = await LoreTableService.load(uuid, type);
@@ -421,6 +425,51 @@ export class DOMManager {
    * running GrantAbsorber.applyClassTail afterwards. Archetypes are chosen at a
    * later level, so creation never has to deal with them.
    */
+  /**
+   * Read the spells an origin hands out in prose, and the features it grants.
+   *
+   * The Orc heritage says "you know one cantrip of your choice"; the Dragonbound
+   * and High Elf cultures say the same; Stoic Orc gives two 1st-level ritual
+   * spells. None of it is a grant — a5e has no grant type for spells — so the
+   * builder has to read the text or the character never gets them.
+   */
+  static async loadOriginSpells(type, uuid) {
+    AM.originSpells[type] = null;
+    try {
+      const doc = await fromUuid(uuid);
+      if (!doc) return;
+
+      const texts = [DocumentService.rawDescription?.(doc) ?? doc.system?.description ?? ''];
+
+      // The granted features carry the sentence as often as the origin itself
+      for (const [, grant] of (doc.grants?.entries?.() ?? [])) {
+        if (grant?.grantType !== 'feature') continue;
+        for (const f of [...(grant.features?.base ?? []), ...(grant.features?.options ?? [])]) {
+          try {
+            const child = await fromUuid(f.uuid ?? f);
+            if (child) texts.push(child.system?.description ?? '');
+          } catch { /* unreadable — skip */ }
+        }
+      }
+
+      const allowances = [];
+      for (const t of texts) allowances.push(...SpellService.spellsFromProse(t));
+      if (!allowances.length) return;
+
+      // Same level twice means one larger allowance, not two entries
+      const merged = new Map();
+      for (const a of allowances) merged.set(a.level, (merged.get(a.level) ?? 0) + a.count);
+
+      AM.originSpells[type] = {
+        name: doc.name,
+        rows: [...merged.entries()].map(([level, count]) => ({ level, count }))
+      };
+      AM.log(3, `${doc.name}: ${merged.size} spell allowance(s) read from its text`);
+    } catch (err) {
+      AM.log(2, `Could not read the spells ${type} gives in its text:`, err);
+    }
+  }
+
   static async loadItemGrants(type, uuid) {
     AM.itemGrants[type] = null;
     if (!AM.deferToSystemGrants) return;   // GM chose to keep our old pickers

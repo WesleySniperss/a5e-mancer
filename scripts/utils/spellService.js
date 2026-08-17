@@ -234,6 +234,41 @@ export class SpellService {
     return Math.max(1, mod + Math.floor(lvl * rule.per));
   }
 
+  /**
+   * Spells an origin hands out in its text rather than through a grant.
+   *
+   * a5e has no grant type for spells at all, so a heritage or culture that gives
+   * one writes it in prose and nothing records it — the Orc heritage, and the
+   * Dragonbound, High Elf and Stoic Orc cultures all do. Those spells were
+   * simply never gained: no grant to absorb, no picker to offer them.
+   *
+   * Only the two mechanical shapes are read, both of which name a count and a
+   * spell level explicitly:
+   *   "You know one cantrip of your choice …"
+   *   "You know two 1st-level spells of your choice …"
+   * Anything vaguer is left to the prose marker, because a wrong reading here
+   * would hand out a spell the character should not have. Being wrong the other
+   * way costs an allowance the player can simply not spend.
+   *
+   * @returns {Array<{level: number, count: number}>}
+   */
+  static spellsFromProse(html) {
+    const text = String(html ?? '')
+      .replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ');
+    if (!text) return [];
+
+    const NUM = { one: 1, two: 2, three: 3, four: 4, a: 1, an: 1 };
+    const out = [];
+
+    const cantrip = text.match(/\byou (?:know|learn) (one|two|three|a|an)\s+cantrips?\b[^.]*?of your choice/i);
+    if (cantrip) out.push({ level: 0, count: NUM[cantrip[1].toLowerCase()] ?? 1 });
+
+    const spell = text.match(/\byou (?:know|learn) (one|two|three)\s+(\d)(?:st|nd|rd|th)-level spells?\b[^.]*?of your choice/i);
+    if (spell) out.push({ level: Number(spell[2]) || 1, count: NUM[spell[1].toLowerCase()] ?? 1 });
+
+    return out;
+  }
+
   static replaceableOnLevelUp(className) {
     const info = this.getClassSpellInfo(className);
     return info?.type === 'known' ? 1 : 0;

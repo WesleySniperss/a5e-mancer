@@ -244,6 +244,25 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
           context.selectedSpellCount   = (AM.creationSpells?.spells ?? []).length;
           context.selectedSpellNames   = AM.creationSpells?.names ?? [];
           context.spellsLoaded         = !!AM.allSpellsData;
+
+          // Spells an origin gives in its text. a5e has no grant type for
+          // spells, so a heritage or culture that grants one says it in prose
+          // and records nothing — the Orc heritage, the Dragonbound, High Elf
+          // and Stoic Orc cultures. Read here so they are actually gained, and
+          // shown even for a character whose class casts nothing.
+          const origin = ['heritage', 'culture', 'background']
+            .map(t => AM.originSpells?.[t]).filter(Boolean);
+          if (origin.length) {
+            context.originSpells = origin.flatMap(o => o.rows.map(r => ({
+              source: o.name,
+              count:  r.count,
+              label:  r.level === 0
+                ? game.i18n.format('am.spells.origin-cantrips', { n: r.count })
+                : game.i18n.format('am.spells.origin-spells', { n: r.count, level: r.level })
+            })));
+            context.hasOriginSpells = true;
+          }
+
           if (context.spellInfo && AM.allSpellsData) {
             const result = A5eMancer.#filterSpells(
               AM.allSpellsData, context.spellInfo, AM.spellFilter,

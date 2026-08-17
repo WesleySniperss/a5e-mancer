@@ -5458,3 +5458,7 @@ input.am-cs-stat-val {
   border: 1px dashed var(--am-gold, #c9a227); border-radius: 3px;
   opacity: 0.85; white-space: nowrap;
 }
+
+/* Spells an origin gives in prose — shown before the class block */
+.am-origin-spells { margin-bottom: 0.4rem; }
+.am-origin-spell-list { margin: 0.2rem 0 0 1rem; font-size: 0.82rem; }
