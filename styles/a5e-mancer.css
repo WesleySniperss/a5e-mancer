@@ -5404,23 +5404,7 @@ input.am-cs-stat-val {
 .am-asi-toggle { margin-bottom: 0.5rem; }
 .am-feat-controls { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .am-feat-search { flex: 1 1 12rem; min-width: 8rem; }
-.am-feat-list {
-  display: flex; flex-direction: column; gap: 0.2rem;
-  max-height: 22rem; overflow-y: auto; margin-top: 0.4rem;
-}
-.am-feat-row {
-  display: flex; align-items: center; gap: 0.5rem; width: 100%;
-  padding: 0.25rem 0.4rem; font-size: 0.8rem; text-align: left;
-  background: none; border: 1px solid transparent; border-radius: 3px;
-  color: inherit; cursor: pointer;
-}
-.am-feat-row:hover { border-color: var(--am-border, #4a4a4a); }
-.am-feat-selected { border-color: var(--am-gold, #c9a227); }
 /* Unmet is dimmed, never hidden — the prerequisite text is right there to read */
-.am-feat-unmet { opacity: 0.55; }
-.am-feat-img { width: 1.5rem; height: 1.5rem; flex: 0 0 auto; border: none; border-radius: 2px; }
-.am-feat-name { flex: 0 1 auto; font-weight: 600; }
-.am-feat-pre { margin-left: auto; font-size: 0.68rem; opacity: 0.75; text-align: right; }
 .am-feat-pre-fail { color: #c98080; }
 
 
@@ -5448,14 +5432,6 @@ input.am-cs-stat-val {
   border-left: 2px solid var(--am-gold, #c9a227);
 }
 
-.am-feat-entry { border: 1px solid transparent; border-radius: 3px; }
-.am-feat-entry:hover { border-color: var(--am-border, #4a4a4a); }
-.am-feat-entry.am-feat-selected { border-color: var(--am-gold, #c9a227); }
-.am-feat-pick {
-  flex: 1 1 auto; display: flex; align-items: center; gap: 0.5rem;
-  background: none; border: none; color: inherit; cursor: pointer;
-  text-align: left; padding: 0; min-width: 0;
-}
 .am-feat-pager {
   display: flex; align-items: center; justify-content: center; gap: 0.6rem;
   margin-top: 0.4rem;
@@ -5470,3 +5446,8 @@ input.am-cs-stat-val {
   padding: 0.2rem 0; font-size: 0.9rem; font-weight: 600; text-align: left;
 }
 .am-replace-toggle:hover { color: var(--am-gold, #c9a227); }
+
+/* Feats use the shared card grid; only the prerequisite pip is theirs */
+.am-card-unmet { opacity: 0.5; }
+.am-card-pre { font-size: 0.7rem; opacity: 0.7; }
+.am-card-pre-fail { color: #c98080; opacity: 1; }

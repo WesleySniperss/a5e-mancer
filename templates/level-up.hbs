@@ -484,30 +484,41 @@
             {{localize 'am.asi.feat-chosen'}} <strong>{{featChosen.name}}</strong></p>
         {{/if}}
 
-        <div class="am-feat-list" role="list">
-          {{#each feats}}
-            {{!-- Right-click for the full text, as on every other card here --}}
-            <div class="am-feat-entry {{#if this.selected}}am-feat-selected{{/if}} {{#unless this.met}}am-feat-unmet{{/unless}}"
-                 role="listitem" data-uuid="{{this.uuid}}" data-name="{{this.name}}">
-              <div class="am-feat-row">
-                <button type="button" class="am-feat-pick"
-                  data-action="luSelectFeat" data-uuid="{{this.uuid}}" data-name="{{this.name}}">
-                  <img class="am-feat-img" src="{{this.img}}" alt="" loading="lazy">
-                  <span class="am-feat-name">{{this.name}}</span>
-                </button>
-                {{#if this.preText}}
-                  <span class="am-feat-pre {{#unless this.met}}am-feat-pre-fail{{/unless}}"
-                    {{#if this.unknown}}data-tooltip="{{localize 'am.asi.feat-prereq-unknown'}}"{{/if}}>
-                    {{#if this.unknown}}<i class="fa-solid fa-circle-question"></i>{{/if}}
-                    {{this.preText}}
-                  </span>
-                {{/if}}
-              </div>
-            </div>
-          {{else}}
-            <p class="am-hint">{{localize 'am.asi.feat-none'}}</p>
-          {{/each}}
-        </div>
+        {{!-- The same card grid the maneuver and spell pickers use. Feats had a
+              list of their own for no reason; one shape for every choice means
+              one thing to learn and one thing to style. --}}
+        {{#if feats.length}}
+          <div class="am-card-grid am-inline-card-grid" role="list">
+            {{#each feats}}
+              <button type="button"
+                      class="am-card {{#if this.selected}}am-card-selected{{/if}} {{#unless this.met}}am-card-unmet{{/unless}}"
+                      role="listitem"
+                      data-action="luSelectFeat"
+                      data-uuid="{{this.uuid}}"
+                      data-name="{{this.name}}"
+                      {{#if this.preText}}data-tooltip="{{this.preText}}"{{/if}}>
+                <img class="am-card-img" src="{{this.img}}" alt="" loading="lazy">
+                <span class="am-card-name">{{this.name}}</span>
+                <div class="am-card-meta">
+                  {{#if this.preText}}
+                    <span class="am-card-pre {{#unless this.met}}am-card-pre-fail{{/unless}}">
+                      {{#if this.unknown}}<i class="fa-solid fa-circle-question"></i>
+                      {{else}}<i class="fa-solid fa-lock"></i>{{/if}}
+                    </span>
+                  {{/if}}
+                  {{#if this.selected}}
+                    <span class="am-known-pip"><i class="fa-solid fa-check"></i></span>
+                  {{/if}}
+                </div>
+              </button>
+            {{/each}}
+          </div>
+          <div class="am-inline-description overflow-vert-only">
+            <p class="am-hint am-inline-desc-hint">{{localize 'am.app.hover-for-description'}}</p>
+          </div>
+        {{else}}
+          <p class="am-hint">{{localize 'am.asi.feat-none'}}</p>
+        {{/if}}
 
         {{#if (gt featPages 1)}}
           <div class="am-feat-pager">

@@ -159,23 +159,32 @@ export class SpellService {
    * at level-up: they prepare from their list, so they are absent here.
    */
   static SPELLS_KNOWN = {
+    // a5e's bard is not 5e's: spells known climb by exactly one a level, 4 → 23
     bard:     { cantrips: [0,2,2,2,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4],
-                known:    [0,4,5,6,7,8,9,10,11,12,14,15,15,16,18,19,19,20,22,22,22] },
+                known:    [0,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23] },
     sorcerer: { cantrips: [0,4,4,4,5,5,5,5,5,5,6,6,6,6,6,6,6,6,6,6,6],
-                known:    [0,2,3,4,5,6,7,8,9,10,11,12,12,13,13,14,14,15,15,15,15] },
+                known:    [0,2,3,4,5,6,7,8,9,10,11,12,12,13,13,14,14,15,15,16,16] },
     warlock:  { cantrips: [0,2,2,2,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4],
-                known:    [0,2,3,4,5,6,7,8,9,10,10,11,11,12,12,13,13,14,14,15,15] },
-    // Adds two to the spellbook at every level after the first, which starts at six
+                known:    [0,2,3,4,5,6,7,8,9,10,11,11,12,12,13,13,14,14,15,15,16] },
+    // Six 1st-level spells in the book to start, two added per level after
     wizard:   { cantrips: [0,3,3,3,4,4,4,4,4,4,5,5,5,5,5,5,5,5,5,5,5],
-                perLevel: 2, firstLevel: 6 }
+                perLevel: 2, firstLevel: 6 },
+    // Prepared casters: no spells known, but the cantrip column is still real
+    cleric:   { cantrips: [0,3,3,3,4,4,4,4,4,4,5,5,5,5,5,5,5,5,5,5,5], prepared: true },
+    druid:    { cantrips: [0,2,2,2,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4], prepared: true },
+    herald:   { cantrips: [0,2,2,2,2,2,2,2,2,4,4,4,4,4,4,4,4,4,4,4,4], prepared: true }
   };
 
   /**
    * How many spells and cantrips this level brings.
    *
-   * Returns null for a class that learns nothing at level-up — a cleric or druid
-   * prepares from the full list rather than learning, so offering them a quota
-   * would be inventing a rule.
+   * `spells: null` means the class does not learn spells at all — a cleric,
+   * druid or herald prepares from its whole list each day, so a quota there
+   * would be an invented rule. Its cantrips are still a real number, which is
+   * why those classes are listed rather than omitted: leaving them out meant a
+   * cleric was never offered the cantrip it gains at 4th.
+   *
+   * @returns {{cantrips: number, spells: number|null}|null} null for a non-caster
    */
   static newAtLevel(className, classLevel) {
     const key = String(className ?? '').toLowerCase();
@@ -186,6 +195,8 @@ export class SpellService {
     const prev = lvl - 1;
 
     const cantrips = Math.max(0, (t.cantrips?.[lvl] ?? 0) - (t.cantrips?.[prev] ?? 0));
+    if (t.prepared) return { cantrips, spells: null };
+
     const spells = t.known
       ? Math.max(0, t.known[lvl] - (t.known[prev] ?? 0))
       : (lvl <= 1 ? (t.firstLevel ?? 0) : (t.perLevel ?? 0));
