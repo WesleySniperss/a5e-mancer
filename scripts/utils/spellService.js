@@ -363,7 +363,57 @@ export class SpellService {
    * A spell that genuinely names no class is still treated as available:
    * homebrew and imported spells routinely leave the field empty.
    */
-  static spellAllowsClass(sys, className) {
+  /**
+   * Spells a feature adds to a character's list by naming them outright.
+   *
+   * The 35 "Warlock Expanded Spell List" features and their kin carry no grant —
+   * a5e has no grant type for spells — but they do name each spell as a @UUID
+   * link, which is exact rather than prose. Those spells belong on the
+   * character's list and the class filter would otherwise hide every one of
+   * them, because they are not warlock spells to begin with. That is the whole
+   * point of an expanded list.
+   *
+   * @returns {string[]} compendium uuids, spells only
+   */
+  static spellUuidsFromLinks(html) {
+    const out = new Set();
+    const re = /@UUID\[(Compendium\.[^\]]*?\.Item\.[A-Za-z0-9]+)\]/g;
+    let m;
+    while ((m = re.exec(String(html ?? '')))) {
+      // Only the spell packs: these features link features and items too
+      if (/spells/i.test(m[1])) out.add(m[1]);
+    }
+    return [...out];
+  }
+
+  /** Uuids admitted past the class filter, gathered from expanded-list features. */
+  static extraAllowed = new Set();
+
+  /**
+   * Collect the expanded lists an actor's features name, so the picker offers
+   * them. Safe to call repeatedly; it replaces what it found last time.
+   */
+  static collectExpandedLists(actor) {
+    this.extraAllowed = new Set();
+    for (const item of (actor?.items ?? [])) {
+      if (item.type !== 'feature') continue;
+      const raw = typeof item.system?.description === 'string'
+        ? item.system.description
+        : (item.system?.description?.value ?? '');
+      if (!/expanded spell list/i.test(item.name ?? '') && !/expanded spell list/i.test(raw)) continue;
+      for (const uuid of this.spellUuidsFromLinks(raw)) this.extraAllowed.add(uuid);
+    }
+    if (this.extraAllowed.size) {
+      AM.log(3, `${this.extraAllowed.size} spell(s) admitted from expanded lists`);
+    }
+    return this.extraAllowed;
+  }
+
+  static spellAllowsClass(sys, className, uuid = '') {
+    // An expanded list names its spells outright; they are on the character's
+    // list whatever the spell's own class field says.
+    if (uuid && this.extraAllowed.has(uuid)) return true;
+
     const key = this.classSpellListKey(className);
     if (!key) return true;                      // unknown class — don't hide anything
 
@@ -405,8 +455,11 @@ export class SpellService {
           const level  = parseInt(entry.system?.level ?? entry.system?.spellLevel ?? 0);
           if (level > maxLevel) continue;
 
-          // Filter by class if specified
-          if (filterClass && !this.spellAllowsClass(entry.system, filterClass)) continue;
+          // Filter by class if specified. The uuid is passed so a spell named by
+          // an expanded list is admitted even though it is not a class spell —
+          // which is exactly what an expanded list is for.
+          const uuid = entry.uuid ?? `Compendium.${pack.collection}.Item.${entry._id}`;
+          if (filterClass && !this.spellAllowsClass(entry.system, filterClass, uuid)) continue;
 
           const school = entry.system?.schools?.primary ?? entry.system?.school ?? '';
           const schoolI18nKey = CONFIG?.A5E?.spellSchools?.primary?.[school];

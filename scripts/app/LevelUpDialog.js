@@ -435,6 +435,9 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         ? ((this._compendiumClasses ?? []).find(c => c.uuid === this._newClassUuid)?.name ?? '')
         : (LevelUpService.getActorClasses(this.actor)
              .find(c => c.id === this._selectedClassId)?.name ?? '');
+      // Expanded lists first: they decide which non-class spells the filter
+      // below must let through, and the load applies the filter as it indexes.
+      SpellService.collectExpandedLists(this.actor);
       SpellService.loadSpells(casterName, spellInfo.maxLevel ?? 1).then(data => {
         this._allSpellsData = data;
         this._loadingSpells = false;
