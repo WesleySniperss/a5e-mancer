@@ -53,6 +53,15 @@
               <div class="am-feature-head">
                 <i class="fa-solid fa-check am-feature-tick"></i>
                 <span class="am-feature-name">{{this.label}}</span>
+                {{#if this.asksInProse}}
+                  {{!-- a5e states this choice in the text and records it nowhere,
+                        so nothing can ask for it. Say so rather than let it pass. --}}
+                  <span class="am-feature-manual"
+                        data-tooltip="{{localize 'am.grants.manual-choice-hint'}}">
+                    <i class="fa-solid fa-hand-pointer"></i>
+                    {{localize 'am.grants.manual-choice'}}
+                  </span>
+                {{/if}}
               </div>
             </div>
           {{/each}}

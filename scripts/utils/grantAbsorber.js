@@ -263,6 +263,29 @@ export class GrantAbsorber {
     }
   }
 
+  /**
+   * Does this feature tell the player to choose something that no grant records?
+   *
+   * 93 of the 1031 origin features in the a5e packs do exactly that. The
+   * Tyrannized culture is the plain case: "All Hail the Tyrant" says *you gain
+   * proficiency in either Deception or Intimidation* and carries no grant at
+   * all, so nothing — not a5e, not this builder — ever asks. The choice simply
+   * goes unmade unless the player notices the sentence.
+   *
+   * The prose cannot be turned into a picker: two thirds of them are free-form
+   * ("choose either scars or scourge, then one of the following damage types"),
+   * and guessing would apply the wrong thing some of the time. Flagging is what
+   * can be done honestly — the row then says there is a decision here, with the
+   * text one right-click away.
+   */
+  static #asksInProse(doc, html = '') {
+    if (this.#preparedGrants(doc).length) return false;   // a grant records it
+
+    const text = String(html).replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
+    return /\b(?:choose (?:one|either|two|a |an |from)|gain proficiency (?:in|with) either|of your choice)\b/i
+      .test(text);
+  }
+
   static #defaultLabel(grant) {
     if (grant.grantType === 'ability')     return game.i18n.localize('am.grants.type-ability');
     if (grant.grantType === 'proficiency') return game.i18n.localize('am.grants.type-proficiency');
@@ -761,8 +784,13 @@ export class GrantAbsorber {
       try {
         const d = await fromUuid(uuid);
         if (!d) return { key: uuid, label: uuid };
-        ItemDescPanel.seeded.set(uuid, await this.#enrich(d));
-        return { key: uuid, label: d.name ?? uuid };
+        const html = await this.#enrich(d);
+        ItemDescPanel.seeded.set(uuid, html);
+        return {
+          key: uuid,
+          label: d.name ?? uuid,
+          asksInProse: this.#asksInProse(d, html)
+        };
       } catch {
         return { key: uuid, label: uuid };
       }

@@ -432,5 +432,7 @@
   "am.asi.feat-page": "Page {page} of {pages} · {total} feats",
   "am.levelup.spells-picked": "Spells picked: {n}",
   "am.levelup.spells-prepared": "Can prepare {n}",
-  "am.levelup.prepared-hint": "This class prepares from its spell list each day rather than learning a fixed number. This is how many it may hold prepared at this level."
+  "am.levelup.prepared-hint": "This class prepares from its spell list each day rather than learning a fixed number. This is how many it may hold prepared at this level.",
+  "am.grants.manual-choice": "choose in play",
+  "am.grants.manual-choice-hint": "This feature tells you to choose something, but a5e records that choice nowhere — there is no grant behind it, so nothing can ask you for it. Right-click to read the text and make the choice on your sheet."
 }
