@@ -287,8 +287,14 @@ export class LevelUpService {
     // over where possible so no window opens for it either.
     if (takingFeat) {
       const { FeatService } = await import('./featService.js');
+      const { LevelUpDialog } = await import('../app/LevelUpDialog.js');
+      // Its own half of the choices, under the feat prefix. Handing over the
+      // whole object meant the feat's grants found none of their keys and took
+      // their base set — which for 163 of them is the ability point that comes
+      // with the feat, silently unassigned.
       await FeatService.addToActor(
-        actor, AM.levelUpGrants.featUuid, AM.levelUpGrants.choices ?? {},
+        actor, AM.levelUpGrants.featUuid,
+        LevelUpDialog.featChoicesFrom(AM.levelUpGrants.choices ?? {}),
         AM.levelUpGrants.lv ?? {}
       );
     }

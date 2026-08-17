@@ -362,21 +362,25 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       // list: a5e states them as two one-point `ability` grants and says nothing
       // about the feat you may take instead, so the choice has to be offered here.
       const asiIds = store.grants
-        .filter(g => g.type === 'ability' && !g.fromArchetype)
+        .filter(g => g.type === 'ability' && !g.fromArchetype && !g.fromFeat)
         .map(g => g.id);
       store.asiIds = asiIds;
 
       const asiGrants = store.grants.filter(g => asiIds.includes(g.id));
       const rest      = store.grants.filter(g => !asiIds.includes(g.id));
 
-      context.bgGrants   = rest.map(withState).filter(shows);
-      context.bgFeatures = store.features.map(withState).filter(shows);
+      // A feat's own grants belong beside the feat that brings them, not in a
+      // separate section further down the page.
+      context.bgGrants   = rest.filter(g => !g.fromFeat).map(withState).filter(shows);
+      context.bgFeatures = store.features.filter(g => !g.fromFeat).map(withState).filter(shows);
       context.hasBgGrants = context.bgGrants.length > 0 || context.bgFeatures.length > 0;
 
       if (asiGrants.length) await this.#addAsiContext(context, store, asiGrants, withState, lv);
-      // Whether a5e will open its window at all — not the same question as
-      // whether this level happens to offer a choice.
-      context.grantsAbsorbed = true;
+
+      context.featGrants   = rest.filter(g => g.fromFeat).map(withState).filter(shows);
+      context.featFeatures = store.features.filter(g => g.fromFeat).map(withState).filter(shows);
+      context.hasFeatGrants = context.featGrants.length > 0 || context.featFeatures.length > 0;
+
       // Whether a5e will open its window at all — which is not the same question
       // as whether this level happens to offer a choice.
       context.grantsAbsorbed = true;
@@ -1075,6 +1079,18 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       // which is the gesture used everywhere else and costs nothing until asked.
       const slice = feats.slice(page * PAGE, page * PAGE + PAGE);
       context.feats = slice.map(f => ({ ...f, selected: f.uuid === store.featUuid }));
+
+      // A feat brings grants of its own — 265 of the 625 in the packs do, and
+      // 163 of those are the "+1 to one of these three abilities" that comes
+      // alongside it. They were being applied with the class's choices object,
+      // which never holds the feat's keys, so every one of them silently took
+      // its base set. Ask for them here, under a prefix of their own.
+      if (store.featUuid) {
+        const picked = await LevelUpDialog.#featGrantModels(store.featUuid, lv);
+        store.grants   = [...store.grants,   ...picked.grants];
+        store.features = [...store.features, ...picked.features];
+        context.featAbsorbed = picked.absorbed;
+      }
       context.featChosen = feats.find(f => f.uuid === store.featUuid) ?? null;
     } catch (err) {
       AM.log(1, 'Could not load feats:', err);
@@ -1118,15 +1134,53 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   static #ARCH_PREFIX = 'arch:';
+  static #FEAT_PREFIX = 'feat:';
 
-  /** Split the level's choices back into the class's and the archetype's. */
-  static archetypeChoicesFrom(choices = {}) {
+  /**
+   * The chosen feat's own grants, as picker models.
+   *
+   * Same shape and same reason as the archetype: they share one choices bucket
+   * with the class's grants, and record keys are only unique inside their own
+   * item, so each source needs a prefix of its own.
+   */
+  static async #featGrantModels(uuid, lv) {
+    const empty = { grants: [], features: [], absorbed: false };
+    try {
+      const doc = await fromUuid(uuid);
+      if (!doc) return empty;
+      if (!await GrantAbsorber.canAbsorb(doc, lv)) {
+        AM.log(2, `Feat ${doc.name}: grants left to a5e`);
+        return empty;
+      }
+      const tag  = (g) => ({ ...g, id: `${LevelUpDialog.#FEAT_PREFIX}${g.id}`, fromFeat: true });
+      const tree = await GrantAbsorber.describeTree(doc, lv);
+      return {
+        grants:   tree.grants.map(tag),
+        features: tree.features.map(tag),
+        absorbed: true
+      };
+    } catch (err) {
+      AM.log(2, 'Could not read the feat grants:', err);
+      return empty;
+    }
+  }
+
+  /** Split the level's choices out by the source that owns them. */
+  static #choicesWithPrefix(choices, prefix) {
     const out = {};
-    for (const [id, picked] of Object.entries(choices)) {
-      if (!id.startsWith(LevelUpDialog.#ARCH_PREFIX)) continue;
-      out[id.slice(LevelUpDialog.#ARCH_PREFIX.length)] = picked;
+    for (const [id, picked] of Object.entries(choices ?? {})) {
+      if (!id.startsWith(prefix)) continue;
+      out[id.slice(prefix.length)] = picked;
     }
     return out;
+  }
+
+  static archetypeChoicesFrom(choices = {}) {
+    return LevelUpDialog.#choicesWithPrefix(choices, LevelUpDialog.#ARCH_PREFIX);
+  }
+
+  static featChoicesFrom(choices = {}) {
+    return LevelUpDialog.#choicesWithPrefix(choices, LevelUpDialog.#FEAT_PREFIX);
   }
 
   /* ── ASI or feat ────────────────────────────────────────────────────── */

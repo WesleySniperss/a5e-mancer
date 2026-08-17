@@ -482,6 +482,64 @@
         {{#if featChosen}}
           <p class="am-hint"><i class="fa-solid fa-circle-check" style="color:#4a9a4a"></i>
             {{localize 'am.asi.feat-chosen'}} <strong>{{featChosen.name}}</strong></p>
+
+          {{!-- What the feat itself asks for — most often the ability point that
+                comes with it. Shown here rather than in a section further down,
+                because it belongs to the feat just picked. --}}
+          {{#if hasFeatGrants}}
+            <div class="am-feat-grants">
+              <p class="am-hint">{{localize 'am.asi.feat-grants'}}</p>
+              {{#each featGrants}}
+                <div class="am-grant-block">
+                  <div class="am-grant-head">
+                    <span class="am-grant-label">{{this.label}}</span>
+                    <span class="am-counter-badge {{#if this.complete}}am-badge-success{{else}}am-badge-pending{{/if}}">
+                      {{this.chosen}}/{{this.total}}
+                    </span>
+                  </div>
+                  <div class="am-filter-pills">
+                    {{#each this.options}}
+                      <button type="button"
+                        class="am-filter-pill {{#if this.selected}}am-pill-active{{/if}}"
+                        data-action="toggleGrantOption"
+                        data-grant-source="levelup"
+                        data-grant-id="{{../id}}"
+                        data-key="{{this.key}}">{{this.label}}</button>
+                    {{/each}}
+                  </div>
+                </div>
+              {{/each}}
+              {{#each featFeatures}}
+                <div class="am-grant-block">
+                  <div class="am-grant-head">
+                    <span class="am-grant-label">{{this.label}}</span>
+                    {{#if this.total}}
+                      <span class="am-counter-badge {{#if this.complete}}am-badge-success{{else}}am-badge-pending{{/if}}">
+                        {{this.chosen}}/{{this.total}}
+                      </span>
+                    {{/if}}
+                  </div>
+                  <div class="am-feature-rows">
+                    {{#each this.options}}
+                      <div class="am-feature-row {{#if this.selected}}am-feature-selected{{/if}}"
+                           data-uuid="{{this.key}}" data-name="{{this.label}}">
+                        <div class="am-feature-head">
+                          <button type="button" class="am-feature-pick"
+                            data-action="toggleGrantOption"
+                            data-grant-source="levelup"
+                            data-grant-id="{{../id}}"
+                            data-key="{{this.key}}">
+                            <i class="fa-solid {{#if this.selected}}fa-square-check{{else}}fa-square{{/if}}"></i>
+                            <span class="am-feature-name">{{this.label}}</span>
+                          </button>
+                        </div>
+                      </div>
+                    {{/each}}
+                  </div>
+                </div>
+              {{/each}}
+            </div>
+          {{/if}}
         {{/if}}
 
         {{!-- The same card grid the maneuver and spell pickers use. Feats had a

@@ -437,5 +437,6 @@
   "am.grants.manual-choice-hint": "This feature tells you to choose something, but a5e records that choice nowhere — there is no grant behind it, so nothing can ask you for it. Right-click to read the text and make the choice on your sheet.",
   "am.spells.origin-note": "Your origin grants these in its text. a5e records them nowhere, so pick them here — they are yours whether or not your class casts.",
   "am.spells.origin-cantrips": "{n} cantrip(s) of your choice",
-  "am.spells.origin-spells": "{n} spell(s) of level {level}, of your choice"
+  "am.spells.origin-spells": "{n} spell(s) of level {level}, of your choice",
+  "am.asi.feat-grants": "This feat asks you to choose:"
 }

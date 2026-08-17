@@ -5462,3 +5462,9 @@ input.am-cs-stat-val {
 /* Spells an origin gives in prose — shown before the class block */
 .am-origin-spells { margin-bottom: 0.4rem; }
 .am-origin-spell-list { margin: 0.2rem 0 0 1rem; font-size: 0.82rem; }
+
+/* A feat's own choices, shown beside the feat that brings them */
+.am-feat-grants {
+  margin-top: 0.4rem; padding-left: 0.5rem;
+  border-left: 2px solid var(--am-gold, #c9a227);
+}
