@@ -142,6 +142,57 @@ export class SpellService {
     return Math.max(0, Math.min(9, slotLevel));
   }
 
+  /**
+   * Spells known per class level, and cantrips known per class level.
+   *
+   * a5e's class documents carry `casterType` and, for the wizard, a prepared
+   * formula — but no spells-known table, so this cannot be read from the data.
+   * Without it the level-up had to leave the count open, which is why a caster
+   * could learn any number of spells at once.
+   *
+   *   known    — cumulative spells known at that class level (known casters)
+   *   cantrips — cumulative cantrips known
+   *   perLevel — for casters who add a fixed number to a book each level
+   *              instead of following a known table (the wizard)
+   *
+   * Prepared casters with the whole list available (cleric, druid) learn nothing
+   * at level-up: they prepare from their list, so they are absent here.
+   */
+  static SPELLS_KNOWN = {
+    bard:     { cantrips: [0,2,2,2,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4],
+                known:    [0,4,5,6,7,8,9,10,11,12,14,15,15,16,18,19,19,20,22,22,22] },
+    sorcerer: { cantrips: [0,4,4,4,5,5,5,5,5,5,6,6,6,6,6,6,6,6,6,6,6],
+                known:    [0,2,3,4,5,6,7,8,9,10,11,12,12,13,13,14,14,15,15,15,15] },
+    warlock:  { cantrips: [0,2,2,2,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4],
+                known:    [0,2,3,4,5,6,7,8,9,10,10,11,11,12,12,13,13,14,14,15,15] },
+    // Adds two to the spellbook at every level after the first, which starts at six
+    wizard:   { cantrips: [0,3,3,3,4,4,4,4,4,4,5,5,5,5,5,5,5,5,5,5,5],
+                perLevel: 2, firstLevel: 6 }
+  };
+
+  /**
+   * How many spells and cantrips this level brings.
+   *
+   * Returns null for a class that learns nothing at level-up — a cleric or druid
+   * prepares from the full list rather than learning, so offering them a quota
+   * would be inventing a rule.
+   */
+  static newAtLevel(className, classLevel) {
+    const key = String(className ?? '').toLowerCase();
+    const t = this.SPELLS_KNOWN[key];
+    if (!t) return null;
+
+    const lvl  = Math.max(1, Math.min(20, Number(classLevel) || 1));
+    const prev = lvl - 1;
+
+    const cantrips = Math.max(0, (t.cantrips?.[lvl] ?? 0) - (t.cantrips?.[prev] ?? 0));
+    const spells = t.known
+      ? Math.max(0, t.known[lvl] - (t.known[prev] ?? 0))
+      : (lvl <= 1 ? (t.firstLevel ?? 0) : (t.perLevel ?? 0));
+
+    return { cantrips, spells };
+  }
+
   static replaceableOnLevelUp(className) {
     const info = this.getClassSpellInfo(className);
     return info?.type === 'known' ? 1 : 0;

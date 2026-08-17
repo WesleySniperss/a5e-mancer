@@ -299,6 +299,11 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
             for (const t of (AM.loreTables?.[src] ?? [])) {
               rows.push({
                 key:     t.key,
+                // Derived from the key, never from the loop index: the rows are
+                // one combined list but the keys count from zero within each
+                // source, so `@index` addressed a different field than the roll
+                // wrote to — rolling Mementos filled Connections.
+                inputId: `lore-${t.key.replace(/\./g, '-')}`,
                 heading: t.heading,
                 die:     t.die,
                 source:  src,
@@ -679,8 +684,10 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     const text = LoreTableService.roll(table);
     AM.loreRolls[key] = text;
 
-    // Write straight into the field so the value survives without a re-render
-    const input = document.getElementById(`lore-${key.replace('.', '-')}`);
+    // Write straight into the field so the value survives without a re-render.
+    // The id is built from the whole key — `replace` without /g left a dot in
+    // any key with more than one, which matched nothing.
+    const input = document.getElementById(`lore-${key.replace(/\./g, '-')}`);
     if (input) {
       input.value = text;
       input.dispatchEvent(new Event('input', { bubbles: true }));

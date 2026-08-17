@@ -19,7 +19,7 @@ import { MAGIC_MANEUVERS, MM_SCHOOLS, MM_SCHOOL_LORE } from '../data/magicManeuv
 export class MagicManeuverPack {
 
   static PACK_NAME = 'a5e-mancer-magic-maneuvers';
-  static VERSION   = 5;          // bump to force a rebuild after data changes
+  static VERSION   = 6;          // bump to force a rebuild after data changes
   static FLAG      = 'magicManeuverPack';
 
   static get collection() { return `world.${this.PACK_NAME}`; }
@@ -42,7 +42,17 @@ export class MagicManeuverPack {
 
     try {
       if (!pack) {
-        pack = await CompendiumCollection.createCompendium({
+        // The namespaced class in v13+, the bare global before it. Reaching for
+        // the global alone meant the pack was never created where that global is
+        // gone, and the only sign was an error notification.
+        const CC = foundry.documents?.collections?.CompendiumCollection
+                ?? globalThis.CompendiumCollection;
+        if (!CC?.createCompendium) {
+          AM.log(1, 'CompendiumCollection.createCompendium is unavailable in this Foundry version');
+          ui.notifications.error(`${AM.NAME}: this Foundry version does not expose the compendium API this needs.`);
+          return null;
+        }
+        pack = await CC.createCompendium({
           label: 'Magic Maneuvers',
           name:  this.PACK_NAME,
           type:  'Item',
@@ -161,7 +171,7 @@ export class MagicManeuverPack {
    */
   static #describe(m, schoolLabel) {
     const when = {
-      cast:      'When you cast your own spell',
+      cast:      'When you cast a spell or cantrip',
       reaction:  'Reaction',
       triggered: 'On its trigger',
       special:   'Special condition'

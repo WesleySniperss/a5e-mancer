@@ -17,6 +17,15 @@ export class ItemDescPanel {
   static #el   = null;
   static #docs = new Map();   // uuid → { resources[], description }
 
+  /**
+   * uuid → already-enriched description, filled by whoever built the row.
+   *
+   * The grant pickers read every feature document to get its name, so they have
+   * the text in hand; handing it over here means right-click never depends on
+   * resolving the uuid again.
+   */
+  static seeded = new Map();
+
   /* ── open / close ─────────────────────────────────────── */
 
   static close() {
@@ -39,6 +48,19 @@ export class ItemDescPanel {
     const panel = this.#build({ ...seed, resources: seed.resources ?? [], description: '', loading: true });
     this.#place(panel, x, y);
     this.#el = panel;
+
+    // A caller that already has the text passes it here. Grant rows do: the
+    // description was read when the row was built, so showing it must not depend
+    // on resolving the uuid a second time — that lookup is the step that kept
+    // failing, and the row would then claim the feature had no description when
+    // the pack plainly holds one.
+    if (seed.description) {
+      const only = this.#build({ ...seed, resources: seed.resources ?? [], loading: false });
+      panel.replaceWith(only);
+      this.#el = only;
+      this.#place(only, x, y);
+      return;
+    }
 
     const detail = await this.#load(uuid);
     if (this.#el !== panel || !panel.isConnected) return;   // superseded/closed
@@ -207,7 +229,9 @@ export class ItemDescPanel {
       event.stopPropagation();
       ItemDescPanel.showForUuid(card.dataset.uuid, event.clientX, event.clientY, {
         name: card.dataset.name || card.querySelector('.am-card-name, .am-maneuver-name')?.textContent?.trim() || '',
-        img:  card.dataset.img  || card.querySelector('img')?.src || ''
+        img:  card.dataset.img  || card.querySelector('img')?.src || '',
+        // Text the row already carries, so no second lookup is needed
+        description: ItemDescPanel.seeded.get(card.dataset.uuid) ?? ''
       });
     };
     const onAway = (event) => {

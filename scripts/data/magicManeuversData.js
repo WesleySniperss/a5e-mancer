@@ -77,7 +77,7 @@ export const MAGIC_MANEUVERS = [
   { id: 'fire', name: 'Fire', school: 'stykhia', degree: 1, cost: 1,
     trigger: 'damageType', damageType: 'fire', activation: 'cast', consumesState: false,
     flavor: `Flame catches hold and finishes the meal.`,
-    effect: `The target burns: the same damage again at the start of its next turn (once).` },
+    effect: `When you cast a fire spell or cantrip at a target that has already taken fire damage, it takes that fire damage a second time.` },
 
   { id: 'thunder', name: 'Thunder', school: 'stykhia', degree: 2, cost: 2,
     trigger: 'damageType', damageType: 'thunder', activation: 'cast', consumesState: false,

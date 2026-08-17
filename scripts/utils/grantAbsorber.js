@@ -1,4 +1,5 @@
 import { AM } from '../a5e-mancer.js';
+import { ItemDescPanel } from './itemDescPanel.js';
 
 /**
  * Lets the builder ask for an item's grant choices itself, so a5e does not have to
@@ -243,6 +244,23 @@ export class GrantAbsorber {
     if (raw && typeof raw === 'object' && raw.label) return game.i18n.localize(raw.label);
     // Fall back to a readable form of the key
     return String(key).replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
+  }
+
+  /**
+   * A document's description, enriched so @UUID links and embeds resolve.
+   * a5e declares description as a plain HTMLField — there is no .
+   */
+  static async #enrich(doc) {
+    const raw = typeof doc?.system?.description === 'string'
+      ? doc.system.description
+      : (doc?.system?.description?.value ?? '');
+    if (!raw) return '';
+    try {
+      const TE = foundry.applications?.ux?.TextEditor?.implementation ?? TextEditor;
+      return await TE.enrichHTML(raw, { async: true, relativeTo: doc });
+    } catch {
+      return raw;
+    }
   }
 
   static #defaultLabel(grant) {
@@ -736,10 +754,14 @@ export class GrantAbsorber {
   static async describeFeatures(doc, lv = {}) {
     const out = [];
 
+    // The document has to be read for the name anyway, so its description is
+    // banked for the panel at the same time. Right-clicking a row then shows
+    // text we already hold instead of resolving the uuid a second time.
     const entryFor = async (uuid) => {
       try {
         const d = await fromUuid(uuid);
         if (!d) return { key: uuid, label: uuid };
+        ItemDescPanel.seeded.set(uuid, await this.#enrich(d));
         return { key: uuid, label: d.name ?? uuid };
       } catch {
         return { key: uuid, label: uuid };

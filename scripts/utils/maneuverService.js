@@ -285,6 +285,11 @@ export class ManeuverService {
     return item?.type === 'maneuver';
   }
 
+  /** A maneuver that came from a class's allowance, so it counts against it. */
+  static isChosenManeuver(item) {
+    return this.isManeuver(item) && !this.isBasicManeuver(item);
+  }
+
   /**
    * Was this maneuver handed out by a grant rather than chosen?
    *
@@ -293,6 +298,20 @@ export class ManeuverService {
    * must not be offered as level-up trade-ins: swapping one away deletes a class
    * ability and leaves its grant pointing at an item that no longer exists.
    */
+  /**
+   * A basic maneuver — Overrun, Grapple, Disarm, Grab On, Shove, Knockdown.
+   *
+   * a5e marks them degree 0 with no tradition, and every character has them at
+   * all times. They are not picks, so they must not appear as level-up trade-ins
+   * and must not count against a class's maneuvers known.
+   */
+  static isBasicManeuver(item) {
+    if (item?.type !== 'maneuver') return false;
+    const degree = Number(item.system?.degree ?? item.system?.maneuverDegree ?? NaN);
+    const tradition = item.system?.tradition ?? item.system?.combatTradition ?? '';
+    return degree === 0 && !tradition;
+  }
+
   static isGrantedManeuver(actor, itemId) {
     if (!actor || !itemId) return false;
     const grants = actor.system?.grants ?? {};
@@ -322,6 +341,7 @@ export class ManeuverService {
           img:  i.img,
           tradition,
           traditionLabel,
+          basic: this.isBasicManeuver(i),
           degree: parseInt(i.system?.degree ?? i.system?.maneuverDegree ?? 1) || 1
         };
       });
@@ -382,7 +402,7 @@ export class ManeuverService {
     }
     if (!found) return null;
 
-    const knownCount      = actor.items.filter(i => this.isManeuver(i)).length;
+    const knownCount      = actor.items.filter(i => this.isChosenManeuver(i)).length;
     const knownTraditions = this.getActorTraditions(actor).length;
 
     return {

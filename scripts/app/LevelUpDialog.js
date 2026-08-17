@@ -241,13 +241,16 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!context.spellInfo) {
       const info = SpellService.getClassSpellInfo(selectedClass?.name ?? '');
       if (info) {
+        // What this level actually brings. a5e ships no spells-known table, so
+        // it comes from SpellService.SPELLS_KNOWN; a class that learns nothing
+        // at level-up (a cleric or druid prepares from the whole list) gets an
+        // open count rather than an invented quota.
+        const owed = SpellService.newAtLevel(selectedClass?.name ?? '', newClassLevel);
         context.spellInfo = {
           ...info,
           maxLevel:    SpellService.maxSpellLevelFor?.(selectedClass?.name ?? '', newClassLevel) ?? info.maxLevel,
-          // Open-ended, as on the sheet — and it must match what luToggleSpell
-          // enforces, or the counter would promise what the click refuses.
-          spellsKnown: -1,
-          cantrips:    -1
+          spellsKnown: owed ? owed.spells   : -1,
+          cantrips:    owed ? owed.cantrips : -1
         };
         context.spellFreeform = !context.spellReplaceLimit;
         this.#addSpellBrowserContext(context, context.spellInfo);
@@ -466,8 +469,11 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     // Only the ones the player chose. A maneuver handed out by a class feature is
     // part of that feature, not a pick, so trading it away would quietly delete a
     // class ability and leave the grant that produced it pointing at nothing.
+    // Basic maneuvers — Overrun, Grapple, Disarm, Grab On, Shove, Knockdown —
+    // are degree 0 with no tradition and belong to every character always. They
+    // were never a pick, so trading one away is not a thing that can happen.
     const known = ManeuverService.getActorManeuvers(this.actor)
-      .filter(m => !ManeuverService.isGrantedManeuver(this.actor, m.id));
+      .filter(m => !m.basic && !ManeuverService.isGrantedManeuver(this.actor, m.id));
     if (!known.length) return;
 
     context.maneuverReplaceLimit = info.replaceable;
@@ -863,7 +869,16 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     const classes = LevelUpService.getActorClasses(dialog.actor);
     const cls = classes.find(c => c.id === dialog._selectedClassId) ?? classes[0];
     const info = cls ? SpellService.getClassSpellInfo(cls.name) : null;
-    return info ? { ...info, spellsKnown: -1, cantrips: -1 } : null;
+    if (!info) return null;
+
+    // Must agree with the count the section displays, or the counter promises a
+    // limit the click does not enforce, or refuses one it does not show.
+    const owed = SpellService.newAtLevel(cls.name, (cls.level ?? 0) + 1);
+    return {
+      ...info,
+      spellsKnown: owed ? owed.spells   : -1,
+      cantrips:    owed ? owed.cantrips : -1
+    };
   }
 
   static luToggleSpell(_event, btn) {
@@ -908,8 +923,11 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         // spellsKnown -1 means open-ended, which is what a level-up uses: a5e
         // ships no spells-known-per-level table. Comparing against it directly
         // would refuse the very first pick.
+        // The cap applies whenever there is one, whatever the caster type: a
+        // wizard is "prepared" but still adds a fixed number to the book each
+        // level, and gating on type meant that number was never enforced.
         const cap = spellInfo.spellsKnown ?? 0;
-        if (spellInfo.type === 'known' && cap >= 0 && spells.length >= cap) {
+        if (cap >= 0 && spells.length >= cap) {
           ui.notifications.warn(game.i18n.format('am.spells.spells-full', { n: cap }));
           return;
         }

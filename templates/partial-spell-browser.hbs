@@ -16,7 +16,7 @@
           {{localize 'am.app.spells.cantrips'}}: {{selectedCantripCount}}/{{spellInfo.cantrips}}
         </div>
       {{/if}}
-      {{#if (and (eq spellInfo.type 'known') (gt spellInfo.spellsKnown 0))}}
+      {{#if (gt spellInfo.spellsKnown 0)}}
         <div class="am-counter-badge {{#if (gte selectedSpellCount spellInfo.spellsKnown)}}am-badge-success{{else}}am-badge-pending{{/if}}">
           <i class="fa-solid fa-book-sparkles"></i>
           {{localize 'am.app.spells.spells-label'}}: {{selectedSpellCount}}/{{spellInfo.spellsKnown}}

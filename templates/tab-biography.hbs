@@ -172,7 +172,7 @@
           {{#each loreTables}}
             <div class="form-group am-lore-row">
               <div class="flex items-center gap-xs mb-xs">
-                <label for="lore-{{this.source}}-{{@index}}">{{this.heading}}</label>
+                <label for="{{this.inputId}}">{{this.heading}}</label>
                 <span class="am-lore-source am-hint">{{this.sourceLabel}}</span>
                 <button type="button" class="am-roll-btn" data-action="rollLoreTable"
                   data-key="{{this.key}}"
@@ -180,7 +180,7 @@
                   <i class="fa-solid fa-dice"></i> d{{this.die}}
                 </button>
               </div>
-              <textarea id="lore-{{this.source}}-{{@index}}"
+              <textarea id="{{this.inputId}}"
                 name="lore[{{this.key}}]" class="form-input am-lore-input" rows="2"
                 data-heading="{{this.heading}}"
                 placeholder="{{localize 'am.app.lore.placeholder'}}">{{this.value}}</textarea>
