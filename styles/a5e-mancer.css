@@ -5468,3 +5468,6 @@ input.am-cs-stat-val {
   margin-top: 0.4rem; padding-left: 0.5rem;
   border-left: 2px solid var(--am-gold, #c9a227);
 }
+
+/* Something else in the build already grants this option */
+.am-pill-duplicate { opacity: 0.6; border-style: dashed; }

@@ -20,12 +20,15 @@
       {{/if}}
       <div class="am-filter-pills">
         {{#each this.options}}
+          {{!-- `duplicate` means something else in this build already grants it,
+                so taking it here spends the pick on nothing. --}}
           <button type="button"
-            class="am-filter-pill {{#if this.selected}}am-pill-active{{/if}}"
+            class="am-filter-pill {{#if this.selected}}am-pill-active{{/if}} {{#if this.duplicate}}am-pill-duplicate{{/if}}"
             data-action="toggleGrantOption"
             data-grant-source="{{../grantType}}"
             data-grant-id="{{../id}}"
-            data-key="{{this.key}}">{{this.label}}</button>
+            {{#if this.duplicate}}data-tooltip="{{localize 'am.grants.duplicate-hint'}}"{{/if}}
+            data-key="{{this.key}}">{{this.label}}{{#if this.duplicate}} <i class="fa-solid fa-clone"></i>{{/if}}</button>
         {{/each}}
       </div>
     </div>

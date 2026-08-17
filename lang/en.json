@@ -438,5 +438,7 @@
   "am.spells.origin-note": "Your origin grants these in its text. a5e records them nowhere, so pick them here — they are yours whether or not your class casts.",
   "am.spells.origin-cantrips": "{n} cantrip(s) of your choice",
   "am.spells.origin-spells": "{n} spell(s) of level {level}, of your choice",
-  "am.asi.feat-grants": "This feat asks you to choose:"
+  "am.asi.feat-grants": "This feat asks you to choose:",
+  "am.grants.duplicate-hint": "Something else in this build already grants this, so taking it here gains nothing. a5e leaves what you get instead to the individual feature, so the choice is still yours.",
+  "am.grants.duplicate-warn": "You already gain that from another choice — this pick buys nothing."
 }
