@@ -275,6 +275,10 @@ export class DOMManager {
       if (type === 'background') await this.#onBackgroundChanged(uuid, form);
     } else {
       AM.itemGrants[type] = null;
+      // Changing heritage invalidates a mixed gift chosen against the old one
+      if (type === 'heritage') {
+        AM.mixedHeritage = { enabled: false, sourceUuid: '', sourceName: '', giftUuid: '', options: [] };
+      }
       const panel = form.querySelector(`#${type}-description`);
       if (panel) panel.innerHTML = '';
       if (type === 'heritage')   this.#clearHeritageGifts(form);
@@ -433,6 +437,37 @@ export class DOMManager {
    * spells. None of it is a grant — a5e has no grant type for spells — so the
    * builder has to read the text or the character never gets them.
    */
+  /**
+   * The gift options of a heritage other than the one chosen.
+   *
+   * a5e: "With your Narrator's approval, you can choose a heritage gift from a
+   * heritage other than the one you originally chose" — only the gift. Traits,
+   * size and speed stay with the heritage itself, so nothing else is touched.
+   */
+  static async loadMixedHeritageGifts() {
+    const mix = AM.mixedHeritage;
+    mix.options = [];
+    if (!mix.enabled || !mix.sourceUuid) return;
+
+    try {
+      const doc = await fromUuid(mix.sourceUuid);
+      if (!doc) return;
+      mix.sourceName = doc.name;
+
+      // Creation is 1st level, which is what separates Gifts from Paragon Gifts
+      const lv = { charLevel: 1, clsLevel: 1 };
+      const features = await GrantAbsorber.describeFeatures(doc, lv);
+      const gift = features.find(f => GrantAbsorber.isGiftGrant(f));
+      mix.options = gift?.options ?? [];
+
+      // A gift from the old source is not on the new one's list
+      if (!mix.options.some(o => o.key === mix.giftUuid)) mix.giftUuid = '';
+      AM.log(3, `Mixed heritage: ${mix.options.length} gift(s) offered from ${doc.name}`);
+    } catch (err) {
+      AM.log(2, 'Could not read the other heritage\'s gifts:', err);
+    }
+  }
+
   static async loadOriginSpells(type, uuid) {
     AM.originSpells[type] = null;
     try {

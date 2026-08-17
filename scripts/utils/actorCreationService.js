@@ -189,9 +189,23 @@ export class ActorCreationService {
       // through its grant engine untouched.
       const store = AM.itemGrants?.[data.type];
       if (store?.absorb) {
+        // Mixed heritage: the gift comes from another heritage, so this one's
+        // gift grant is skipped and the chosen gift added on its own below.
+        // Only the gift — its traits, size and speed still apply as normal.
+        const mix = AM.mixedHeritage;
+        const skip = (data.type === 'heritage' && mix?.enabled && mix.giftUuid)
+          ? new Set(store.features.filter(f => GrantAbsorber.isGiftGrant(f)).map(f => f.id))
+          : null;
+
         const [created] = await actor.createEmbeddedDocuments('Item', [data], { noGrant: true });
         if (created) {
-          await GrantAbsorber.apply(actor, created, store.choices ?? {}, { charLevel: 1, clsLevel: 1 });
+          await GrantAbsorber.apply(actor, created, store.choices ?? {},
+                                    { charLevel: 1, clsLevel: 1 }, 0, { skip });
+
+          if (skip?.size) {
+            await GrantAbsorber.addFeatureItem(actor, mix.giftUuid, store.choices ?? {},
+                                               { charLevel: 1, clsLevel: 1 }, 'heritage gift');
+          }
           // The class needs the non-grant tail a5e's routine ends with
           if (data.type === 'class') {
             await GrantAbsorber.applyClassTail(actor, created, {

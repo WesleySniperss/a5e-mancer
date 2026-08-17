@@ -32,6 +32,54 @@
         <div id="heritage-description" class="am-description-panel overflow-vert-only"
              role="region" aria-live="polite" aria-atomic="true">{{{selectedItem.descriptionHtml}}}</div>
 
+        {{!-- Mixed heritage: a5e lets the gift come from another heritage with
+              the Narrator's approval. Only the gift — traits, size and speed
+              stay with the heritage chosen above. --}}
+        {{#if mixedAvailable}}
+          <hr />
+          <h3><i class="fa-solid fa-code-merge"></i> {{localize 'am.mixed.title'}}</h3>
+          <p class="am-hint">{{localize 'am.mixed.hint'}}</p>
+
+          <button type="button"
+            class="am-filter-pill {{#if mixedEnabled}}am-pill-active{{/if}}"
+            data-action="toggleMixedHeritage">
+            <i class="fa-solid {{#if mixedEnabled}}fa-square-check{{else}}fa-square{{/if}}"></i>
+            {{localize 'am.mixed.enable'}}
+          </button>
+
+          {{#if mixedEnabled}}
+            <div class="am-mixed-body">
+              <div class="am-filter-pills" role="toolbar" aria-label="{{localize 'am.mixed.source'}}">
+                {{#each mixedHeritages}}
+                  <button type="button"
+                    class="am-filter-pill {{#if this.selected}}am-pill-active{{/if}}"
+                    data-action="toggleMixedHeritage" data-source="{{this.uuid}}">{{this.name}}</button>
+                {{/each}}
+              </div>
+
+              {{#if mixedOptions.length}}
+                <p class="am-hint">{{localize 'am.mixed.pick' name=mixedSourceName}}</p>
+                <div class="am-feature-rows">
+                  {{#each mixedOptions}}
+                    <div class="am-feature-row {{#if this.selected}}am-feature-selected{{/if}}"
+                         data-uuid="{{this.key}}" data-name="{{this.label}}">
+                      <div class="am-feature-head">
+                        <button type="button" class="am-feature-pick"
+                          data-action="selectMixedGift" data-uuid="{{this.key}}">
+                          <i class="fa-solid {{#if this.selected}}fa-square-check{{else}}fa-square{{/if}}"></i>
+                          <span class="am-feature-name">{{this.label}}</span>
+                        </button>
+                      </div>
+                    </div>
+                  {{/each}}
+                </div>
+              {{else}}
+                <p class="am-hint">{{localize 'am.mixed.choose-source'}}</p>
+              {{/if}}
+            </div>
+          {{/if}}
+        {{/if}}
+
         {{> am-item-grants}}
       </div>
     {{else}}

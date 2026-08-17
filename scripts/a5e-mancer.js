@@ -35,6 +35,10 @@ export class AM {
   static itemGrants        = {};
   // Roll tables found in the destiny/background descriptions, and what was rolled.
   // { destiny: [table], background: [table] } and { 'destiny.0': 'text', … }
+  // Mixed heritage: a5e lets you take your gift from a heritage other than the
+  // one you chose, with the Narrator's approval. Only the gift — everything else
+  // stays with the heritage itself. { enabled, sourceUuid, sourceName, giftUuid }
+  static mixedHeritage     = { enabled: false, sourceUuid: '', sourceName: '', giftUuid: '' };
   // Spells a heritage/culture hands out in its text rather than through a grant
   // — a5e has no grant type for spells. { heritage: {name, rows:[{level,count}]} }
   static originSpells      = {};

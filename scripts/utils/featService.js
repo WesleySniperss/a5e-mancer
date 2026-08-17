@@ -186,28 +186,7 @@ export class FeatService {
    * they can be, so a5e's window stays shut here too.
    */
   static async addToActor(actor, uuid, choices = {}, lv = {}) {
-    if (!actor || !uuid) return null;
-    try {
-      const doc = await fromUuid(uuid);
-      if (!doc) { AM.log(1, 'Feat not found:', uuid); return null; }
-
-      const data = doc.toObject();
-      data._stats = data._stats || {};
-      data._stats.compendiumSource = uuid;
-      applyItemIcon(data);
-
-      const { GrantAbsorber } = await import('./grantAbsorber.js');
-      const absorb = await GrantAbsorber.canAbsorb(doc, lv);
-
-      const [created] = await actor.createEmbeddedDocuments('Item', [data],
-                                                            absorb ? { noGrant: true } : {});
-      if (created && absorb) await GrantAbsorber.apply(actor, created, choices, lv);
-      AM.log(3, `Feat added: ${doc.name}${absorb ? '' : ' (a5e handled its grants)'}`);
-      return created ?? null;
-    } catch (err) {
-      AM.log(1, 'Feat could not be added:', err);
-      ui.notifications.error(`${AM.NAME}: the feat could not be added — see the console.`);
-      return null;
-    }
+    const { GrantAbsorber } = await import('./grantAbsorber.js');
+    return GrantAbsorber.addFeatureItem(actor, uuid, choices, lv, 'feat');
   }
 }

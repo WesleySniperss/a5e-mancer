@@ -7,6 +7,7 @@ import {
 import { SpellService, CLASS_SPELL_TABLES } from '../utils/spellService.js';
 import { LoreTableService } from '../utils/loreTableService.js';
 import { ItemDescPanel } from '../utils/itemDescPanel.js';
+import { GrantAbsorber } from '../utils/grantAbsorber.js';
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -28,6 +29,8 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
       rollAbilityPool:        A5eMancer.rollAbilityPool,
       clearAbilityPool:       A5eMancer.clearAbilityPool,
       toggleGrantOption:      A5eMancer.toggleGrantOption,
+      toggleMixedHeritage:    A5eMancer.toggleMixedHeritage,
+      selectMixedGift:        A5eMancer.selectMixedGift,
       setCastingAbility:      A5eMancer.setCastingAbility,
       rollWealth:             A5eMancer.rollWealth,
       selectCharacterArt:     CharacterArtPicker.selectCharacterArt,
@@ -518,6 +521,26 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     await AM.app?.render(false, { parts: ['class'] });
   }
 
+  /** Turn mixed heritage on or off, or change which heritage the gift comes from. */
+  static async toggleMixedHeritage(_event, btn) {
+    const mix = AM.mixedHeritage;
+    if (btn.dataset.source !== undefined) {
+      mix.sourceUuid = btn.dataset.source || '';
+      mix.enabled = !!mix.sourceUuid;
+    } else {
+      mix.enabled = !mix.enabled;
+      if (!mix.enabled) { mix.sourceUuid = ''; mix.sourceName = ''; mix.giftUuid = ''; }
+    }
+    await DOMManager.loadMixedHeritageGifts();
+    await AM.app?.render(false, { parts: ['heritage'] });
+  }
+
+  static async selectMixedGift(_event, btn) {
+    const mix = AM.mixedHeritage;
+    mix.giftUuid = mix.giftUuid === btn.dataset.uuid ? '' : btn.dataset.uuid;
+    await AM.app?.render(false, { parts: ['heritage'] });
+  }
+
   static async toggleGrantOption(_event, btn) {
     const type    = btn.dataset.grantSource;
     const grantId = btn.dataset.grantId;
@@ -691,6 +714,42 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     context.bgGrants   = store.grants.map(withState).filter(shows);
     context.bgFeatures = store.features.map(withState).filter(shows);
     context.hasBgGrants = context.bgGrants.length > 0 || context.bgFeatures.length > 0;
+
+    if (type === 'heritage') A5eMancer.#addMixedHeritageContext(context);
+  }
+
+  /**
+   * The mixed-heritage control: take the gift from a different heritage.
+   *
+   * Only the gift moves. a5e's rule is one sentence — "with your Narrator's
+   * approval, you can choose a heritage gift from a heritage other than the one
+   * you originally chose" — so traits, size and speed stay where they are, and
+   * the control appears only on a heritage that actually offers a gift.
+   */
+  static #addMixedHeritageContext(context) {
+    const gift = (context.bgFeatures ?? []).find(f => GrantAbsorber.isGiftGrant(f));
+    if (!gift) return;
+
+    const mix = AM.mixedHeritage;
+    context.mixedAvailable = true;
+    context.mixedEnabled   = !!mix.enabled;
+    context.mixedSourceUuid = mix.sourceUuid ?? '';
+    context.mixedSourceName = mix.sourceName ?? '';
+    context.mixedGiftUuid   = mix.giftUuid ?? '';
+    context.mixedOptions    = (mix.options ?? []).map(o => ({
+      ...o, selected: o.key === mix.giftUuid
+    }));
+    // Every heritage but the one already chosen
+    context.mixedHeritages = (AM.documents.heritage ?? [])
+      .flatMap(g => g.docs ?? [])
+      .filter(d => d.uuid !== AM.SELECTED.heritage?.uuid)
+      .map(d => ({ uuid: d.uuid, name: d.name, selected: d.uuid === mix.sourceUuid }));
+
+    // Its own gift row is replaced by the mixed one, not shown alongside it
+    if (mix.enabled) {
+      context.bgFeatures = context.bgFeatures.filter(f => !GrantAbsorber.isGiftGrant(f));
+      context.hasBgGrants = context.bgGrants.length > 0 || context.bgFeatures.length > 0;
+    }
   }
 
   static #buildSelectedItem(type) {

@@ -1,5 +1,6 @@
 import { AM } from '../a5e-mancer.js';
 import { ItemDescPanel } from './itemDescPanel.js';
+import { applyItemIcon } from '../data/a5eIcons.js';
 
 /**
  * Lets the builder ask for an item's grant choices itself, so a5e does not have to
@@ -571,6 +572,52 @@ export class GrantAbsorber {
       const grant = doc?.grants?.get?.(f.id);
       return grant && this.#isExactlyAtLevel(grant, lv);
     });
+  }
+
+  /**
+   * Create one feature-ish item on the actor with its own grants taken over.
+   *
+   * The same three steps a feat, an archetype and a mixed-heritage gift all
+   * need: read the document, create it with `noGrant` when the builder can
+   * account for its grants, then apply the choices through a5e's own writers.
+   *
+   * @returns {Item|null} the created item, or null if it could not be added
+   */
+  /**
+   * The heritage grant that hands out the gift.
+   *
+   * a5e labels it "Gifts" at 1st level and "Paragon Gifts" at 10th, both feature
+   * grants with options; the level filter already separates them, so the label
+   * is what distinguishes the gift from the traits that come alongside it.
+   */
+  static isGiftGrant(model) {
+    return model?.type === 'feature'
+        && /^gifts?$/i.test(String(model.label ?? '').trim())
+        && (model.options ?? []).length > 0;
+  }
+
+  static async addFeatureItem(actor, uuid, choices = {}, lv = {}, label = 'item') {
+    if (!actor || !uuid) return null;
+    try {
+      const doc = await fromUuid(uuid);
+      if (!doc) { AM.log(1, `${label} not found:`, uuid); return null; }
+
+      const data = doc.toObject();
+      data._stats = data._stats || {};
+      data._stats.compendiumSource = uuid;
+      applyItemIcon(data);
+
+      const absorb = await this.canAbsorb(doc, lv);
+      const [created] = await actor.createEmbeddedDocuments('Item', [data],
+                                                            absorb ? { noGrant: true } : {});
+      if (created && absorb) await this.apply(actor, created, choices, lv);
+      AM.log(3, `${label} added: ${doc.name}${absorb ? '' : ' (a5e handled its grants)'}`);
+      return created ?? null;
+    } catch (err) {
+      AM.log(1, `${label} could not be added:`, err);
+      ui.notifications.error(`${AM.NAME}: the ${label} could not be added — see the console.`);
+      return null;
+    }
   }
 
   /**
