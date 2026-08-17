@@ -2236,7 +2236,7 @@ img[src*="a5e-mancer/assets/icons/"] {
   gap: 0.1rem;
   font-size: 0.68rem;
   color: var(--am-text-dim);
-  i { font-size: 0.6rem; }
+  i { font-size: 0.64rem; }
 }
 
 .am-level-pip {
@@ -2270,7 +2270,7 @@ img[src*="a5e-mancer/assets/icons/"] {
   background: rgba(236,72,153,0.15);
   border: 1px solid rgba(236,72,153,0.35);
   color: #ec4899;
-  font-size: 0.6rem;
+  font-size: 0.64rem;
   font-weight: bold;
   font-style: italic;
   cursor: default;
@@ -2566,7 +2566,7 @@ img[src*="a5e-mancer/assets/icons/"] {
 }
 
 .am-resource-label {
-  font-size: 0.6rem;
+  font-size: 0.64rem;
   font-weight: bold;
   letter-spacing: 0.08em;
   opacity: 0.6;
@@ -2735,7 +2735,7 @@ img[src*="a5e-mancer/assets/icons/"] {
 }
 
 .am-ability-name {
-  font-size: 0.6rem;
+  font-size: 0.64rem;
   font-weight: bold;
   letter-spacing: 0.06em;
   color: #666;
@@ -2779,7 +2779,7 @@ img[src*="a5e-mancer/assets/icons/"] {
 }
 
 .am-save-pip {
-  font-size: 0.6rem;
+  font-size: 0.64rem;
   color: #aaa;
 
   &.am-prof { color: #2a7a2a; }
@@ -3303,7 +3303,7 @@ img[src*="a5e-mancer/assets/icons/"] {
 }
 .am-insp-btn { padding:0.2rem 0.45rem; }
 .am-prof-box { display:flex; flex-direction:column; align-items:center; background:rgba(200,160,32,0.12); border:1px solid rgba(200,160,32,0.4); border-radius:3px; padding:0.15rem 0.5rem; text-align:center;
-  .am-stat-label { font-size:0.6rem; letter-spacing:0.08em; color:#f5e8c0; opacity:0.7; }
+  .am-stat-label { font-size: 0.64rem; letter-spacing:0.08em; color:#f5e8c0; opacity:0.7; }
   .am-stat-val { font-size:0.95rem; font-weight:bold; color:#c8a020; }
 }
 
@@ -3353,7 +3353,7 @@ img[src*="a5e-mancer/assets/icons/"] {
   &:hover { transform:scale(1.1); }
 }
 .am-save-row { display:flex; align-items:center; gap:0.15rem; }
-.am-save-dot { font-size:0.6rem; color:#bbb;
+.am-save-dot { font-size: 0.64rem; color:#bbb;
   &.am-save-prof { color:#2a7a2a; }
 }
 .am-save-btn { font-size:0.7rem; font-weight:bold; background:none; border:none; cursor:pointer; color:#444; padding:0;
@@ -3410,7 +3410,7 @@ img[src*="a5e-mancer/assets/icons/"] {
 /* Spell slots */
 .am-slot-track { display:flex; flex-wrap:wrap; gap:0.5rem; padding:0.3rem 0; border-bottom:1px solid #c8b890; margin-block-end:0.35rem; }
 .am-slot-col { display:flex; flex-direction:column; align-items:center; gap:0.12rem; }
-.am-slot-lbl { font-size:0.6rem; font-weight:bold; opacity:0.55; }
+.am-slot-lbl { font-size: 0.64rem; font-weight:bold; opacity:0.55; }
 .am-slot-pip { cursor:pointer; color:#5555bb; font-size:0.72rem; transition:opacity 0.1s; line-height:1;
   &.am-slot-used { opacity:0.2; }
   &:hover { opacity:0.6; }
@@ -3476,7 +3476,7 @@ img[src*="a5e-mancer/assets/icons/"] {
 }
 
 /* Utilities */
-.am-dim { opacity:0.45; }
+.am-dim { opacity: 0.68; }
 .am-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:8rem; gap:0.4rem; text-align:center; }
 
 /* в”Ђв”Ђ Maneuvers tab в”Ђв”Ђ */
@@ -3586,7 +3586,7 @@ img[src*="a5e-mancer/assets/icons/"] {
   display: flex; flex-direction: column; align-items: center; gap: 0.1rem;
   min-width: 2.2rem;
 }
-.am-slot-lbl { font-size: 0.6rem; font-weight: bold; opacity: 0.55; }
+.am-slot-lbl { font-size: 0.64rem; font-weight: bold; opacity: 0.55; }
 .am-slot-pips-col { display: flex; flex-wrap: wrap; gap: 0.1rem; justify-content: center; max-width: 3rem; }
 .am-slot-count { font-size: 0.65rem; opacity: 0.6; }
 .am-slot-pip {
@@ -3668,7 +3668,7 @@ img[src*="a5e-mancer/assets/icons/"] {
   border-radius: 5px; margin-block-end: 0.6rem;
 }
 .am-slot-col { display: flex; flex-direction: column; align-items: center; gap: 0.15rem; }
-.am-slot-lbl { font-size: 0.6rem; font-weight: bold; opacity: 0.5; }
+.am-slot-lbl { font-size: 0.64rem; font-weight: bold; opacity: 0.5; }
 .am-slot-pips-row { display: flex; gap: 0.12rem; }
 
 .am-spells-manage-row {
@@ -3862,7 +3862,7 @@ img[src*="a5e-mancer/assets/icons/"] {
 .am-npc-hp-row { display: flex; align-items: center; gap: 0.1rem; }
 .am-npc-hp-big { width: 3rem; text-align: center; font-size: 1.2rem; font-weight: bold; border: 1px solid #3a2e18; border-radius: 3px; background: #2a2018; color: #e8dcc8; padding: 0.05rem; }
 .am-npc-hp-sm  { width: 2.5rem; text-align: center; font-size: 0.9rem; font-weight: bold; border: 1px solid #3a2e18; border-radius: 3px; background: #2a2018; color: #e8dcc8; padding: 0.05rem; }
-.am-npc-hp-formula { font-size: 0.68rem; opacity: 0.4; margin-block-start: 0.1rem; }
+.am-npc-hp-formula { font-size: 0.68rem; opacity: 0.68; margin-block-start: 0.1rem; }
 .am-npc-bar-track { height: 3px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; margin-block: 0.2rem; }
 .am-npc-bar-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
 .am-npc-stat-block { display: flex; flex-direction: column; align-items: center; min-width: 3.5rem; }
@@ -3887,7 +3887,7 @@ img[src*="a5e-mancer/assets/icons/"] {
   cursor: pointer; color: #a09060; padding: 0; display: flex; align-items: center; gap: 0.1rem;
   &:hover { color: #c8a020; }
 }
-.am-save-dot { font-size: 0.6rem; color: #554030;
+.am-save-dot { font-size: 0.64rem; color: #554030;
   &.am-save-prof { color: #60a060; }
 }
 
@@ -4168,7 +4168,7 @@ img[src*="a5e-mancer/assets/icons/"] {
   gap: 0.22rem; width: 9rem; flex-shrink: 0; justify-content: center;
 }
 .am-cs-hp-label {
-  font-size: 0.6rem; font-weight: 700; letter-spacing: 0.08em;
+  font-size: 0.64rem; font-weight: 700; letter-spacing: 0.08em;
   color: var(--cs-muted); text-transform: uppercase;
 }
 .am-cs-hp-row { display: flex; align-items: center; gap: 0.28rem; input { width: 3rem; text-align: center; } }
@@ -4239,7 +4239,7 @@ input.am-cs-stat-val {
   &:hover { background: rgba(200,168,74,0.06); border-color: var(--cs-border2); }
 }
 .am-cs-skill-name { flex: 1; min-width: 0; background: none; border: none; color: var(--cs-text2); font-size: 0.74rem; text-align: left; cursor: pointer; padding: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: color 0.1s; &:hover { color: var(--cs-accent); } }
-.am-cs-skill-abl   { font-size: 0.6rem; color: var(--cs-muted); width: 1.8rem; flex-shrink: 0; }
+.am-cs-skill-abl   { font-size: 0.64rem; color: var(--cs-muted); width: 1.8rem; flex-shrink: 0; }
 .am-cs-skill-bonus { font-size: 0.8rem; font-weight: 700; color: var(--cs-text); width: 1.8rem; text-align: right; flex-shrink: 0; }
 .am-cs-skill-exp   { font-size: 0.62rem; color: var(--cs-gold); flex-shrink: 0; }
 .am-cs-passive { display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem; padding: 0.28rem 0.25rem; border-top: 1px solid var(--cs-border2); font-size: 0.72rem; color: var(--cs-muted); strong { color: var(--cs-text); font-weight: 700; } }
@@ -4276,7 +4276,7 @@ input.am-cs-stat-val {
 .am-fav-section { margin-block-end: 0.2rem; }
 .am-fav-section-head {
   display: flex; align-items: center; gap: 0.4rem;
-  font-size: 0.6rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  font-size: 0.64rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
   color: var(--cs-gold); padding: 0.14rem 0 0.2rem 0.55rem;
   border-left: 2px solid var(--cs-gold); border-bottom: 1px solid rgba(200,168,74,0.2);
   margin-block-end: 0.28rem;
@@ -4292,7 +4292,7 @@ input.am-cs-stat-val {
 .am-action-child { display: flex; align-items: center; gap: 0.32rem; padding: 0.22rem 0.45rem 0.22rem 1.9rem; background: rgba(0,0,0,0.12); border-bottom: 1px solid rgba(255,255,255,0.03); transition: background 0.1s; &:last-child { border-bottom: none; } &:hover { background: rgba(224,96,0,0.05); } }
 .am-action-child-name { font-size: 0.78rem; font-weight: 500; min-width: 0; flex-shrink: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--cs-text2); }
 
-.am-act-cost { display: inline-flex; align-items: center; justify-content: center; width: 1.15rem; height: 1.15rem; border-radius: 3px; font-size: 0.6rem; font-weight: 700; flex-shrink: 0; line-height: 1; }
+.am-act-cost { display: inline-flex; align-items: center; justify-content: center; width: 1.15rem; height: 1.15rem; border-radius: 3px; font-size: 0.64rem; font-weight: 700; flex-shrink: 0; line-height: 1; }
 .am-act-cost-action   { background: rgba(224,96,0,0.2);    color: var(--cs-accent);  border: 1px solid rgba(224,96,0,0.45); }
 .am-act-cost-bonus    { background: rgba(200,168,74,0.18); color: var(--cs-gold);    border: 1px solid rgba(200,168,74,0.4); }
 .am-act-cost-reaction { background: rgba(184,117,235,0.18);color: var(--cs-purple);  border: 1px solid rgba(184,117,235,0.4); }
@@ -4349,7 +4349,7 @@ input.am-cs-stat-val {
    ========================================================================== */
 .am-cs-slots { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-block-end: 0.55rem; padding: 0.45rem; background: var(--cs-bg3); border: 1px solid var(--cs-border); border-radius: var(--cs-radius); }
 .am-cs-slot-group { display: flex; align-items: center; gap: 0.3rem; }
-.am-cs-slot-lbl { font-size: 0.6rem; font-weight: 700; color: var(--cs-muted); width: 1.7rem; }
+.am-cs-slot-lbl { font-size: 0.64rem; font-weight: 700; color: var(--cs-muted); width: 1.7rem; }
 .am-cs-slot-pips { display: flex; gap: 0.2rem; flex-wrap: wrap; }
 .am-cs-slot-pip { width: 0.78rem; height: 0.78rem; border-radius: 3px; border: 1.5px solid var(--cs-purple); background: rgba(184,117,235,0.18); cursor: pointer; transition: all 0.12s; &:hover { background: rgba(184,117,235,0.35); } }
 .am-cs-slot-used { background: transparent; border-color: var(--cs-border); opacity: 0.35; }
@@ -4361,7 +4361,7 @@ input.am-cs-stat-val {
 .am-cs-inv-head { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--cs-muted); padding: 0.18rem 0.4rem; border-bottom: 1px solid var(--cs-border); text-align: left; white-space: nowrap; }
 .am-cs-inv-row { display: flex; align-items: center; gap: 0.35rem; padding: 0.22rem 0.4rem; border-radius: 3px; border: 1px solid transparent; transition: background 0.1s, border-color 0.1s; cursor: default; &:hover { background: rgba(200,168,74,0.04); border-color: var(--cs-border2); } &:hover .am-item-controls { opacity: 1; } }
 .am-cs-inv-section { margin-block-end: 0.7rem; }
-.am-cs-inv-section-head { font-size: 0.6rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.12rem 0 0.18rem 0.5rem; border-left: 2px solid; border-bottom: 1px solid var(--cs-border2); margin-block-end: 0.25rem; }
+.am-cs-inv-section-head { font-size: 0.64rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.12rem 0 0.18rem 0.5rem; border-left: 2px solid; border-bottom: 1px solid var(--cs-border2); margin-block-end: 0.25rem; }
 .am-cs-inv-weapons { color: var(--cs-red);    border-left-color: var(--cs-red); }
 .am-cs-inv-armor   { color: var(--cs-blue);   border-left-color: var(--cs-blue); }
 .am-cs-inv-gear    { color: var(--cs-muted);  border-left-color: var(--cs-border); }
@@ -4389,7 +4389,7 @@ input.am-cs-stat-val {
    ========================================================================== */
 .am-cs-notes { display: flex; flex-direction: column; gap: 0.6rem; height: 100%; }
 .am-cs-notes-section { display: flex; flex-direction: column; gap: 0.2rem; }
-.am-cs-notes-label { font-size: 0.6rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--cs-gold); border-left: 2px solid var(--cs-gold-dim); padding-left: 0.45rem; }
+.am-cs-notes-label { font-size: 0.64rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--cs-gold); border-left: 2px solid var(--cs-gold-dim); padding-left: 0.45rem; }
 .am-cs-notes-editor { background: var(--cs-bg3); border: 1px solid var(--cs-border); border-radius: var(--cs-radius); padding: 0.4rem 0.55rem; min-height: 5rem; font-size: 0.8rem; line-height: 1.55; color: var(--cs-text2); resize: vertical; width: 100%; box-sizing: border-box; &:focus { outline: none; border-color: var(--cs-gold-dim); } }
 
 /* ==========================================================================
@@ -4652,7 +4652,7 @@ input.am-cs-stat-val {
   margin-block-end: 0.4rem;
 }
 .am-cs-coin { display: flex; flex-direction: column; align-items: center; gap: 0.1rem; }
-.am-cs-coin-lbl { font-size: 0.6rem; font-weight: bold; letter-spacing: 0.06em; text-transform: uppercase; color: var(--cs-gold); }
+.am-cs-coin-lbl { font-size: 0.64rem; font-weight: bold; letter-spacing: 0.06em; text-transform: uppercase; color: var(--cs-gold); }
 .am-cs-coin-inp {
   width: 3.2rem;
   text-align: center;
@@ -4664,7 +4664,7 @@ input.am-cs-stat-val {
 }
 .am-cs-inv-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
 .am-cs-inv-table th {
-  font-size: 0.6rem;
+  font-size: 0.64rem;
   color: var(--cs-muted);
   font-weight: normal;
   padding: 0 0.3rem 0.15rem;
@@ -4720,8 +4720,8 @@ input.am-cs-stat-val {
 .am-cs-eq-state-2 { color: var(--cs-green); border-color: var(--cs-green) !important; background: rgba(74,154,96,0.15) !important; }
 .am-cs-eq-state-2:hover { background: rgba(74,154,96,0.28) !important; }
 .am-cs-eq-state-0 { color: var(--cs-muted); opacity: 0.5; }
-.am-cs-attune-pip { color: #9060c0; font-size: 0.6rem; margin-inline-start: 0.3rem; }
-.am-cs-attune-warn-pip { color: #c08020; font-size: 0.6rem; margin-inline-start: 0.3rem; }
+.am-cs-attune-pip { color: #9060c0; font-size: 0.64rem; margin-inline-start: 0.3rem; }
+.am-cs-attune-warn-pip { color: #c08020; font-size: 0.64rem; margin-inline-start: 0.3rem; }
 .am-cs-attune-btn {
   background: transparent !important;
   border: 1px solid #9060c0 !important;
@@ -5478,3 +5478,25 @@ input.am-cs-stat-val {
 
 /* Mixed heritage — only the gift comes from elsewhere */
 .am-mixed-body { margin-top: 0.4rem; padding-left: 0.5rem; border-left: 2px solid var(--am-gold, #c9a227); }
+
+/* ── Names must not push their row apart ─────────────────────────────────
+   A flex child will not shrink below the width of its own content unless it
+   is told to, so a long name — "14th Level Archetype Features", a spell with
+   a parenthetical — widens its row and pushes whatever sits beside it (a
+   counter badge, a use button) out of sight. Every element that carries a
+   name gets `min-width: 0` so it may shrink, and a break rule so it wraps
+   instead of running past the edge. The badges beside them are told not to
+   shrink, since a counter squeezed to nothing is worse than a wrapped name. */
+.am-item-name, .am-feature-name, .am-grant-label, .am-maneuver-name,
+.am-spell-name, .am-mm-name, .am-replace-name, .am-card-name,
+.am-feature-manual, .am-mmd-school-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.am-grant-head .am-counter-badge,
+.am-selection-header .am-counter-badge,
+.am-feature-head .am-feature-tick,
+.am-replace-row .am-replace-img,
+.am-cs-mm-row .am-ex-cost {
+  flex-shrink: 0;
+}
