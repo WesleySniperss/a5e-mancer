@@ -430,5 +430,7 @@
   "am.asi.feat-error": "The feats could not be loaded — see the console.",
   "am.asi.feat-prereq-unknown": "Prerequisite could not be checked automatically — read it and judge.",
   "am.asi.feat-page": "Page {page} of {pages} · {total} feats",
-  "am.levelup.spells-picked": "Spells picked: {n}"
+  "am.levelup.spells-picked": "Spells picked: {n}",
+  "am.levelup.spells-prepared": "Can prepare {n}",
+  "am.levelup.prepared-hint": "This class prepares from its spell list each day rather than learning a fixed number. This is how many it may hold prepared at this level."
 }

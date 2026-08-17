@@ -22,11 +22,21 @@
           {{localize 'am.app.spells.spells-label'}}: {{selectedSpellCount}}/{{spellInfo.spellsKnown}}
         </div>
       {{/if}}
+      {{!-- A prepared caster has no learning quota, so the useful number is how
+            many it can hold prepared at this level. --}}
       {{#if (lt spellInfo.spellsKnown 0)}}
-        <div class="am-counter-badge am-badge-success">
-          <i class="fa-solid fa-book-sparkles"></i>
-          {{localize 'am.levelup.spells-picked' n=selectedSpellCount}}
-        </div>
+        {{#if spellInfo.prepared}}
+          <div class="am-counter-badge am-badge-success"
+               data-tooltip="{{localize 'am.levelup.prepared-hint'}}">
+            <i class="fa-solid fa-book-sparkles"></i>
+            {{localize 'am.levelup.spells-prepared' n=spellInfo.prepared}}
+          </div>
+        {{else}}
+          <div class="am-counter-badge am-badge-success">
+            <i class="fa-solid fa-book-sparkles"></i>
+            {{localize 'am.levelup.spells-picked' n=selectedSpellCount}}
+          </div>
+        {{/if}}
       {{/if}}
     </div>
 

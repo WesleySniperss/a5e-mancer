@@ -204,6 +204,36 @@ export class SpellService {
     return { cantrips, spells };
   }
 
+  /**
+   * How many spells a prepared caster can have prepared at a class level.
+   *
+   * Quoted from the class rules on a5e.tools: cleric and druid prepare a number
+   * equal to their Wisdom modifier + class level; the herald, Charisma modifier
+   * + half its level rounded down; the wizard, Intelligence modifier + level —
+   * which is also what a5e's own `maxPreparedFormula` on the class item says.
+   * Minimum one in every case.
+   *
+   * This is what "how many spells do I get" means for these classes: they do not
+   * learn a fixed number, they prepare this many from their list.
+   *
+   * @returns {number|null} null when the class does not prepare this way
+   */
+  static preparedCount(actor, className, classLevel) {
+    const key = String(className ?? '').toLowerCase();
+    const rule = {
+      cleric: { ability: 'wis', per: 1 },
+      druid:  { ability: 'wis', per: 1 },
+      wizard: { ability: 'int', per: 1 },
+      herald: { ability: 'cha', per: 0.5 }
+    }[key];
+    if (!rule) return null;
+
+    const score = actor?.system?.abilities?.[rule.ability]?.value ?? 10;
+    const mod   = Math.floor((score - 10) / 2);
+    const lvl   = Math.max(1, Math.min(20, Number(classLevel) || 1));
+    return Math.max(1, mod + Math.floor(lvl * rule.per));
+  }
+
   static replaceableOnLevelUp(className) {
     const info = this.getClassSpellInfo(className);
     return info?.type === 'known' ? 1 : 0;

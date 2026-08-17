@@ -249,10 +249,14 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         context.spellInfo = {
           ...info,
           maxLevel:    SpellService.maxSpellLevelFor?.(selectedClass?.name ?? '', newClassLevel) ?? info.maxLevel,
-          // null spells = prepared from the whole list, so no quota; -1 is the
-          // open-ended marker the picker and its counter both read.
+          // null spells = prepared rather than known, so no learning quota; -1 is
+          // the open-ended marker the picker and its counter both read.
           spellsKnown: owed?.spells ?? -1,
-          cantrips:    owed?.cantrips ?? -1
+          cantrips:    owed?.cantrips ?? -1,
+          // What a prepared caster can actually hold at this level, from the
+          // class rules. Shown instead of an open count, so "how many do I get"
+          // has an answer for a cleric too.
+          prepared:    SpellService.preparedCount(this.actor, selectedClass?.name ?? '', newClassLevel)
         };
         context.spellFreeform = !context.spellReplaceLimit;
         this.#addSpellBrowserContext(context, context.spellInfo);
