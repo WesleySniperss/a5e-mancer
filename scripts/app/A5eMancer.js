@@ -116,7 +116,7 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
    * among its peers, which survives a re-render because the markup is rebuilt in
    * the same order.
    */
-  static #SCROLLERS = '.am-card-grid, .am-description-panel, .am-feature-desc, .am-feat-list';
+  static #SCROLLERS = '.am-card-grid, .am-description-panel, .am-inline-description';
 
   _preSyncPartState(partId, newElement, priorElement, state) {
     super._preSyncPartState(partId, newElement, priorElement, state);
@@ -440,7 +440,7 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
       this.#detachDescPanel?.();
       this.#detachDescPanel = ItemDescPanel.attach(
         this.element,
-        '.am-card[data-uuid], .am-feature-row[data-uuid]'
+        '.am-card[data-uuid], .am-maneuver-card[data-uuid], .am-spell-card[data-uuid], [data-lore]'
       );
     } finally {
       this.#isRendering = false;

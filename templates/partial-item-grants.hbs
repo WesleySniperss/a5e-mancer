@@ -45,25 +45,25 @@
           </span>
         {{/if}}
       </div>
-      {{!-- Always granted. One per row rather than a comma list so each carries a
-            name worth right-clicking; the description opens in the shared panel,
-            the same gesture as everywhere else in the module. --}}
+      {{!-- The same card grid the maneuver, spell and feat pickers use, so every
+            choice in the module looks and behaves alike. Right-click any card
+            for its full text. --}}
       {{#if this.baseEntries.length}}
         <p class="am-hint">{{localize 'am.grants.always-granted'}}:</p>
-        <div class="am-feature-rows">
+        <div class="am-card-grid am-inline-card-grid" role="list">
           {{#each this.baseEntries}}
-            <div class="am-feature-row am-feature-granted"
-                 data-uuid="{{this.key}}" data-name="{{this.label}}">
-              <div class="am-feature-head">
-                <i class="fa-solid fa-check am-feature-tick"></i>
-                <span class="am-feature-name">{{this.label}}</span>
+            <div class="am-card am-card-granted" role="listitem"
+                 data-uuid="{{this.key}}" data-name="{{this.label}}" data-img="{{this.img}}">
+              <img class="am-card-img" src="{{this.img}}" alt="" loading="lazy">
+              <span class="am-card-name">{{this.label}}</span>
+              <div class="am-card-meta">
+                <span class="am-known-pip"><i class="fa-solid fa-check"></i></span>
                 {{#if this.asksInProse}}
                   {{!-- a5e states this choice in the text and records it nowhere,
                         so nothing can ask for it. Say so rather than let it pass. --}}
                   <span class="am-feature-manual"
                         data-tooltip="{{localize 'am.grants.manual-choice-hint'}}">
                     <i class="fa-solid fa-hand-pointer"></i>
-                    {{localize 'am.grants.manual-choice'}}
                   </span>
                 {{/if}}
               </div>
@@ -73,22 +73,25 @@
       {{/if}}
 
       {{#if this.options.length}}
-        <div class="am-feature-rows">
+        <div class="am-card-grid am-inline-card-grid" role="list">
           {{#each this.options}}
-            <div class="am-feature-row {{#if this.selected}}am-feature-selected{{/if}}"
-                 data-uuid="{{this.key}}" data-name="{{this.label}}">
-              <div class="am-feature-head">
-                <button type="button"
-                  class="am-feature-pick"
-                  data-action="toggleGrantOption"
-                  data-grant-source="{{../grantType}}"
-                  data-grant-id="{{../id}}"
-                  data-key="{{this.key}}">
-                  <i class="fa-solid {{#if this.selected}}fa-square-check{{else}}fa-square{{/if}}"></i>
-                  <span class="am-feature-name">{{this.label}}</span>
-                </button>
-              </div>
-            </div>
+            <button type="button" role="listitem"
+              class="am-card {{#if this.selected}}am-card-selected{{/if}}"
+              data-action="toggleGrantOption"
+              data-grant-source="{{../grantType}}"
+              data-grant-id="{{../id}}"
+              data-uuid="{{this.key}}"
+              data-name="{{this.label}}"
+              data-img="{{this.img}}"
+              data-key="{{this.key}}">
+              <img class="am-card-img" src="{{this.img}}" alt="" loading="lazy">
+              <span class="am-card-name">{{this.label}}</span>
+              {{#if this.selected}}
+                <div class="am-card-meta">
+                  <span class="am-known-pip"><i class="fa-solid fa-check"></i></span>
+                </div>
+              {{/if}}
+            </button>
           {{/each}}
         </div>
       {{/if}}

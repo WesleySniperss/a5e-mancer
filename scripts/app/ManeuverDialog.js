@@ -123,6 +123,10 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
           name:          t.label,
           known:         actorTraditions.has(t.key),
           selected:      this._selectedTraditions.has(t.key),
+          // The magic schools carry their text in the module; a combat tradition
+          // has none of its own, and its sidebar description is looked up from
+          // the compendium on click.
+          lore:          MM_SCHOOL_LORE[t.key] ?? '',
           maneuverCount
         };
       })
@@ -188,6 +192,11 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         sidebarPanel.style.display = 'none';
       }
     }
+
+    // The shared panel, so a tradition's own text opens on right-click like
+    // everything else. The maneuver cards keep their own handler below.
+    this._detachDescPanel?.();
+    this._detachDescPanel = ItemDescPanel.attach(this.element, '.am-tradition-btn[data-lore]');
 
     // Tradition filter buttons
     el.querySelectorAll('.am-tradition-btn').forEach(btn => {
@@ -377,6 +386,9 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
 
   async _preClose() {
+    // The attach handler listens on document too, so it has to be released
+    this._detachDescPanel?.();
+    this._detachDescPanel = null;
     ItemDescPanel.close();
     return super._preClose?.() ?? true;
   }

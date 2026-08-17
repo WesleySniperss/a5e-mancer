@@ -81,6 +81,18 @@ export class ItemDescPanel {
     this.#place(fresh, x, y);
   }
 
+  /**
+   * Show text that belongs to no document — a tradition's or a school's own
+   * description. Nothing to load, so the panel is built once and left.
+   */
+  static showLore(name, html, x, y) {
+    if (!html) return;
+    this.close();
+    const panel = this.#build({ name, description: html, resources: [], loading: false });
+    this.#place(panel, x, y);
+    this.#el = panel;
+  }
+
   /* ── data ─────────────────────────────────────────────── */
 
   static async #load(uuid) {
@@ -219,7 +231,7 @@ export class ItemDescPanel {
    * Right-click any card carrying data-uuid inside `root` to open the panel.
    * Returns a cleanup function.
    */
-  static attach(root, selector = '.am-card[data-uuid], .am-maneuver-card[data-uuid], .am-spell-card[data-uuid]') {
+  static attach(root, selector = '.am-card[data-uuid], .am-maneuver-card[data-uuid], .am-spell-card[data-uuid], [data-lore]') {
     if (!root) return () => {};
 
     const onContext = (event) => {
@@ -227,11 +239,22 @@ export class ItemDescPanel {
       if (!card || !root.contains(card)) return;
       event.preventDefault();
       event.stopPropagation();
+
+      // Narrative text carried on the element itself, for options that are not
+      // documents at all — a combat tradition, a magic school. Those have no
+      // uuid to resolve, so without this right-click would find nothing where
+      // the sidebar happily shows a description.
+      const lore = card.dataset.lore;
+      if (lore && !card.dataset.uuid) {
+        ItemDescPanel.showLore(card.dataset.name ?? '', lore, event.clientX, event.clientY);
+        return;
+      }
+
       ItemDescPanel.showForUuid(card.dataset.uuid, event.clientX, event.clientY, {
         name: card.dataset.name || card.querySelector('.am-card-name, .am-maneuver-name')?.textContent?.trim() || '',
         img:  card.dataset.img  || card.querySelector('img')?.src || '',
         // Text the row already carries, so no second lookup is needed
-        description: ItemDescPanel.seeded.get(card.dataset.uuid) ?? ''
+        description: lore || ItemDescPanel.seeded.get(card.dataset.uuid) || ''
       });
     };
     const onAway = (event) => {

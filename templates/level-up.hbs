@@ -519,21 +519,25 @@
                       </span>
                     {{/if}}
                   </div>
-                  <div class="am-feature-rows">
+                  <div class="am-card-grid am-inline-card-grid" role="list">
                     {{#each this.options}}
-                      <div class="am-feature-row {{#if this.selected}}am-feature-selected{{/if}}"
-                           data-uuid="{{this.key}}" data-name="{{this.label}}">
-                        <div class="am-feature-head">
-                          <button type="button" class="am-feature-pick"
-                            data-action="toggleGrantOption"
-                            data-grant-source="levelup"
-                            data-grant-id="{{../id}}"
-                            data-key="{{this.key}}">
-                            <i class="fa-solid {{#if this.selected}}fa-square-check{{else}}fa-square{{/if}}"></i>
-                            <span class="am-feature-name">{{this.label}}</span>
-                          </button>
-                        </div>
-                      </div>
+                      <button type="button" role="listitem"
+                        class="am-card {{#if this.selected}}am-card-selected{{/if}}"
+                        data-action="toggleGrantOption"
+                        data-grant-source="levelup"
+                        data-grant-id="{{../id}}"
+                        data-uuid="{{this.key}}"
+                        data-name="{{this.label}}"
+                        data-img="{{this.img}}"
+                        data-key="{{this.key}}">
+                        <img class="am-card-img" src="{{this.img}}" alt="" loading="lazy">
+                        <span class="am-card-name">{{this.label}}</span>
+                        {{#if this.selected}}
+                          <div class="am-card-meta">
+                            <span class="am-known-pip"><i class="fa-solid fa-check"></i></span>
+                          </div>
+                        {{/if}}
+                      </button>
                     {{/each}}
                   </div>
                 </div>

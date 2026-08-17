@@ -90,7 +90,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
    * scrollHeight for an instant, the browser clamps scrollTop to 0, and the
    * dialog snaps back to the top on each click.
    */
-  static #SCROLLERS = '.am-card-grid, .am-description-panel, .am-feature-desc, .am-replace-list';
+  static #SCROLLERS = '.am-card-grid, .am-description-panel, .am-inline-description, .am-replace-list';
 
   _preSyncPartState(partId, newElement, priorElement, state) {
     super._preSyncPartState(partId, newElement, priorElement, state);
@@ -687,7 +687,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     this._detachDescPanel?.();
     this._detachDescPanel = ItemDescPanel.attach(
       this.element,
-      '.am-card[data-uuid], .am-maneuver-card[data-uuid], .am-spell-card[data-uuid], .am-feature-row[data-uuid]'
+      '.am-card[data-uuid], .am-maneuver-card[data-uuid], .am-spell-card[data-uuid], [data-lore]'
     );
 
     /* ── Feat search ── */

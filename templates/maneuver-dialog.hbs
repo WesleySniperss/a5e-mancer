@@ -45,9 +45,14 @@
         {{/if}}
       </h4>
       {{#each traditions}}
+        {{!-- data-lore carries the tradition's own text, so right-click reads it
+              the same way it does everywhere else. It belongs to no document,
+              which is why it travels on the element. --}}
         <button type="button"
           class="am-tradition-btn {{#if (eq this.key ../activeTradition)}}am-active{{/if}} {{#unless this.known}}am-unknown-tradition{{/unless}}"
           data-tradition="{{this.key}}"
+          data-name="{{this.name}}"
+          {{#if this.lore}}data-lore="{{this.lore}}"{{/if}}
           data-tooltip="{{this.maneuverCount}} maneuvers">
           {{#if this.known}}<i class="fa-solid fa-circle-check am-tradition-known"></i>{{/if}}
           <span>{{this.name}}</span>

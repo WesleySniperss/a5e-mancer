@@ -834,16 +834,17 @@ export class GrantAbsorber {
     const entryFor = async (uuid) => {
       try {
         const d = await fromUuid(uuid);
-        if (!d) return { key: uuid, label: uuid };
+        if (!d) return { key: uuid, label: uuid, img: '' };
         const html = await this.#enrich(d);
         ItemDescPanel.seeded.set(uuid, html);
         return {
           key: uuid,
           label: d.name ?? uuid,
+          img:   d.img ?? '',            // the cards show it
           asksInProse: this.#asksInProse(d, html)
         };
       } catch {
-        return { key: uuid, label: uuid };
+        return { key: uuid, label: uuid, img: '' };
       }
     };
     const name = async (uuid) => (await entryFor(uuid)).label;
