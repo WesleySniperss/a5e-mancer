@@ -320,7 +320,7 @@ export class GrantAbsorber {
    * @returns {Promise<{grants: object[], features: object[]}>} models whose ids
    *   are paths — `key` at the top, `<uuid>|key` one level down, and so on.
    */
-  static async describeTree(doc, lv = {}, { depth = 0, prefix = '', seen = new Set() } = {}) {
+  static async describeTree(doc, lv = {}, { depth = 0, prefix = '', seen = new Set(), choices = {} } = {}) {
     const out = { grants: [], features: [] };
     if (!doc || depth > this.#MAX_DEPTH) return out;
 
@@ -330,10 +330,19 @@ export class GrantAbsorber {
     const features = (await this.describeFeatures(doc, lv)).map(tag);
     out.features.push(...features);
 
-    // Walk into everything a feature grant can hand out, base and options alike:
-    // a base feature is granted outright, and its own choices still need asking.
+    // A base feature is granted outright, so its own contents belong in the tree
+    // from the start. An OPTION does not: walking into every option meant the
+    // Constrictor gift's Scales and Constrict were listed as always granted
+    // before the gift had been chosen — and stayed listed after a different gift
+    // was taken. An option is walked only once it is actually selected, because
+    // until then its contents are not the character's and its own sub-choices
+    // are not questions anyone can answer.
     for (const model of features) {
-      const uuids = [...model.baseUuids ?? [], ...model.options.map(o => o.key)];
+      const picked = choices[model.id] ?? [];
+      const uuids = [
+        ...(model.baseUuids ?? []),
+        ...model.options.map(o => o.key).filter(k => picked.includes(k))
+      ];
       for (const uuid of uuids) {
         if (seen.has(uuid)) continue;               // already walked (or cycling)
         seen.add(uuid);
@@ -343,7 +352,8 @@ export class GrantAbsorber {
           const nested = await this.describeTree(child, lv, {
             depth: depth + 1,
             prefix: `${uuid}${this.NEST}`,
-            seen
+            seen,
+            choices
           });
           out.grants.push(...nested.grants);
           out.features.push(...nested.features);
@@ -356,8 +366,8 @@ export class GrantAbsorber {
   }
 
   /** describeTree, keeping only what this level introduces. */
-  static async describeTreeForLevel(doc, lv = {}) {
-    const all = await this.describeTree(doc, lv);
+  static async describeTreeForLevel(doc, lv = {}, choices = {}) {
+    const all = await this.describeTree(doc, lv, { choices });
     const atLevel = (model) => {
       const grant = this.#grantFor(model);
       return grant ? this.#isExactlyAtLevel(grant, lv) : false;

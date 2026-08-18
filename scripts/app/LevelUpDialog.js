@@ -305,10 +305,16 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       // a document and enriches its HTML for every option it finds — a class
       // with knacks is dozens of reads, repeated for each pick the player made.
       // The key covers everything the walk depends on.
-      const cacheKey = `${classItem.id}|${newLevel}|${context.newTotalLevel}`;
+      // The picks are part of the key: choosing an option brings its own
+      // contents into the tree, so a cache keyed on the level alone would keep
+      // showing the tree from before the choice was made.
+      const choices = this._levelChoices ?? {};
+      const picksKey = Object.entries(choices)
+        .map(([k, v]) => `${k}=${(v ?? []).join(",")}`).sort().join(";");
+      const cacheKey = `${classItem.id}|${newLevel}|${context.newTotalLevel}|${picksKey}`;
       let tree = this._treeCache?.key === cacheKey ? this._treeCache.tree : null;
       if (!tree) {
-        tree = await GrantAbsorber.describeTreeForLevel(classItem, lv);
+        tree = await GrantAbsorber.describeTreeForLevel(classItem, lv, choices);
         this._treeCache = { key: cacheKey, tree };
       }
       const store = {

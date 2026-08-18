@@ -573,6 +573,9 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
       picked.push(key);
     }
     store.choices[grantId] = picked;
+    // Choosing a gift brings its own contents into the tree, and dropping one
+    // takes them out again — so the tree is rebuilt before the tab redraws.
+    await DOMManager.refreshItemGrants(type);
     await AM.app?.render(false, { parts: [type] });
   }
 

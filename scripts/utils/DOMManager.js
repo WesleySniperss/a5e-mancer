@@ -505,6 +505,38 @@ export class DOMManager {
     }
   }
 
+  /**
+   * Rebuild an origin's grant tree against the choices made so far.
+   *
+   * The tree depends on those choices: a gift's own contents only belong in it
+   * once the gift is taken. Picking one therefore changes what there is to show,
+   * so the tree is described again rather than filtered — the sub-grants of the
+   * newly chosen option have to be read from its document, and they were never
+   * fetched while it was unchosen.
+   */
+  static async refreshItemGrants(type) {
+    const store = AM.itemGrants?.[type];
+    if (!store?.absorb || !store.uuid) return;
+    try {
+      const doc = await fromUuid(store.uuid);
+      if (!doc) return;
+      const lv = { charLevel: 1, clsLevel: 1 };
+      const tree = await GrantAbsorber.describeTree(doc, lv, { choices: store.choices ?? {} });
+      store.grants   = tree.grants;
+      store.features = tree.features;
+
+      // A choice that no longer has a row — its parent option was deselected —
+      // must not stay in the answers, or it would be applied for a gift the
+      // character does not have.
+      const live = new Set([...tree.grants, ...tree.features].map(g => g.id));
+      for (const id of Object.keys(store.choices ?? {})) {
+        if (!live.has(id)) delete store.choices[id];
+      }
+    } catch (err) {
+      AM.log(2, `Could not rebuild ${type} grants:`, err);
+    }
+  }
+
   static async loadItemGrants(type, uuid) {
     AM.itemGrants[type] = null;
     if (!AM.deferToSystemGrants) return;   // GM chose to keep our old pickers
@@ -523,6 +555,7 @@ export class DOMManager {
       const tree = await GrantAbsorber.describeTree(doc, lv);
       const store = {
         absorb:   true,
+        uuid,                      // kept so the tree can be rebuilt on a change
         grants:   tree.grants,
         features: tree.features,
         choices:  {}
