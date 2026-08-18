@@ -176,7 +176,12 @@ export class GrantAbsorber {
       }
     } catch { /* fall through to the raw shapes */ }
 
-    const bucket = grant.grantType === 'ability'     ? grant.abilities
+    // Feature grants keep their own shape. #applyFeatureGrant and the origin
+    // spell reader both go straight to grant.features, so the describer has to
+    // reach it too — otherwise a grant whose selection component is missing
+    // would show an empty picker and still hand out its base set on apply.
+    const bucket = grant.grantType === 'feature'     ? grant.features
+                 : grant.grantType === 'ability'     ? grant.abilities
                  : grant.grantType === 'proficiency' ? grant.keys
                  : grant.grantType === 'trait'       ? grant.traits
                  : grant.grantType === 'skill'       ? grant.skills
@@ -320,7 +325,14 @@ export class GrantAbsorber {
    * @returns {Promise<{grants: object[], features: object[]}>} models whose ids
    *   are paths — `key` at the top, `<uuid>|key` one level down, and so on.
    */
-  static async describeTree(doc, lv = {}, { depth = 0, prefix = '', seen = new Set(), choices = {} } = {}) {
+  static async describeTree(doc, lv = {}, opts = {}) {
+    // The third argument is an options bag, but it is easy to hand the choices
+    // map straight in — and doing so loses every pick silently, which is the
+    // one failure this walk must never have. Accept either.
+    const bag = ['depth', 'prefix', 'seen', 'choices'].some(k => k in (opts ?? {}))
+              ? opts : { choices: opts ?? {} };
+    const { depth = 0, prefix = '', seen = new Set(), choices = {} } = bag;
+
     const out = { grants: [], features: [] };
     if (!doc || depth > this.#MAX_DEPTH) return out;
 

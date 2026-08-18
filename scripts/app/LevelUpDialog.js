@@ -309,8 +309,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       // contents into the tree, so a cache keyed on the level alone would keep
       // showing the tree from before the choice was made.
       const choices = this._levelChoices ?? {};
-      const picksKey = Object.entries(choices)
-        .map(([k, v]) => `${k}=${(v ?? []).join(",")}`).sort().join(";");
+      const picksKey = LevelUpDialog.#picksKey(choices);
       const cacheKey = `${classItem.id}|${newLevel}|${context.newTotalLevel}|${picksKey}`;
       let tree = this._treeCache?.key === cacheKey ? this._treeCache.tree : null;
       if (!tree) {
@@ -353,9 +352,14 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         // them with no choices at all — so anything it offered was decided by
         // taking the base set and saying nothing. Ask here instead.
         if (store.archetypeUuid) {
-          if (this._archCache?.key !== store.archetypeUuid) {
-            this._archCache = { key: store.archetypeUuid,
-                                models: await LevelUpDialog.#archetypeGrantModels(store.archetypeUuid, lv) };
+          // Keyed on the picks as well as the uuid. Choosing an option brings
+          // its own nested grants into the archetype's tree, and a cache keyed
+          // on the uuid alone would keep serving the tree from before the pick.
+          const archPicks = LevelUpDialog.#choicesWithPrefix(store.choices, LevelUpDialog.#ARCH_PREFIX);
+          const archKey   = `${store.archetypeUuid}|${LevelUpDialog.#picksKey(archPicks)}`;
+          if (this._archCache?.key !== archKey) {
+            this._archCache = { key: archKey,
+                                models: await LevelUpDialog.#archetypeGrantModels(store.archetypeUuid, lv, archPicks) };
           }
           const picked = this._archCache.models;
           store.archetypeGrants   = picked.grants;
@@ -1059,9 +1063,11 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     if (btn?.dataset.skip !== undefined) {
       dialog._archetypeSkipped = !dialog._archetypeSkipped;
       if (dialog._archetypeSkipped) dialog._archetypeUuid = null;
+      LevelUpDialog.#dropChoices(dialog, LevelUpDialog.#ARCH_PREFIX);
     } else if (btn?.dataset.uuid) {
       dialog._archetypeUuid = dialog._archetypeUuid === btn.dataset.uuid ? null : btn.dataset.uuid;
       if (dialog._archetypeUuid) dialog._archetypeSkipped = false;
+      LevelUpDialog.#dropChoices(dialog, LevelUpDialog.#ARCH_PREFIX);
     } else {
       return;
     }
@@ -1122,9 +1128,11 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       // which never holds the feat's keys, so every one of them silently took
       // its base set. Ask for them here, under a prefix of their own.
       if (store.featUuid) {
-        if (this._featCache?.key !== store.featUuid) {
-          this._featCache = { key: store.featUuid,
-                              models: await LevelUpDialog.#featGrantModels(store.featUuid, lv) };
+        const featPicks = LevelUpDialog.#choicesWithPrefix(store.choices, LevelUpDialog.#FEAT_PREFIX);
+        const featKey   = `${store.featUuid}|${LevelUpDialog.#picksKey(featPicks)}`;
+        if (this._featCache?.key !== featKey) {
+          this._featCache = { key: featKey,
+                              models: await LevelUpDialog.#featGrantModels(store.featUuid, lv, featPicks) };
         }
         const picked = this._featCache.models;
         store.grants   = [...store.grants,   ...picked.grants];
@@ -1149,7 +1157,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
    * and `absorbed` is false: the level-up then says plainly that a5e will ask,
    * rather than quietly dropping the choice as before.
    */
-  static async #archetypeGrantModels(uuid, lv) {
+  static async #archetypeGrantModels(uuid, lv, choices = {}) {
     const empty = { grants: [], features: [], absorbed: false };
     try {
       const doc = await fromUuid(uuid);
@@ -1161,7 +1169,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       const tag  = (g) => ({ ...g, id: `${LevelUpDialog.#ARCH_PREFIX}${g.id}`, fromArchetype: true });
       // The archetype's nested grants matter as much as a class's — this is where
       // an archetype's own knack- or specialisation-style choices live.
-      const tree = await GrantAbsorber.describeTree(doc, lv);
+      const tree = await GrantAbsorber.describeTree(doc, lv, { choices });
       return {
         grants:   tree.grants.map(tag),
         features: tree.features.map(tag),
@@ -1183,7 +1191,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
    * with the class's grants, and record keys are only unique inside their own
    * item, so each source needs a prefix of its own.
    */
-  static async #featGrantModels(uuid, lv) {
+  static async #featGrantModels(uuid, lv, choices = {}) {
     const empty = { grants: [], features: [], absorbed: false };
     try {
       const doc = await fromUuid(uuid);
@@ -1193,7 +1201,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         return empty;
       }
       const tag  = (g) => ({ ...g, id: `${LevelUpDialog.#FEAT_PREFIX}${g.id}`, fromFeat: true });
-      const tree = await GrantAbsorber.describeTree(doc, lv);
+      const tree = await GrantAbsorber.describeTree(doc, lv, { choices });
       return {
         grants:   tree.grants.map(tag),
         features: tree.features.map(tag),
@@ -1202,6 +1210,25 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     } catch (err) {
       AM.log(2, 'Could not read the feat grants:', err);
       return empty;
+    }
+  }
+
+  /**
+   * A cache key for a set of picks. Any cache holding a described tree must
+   * include this: choosing an option pulls that option's own nested grants into
+   * the tree, so a key that ignores the picks serves the pre-choice tree back.
+   */
+  static #picksKey(choices) {
+    return Object.entries(choices ?? {})
+      .map(([k, v]) => `${k}=${(v ?? []).join(',')}`)
+      .sort()
+      .join(';');
+  }
+
+  /** Drop picks belonging to a source that is no longer selected. */
+  static #dropChoices(dialog, prefix) {
+    for (const id of Object.keys(dialog._levelChoices ?? {})) {
+      if (id.startsWith(prefix)) delete dialog._levelChoices[id];
     }
   }
 
@@ -1245,6 +1272,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!dialog) return;
     const uuid = btn.dataset.uuid;
     dialog._featUuid = dialog._featUuid === uuid ? null : uuid;
+    LevelUpDialog.#dropChoices(dialog, LevelUpDialog.#FEAT_PREFIX);
     dialog.render(false);
   }
 
