@@ -4227,3 +4227,17 @@ input.am-cs-stat-val {
    invite a click, but it still carries its name and opens on right-click. */
 .am-card-granted { cursor: default; }
 .am-card-granted:hover { transform: none; }
+
+/* ── Grant grids are not their own scroll region ─────────────────────────
+   The shared card grid caps itself at 22rem and scrolls, which suits a picker
+   holding hundreds of spells. A grant block holds eight cards and sits on a tab
+   that already scrolls, so the cap only served to slice the last row in half —
+   the names read as cut off rather than as something to scroll to. Inside a
+   grant block the grid grows to its content instead. */
+.am-grant-block .am-card-grid {
+  max-height: none;
+  overflow-y: visible;
+}
+/* A name of two lines must lengthen the card, not disappear under its edge */
+.am-grant-block .am-card { height: auto; overflow: visible; }
+.am-choose-label { margin: 0.35rem 0 0.2rem; font-weight: 600; }

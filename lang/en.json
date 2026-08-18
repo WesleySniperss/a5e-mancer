@@ -449,5 +449,7 @@
   "am.mixed.pick": "Gifts offered by {name}:",
   "am.sheet.heal-title": "Heal how much?",
   "am.sheet.damage-title": "Damage how much?",
-  "am.sheet.apply": "Apply"
+  "am.sheet.apply": "Apply",
+  "am.grants.choose-n": "Choose {n}:",
+  "am.app.lore.not-found": "That table could not be found — reselect the destiny or background and try again."
 }

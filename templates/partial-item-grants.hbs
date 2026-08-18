@@ -73,6 +73,12 @@
       {{/if}}
 
       {{#if this.options.length}}
+        {{!-- Its own heading. Without it the cards ran on from "Always granted"
+              above and the choice read as something already given. --}}
+        <p class="am-hint am-choose-label">
+          <i class="fa-solid fa-hand-pointer"></i>
+          {{localize 'am.grants.choose-n' n=this.total}}
+        </p>
         <div class="am-card-grid am-inline-card-grid" role="list">
           {{#each this.options}}
             <button type="button" role="listitem"

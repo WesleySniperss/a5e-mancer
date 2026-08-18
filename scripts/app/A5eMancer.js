@@ -770,7 +770,16 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
   static rollLoreTable(_event, btn) {
     const key = btn?.dataset.key;
     const table = key ? A5eMancer.#findLoreTable(key) : null;
-    if (!table) return;
+    if (!table) {
+      // Returning quietly here made a broken roll indistinguishable from a
+      // button that does nothing, which is how this went unnoticed twice.
+      AM.log(2, `No lore table for key "${key}". Loaded: `
+                + JSON.stringify(Object.fromEntries(
+                    Object.entries(AM.loreTables ?? {})
+                      .map(([k, v]) => [k, (v ?? []).map(t => t.key)]))));
+      ui.notifications.warn(game.i18n.localize('am.app.lore.not-found'));
+      return;
+    }
 
     const text = LoreTableService.roll(table);
     AM.loreRolls[key] = text;
