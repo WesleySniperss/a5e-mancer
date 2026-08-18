@@ -21,9 +21,11 @@
       <hr />
     {{/if}}
 
-    {{#if classSelected}}
-
-      {{#if spellInfo}}
+    {{!-- The browser opens on spellInfo, not on the class. An origin can owe a
+          cantrip to a character whose class casts nothing at all, and gating on
+          the class meant that cantrip was announced above and then had nowhere
+          to be chosen. --}}
+    {{#if spellInfo}}
 
         <p>{{localize 'am.app.spells.preamble'}}</p>
 
@@ -159,7 +161,7 @@
           <input type="hidden" name="spellUuids[]" value="{{this}}" />
         {{/each}}
 
-      {{else}}
+    {{else if classSelected}}
 
         <div class="am-info-placeholder">
           <i class="fa-solid fa-circle-info fa-2x" style="opacity:0.5"></i>
@@ -171,8 +173,6 @@
             <p class="am-hint">{{localize 'am.app.spells.class-no-spells-hint'}}</p>
           {{/if}}
         </div>
-
-      {{/if}}
 
     {{else}}
 

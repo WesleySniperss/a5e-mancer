@@ -265,6 +265,43 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
                 : game.i18n.format('am.spells.origin-spells', { n: r.count, level: r.level })
             })));
             context.hasOriginSpells = true;
+
+            // The allowance has to reach the picker, not just the notice above
+            // it. A cantrip from Dragonbound was announced and then had nowhere
+            // to be chosen: the whole browser sits behind the class's own
+            // spellInfo, so a non-caster saw a promise and no list, and a caster
+            // saw a quota that did not include the extra.
+            const extraCantrips = origin.reduce((n, o) =>
+              n + o.rows.filter(r => r.level === 0).reduce((m, r) => m + r.count, 0), 0);
+            const extraSpells = origin.reduce((n, o) =>
+              n + o.rows.filter(r => r.level > 0).reduce((m, r) => m + r.count, 0), 0);
+            const topLevel = origin.reduce((lv, o) =>
+              Math.max(lv, ...o.rows.map(r => r.level)), 0);
+
+            if (context.spellInfo) {
+              context.spellInfo = {
+                ...context.spellInfo,
+                cantrips:    (context.spellInfo.cantrips ?? 0) + extraCantrips,
+                spellsKnown: context.spellInfo.spellsKnown < 0
+                  ? context.spellInfo.spellsKnown
+                  : (context.spellInfo.spellsKnown ?? 0) + extraSpells,
+                maxLevel:    Math.max(context.spellInfo.maxLevel ?? 1, topLevel || 1)
+              };
+            } else {
+              // No caster class, but the origin still owes spells — so the
+              // browser opens on its own terms. The list is left unrestricted:
+              // the text names a list in prose ("the cleric or wizard lists")
+              // and reading that reliably is beyond what the sentence supports.
+              context.spellInfo = {
+                type: 'known',
+                cantrips: extraCantrips,
+                spellsKnown: extraSpells,
+                maxLevel: Math.max(1, topLevel),
+                fromOriginOnly: true
+              };
+              context.isSpellcaster = true;
+            }
+            context.originOnlySpells = !classKey || !CLASS_SPELL_TABLES[classKey];
           }
 
           if (context.spellInfo && AM.allSpellsData) {

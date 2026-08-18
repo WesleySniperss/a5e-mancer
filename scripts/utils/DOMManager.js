@@ -476,12 +476,21 @@ export class DOMManager {
 
       const texts = [DocumentService.rawDescription?.(doc) ?? doc.system?.description ?? ''];
 
-      // The granted features carry the sentence as often as the origin itself
-      for (const [, grant] of (doc.grants?.entries?.() ?? [])) {
+      // The granted features carry the sentence as often as the origin itself.
+      // Base features always; an option only once it is chosen — reading them
+      // all offered a cantrip from a gift the character had not taken, which is
+      // the same mistake the grant tree was making.
+      const choices = AM.itemGrants?.[type]?.choices ?? {};
+      for (const [id, grant] of (doc.grants?.entries?.() ?? [])) {
         if (grant?.grantType !== 'feature') continue;
-        for (const f of [...(grant.features?.base ?? []), ...(grant.features?.options ?? [])]) {
+        const picked = choices[id] ?? [];
+        const uuids = [
+          ...(grant.features?.base ?? []).map(f => f.uuid ?? f),
+          ...(grant.features?.options ?? []).map(f => f.uuid ?? f).filter(u => picked.includes(u))
+        ];
+        for (const u of uuids) {
           try {
-            const child = await fromUuid(f.uuid ?? f);
+            const child = await fromUuid(u);
             if (child) texts.push(child.system?.description ?? '');
           } catch { /* unreadable — skip */ }
         }
@@ -532,6 +541,10 @@ export class DOMManager {
       for (const id of Object.keys(store.choices ?? {})) {
         if (!live.has(id)) delete store.choices[id];
       }
+
+      // A gift can be the thing that grants a cantrip, so the allowance read
+      // from the text has to be taken again against the new picks.
+      await this.loadOriginSpells(type, store.uuid);
     } catch (err) {
       AM.log(2, `Could not rebuild ${type} grants:`, err);
     }
