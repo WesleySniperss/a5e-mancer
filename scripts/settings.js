@@ -129,6 +129,14 @@ export function registerSettings() {
     }
   });
 
+  // Which catalogue version the world's magic maneuver compendium was built
+  // from. Hidden: it is bookkeeping, not a choice. It lives here rather than on
+  // the pack because a compendium is a collection, not a document, and has no
+  // flags of its own — writing one threw after the pack was already built.
+  game.settings.register(AM.ID, 'magicManeuverPackVersion', {
+    scope: 'world', config: false, type: Number, default: 0
+  });
+
   game.settings.register(AM.ID, 'enhanceGrantDialog', {
     name: 'am.settings.enhance-grants.name', hint: 'am.settings.enhance-grants.hint',
     scope: 'world', config: true, type: Boolean, default: true

@@ -13,14 +13,16 @@ import { MAGIC_MANEUVERS, MM_SCHOOLS, MM_SCHOOL_LORE } from '../data/magicManeuv
  * The items are created as type `maneuver` on purpose — that gives them a5e's own
  * item sheet, chat card and degree/exertion display, which is what makes them sit
  * beside the combat maneuvers rather than looking bolted on. They carry a flag
- * marking them as magic maneuvers, and ManeuverService filters on it so they
- * never appear in the combat-maneuver pickers, where they would be wrong.
+ * marking them as magic maneuvers, which is what tells them apart from a
+ * combat maneuver once they are on an actor.
  */
 export class MagicManeuverPack {
 
   static PACK_NAME = 'a5e-mancer-magic-maneuvers';
   static VERSION   = 6;          // bump to force a rebuild after data changes
-  static FLAG      = 'magicManeuverPack';
+  // Where the built version is recorded. A world setting, because a compendium
+  // has no flag storage of its own — see #builtVersion.
+  static SETTING   = 'magicManeuverPackVersion';
 
   static get collection() { return `world.${this.PACK_NAME}`; }
 
@@ -36,8 +38,12 @@ export class MagicManeuverPack {
     if (!game.settings.get(AM.ID, 'buildMagicManeuverPack')) return null;
 
     let pack = this.pack;
-    const built = pack?.getFlag?.(AM.ID, this.FLAG) ?? pack?.metadata?.flags?.[AM.ID]?.[this.FLAG];
-
+    // The built version is kept in a world setting, not on the pack.
+    // CompendiumCollection is a DocumentCollection, not a Document: it has no
+    // setFlag, so writing the marker there threw after the pack had already been
+    // filled — the compendium existed and worked, but every reload rebuilt it
+    // and reported a failure.
+    const built = this.#builtVersion();
     if (pack && !force && built === this.VERSION) return pack;
 
     try {
@@ -62,13 +68,34 @@ export class MagicManeuverPack {
       }
 
       await this.#populate(pack);
-      await pack.setFlag(AM.ID, this.FLAG, this.VERSION);
+      await this.#rememberVersion(this.VERSION);
       ui.notifications.info(`${AM.NAME}: magic maneuver compendium ready (${MAGIC_MANEUVERS.length} entries).`);
       return pack;
     } catch (err) {
       AM.log(1, 'Could not build the magic maneuver compendium:', err);
       ui.notifications.error(`${AM.NAME}: the magic maneuver compendium could not be built — see the console.`);
       return null;
+    }
+  }
+
+  /**
+   * Which catalogue version the world was last built from.
+   *
+   * A setting rather than a flag on the pack: a compendium is a collection, not
+   * a document, so it has no flag storage of its own across Foundry versions.
+   * Unregistered settings throw, which on a fresh world simply means "never
+   * built" — so the read is guarded and returns null.
+   */
+  static #builtVersion() {
+    try { return game.settings.get(AM.ID, this.SETTING) ?? null; }
+    catch { return null; }
+  }
+
+  static async #rememberVersion(v) {
+    try { await game.settings.set(AM.ID, this.SETTING, v); }
+    catch (err) {
+      // Not fatal: the pack is built and usable, it will just be rebuilt again
+      AM.log(2, 'Could not record the compendium version:', err);
     }
   }
 
