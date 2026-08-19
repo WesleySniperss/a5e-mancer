@@ -714,6 +714,12 @@
   text-align: center;
   color: var(--am-text-dim);
   min-height: 5.5rem;
+  /* The card is a <button>, and Foundry hands buttons an explicit height: the
+     box then stops at min-height and its content is cut off rather than
+     lengthening it. A three-line name like "Human (Voidrunner's Codex)" read as
+     "Human (Voidrunner's" and ended at the border. auto lets the grid row grow
+     to the tallest card, which is what the layout assumed all along. */
+  height: auto;
   /* Grid stretches cells to the tallest in the row. Without these the extra
      height was taken out of the image (squashing it) and long names spilled
      past the border. */
@@ -3248,7 +3254,11 @@ input.am-cs-stat-val {
 
 .am-item-controls { display: flex; gap: 0.1rem; opacity: 0; transition: opacity 0.15s; a, button { background: none; border: none; color: var(--cs-muted); cursor: pointer; font-size: 0.7rem; padding: 0.1rem 0.22rem; border-radius: 3px; transition: all 0.1s; &:hover { color: var(--cs-text); background: rgba(255,255,255,0.08); } &:last-child:hover { color: var(--cs-red); } } }
 
-.am-item-props { display: flex; flex-wrap: nowrap; gap: 0.2rem; margin-top: 0.12rem; overflow: hidden; min-height: 0; }
+/* Wraps rather than clips: nowrap plus overflow:hidden cut the last chips off
+   mid-word with nothing to say they were there. A spell carrying damage, range,
+   save, duration and school outruns the middle column every time, and a hidden
+   chip is worse than a second line. */
+.am-item-props { display: flex; flex-wrap: wrap; gap: 0.2rem; margin-top: 0.12rem; min-height: 0; }
 .am-item-props:empty { display: none; }
 
 .am-chip { display: inline-flex; align-items: center; padding: 0.1rem 0.42rem; border-radius: 2rem; font-size: 0.64rem; font-weight: 600; white-space: nowrap; line-height: 1.4; }
@@ -4238,6 +4248,7 @@ input.am-cs-stat-val {
   max-height: none;
   overflow-y: visible;
 }
-/* A name of two lines must lengthen the card, not disappear under its edge */
-.am-grant-block .am-card { height: auto; overflow: visible; }
+/* A name of two lines must lengthen the card, not disappear under its edge.
+   The height now comes from .am-card itself; only the clipping differs here. */
+.am-grant-block .am-card { overflow: visible; }
 .am-choose-label { margin: 0.35rem 0 0.2rem; font-weight: 600; }
