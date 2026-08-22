@@ -1246,6 +1246,45 @@ img[src*="a5e-mancer/assets/icons/"] {
   border: 1px solid rgba(224, 86, 63, 0.35);
 }
 
+/* What a second class actually hands over — the shorter list, and the note
+   naming what it withholds. Kept visually quieter than the prereq banners: it
+   is a statement of fact, not a pass/fail the player has to act on. */
+.lu-mc-prof {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+
+  li {
+    display: flex;
+    align-items: baseline;
+    gap: 0.45rem;
+    font-size: 0.85rem;
+    i { color: var(--am-success, #8fd693); font-size: 0.75rem; }
+  }
+}
+/* The same list, for what the class withholds. Struck through and dimmed so the
+   two lists cannot be misread for one another at a glance. */
+.lu-mc-prof-lost li {
+  color: var(--am-text-dim);
+  text-decoration: line-through;
+  text-decoration-color: rgba(255, 107, 82, 0.5);
+  i { color: #ff6b52; text-decoration: none; }
+}
+.lu-mc-prof-note {
+  margin-block-start: 0.6rem;
+  padding-block-start: 0.4rem;
+  border-block-start: 1px solid rgba(255, 255, 255, 0.08);
+}
+/* A class the table does not cover: the lists above still hold, but the
+   per-class slice is the player's to check, so this one asks for attention. */
+.lu-mc-prof-warn {
+  color: var(--am-gold);
+  i { color: var(--am-gold); }
+}
+
 /* Callout for options whose selection opens the a5e system's own window */
 .lu-system-note {
   display: flex;

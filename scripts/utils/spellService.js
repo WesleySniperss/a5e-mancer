@@ -7,7 +7,15 @@ import { iconForItem, applyItemIcon } from '../data/a5eIcons.js';
  * a5e uses the same spell system as 5e — Prepared or Known casters.
  */
 
-// Spells known at level 1 for "known" casters
+// Spells known at level 1 for "known" casters.
+//
+// `maxLevel` is the highest spell level a 1st-level character of the class can
+// take. The herald is 0: its table gives two cantrips at 1st level and no spell
+// slots until 2nd, so offering it a 1st-level spell offered one it cannot cast —
+// while `cantrips: 0` did the opposite harm and withheld the two it is owed.
+// The artificer is NOT the same case despite also being a half caster: it casts
+// from spell inventions rather than slots and its maximum spell level is 1st
+// from 1st level, so it keeps maxLevel: 1.
 export const CLASS_SPELL_TABLES = {
   bard:      { type: 'known',    spellsKnown: 4,  cantrips: 2, maxLevel: 1 },
   sorcerer:  { type: 'known',    spellsKnown: 2,  cantrips: 4, maxLevel: 1 },
@@ -16,7 +24,7 @@ export const CLASS_SPELL_TABLES = {
   wizard:    { type: 'prepared', spellsKnown: -1, cantrips: 3, maxLevel: 1 },
   cleric:    { type: 'prepared', spellsKnown: -1, cantrips: 3, maxLevel: 1 },
   druid:     { type: 'prepared', spellsKnown: -1, cantrips: 2, maxLevel: 1 },
-  herald:    { type: 'prepared', spellsKnown: -1, cantrips: 0, maxLevel: 1 },
+  herald:    { type: 'prepared', spellsKnown: -1, cantrips: 2, maxLevel: 0 },
   artificer: { type: 'prepared', spellsKnown: -1, cantrips: 2, maxLevel: 1 }
 };
 

@@ -19,3 +19,4 @@ export { LoreTableService } from './loreTableService.js';
 export { PackFilter } from './packFilter.js';
 export { MagicManeuverPack } from './magicManeuverPack.js';
 export { ProficiencyLedger } from './proficiencyLedger.js';
+export { MulticlassRules } from './multiclassRules.js';

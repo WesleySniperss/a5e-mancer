@@ -285,7 +285,10 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
                 spellsKnown: context.spellInfo.spellsKnown < 0
                   ? context.spellInfo.spellsKnown
                   : (context.spellInfo.spellsKnown ?? 0) + extraSpells,
-                maxLevel:    Math.max(context.spellInfo.maxLevel ?? 1, topLevel || 1)
+                // No floor of 1: a half caster tops out at cantrips until 2nd
+                // level, and an origin that grants only a cantrip must not
+                // raise that ceiling.
+                maxLevel:    Math.max(context.spellInfo.maxLevel ?? 0, topLevel)
               };
             } else {
               // No caster class, but the origin still owes spells — so the

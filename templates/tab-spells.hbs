@@ -53,7 +53,13 @@
           {{/if}}
           <div class="am-info-row">
             <i class="fa-solid fa-arrow-up"></i>
-            <span>{{localize 'am.app.spells.max-level-label'}}: <strong>{{spellInfo.maxLevel}}</strong></span>
+            {{!-- A half caster starts with cantrips and no slots, so "Max spell
+                  level: 0" would read as a broken number rather than a rule. --}}
+            {{#if spellInfo.maxLevel}}
+              <span>{{localize 'am.app.spells.max-level-label'}}: <strong>{{spellInfo.maxLevel}}</strong></span>
+            {{else}}
+              <span>{{localize 'am.app.spells.cantrips-only'}}</span>
+            {{/if}}
           </div>
         </div>
 

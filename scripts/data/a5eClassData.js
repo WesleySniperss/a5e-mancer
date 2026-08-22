@@ -50,3 +50,64 @@ export const A5E_CLASS_DATA = {
 export function classKey(name) {
   return (name ?? '').toLowerCase().replace(/\s*\(.*\)\s*/, '').trim();
 }
+
+/**
+ * What an ADDITIONAL class hands out when you multiclass into it.
+ *
+ * A class taken after your first gives you only a slice of its 1st-level
+ * proficiencies, listed per class in the Multiclassing Proficiencies table
+ * (https://a5e.tools/rules/multiclassing) — a fighter picked up second still
+ * brings armour and weapons, a cleric picked up second brings two skills and
+ * nothing else. Three rules are universal, so they are not repeated per entry;
+ * MulticlassRules applies them to every class, including ones missing below:
+ *   – no saving throw proficiencies,
+ *   – no starting equipment,
+ *   – features, the class knack and combat maneuvers arrive as normal.
+ *
+ * Each entry names what SURVIVES of the class's own 1st-level grants; anything
+ * unnamed is dropped.
+ *   armor    — armor keys to keep ('light' | 'medium' | 'heavy' | 'shield');
+ *              [] drops the class's armor grant outright.
+ *   weapons  — 'all' keeps the weapon grant untouched (the class's multiclass
+ *              list equals its full one); [] drops it; an array keeps only those
+ *              keys.
+ *   tools    — 'all' keeps the tool grant as it stands (a fixed kit, e.g. the
+ *              rogue's thieves' tools); { total } narrows a choice to that many;
+ *              null drops it.
+ *   skills   — { total } narrows the class's skill choice to that many, `only`
+ *              restricts which of them may be picked, `base` names skills given
+ *              outright (with total 0, nothing further is asked); null drops it.
+ *
+ * Classes absent here — third-party ones such as artificer and savant — keep
+ * their own grants apart from the three universal rules. Inventing a slice for
+ * a class whose multiclassing entry we cannot read would take proficiencies
+ * away on a guess, which is the one error the player would never spot.
+ */
+export const A5E_MULTICLASS = {
+  adept:     { armor: [],                            weapons: 'all',      tools: null,         skills: null },
+  bard:      { armor: ['light'],                     weapons: [],         tools: { total: 1 }, skills: { total: 1 } },
+  berserker: { armor: ['light', 'medium', 'shield'], weapons: 'all',      tools: null,         skills: null },
+  cleric:    { armor: [],                            weapons: [],         tools: null,         skills: { total: 2, only: ['culture', 'history', 'medicine', 'religion'] } },
+  druid:     { armor: ['light', 'medium', 'shield'], weapons: [],         tools: null,         skills: null },
+  fighter:   { armor: ['light', 'medium', 'shield'], weapons: 'all',      tools: null,         skills: null },
+  herald:    { armor: ['light', 'medium', 'shield'], weapons: 'all',      tools: null,         skills: null },
+  marshal:   { armor: ['light', 'medium', 'shield'], weapons: 'all',      tools: null,         skills: null },
+  psion:     { armor: [],                            weapons: [],         tools: null,         skills: { total: 0, base: ['arcana'] } },
+  psyknight: { armor: ['light', 'medium'],           weapons: 'all',      tools: null,         skills: { total: 1 } },
+  ranger:    { armor: ['light', 'medium', 'shield'], weapons: 'all',      tools: null,         skills: { total: 1 } },
+  rogue:     { armor: ['light'],                     weapons: [],         tools: 'all',        skills: { total: 1 } },
+  scientist: { armor: ['light'],                     weapons: [],         tools: { total: 1 }, skills: { total: 1, base: ['science'] } },
+  scout:     { armor: ['light'],                     weapons: ['simple'], tools: { total: 1 }, skills: { total: 1 } },
+  sorcerer:  { armor: [],                            weapons: [],         tools: null,         skills: { total: 0, base: ['arcana'] } },
+  trooper:   { armor: ['light', 'medium', 'shield'], weapons: 'all',      tools: null,         skills: null },
+  warlock:   { armor: ['light'],                     weapons: ['simple'], tools: null,         skills: null },
+  wizard:    { armor: [],                            weapons: [],         tools: null,         skills: { total: 0, base: ['arcana'] } },
+};
+
+// The three 5e names A5e replaces, kept for the same reason HIT_DICE keeps them:
+// so an imported or homebrew character built on them still gets the right slice.
+// Each one's 5e multiclassing entry is identical to its A5e replacement's, so
+// this is an alias rather than a guess.
+A5E_MULTICLASS.barbarian = A5E_MULTICLASS.berserker;   // Berserker
+A5E_MULTICLASS.monk      = A5E_MULTICLASS.adept;       // Adept
+A5E_MULTICLASS.paladin   = A5E_MULTICLASS.herald;      // Herald

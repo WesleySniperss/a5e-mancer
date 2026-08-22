@@ -4,6 +4,7 @@ import { DocumentService } from './documentService.js';
 import { A5E_CLASS_DATA, classKey as classKeyOf } from '../data/a5eClassData.js';
 import { iconForItem } from '../data/a5eIcons.js';
 import { GrantAbsorber } from './grantAbsorber.js';
+import { MulticlassRules } from './multiclassRules.js';
 
 /**
  * Handles levelling up a character in a5e.
@@ -43,6 +44,10 @@ const ASI_LEVELS = [4, 8, 12, 16, 19];
  * Multiclass prerequisites per A5e (Level Up: Advanced 5e) rules.
  * "and" = all must be met; "or" = any one suffices.
  * Each entry is [abilityKey, minimumScore].
+ *
+ * The other half of the same table — what an additional class actually hands
+ * out, which is less than it would as a first class — is A5E_MULTICLASS in
+ * data/a5eClassData.js, applied by MulticlassRules.
  */
 const CLASS_PREREQUISITES = {
   adept:      { and: [['dex', 13], ['wis', 13]] },
@@ -174,6 +179,13 @@ export class LevelUpService {
    * As with applyLevelUp, the new class's level-1 features, knack and
    * proficiencies are applied by a5e's grant engine when the class item is
    * created on the actor — we don't add them here.
+   *
+   * What we do first is cut the item down to a SECOND class's share. a5e fires
+   * a class item's 1st-level grants whole however many classes the actor
+   * already has, so without this the new class handed over its saving throws,
+   * its full skill allowance and a set of starting equipment — the package it
+   * only owes a character who started with it. MulticlassRules trims the data;
+   * a5e still asks about, and records, whatever survives.
    */
   static async applyMulticlass(actor, classUuid, hpGained) {
     const classDoc = await fromUuid(classUuid);
@@ -199,6 +211,12 @@ export class LevelUpService {
     else if (data.system?.level !== undefined)      data.system.level = 1;
     data._stats = data._stats || {};
     data._stats.compendiumSource = classUuid;
+
+    const trim = MulticlassRules.apply(data);
+    if (!trim.known) {
+      AM.log(2, `${classDoc.name} has no multiclassing entry in A5E_MULTICLASS — `
+              + `only the universal rules (no saving throws, no starting equipment) were applied`);
+    }
 
     await actor.createEmbeddedDocuments('Item', [data]);
     AM.log(3, `Multiclassed into ${classDoc.name}`);

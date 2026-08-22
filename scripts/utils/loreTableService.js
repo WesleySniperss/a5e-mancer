@@ -140,6 +140,11 @@ export class LoreTableService {
         for (const entry of index) {
           const n = entry.name?.toLowerCase() ?? '';
           if (!n.startsWith(name)) continue;
+          // The prefix has to be the whole word. This route used to run only
+          // when nothing else was found, so a loose match cost nothing; now that
+          // it always runs, "Sage" must not claim "Sagebrush Encounters".
+          const after = n.charAt(name.length);
+          if (after && !/[\s:–—-]/.test(after)) continue;
           const doc = await pack.getDocument(entry._id);
           const entries = this.#fromRollTable(doc);
           if (entries.length < 2) continue;
@@ -245,19 +250,30 @@ export class LoreTableService {
         tables = [...tables, ...own, ...linked2];
       }
 
-      if (!tables.length) tables = await this.byItemName(doc.name, source, 0);
+      // Always merged, never a fallback. A5e ships each background's Connections
+      // and Mementos as RollTable documents named "<Background> Connections" and
+      // "<Background> Mementos", and the description links neither — so treating
+      // this route as a last resort meant any background whose text happened to
+      // carry one inline list (most of them do) lost both tables outright. They
+      // then fell through to the two plain textareas in the biography, which
+      // have no die to roll: exactly the "rolling does nothing" report.
+      const named = await this.byItemName(doc.name, source, tables.length);
+      tables = [...tables, ...named];
 
-      // Same table reached two ways — keep the first
+      // Same table reached two ways — keep the first. Matched on content alone:
+      // the inline copy and the RollTable document carry different headings
+      // ("Connections and Mementos" against "Connections"), so a signature that
+      // included the heading let the same entries through twice.
       const seen = new Set();
       tables = tables.filter(t => {
-        const sig = `${t.heading}|${t.entries.length}|${t.entries[0] ?? ''}`;
+        const sig = t.entries.join('').slice(0, 400);
         if (seen.has(sig)) return false;
         seen.add(sig);
         return true;
       }).map((t, i) => ({ ...t, index: i, key: `${source}.${i}` }));
 
       AM.log(3, `${source}: ${tables.length} lore table(s) `
-                + `(${inline.length} inline, ${linked.length} linked)`);
+                + `(${inline.length} inline, ${linked.length} linked, ${named.length} by name)`);
       return tables;
     } catch (err) {
       AM.log(2, `Could not read ${source} lore tables:`, err);

@@ -64,6 +64,50 @@
   {{#if newClass}}
   <hr />
 
+  {{!-- What a SECOND class owes, which is less than a first one. Shown before
+        the player commits: a5e's window afterwards lists only what survives,
+        with nothing to say it was ever narrower. --}}
+  <section class="lu-section">
+    <h3><i class="fa-solid fa-scale-unbalanced"></i> {{localize 'am.levelup.mc-prof-title'}}</h3>
+    <p class="am-hint">{{localize 'am.levelup.mc-prof-hint'}}</p>
+    {{#if mcProficiencies.lines.length}}
+      <ul class="lu-mc-prof">
+        {{#each mcProficiencies.lines}}
+          <li><i class="fa-solid fa-check"></i> {{this}}</li>
+        {{/each}}
+      </ul>
+    {{else}}
+      <p class="am-hint">{{localize 'am.levelup.mc-prof-none'}}</p>
+    {{/if}}
+
+    {{#if mcProficiencies.hasLosses}}
+      <p class="am-hint lu-mc-prof-note">{{localize 'am.levelup.mc-prof-lost-title'}}</p>
+      <ul class="lu-mc-prof lu-mc-prof-lost">
+        {{#each mcProficiencies.lost}}
+          <li><i class="fa-solid fa-xmark"></i> {{this}}</li>
+        {{/each}}
+        {{#if mcProficiencies.lostEquipment}}
+          <li><i class="fa-solid fa-xmark"></i> {{localize 'am.levelup.mc-prof-lost-equipment'}}</li>
+        {{/if}}
+      </ul>
+    {{/if}}
+
+    {{!-- A class with no entry in the table still gets the universal rules, so
+          the lists above are real — it is only the per-class slice we cannot
+          apply, and the player has to check that one by hand. --}}
+    {{#unless mcProficiencies.known}}
+      <p class="am-hint lu-mc-prof-note lu-mc-prof-warn">
+        <i class="fa-solid fa-triangle-exclamation"></i> {{localize 'am.levelup.mc-prof-unknown'}}
+      </p>
+    {{/unless}}
+
+    <p class="am-hint lu-mc-prof-note">
+      <i class="fa-solid fa-circle-info"></i> {{localize 'am.levelup.mc-prof-denied'}}
+    </p>
+  </section>
+
+  <hr />
+
   {{!-- HP: a5e's own grant dialog asks for this and only its answer counts —
         hp.max is derived from the class item's hp.levels whenever class HP
         automation is on, which it is as soon as the actor has a class. --}}

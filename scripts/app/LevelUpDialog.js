@@ -6,6 +6,7 @@ import { SpellService, CLASS_SPELL_TABLES } from '../utils/spellService.js';
 import { ItemDescPanel } from '../utils/itemDescPanel.js';
 import { GrantAbsorber } from '../utils/grantAbsorber.js';
 import { ProficiencyLedger } from '../utils/proficiencyLedger.js';
+import { MulticlassRules } from '../utils/multiclassRules.js';
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -26,6 +27,8 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     this._newClassUuid      = null;
     this._newClassHitDie    = 8;
     this._compendiumClasses = null;
+    // { uuid, value } — the multiclass proficiency preview for the chosen class
+    this._mcProficiencies   = null;
 
     // Shared maneuver/spell selection state
     this._selectedManeuverUuids = [];
@@ -177,6 +180,9 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         newClassLevel: 1,
         feats: [],
         multiclass: true,
+        // A second class owes less than a first one; say so before the player
+        // commits, since a5e's own window afterwards shows only what is left.
+        mcProficiencies: await this.#multiclassProficiencies(newClass),
       };
 
       this.#addManeuverBrowserContext(context, maneuverInfo);
@@ -552,6 +558,38 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       id: s.id, name: s.name, img: s.img, level: s.level,
       replaced: this._replacedSpellIds.includes(s.id)
     }));
+  }
+
+  /**
+   * The shorter proficiency list a class hands over as a SECOND class.
+   *
+   * Read off the compendium item itself rather than the rules table, so what is
+   * shown is what will actually be created. The dialog re-renders on every
+   * keystroke and radio click, so the answer is cached per class — this is the
+   * only compendium read in the multiclass branch.
+   */
+  async #multiclassProficiencies(newClass) {
+    if (!newClass?.uuid) return null;
+    if (this._mcProficiencies?.uuid === newClass.uuid) return this._mcProficiencies.value;
+
+    // Unreadable item: say nothing about the lists rather than imply they are
+    // empty. The trim still runs on submit — this is only what is shown.
+    const blank = {
+      known: !!MulticlassRules.spec(newClass.name),
+      lines: [], lost: [], lostEquipment: false, hasLosses: false,
+    };
+
+    let value;
+    try {
+      const doc = await fromUuid(newClass.uuid);
+      value = doc ? MulticlassRules.preview(doc.toObject()) : blank;
+    } catch (err) {
+      AM.log(2, `Could not read ${newClass.name} to preview its multiclass proficiencies:`, err);
+      value = blank;
+    }
+
+    this._mcProficiencies = { uuid: newClass.uuid, value };
+    return value;
   }
 
   #getConMod() {
