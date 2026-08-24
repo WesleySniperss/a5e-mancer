@@ -536,26 +536,88 @@ Hooks.on('renderTokenHUDA5e', (hud, html) => {
          rather than instead of it, and takes only the half a5e cannot: the
          item-applied sources. Actor-owned effects are left to a5e's own handler
          so the same condition is never removed twice. */
+      const itemSources = () => ConditionSource.findAll(actor, btn.dataset.statusId)
+        .filter(s => !s.owned && !s.foreign);
+
+      const announce = (id, items) => {
+        ui.notifications.info(game.i18n.format('am.sheet.condition-from-item', {
+          condition: btn.getAttribute('title') || id,
+          item: [...new Set(items.map(i => i.name))].join(', ')
+        }));
+        canvas?.hud?.token?.render();
+      };
+
+      /* Right-click. a5e binds its removal to `auxclick`; this is a different
+         event, so both run and this one takes only what a5e cannot reach.
+         Stopping propagation here cannot block `auxclick`. */
       btn.addEventListener('contextmenu', async (ev) => {
         const id = btn.dataset.statusId;
         if (!id || !actor.isOwner) return;
-
-        const fromItems = ConditionSource.findAll(actor, id).filter(s => !s.owned);
-        if (!fromItems.length) return;          // a5e's auxclick has it covered
+        const fromItems = itemSources();
+        if (!fromItems.length) return;              // a5e's auxclick has it covered
 
         ev.preventDefault();
         ev.stopPropagation();
         for (const src of fromItems) await src.effect.update({ disabled: true });
         await _clearDurationFlag(actor, id);
+        announce(id, fromItems.map(s => s.item));
+      });
 
-        ui.notifications.info(game.i18n.format('am.sheet.condition-from-item', {
-          condition: btn.getAttribute('title') || id,
-          item: fromItems.map(s => s.item.name).join(', ')
-        }));
-        canvas?.hud?.token?.render();
+      /* Left-click has the same blind spot: a5e reads the condition as active
+         off `actor.statuses`, calls _removeStatusEffect, and that deletes from
+         `actor.effects` — where an item's effect is not.
+
+         Here the whole gesture is taken over rather than split, because a5e's
+         click is a DELEGATED listener that would run after this one returns at
+         its first await. It would then re-read a condition mid-removal and,
+         finding it no longer active, switch it back on. So when an item is
+         holding the condition, this clears every source and stops the event. */
+      btn.addEventListener('click', async (ev) => {
+        const id = btn.dataset.statusId;
+        if (!id || !actor.isOwner) return;
+        const fromItems = itemSources();
+        if (!fromItems.length) return;              // ordinary condition — a5e's job
+
+        ev.preventDefault();
+        ev.stopPropagation();
+        const { disabled } = await ConditionSource.clear(actor, id, { skipForeign: true });
+        await _clearDurationFlag(actor, id);
+        if (disabled.length) announce(id, disabled);
       });
     }
   });
+
+  /* Clear All leaves item-applied conditions standing: a5e's
+     `_clearAllConditions` reduces over `actor.effects`, so a condition a spell
+     is holding survives a button whose whole promise is that nothing survives
+     it. This runs alongside and switches those off too — except the ones
+     another module runs the life cycle of. See ConditionSource.FOREIGN_*. */
+  const clearAll = el.querySelector('.clear-all-conditions');
+  if (clearAll && !clearAll.dataset.amHudInit && actor.isOwner) {
+    clearAll.dataset.amHudInit = '1';
+    clearAll.addEventListener('click', async () => {
+      const items = [];
+      const kept  = [];
+      for (const status of (CONFIG.statusEffects ?? [])) {
+        if (!status?.id) continue;
+        const { disabled, skipped } = await ConditionSource.clear(actor, status.id, { skipForeign: true });
+        items.push(...disabled);
+        kept.push(...skipped);
+      }
+      if (!items.length && !kept.length) return;
+
+      if (items.length) {
+        AM.log(3, `Clear All also switched off ${items.length} item-applied condition(s)`);
+      }
+      if (kept.length) {
+        // Silence here would read as a bug — the button says "all".
+        ui.notifications.info(game.i18n.format('am.sheet.conditions-kept', {
+          list: [...new Set(kept)].join(', ')
+        }));
+      }
+      canvas?.hud?.token?.render();
+    });
+  }
 
   _hudKeydownHandler = async (ev) => {
     if (!_hudHoveredBtn) return;

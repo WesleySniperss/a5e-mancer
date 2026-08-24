@@ -27,6 +27,27 @@
 export class ConditionSource {
 
   /**
+   * Conditions another module runs the whole life cycle of, which this one must
+   * not sweep up.
+   *
+   * TSL: Social Conflict owns its social states (⚔ Rattled, Smitten, …) and its
+   * wounds (❤): it applies them from social maneuvers and clears them by its own
+   * rules — Hold the Line, the card pips, the end of a scene. A blanket "clear
+   * every condition" that took those with it would leave that module's state
+   * machine out of step with the token, and nothing here would put it back.
+   * It marks its own effects both ways, so both are checked.
+   */
+  static FOREIGN_FLAG_SCOPES = ['tsl-social-conflict'];
+  static FOREIGN_ID_PREFIXES = ['tsl-'];
+
+  /** Is this condition another module's to remove? */
+  static isForeign(effect, id = '') {
+    if (this.FOREIGN_ID_PREFIXES.some(p => String(id).startsWith(p))) return true;
+    const flags = effect?.flags ?? {};
+    return this.FOREIGN_FLAG_SCOPES.some(scope => !!flags[scope]);
+  }
+
+  /**
    * @param {Actor}  actor
    * @param {string} id     status/condition id, e.g. 'invisible'
    * @returns {{effect: ActiveEffect, owned: boolean, item: Item|null}|null}
@@ -57,12 +78,16 @@ export class ConditionSource {
     if (!actor || !id) return out;
 
     for (const effect of actor.effects ?? []) {
-      if (this.#matches(effect, id)) out.push({ effect, owned: true, item: null });
+      if (this.#matches(effect, id)) {
+        out.push({ effect, owned: true, item: null, foreign: this.isForeign(effect, id) });
+      }
     }
     for (const item of actor.items ?? []) {
       for (const effect of item.effects ?? []) {
         if (!this.#appliesFromItem(effect)) continue;
-        if (this.#matches(effect, id)) out.push({ effect, owned: false, item });
+        if (this.#matches(effect, id)) {
+          out.push({ effect, owned: false, item, foreign: this.isForeign(effect, id) });
+        }
       }
     }
     return out;
@@ -73,11 +98,18 @@ export class ConditionSource {
    *
    * An item's effect is disabled rather than deleted: it belongs to the item,
    * not the actor, and deleting it would edit the spell itself.
-   * @returns {Promise<{removed: number, disabled: Item[]}>}
+   *
+   * @param {object}  [opts]
+   * @param {boolean} [opts.skipForeign=false]  leave conditions another module
+   *        owns alone. Off by default, so a deliberate click on one particular
+   *        condition still removes it; on for the sweeping paths, where the
+   *        player is clearing everything and did not single that one out.
+   * @returns {Promise<{removed: number, disabled: Item[], skipped: string[]}>}
    */
-  static async clear(actor, id) {
-    const result = { removed: 0, disabled: [] };
+  static async clear(actor, id, { skipForeign = false } = {}) {
+    const result = { removed: 0, disabled: [], skipped: [] };
     for (const src of this.findAll(actor, id)) {
+      if (skipForeign && src.foreign) { result.skipped.push(src.effect.name ?? id); continue; }
       if (src.owned) { await src.effect.delete(); result.removed++; }
       else if (!src.effect.disabled) {
         await src.effect.update({ disabled: true });

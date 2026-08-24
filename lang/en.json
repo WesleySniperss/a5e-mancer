@@ -470,6 +470,7 @@
   "am.mixed.choose-source": "Choose which heritage the gift comes from.",
   "am.mixed.pick": "Gifts offered by {name}:",
   "am.sheet.condition-from-item": "{condition} was applied by \"{item}\" — its effect has been switched off on the item itself. Re-enabling that item's effect brings the condition back.",
+  "am.sheet.conditions-kept": "Left in place: {list}. Another module runs these and clears them by its own rules.",
   "am.sheet.heal-title": "Heal how much?",
   "am.sheet.damage-title": "Damage how much?",
   "am.sheet.apply": "Apply",
