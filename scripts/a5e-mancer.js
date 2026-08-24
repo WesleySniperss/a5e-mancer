@@ -7,6 +7,7 @@ import { DocumentService, StatRoller, Beyond20Service, GrantDialogEnhancer, Magi
 import { registerMagicSchools } from './utils/maneuverService.js';
 import { iconForItem } from './data/a5eIcons.js';
 import { installCompendiumFilterFix } from './utils/compendiumIndexFix.js';
+import { ConditionSource } from './utils/conditionSource.js';
 
 export class AM {
   static ID   = 'a5e-mancer';
@@ -432,6 +433,17 @@ const _DURATION_COLORS = { 1:'#919f00', 2:'#a09200', 3:'#af8300', 4:'#bd7100', 5
 let _hudKeydownHandler = null;
 let _hudHoveredBtn    = null;
 
+/* Drop a condition's duration badge.
+   The deleteActiveEffect hook below reconciles these on its own, but switching
+   OFF an item's effect is an update rather than a deletion, so that hook never
+   fires and the badge would outlive the condition it counted for. */
+async function _clearDurationFlag(actor, id) {
+  const durs = foundry.utils.deepClone(actor.getFlag?.('a5e-mancer', 'durations') ?? {});
+  if (durs[id] === undefined) return;
+  delete durs[id];
+  await actor.setFlag('a5e-mancer', 'durations', durs);
+}
+
 /* ── Effects Panel (right sidebar): stamp duration badges onto items ──── */
 /* A5e's Svelte panel lives at article#a5e-effects-panel inside #ui-right.
    Each item: img.a5e-effect-item__icon → root = img.parentElement.parentElement.
@@ -513,6 +525,35 @@ Hooks.on('renderTokenHUDA5e', (hud, html) => {
       btn.dataset.amHudInit = '1';
       btn.addEventListener('mouseenter', () => { _hudHoveredBtn = btn; });
       btn.addEventListener('mouseleave', () => { if (_hudHoveredBtn === btn) _hudHoveredBtn = null; });
+
+      /* Right-click clears a condition — a5e binds that to `auxclick`, and its
+         handler reaches only the actor's own effects, as does its Clear All
+         (`_clearAllConditions` reduces over `actor.effects`). A condition an
+         ITEM is applying therefore ignored the gesture entirely: right-click did
+         nothing and there was no other way to switch it off.
+
+         This listens on `contextmenu`, which fires alongside a5e's `auxclick`
+         rather than instead of it, and takes only the half a5e cannot: the
+         item-applied sources. Actor-owned effects are left to a5e's own handler
+         so the same condition is never removed twice. */
+      btn.addEventListener('contextmenu', async (ev) => {
+        const id = btn.dataset.statusId;
+        if (!id || !actor.isOwner) return;
+
+        const fromItems = ConditionSource.findAll(actor, id).filter(s => !s.owned);
+        if (!fromItems.length) return;          // a5e's auxclick has it covered
+
+        ev.preventDefault();
+        ev.stopPropagation();
+        for (const src of fromItems) await src.effect.update({ disabled: true });
+        await _clearDurationFlag(actor, id);
+
+        ui.notifications.info(game.i18n.format('am.sheet.condition-from-item', {
+          condition: btn.getAttribute('title') || id,
+          item: fromItems.map(s => s.item.name).join(', ')
+        }));
+        canvas?.hud?.token?.render();
+      });
     }
   });
 
@@ -524,10 +565,12 @@ Hooks.on('renderTokenHUDA5e', (hud, html) => {
 
     const id = _hudHoveredBtn.dataset.statusId;
 
-    /* Determine active state from actor data, not CSS class */
-    const isActive = actor.effects.some(e =>
-      e.statuses?.has(id) || e.getFlag?.('core', 'statusId') === id
-    );
+    /* Determine active state from actor data, not CSS class. Item-applied
+       conditions count: a5e puts an item's effect on the owner whenever it is
+       typed 'passive', which is the default, so reading `actor.effects` alone
+       saw a condition a spell was holding on as off and toggled a duplicate on
+       top of it. See ConditionSource. */
+    const isActive = !!ConditionSource.find(actor, id);
 
     if (!isActive) {
       if (typeof actor.toggleStatusEffect === 'function') {

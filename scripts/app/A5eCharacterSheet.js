@@ -5,6 +5,7 @@ import { SpellDialog } from './SpellDialog.js';
 import { SpellService } from '../utils/spellService.js';
 import { PackFilter } from '../utils/packFilter.js';
 import { ManeuverService } from '../utils/maneuverService.js';
+import { ConditionSource } from '../utils/conditionSource.js';
 
 const MODULE_ID = 'a5e-mancer';
 
@@ -1030,10 +1031,10 @@ export class A5eCharacterSheet extends ActorSheet {
 
     /* ── helper: activate a condition (no toggle, just enable) ─────────────── */
     const _activateCond = async (id) => {
-      const existing = this.actor.effects.find(e =>
-        (e.conditionId === id) || (e.statuses?.has(id)) ||
-        (e.getFlag?.('core', 'statusId') === id)
-      );
+      // Item-applied conditions count as already on. Looking only at the
+      // actor's own effects meant a condition a spell was applying was read as
+      // off, and a duplicate was created on top of it.
+      const existing = ConditionSource.find(this.actor, id);
       if (existing) return; // already active
       if (typeof this.actor.toggleStatusEffect === 'function') {
         try { await this.actor.toggleStatusEffect(id, { active: true }); return; } catch {}
@@ -1062,16 +1063,26 @@ export class A5eCharacterSheet extends ActorSheet {
         const id = btn.dataset.id;
         if (!id) return;
 
-        // Find existing effect by conditionId (A5e) OR statuses set (Foundry standard)
-        const existing = this.actor.effects.find(e =>
-          (e.conditionId === id) ||
-          (e.statuses?.has(id)) ||
-          (e.getFlag?.('core', 'statusId') === id)
-        );
-
-        if (existing) {
-          await existing.delete();
+        // Clear every source of the condition, not just the actor's own effect.
+        // a5e also applies an item's effect when it is typed 'passive' — and
+        // `system.effectType` defaults to 'passive' — so a spell sitting in the
+        // spellbook can hold a condition on. Those reach `actor.statuses`, which
+        // is what paints this button as on, but they are not in `actor.effects`.
+        // Searching there alone read the condition as off and created a second
+        // one, so clicking to switch a condition off switched another on and the
+        // pile could never be cleared.
+        const sources = ConditionSource.findAll(this.actor, id);
+        if (sources.length) {
+          const { disabled } = await ConditionSource.clear(this.actor, id);
           await _clearDuration(id);
+          // An item's effect is switched off on the item, not deleted — say so,
+          // otherwise the condition looks like it came back on its own next time
+          // the item is re-enabled.
+          for (const item of disabled) {
+            ui.notifications.info(game.i18n.format('am.sheet.condition-from-item', {
+              condition: btn.dataset.label || id, item: item.name
+            }));
+          }
           return;
         }
 

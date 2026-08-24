@@ -2,6 +2,7 @@ import { AM } from '../a5e-mancer.js';
 import { PackFilter } from './packFilter.js';
 import { MM_SCHOOLS, MM_CLASSES, MM_PROGRESSION } from '../data/magicManeuvers.js';
 import { iconForItem, applyItemIcon } from '../data/a5eIcons.js';
+import { castOnlyEffects } from './effectTiming.js';
 
 /**
  * Fallback tradition keys (camelCase, matching system data) used when CONFIG.A5E is unavailable.
@@ -456,6 +457,13 @@ export class ManeuverService {
         data._stats = data._stats || {};
         data._stats.compendiumSource = uuid;
         applyItemIcon(data);
+        // A known maneuver costs exertion to use; until then it does nothing.
+        // Same guard as spells — see effectTiming.
+        const retimed = castOnlyEffects(data);
+        if (retimed.length) {
+          AM.log(2, `${item.name}: effect(s) ${retimed.join(', ')} would have applied on ownership `
+                  + `— retimed to fire on use`);
+        }
         itemDatas.push(data);
         known.add(uuid);
         known.add(item.name.toLowerCase());          // also blocks within-batch dupes

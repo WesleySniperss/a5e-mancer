@@ -1,6 +1,7 @@
 import { AM } from '../a5e-mancer.js';
 import { PackFilter } from './packFilter.js';
 import { iconForItem, applyItemIcon } from '../data/a5eIcons.js';
+import { castOnlyEffects } from './effectTiming.js';
 
 /**
  * Spell slot tables and known spells for a5e classes.
@@ -543,6 +544,12 @@ export class SpellService {
         data._stats = data._stats || {};
         data._stats.compendiumSource = uuid;
         applyItemIcon(data); // exact site match or placeholder fill; keyword guesses never touch spells
+        // A spell in a spellbook casts nothing until it is cast. See effectTiming.
+        const retimed = castOnlyEffects(data);
+        if (retimed.length) {
+          AM.log(2, `${item.name}: effect(s) ${retimed.join(', ')} would have applied on ownership `
+                  + `— retimed to fire on casting`);
+        }
         // Assign to the actor's spellbook
         if (spellBookId) {
           data.system = data.system || {};
