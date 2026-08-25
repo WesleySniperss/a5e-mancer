@@ -563,27 +563,10 @@ Hooks.on('renderTokenHUDA5e', (hud, html) => {
         announce(id, fromItems.map(s => s.item));
       });
 
-      /* Left-click has the same blind spot: a5e reads the condition as active
-         off `actor.statuses`, calls _removeStatusEffect, and that deletes from
-         `actor.effects` — where an item's effect is not.
-
-         Here the whole gesture is taken over rather than split, because a5e's
-         click is a DELEGATED listener that would run after this one returns at
-         its first await. It would then re-read a condition mid-removal and,
-         finding it no longer active, switch it back on. So when an item is
-         holding the condition, this clears every source and stops the event. */
-      btn.addEventListener('click', async (ev) => {
-        const id = btn.dataset.statusId;
-        if (!id || !actor.isOwner) return;
-        const fromItems = itemSources();
-        if (!fromItems.length) return;              // ordinary condition — a5e's job
-
-        ev.preventDefault();
-        ev.stopPropagation();
-        const { disabled } = await ConditionSource.clear(actor, id, { skipForeign: true });
-        await _clearDurationFlag(actor, id);
-        if (disabled.length) announce(id, disabled);
-      });
+      /* Left-click is left entirely to a5e. Removing a condition is the right
+         button's job, and a handler here would also have had to stop the event
+         to avoid racing a5e's delegated click listener — taking the gesture
+         away from the system for no reason anyone asked for. */
     }
   });
 
