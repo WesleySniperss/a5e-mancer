@@ -433,6 +433,53 @@ const _DURATION_COLORS = { 1:'#919f00', 2:'#a09200', 3:'#af8300', 4:'#bd7100', 5
 let _hudKeydownHandler = null;
 let _hudHoveredBtn    = null;
 
+/**
+ * Put the token HUD's status palette in alphabetical order, with the conditions
+ * another module owns after them.
+ *
+ * a5e renders the palette straight from `CONFIG.statusEffects`, which is
+ * registration order: the system's own list, then whatever each module appended
+ * as it loaded. Fifty-eight icons in load order are a scan every single time.
+ *
+ * Sorted IN PLACE, never replaced. Core resolves a status by key as well as by
+ * search (`CONFIG.statusEffects[id]`), and those keys live on the array object
+ * itself — `sort` permutes the numeric indices and leaves them be, whereas
+ * assigning a new array would drop every one and break toggling outright.
+ *
+ * @returns {boolean} whether the order actually changed
+ */
+function sortStatusEffects() {
+  const list = CONFIG?.statusEffects;
+  if (!Array.isArray(list) || list.length < 2) return false;
+
+  try {
+    const before   = list.map(s => s?.id).join('|');
+    const collator = new Intl.Collator(game.i18n?.lang ?? 'en', { sensitivity: 'base', numeric: true });
+    const label    = (s) => game.i18n.localize(s?.name ?? s?.label ?? s?.id ?? '');
+
+    list.sort((a, b) => {
+      // A module that runs its own conditions keeps them together at the end —
+      // they belong to a different game than the system's own status list.
+      const fa = ConditionSource.isForeign(a, a?.id) ? 1 : 0;
+      const fb = ConditionSource.isForeign(b, b?.id) ? 1 : 0;
+      if (fa !== fb) return fa - fb;
+      return collator.compare(label(a), label(b));
+    });
+
+    const changed = before !== list.map(s => s?.id).join('|');
+    if (changed) AM.log(3, `Sorted ${list.length} status effects for the token HUD`);
+    return changed;
+  } catch (err) {
+    AM.log(2, 'Could not sort the status effects:', err);
+    return false;
+  }
+}
+
+/* Sorted once every module has registered. Deferred past `ready` on purpose:
+   modules append their own statuses from their `ready` handlers, and this has
+   to run after the last of them. */
+Hooks.once('ready', () => setTimeout(sortStatusEffects, 0));
+
 /* Drop a condition's duration badge.
    The deleteActiveEffect hook below reconciles these on its own, but switching
    OFF an item's effect is an update rather than a deletion, so that hook never
@@ -498,6 +545,11 @@ Hooks.on('renderTokenHUDA5e', (hud, html) => {
   const actor = hud.object?.actor;
   if (!actor) return;
 
+  /* Safety net for a module that registered a status later than the deferred
+     sort after `ready`. Cheap, and a no-op once the order is already right —
+     the palette it corrects is the one shown on the next open. */
+  sortStatusEffects();
+
   const el   = html?.jquery ? html[0] : html;
   const durs = actor.getFlag?.('a5e-mancer', 'durations') ?? {};
 
@@ -526,49 +578,53 @@ Hooks.on('renderTokenHUDA5e', (hud, html) => {
       btn.addEventListener('mouseenter', () => { _hudHoveredBtn = btn; });
       btn.addEventListener('mouseleave', () => { if (_hudHoveredBtn === btn) _hudHoveredBtn = null; });
 
-      /* Right-click clears a condition — a5e binds that to `auxclick`, and its
-         handler reaches only the actor's own effects, as does its Clear All
-         (`_clearAllConditions` reduces over `actor.effects`). A condition an
-         ITEM is applying therefore ignored the gesture entirely: right-click did
-         nothing and there was no other way to switch it off.
-
-         This listens on `contextmenu`, which fires alongside a5e's `auxclick`
-         rather than instead of it, and takes only the half a5e cannot: the
-         item-applied sources. Actor-owned effects are left to a5e's own handler
-         so the same condition is never removed twice. */
-      const itemSources = () => ConditionSource.findAll(actor, btn.dataset.statusId)
-        .filter(s => !s.owned && !s.foreign);
-
-      const announce = (id, items) => {
-        ui.notifications.info(game.i18n.format('am.sheet.condition-from-item', {
-          condition: btn.getAttribute('title') || id,
-          item: [...new Set(items.map(i => i.name))].join(', ')
-        }));
-        canvas?.hud?.token?.render();
-      };
-
-      /* Right-click. a5e binds its removal to `auxclick`; this is a different
-         event, so both run and this one takes only what a5e cannot reach.
-         Stopping propagation here cannot block `auxclick`. */
-      btn.addEventListener('contextmenu', async (ev) => {
-        const id = btn.dataset.statusId;
-        if (!id || !actor.isOwner) return;
-        const fromItems = itemSources();
-        if (!fromItems.length) return;              // a5e's auxclick has it covered
-
-        ev.preventDefault();
-        ev.stopPropagation();
-        for (const src of fromItems) await src.effect.update({ disabled: true });
-        await _clearDurationFlag(actor, id);
-        announce(id, fromItems.map(s => s.item));
-      });
-
       /* Left-click is left entirely to a5e. Removing a condition is the right
-         button's job, and a handler here would also have had to stop the event
-         to avoid racing a5e's delegated click listener — taking the gesture
-         away from the system for no reason anyone asked for. */
+         button's job. Right-click is handled once on the HUD root below. */
     }
   });
+
+  /* Right-click clears a condition — a5e binds that to `auxclick`, and its
+     handler reaches only the actor's own effects, as does its Clear All
+     (`_clearAllConditions` reduces over `actor.effects`). A condition an ITEM
+     is applying ignored the gesture entirely.
+
+     Delegated from the HUD root rather than bound per button. The per-button
+     version silently did nothing: it could only reach the buttons that existed
+     at the moment this hook ran, and the status palette is not among them until
+     the tray is opened. Delegation also survives Svelte swapping a node out,
+     and catches the <img> inside the button, which is what the pointer is
+     actually over.
+
+     `contextmenu` is a different event from a5e's `auxclick`, so the two run
+     alongside each other: this takes only the item-applied sources, a5e keeps
+     the actor-owned ones, and neither removes the other's. */
+  if (!el.dataset.amCondMenu) {
+    el.dataset.amCondMenu = '1';
+    el.addEventListener('contextmenu', async (ev) => {
+      const btn = ev.target?.closest?.('[data-status-id]');
+      const id  = btn?.dataset?.statusId;
+      if (!id) return;
+
+      // Read the actor live: one HUD element outlives the token it opened on.
+      const target = canvas?.hud?.token?.object?.actor ?? actor;
+      if (!target?.isOwner) return;
+
+      const fromItems = ConditionSource.findAll(target, id)
+        .filter(s => !s.owned && !s.foreign);
+      if (!fromItems.length) return;              // a5e's auxclick has it covered
+
+      ev.preventDefault();
+      ev.stopPropagation();
+      for (const src of fromItems) await src.effect.update({ disabled: true });
+      await _clearDurationFlag(target, id);
+
+      ui.notifications.info(game.i18n.format('am.sheet.condition-from-item', {
+        condition: btn.getAttribute('title') || id,
+        item: [...new Set(fromItems.map(s => s.item.name))].join(', ')
+      }));
+      canvas?.hud?.token?.render();
+    });
+  }
 
   /* Clear All leaves item-applied conditions standing: a5e's
      `_clearAllConditions` reduces over `actor.effects`, so a condition a spell
