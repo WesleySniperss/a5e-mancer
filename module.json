@@ -2,7 +2,7 @@
   "id": "a5e-mancer",
   "title": "A5e Mancer",
   "description": "A full character creation wizard for Level Up: Advanced 5th Edition (a5e). Guides players through Heritage, Culture, Background, Destiny, Class, Abilities, and Biography.",
-  "version": "2.18.0",
+  "version": "2.19.0",
   "authors": [
     {
       "name": "A5e Mancer"
@@ -28,7 +28,8 @@
     "scripts/app/ManeuverDialog.js",
     "scripts/app/SpellDialog.js",
     "scripts/a5e-mancer.js",
-    "scripts/settings.js"
+    "scripts/settings.js",
+    "scripts/canvas-pointer-guard.js"
   ],
   "styles": [
     "styles/a5e-mancer.css",
