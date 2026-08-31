@@ -60,6 +60,16 @@ export function registerSettings() {
     scope: 'client', config: true, type: Boolean, default: true, requiresReload: true
   });
 
+  // The third of the workarounds for other people's code, and the most
+  // intrusive: it wraps `stage.off` and `stage.removeAllListeners` and polls
+  // once a second. Nothing here is a5e-mancer's own feature, so all three can
+  // be switched off without touching the builder — worth having when the
+  // module that lost the listener is fixed, or when this guard is the suspect.
+  game.settings.register(AM.ID, 'enableCanvasPointerGuard', {
+    name: 'am.settings.pointer-guard.name', hint: 'am.settings.pointer-guard.hint',
+    scope: 'client', config: true, type: Boolean, default: true, requiresReload: true
+  });
+
   game.settings.register(AM.ID, 'enableRandomize', {
     name: 'am.settings.randomize.name', hint: 'am.settings.randomize.hint',
     scope: 'world', config: true, type: Boolean, default: true

@@ -33,6 +33,25 @@
 
 const TAG = "a5e-mancer | pointer-guard";
 const CHECK_MS = 1000;
+const MODULE_ID = "a5e-mancer";
+const SETTING = "enableCanvasPointerGuard";
+
+/**
+ * Whether the guard may run at all.
+ *
+ * This file is a workaround for another module's bug, not a feature of the
+ * builder, and it is the most intrusive one here: it wraps two methods on
+ * canvas.stage and polls every second for the rest of the session. So it stays
+ * switchable, and the switch is checked before anything is installed rather
+ * than after.
+ *
+ * Before `init` the setting does not exist yet and `get` throws — treat that as
+ * "not yet", since `canvasReady` comes later and asks again.
+ */
+function enabled() {
+  try { return game.settings.get(MODULE_ID, SETTING) !== false; }
+  catch { return false; }
+}
 
 /** Last captured removal, readable later via a5eMancerPointerGuard.lastCulprit. */
 let lastCulprit = null;
@@ -44,7 +63,9 @@ let lastCulprit = null;
  * console.
  */
 function notifyOnScreen(message) {
-  try { ui.notifications?.warn(` | `, { permanent: true, console: false }); }
+  // The interpolations matter: without them every warning read as a bare " | "
+  // and the whole point of putting them on screen was lost.
+  try { ui.notifications?.warn(`${TAG} | ${message}`, { permanent: true, console: false }); }
   catch (_) { /* notifications may not exist yet during early init */ }
 }
 
@@ -105,6 +126,7 @@ function instrumentStage() {
 
 function start() {
   stop();
+  if (!enabled()) return;
   instrumentStage();
   intervalId = setInterval(() => {
     if (!canvas?.ready || !canvas.stage) return;
@@ -124,6 +146,7 @@ if (globalThis.canvas?.ready) start();
 // Manual check, for when the symptom appears and you want the state.
 globalThis.a5eMancerPointerGuard = {
   status: () => ({
+    enabled: enabled(),
     listeners: canvas?.stage?.listenerCount?.("pointermove"),
     mousePosition: canvas ? { ...canvas.mousePosition } : null,
     instrumented: patched,

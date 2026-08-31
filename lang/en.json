@@ -182,6 +182,8 @@
   "am.settings.your-flavor.hint": "Lets the Your Flavor module theme A5e's chat cards. A5e builds its cards itself and Your Flavor skips them, so without this they stay unstyled while every other message follows your chosen look. Has no effect unless Your Flavor is installed and active.",
   "am.settings.your-flavor-restyle.name": "Your Flavor: Restyle Existing Chat Log",
   "am.settings.your-flavor-restyle.hint": "Applies Your Flavor's styling to messages that were already in the chat log when you loaded. Foundry v14 renamed the chat list, which Your Flavor's own pass still looks for by its old name, so without this the log stays unstyled after every reload until new messages arrive. Affects all systems, not just A5e. Has no effect unless Your Flavor is installed and active.",
+  "am.settings.pointer-guard.name": "Canvas Pointer Guard",
+  "am.settings.pointer-guard.hint": "Watches for the canvas losing the listener that tracks the mouse. Some module removes it, which freezes canvas.mousePosition and stops tokens from being clickable — marquee selection still works, single clicks do not. This restores the listener and names whoever removed it. A workaround for another module's bug, not an A5e feature: turn it off once that module is fixed, or to rule this guard out as a suspect. Takes effect after a reload.",
   "am.settings.ability-scores.default.name": "Default Ability Score",
   "am.settings.ability-scores.default.hint": "Starting value for ability scores in Point Buy.",
   "am.settings.ability-scores.min.name": "Minimum Ability Score",
