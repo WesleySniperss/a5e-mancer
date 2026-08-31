@@ -1,0 +1,319 @@
+/**
+ * A5e Mancer - Your Flavor chat theming for a5e cards
+ *
+ * Companion to scripts/utils/yourFlavorService.js. That service decides whether
+ * a card should be themed and puts Your Flavor's ~96 custom properties on the
+ * <li>; everything below turns those into a5e's own variables.
+ *
+ * Why it is done with variables rather than markup:
+ *
+ * A5E's renderChatMessageHTML hook deletes .message-header and .message-content
+ * from the <li>, adds .a5e-chat-card to it, and mounts a Svelte component in
+ * their place. Every inner node is then owned by Svelte, which assigns className
+ * wholesale on update - toggling a critical, repeating a roll, switching
+ * expertise dice. Marker classes written into that markup would be dropped on
+ * the next update, leaving a half-themed card.
+ *
+ * A5E is, fortunately, thoroughly custom-property driven. Redefining its own
+ * variables on the themed <li> reaches every descendant it renders now and every
+ * one it re-renders later, with no JS in the loop and nothing for Svelte to
+ * overwrite.
+ *
+ * Every rule is scoped to .chat-message.yf-card, so with Your Flavor absent or
+ * switched off this file is inert.
+ *
+ * Verified against a5e 1.2.8 and Your Flavor 5.x on Foundry v13/v14.
+ */
+/* =================================================================== */
+/*  Variable bridge - Your Flavor tokens -> A5E custom properties      */
+/* =================================================================== */
+
+.chat-message.yf-card.a5e-chat-card {
+    /* Card shell */
+    --a5e-chat-card-background: var(--yf-chat-outer-bg, var(--yf-bg-color));
+    --a5e-chat-card-background-blind: var(--yf-chat-outer-bg, var(--yf-bg-color));
+    --a5e-chat-card-background-whisper: var(--yf-chat-outer-bg, var(--yf-bg-color));
+    --a5e-chat-card-border-color: var(--yf-chat-outer-border-color, var(--yf-border-color));
+    --a5e-chat-card-rule-color: var(--yf-chat-outer-border-color, var(--yf-border-color));
+    --a5e-rule-color: var(--yf-chat-outer-border-color, var(--yf-border-color));
+    --a5e-border-color: var(--yf-chat-outer-border-color, var(--yf-border-color));
+
+    /* Text */
+    --a5e-chat-card-color: var(--yf-chat-content-text, var(--yf-text-color));
+    --a5e-chat-card-color-dark: var(--yf-chat-content-text, var(--yf-text-color));
+    --a5e-chat-card-color-medium: var(--yf-chat-header-metadata, var(--yf-timestamp-color));
+    --a5e-text-color-dark: var(--yf-chat-content-text, var(--yf-text-color));
+    --a5e-color-text-dark: var(--yf-chat-content-text, var(--yf-text-color));
+    --a5e-text-color-medium: var(--yf-chat-header-metadata, var(--yf-timestamp-color));
+    --a5e-color-text-medium: var(--yf-chat-header-metadata, var(--yf-timestamp-color));
+
+    /* Buttons and indicators */
+    --a5e-chat-card-button-background: var(--yf-card-button-bg, rgba(255, 255, 255, 0.08));
+    --a5e-chat-card-indicator-background: var(--yf-card-button-bg, rgba(255, 255, 255, 0.08));
+    --a5e-button-regular: var(--yf-card-button-bg, rgba(255, 255, 255, 0.08));
+    --a5e-button-gray: var(--yf-chat-header-metadata, var(--yf-timestamp-color));
+    --a5e-button-gray-hover: var(--yf-chat-header-text, var(--yf-name-color));
+    --a5e-button-gray-border: var(--yf-card-button-border, var(--yf-chat-outer-border-color, var(--yf-border-color)));
+
+    /* Roll breakdown tooltip rendered inside the card */
+    --a5e-dice-tooltip-border-color: var(--yf-roll-formula-border, var(--yf-chat-outer-border-color, var(--yf-border-color)));
+    --a5e-dice-tooltip-total-background: var(--yf-roll-total-bg, rgba(0, 0, 0, 0.24));
+
+    /* Outcome accents */
+    --a5e-chat-card-roll-color-max: var(--yf-roll-critical-text, #8ff0a4);
+    --a5e-chat-card-roll-color-min: var(--yf-roll-failure-text, #ff9d9d);
+
+    --a5e-border-radius-standard: var(--yf-radius-sm, 4px);
+    --a5e-shadow-color: transparent;
+}
+
+/* =================================================================== */
+/*  Card header                                                        */
+/* =================================================================== */
+
+/*
+ * A5E writes --a5e-user-background-color / --a5e-user-text-color as an INLINE
+ * style on the <header> (from the message author's colour). An inline
+ * declaration beats an inherited one from the <li>, so the redefinition has to
+ * be !important and has to land on the header itself. Doing it through the
+ * variables rather than the resolved properties keeps the derived values
+ * A5E computes from them - the hsl(from ...) subtitle, the header buttons -
+ * consistent with the rest of the theme.
+ */
+.chat-message.yf-card.a5e-chat-card .a5e-chat-card__header {
+    --a5e-user-background-color: var(--yf-card-title-bg, var(--yf-chat-header-bg, rgba(0, 0, 0, 0.2))) !important;
+    --a5e-user-text-color: var(--yf-card-title-text, var(--yf-chat-header-text, var(--yf-name-color))) !important;
+    border-color: var(--yf-chat-outer-border-color, var(--yf-border-color));
+    font-family: var(--yf-chat-font-family, var(--yf-font-family));
+}
+
+.chat-message.yf-card.a5e-chat-card .a5e-chat-card__header__title {
+    color: var(--yf-card-title-text, var(--yf-chat-header-text, var(--yf-name-color)));
+    font-family: var(--yf-chat-font-family, var(--yf-font-family));
+    font-weight: 600;
+}
+
+.chat-message.yf-card.a5e-chat-card .a5e-chat-card__header__time {
+    color: var(--yf-chat-header-metadata, var(--yf-timestamp-color));
+    opacity: 0.75;
+}
+
+.chat-message.yf-card.a5e-chat-card .a5e-chat-card__header__img {
+    display: var(--yf-chat-avatar-display, block);
+    border: 1px solid var(--yf-chat-outer-border-color, var(--yf-border-color));
+    border-radius: var(--yf-chat-avatar-radius, 4px);
+}
+
+/* =================================================================== */
+/*  Card body                                                          */
+/* =================================================================== */
+
+/* No border here on purpose. A5E declares
+ * "border: 1px solid var(--a5e-user-background-color)" on the body, but that
+ * variable is only ever set inline on the sibling <header>, never on an
+ * ancestor - so the shorthand is invalid at computed-value time and the border
+ * has never painted, in stock A5E either. The themed outline already comes from
+ * .chat-message.yf-card on the <li>; a second one inside it would just be
+ * noise. */
+.chat-message.yf-card.a5e-chat-card .a5e-chat-card__body {
+    color: var(--yf-chat-content-text, var(--yf-text-color));
+    font-family: var(--yf-chat-font-family, var(--yf-font-family));
+    font-size: var(--yf-chat-font-size, var(--yf-font-size));
+    line-height: var(--yf-chat-line-height, 1.5);
+}
+
+.chat-message.yf-card.a5e-chat-card .a5e-chat-card__footer {
+    color: var(--yf-chat-header-metadata, var(--yf-timestamp-color));
+}
+
+.chat-message.yf-card.a5e-chat-card hr.a5e-rule {
+    border: 0;
+    border-top: 1px solid var(--yf-chat-outer-border-color, var(--yf-border-color));
+    opacity: 0.6;
+}
+
+.chat-message.yf-card.a5e-chat-card a {
+    color: var(--yf-chat-content-link, var(--yf-card-title-accent, var(--yf-chat-outer-border-color, var(--yf-border-color))));
+}
+
+/* =================================================================== */
+/*  Roll panels  (Rolls -> Other systems)                              */
+/* =================================================================== */
+
+/*
+ * These are the panels A5E builds in RollSummary.svelte: the total box, its
+ * label, the mode/expertise badges and the inline dice breakdown. They are
+ * gated on yf-message-roll-surfaces-enabled so the roll toggle in the Rolls
+ * tab switches them off the same way it does for every other system.
+ */
+.chat-message.yf-card.a5e-chat-card.yf-message-roll-surfaces-enabled .roll {
+    background: var(--yf-roll-total-bg, rgba(0, 0, 0, 0.24));
+    color: var(--yf-roll-total-text, var(--yf-chat-header-text, var(--yf-name-color)));
+    border: 1px solid var(--yf-roll-total-border, var(--yf-chat-outer-border-color, var(--yf-border-color)));
+    border-radius: var(--yf-radius-md, 6px);
+}
+
+/* A5E paints a translucent overlay over the total box from --a5e-roll-color.
+ * Left visible it greys out every themed background, so it is suppressed and
+ * the outcome is carried by the border and text colours below instead. */
+.chat-message.yf-card.a5e-chat-card.yf-message-roll-surfaces-enabled .roll::after {
+    background: none;
+}
+
+.chat-message.yf-card.a5e-chat-card.yf-message-roll-surfaces-enabled .roll--max {
+    color: var(--yf-roll-critical-text, #8ff0a4);
+    border-color: var(--yf-roll-critical-accent, #36b85f);
+    box-shadow: inset 0 0 0 1px var(--yf-roll-critical-accent, #36b85f);
+}
+
+.chat-message.yf-card.a5e-chat-card.yf-message-roll-surfaces-enabled .roll--min {
+    color: var(--yf-roll-failure-text, #ff9d9d);
+    border-color: var(--yf-roll-failure-accent, #d94b4b);
+    box-shadow: inset 0 0 0 1px var(--yf-roll-failure-accent, #d94b4b);
+}
+
+.chat-message.yf-card.a5e-chat-card.yf-message-roll-surfaces-enabled .roll-label {
+    color: var(--yf-chat-header-text, var(--yf-name-color));
+    font-family: var(--yf-chat-font-family, var(--yf-font-family));
+}
+
+.chat-message.yf-card.a5e-chat-card.yf-message-roll-surfaces-enabled .roll-sublabel {
+    color: var(--yf-chat-header-metadata, var(--yf-timestamp-color));
+}
+
+.chat-message.yf-card.a5e-chat-card.yf-message-roll-surfaces-enabled .a5e-roll-formula {
+    background: var(--yf-roll-formula-bg, rgba(0, 0, 0, 0.2));
+    color: var(--yf-roll-formula-text, var(--yf-chat-header-text, var(--yf-name-color)));
+    border-color: var(--yf-roll-formula-border, var(--yf-chat-outer-border-color, var(--yf-border-color)));
+    border-radius: var(--yf-radius-sm, 4px);
+}
+
+.chat-message.yf-card.a5e-chat-card.yf-message-roll-surfaces-enabled .a5e-dice-tooltip__total {
+    background: var(--yf-roll-total-bg, rgba(0, 0, 0, 0.24));
+    color: var(--yf-roll-total-text, var(--yf-chat-header-text, var(--yf-name-color)));
+    border-color: var(--yf-roll-total-border, var(--yf-chat-outer-border-color, var(--yf-border-color)));
+}
+
+.chat-message.yf-card.a5e-chat-card.yf-message-roll-surfaces-enabled .a5e-dice-tooltip__flavor {
+    color: var(--yf-chat-header-metadata, var(--yf-timestamp-color));
+}
+
+/* Advantage / disadvantage / expertise badges. A5E hardcodes white on
+ * --a5e-color-primary here, which reads as a foreign chip on a themed card. */
+.chat-message.yf-card.a5e-chat-card.yf-message-roll-surfaces-enabled .roll-mode,
+.chat-message.yf-card.a5e-chat-card.yf-message-roll-surfaces-enabled .expertise-label {
+    background: var(--yf-roll-formula-bg, rgba(0, 0, 0, 0.2));
+    color: var(--yf-roll-formula-text, var(--yf-chat-header-text, var(--yf-name-color)));
+    border-color: var(--yf-roll-formula-border, var(--yf-chat-outer-border-color, var(--yf-border-color)));
+}
+
+.chat-message.yf-card.a5e-chat-card.yf-message-roll-surfaces-enabled .roll-mode--disadvantage {
+    background: var(--yf-roll-failure-accent, #d94b4b);
+    border-color: var(--yf-roll-failure-accent, #d94b4b);
+    color: var(--yf-roll-failure-text, #ff9d9d);
+}
+
+/* =================================================================== */
+/*  Card content  (Cards -> Other systems)                             */
+/* =================================================================== */
+
+/*
+ * Item-card interior: the body header, prompt buttons, damage/healing buttons
+ * and the roll-mode / skill-table buttons. Gated on the card toggle, so
+ * turning "Other systems" off in the Cards tab leaves A5E's own card interior
+ * untouched while the outer message stays themed - the same safe-fallback
+ * contract the other systems follow.
+ */
+.chat-message.yf-card.a5e-chat-card.yf-message-card-surfaces-enabled .a5e-chat-card__body__header {
+    border-bottom-color: var(--yf-card-title-accent, var(--yf-chat-outer-border-color, var(--yf-border-color)));
+}
+
+.chat-message.yf-card.a5e-chat-card.yf-message-card-surfaces-enabled .a5e-chat-card__body__header__title {
+    color: var(--yf-card-title-text, var(--yf-chat-header-text, var(--yf-name-color)));
+    font-family: var(--yf-chat-font-family, var(--yf-font-family));
+}
+
+.chat-message.yf-card.a5e-chat-card.yf-message-card-surfaces-enabled .a5e-chat-card__body__header__img {
+    border: 1px solid var(--yf-card-title-accent, var(--yf-chat-outer-border-color, var(--yf-border-color)));
+    border-radius: var(--yf-radius-sm, 4px);
+}
+
+.chat-message.yf-card.a5e-chat-card.yf-message-card-surfaces-enabled .description-block,
+.chat-message.yf-card.a5e-chat-card.yf-message-card-surfaces-enabled .description-wrapper {
+    color: var(--yf-card-body-text, var(--yf-chat-content-text, var(--yf-text-color)));
+}
+
+.chat-message.yf-card.a5e-chat-card.yf-message-card-surfaces-enabled .save-prompt .title,
+.chat-message.yf-card.a5e-chat-card.yf-message-card-surfaces-enabled .save-prompt .subtitle {
+    color: var(--yf-card-body-text, var(--yf-chat-content-text, var(--yf-text-color)));
+}
+
+/* Buttons A5E paints with a hardcoded rgba black wash rather than a variable. */
+.chat-message.yf-card.a5e-chat-card:not(.yf-message-safe-fallback) .roll-mode-button,
+.chat-message.yf-card.a5e-chat-card:not(.yf-message-safe-fallback) .skill-table-button,
+.chat-message.yf-card.a5e-chat-card:not(.yf-message-safe-fallback) .region-template-button,
+.chat-message.yf-card.a5e-chat-card:not(.yf-message-safe-fallback) .healing-button,
+.chat-message.yf-card.a5e-chat-card:not(.yf-message-safe-fallback) .damage-menu__button {
+    background: var(--yf-card-button-bg, rgba(255, 255, 255, 0.08));
+    color: var(--yf-card-button-text, var(--yf-chat-content-text, var(--yf-text-color)));
+    border-color: var(--yf-card-button-border, var(--yf-chat-outer-border-color, var(--yf-border-color)));
+}
+
+/*
+ * The damage-multiplier menu (DamageButtons.svelte: full / half / double /
+ * temporary HP) floats above the card on position:absolute, and A5E gives the
+ * <ol> itself NO background at all - the surface comes entirely from the items,
+ * which it paints with an opaque colour.
+ *
+ * Pointing that at a themed button token made the whole popup see-through:
+ * those tokens are the accent colour at ~18% alpha, which is fine for a button
+ * sitting ON the card and useless for a menu floating over whatever happens to
+ * be behind it.
+ *
+ * So the surface moves to the <ol> and is forced opaque. The card's own colour
+ * is the right hue, but the user's opacity slider runs all the way to 0%, so it
+ * cannot be trusted to cover anything - rgb(from ... r g b) keeps the hue and
+ * drops the alpha. A5E's own stylesheet already relies on relative colour
+ * syntax (hsl(from ...) for its subtitles), so it is available wherever A5E
+ * renders at all; the plain declaration above it is the fallback for anything
+ * that does not parse it.
+ *
+ * Items go transparent so they read the menu's surface, and take the accent
+ * tint only on hover - which is what makes the highlighted row legible.
+ */
+.chat-message.yf-card.a5e-chat-card:not(.yf-message-safe-fallback) .damage-buttons {
+    background-color: var(--yf-chat-outer-bg, var(--yf-bg-color));
+    /* "/ 1" is not optional: in relative colour syntax an omitted alpha inherits
+     * the ORIGIN colour's alpha, which is exactly the alpha being removed here.
+     * (A5E relies on that same rule for its hsl(from ...) subtitles.) */
+    background-color: rgb(from var(--yf-chat-outer-bg, var(--yf-bg-color)) r g b / 1);
+    border-color: var(--yf-card-button-border, var(--yf-chat-outer-border-color, var(--yf-border-color)));
+    border-radius: var(--yf-radius-sm, 4px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+    overflow: hidden;
+    z-index: 2;
+}
+
+.chat-message.yf-card.a5e-chat-card:not(.yf-message-safe-fallback) .damage-buttons__item {
+    background: transparent;
+    color: var(--yf-card-button-text, var(--yf-chat-content-text, var(--yf-text-color)));
+}
+
+.chat-message.yf-card.a5e-chat-card:not(.yf-message-safe-fallback) .damage-buttons__item:hover {
+    background: var(--yf-card-button-bg, rgba(255, 255, 255, 0.08));
+    color: var(--yf-chat-header-text, var(--yf-name-color));
+}
+
+/*
+ * Deliberately NOT themed:
+ *
+ *   .a5e-die       - the individual dice results are text on Foundry's grey
+ *                    d4-d20 SVG faces. Recolouring the text without the face
+ *                    behind it is how you get an unreadable roll breakdown, so
+ *                    the glyphs keep their stock contrast.
+ *   #tooltip.a5e-tooltip--roll
+ *                  - A5E's hover roll breakdown is portalled into Foundry's
+ *                    global #tooltip element, outside the message. It has no
+ *                    themed ancestor to inherit from and no per-message
+ *                    identity to key off.
+ */

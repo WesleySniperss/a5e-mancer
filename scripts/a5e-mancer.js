@@ -3,7 +3,7 @@ import { A5eMancer } from './app/A5eMancer.js';
 import { LevelUpDialog } from './app/LevelUpDialog.js';
 import { A5eCharacterSheet } from './app/A5eCharacterSheet.js';
 import { A5eNPCSheet } from './app/A5eNPCSheet.js';
-import { DocumentService, StatRoller, Beyond20Service, GrantDialogEnhancer, MagicManeuverPack } from './utils/index.js';
+import { DocumentService, StatRoller, Beyond20Service, YourFlavorService, GrantDialogEnhancer, MagicManeuverPack } from './utils/index.js';
 import { registerMagicSchools } from './utils/maneuverService.js';
 import { iconForItem } from './data/a5eIcons.js';
 import { installCompendiumFilterFix } from './utils/compendiumIndexFix.js';
@@ -207,6 +207,10 @@ Hooks.once('ready', () => {
   // maneuvers behave identically to a fighter's.
   registerMagicSchools();
   Beyond20Service.init();
+  /* Teaches Your Flavor about a5e's chat cards, which it otherwise skips
+     entirely - see yourFlavorService.js. Safe to install here even though Your
+     Flavor has not booted yet; the bridge waits for its API itself. */
+  YourFlavorService.init();
   // Adds trait limits and descriptions to a5e's own grant dialog — see
   // grantDialogEnhancer.js. Registered here so it is live before any level-up.
   GrantDialogEnhancer.register();

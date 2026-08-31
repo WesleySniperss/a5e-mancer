@@ -12,6 +12,7 @@ export { ManeuverService, getTraditions, TRADITIONS, CLASS_MANEUVER_TABLES } fro
 export { SpellService, getSpellSchools, CLASS_SPELL_TABLES } from './spellService.js';
 export { FeatService } from './featService.js';
 export { Beyond20Service } from './beyond20Service.js';
+export { YourFlavorService } from './yourFlavorService.js';
 export { GrantDialogEnhancer } from './grantDialogEnhancer.js';
 export { GrantAbsorber } from './grantAbsorber.js';
 export { ItemDescPanel } from './itemDescPanel.js';

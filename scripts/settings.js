@@ -44,6 +44,22 @@ export function registerSettings() {
     scope: 'client', config: true, type: Boolean, default: true, requiresReload: true
   });
 
+  // Client-scoped to match Your Flavor itself: chat styling there is a per-user
+  // choice, so whether a5e's cards join in is one too.
+  game.settings.register(AM.ID, 'enableYourFlavor', {
+    name: 'am.settings.your-flavor.name', hint: 'am.settings.your-flavor.hint',
+    scope: 'client', config: true, type: Boolean, default: true, requiresReload: true
+  });
+
+  // Separate from the one above: this one is not about A5e at all. Foundry v14
+  // dropped the #chat-log id that Your Flavor's own restyle pass looks for, so
+  // on v14 nothing already in the log gets themed after a reload - for every
+  // system. Kept switchable in case a future Your Flavor fixes it itself.
+  game.settings.register(AM.ID, 'enableYourFlavorRestyle', {
+    name: 'am.settings.your-flavor-restyle.name', hint: 'am.settings.your-flavor-restyle.hint',
+    scope: 'client', config: true, type: Boolean, default: true, requiresReload: true
+  });
+
   game.settings.register(AM.ID, 'enableRandomize', {
     name: 'am.settings.randomize.name', hint: 'am.settings.randomize.hint',
     scope: 'world', config: true, type: Boolean, default: true

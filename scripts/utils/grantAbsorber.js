@@ -569,17 +569,57 @@ export class GrantAbsorber {
     // The level is committed at this point. A failure here would leave the
     // character levelled with none of the level's grants and a5e's routine
     // already skipped, so it is reported rather than thrown.
+    const atLevel = lv ?? { charLevel: charLevel || newLevel, clsLevel: newLevel };
+
     try {
       const fresh = actor.items.get(classItem.id) ?? classItem;
-      await this.apply(actor, fresh, choices,
-                       lv ?? { charLevel: charLevel || newLevel, clsLevel: newLevel },
-                       0, { skip });
+      await this.apply(actor, fresh, choices, atLevel, 0, { skip });
+      await this.applyArchetypeGrants(actor, fresh, atLevel);
     } catch (err) {
       AM.log(1, `Applying the level ${newLevel} grants failed:`, err);
       ui.notifications.error(
         `${AM.NAME}: the level was gained but its features could not be applied — see the console.`
       );
     }
+    return true;
+  }
+
+  /**
+   * The archetype's grants for this level.
+   *
+   * a5e's own routine walks every grant-bearing item on the actor, the archetype
+   * included. Suppressing it means the class is no longer the whole story: from
+   * the archetype level onwards a subclass hands out a feature every few levels,
+   * and without this they simply never arrive.
+   *
+   * Safe to run at every level: `apply` takes grants at or below the level, and
+   * granted features keep their compendium id, so ones the character already has
+   * are recognised rather than duplicated.
+   *
+   * Grants that would open a picker are left for a5e — applying them here would
+   * silently take their default instead of asking.
+   */
+  static async applyArchetypeGrants(actor, classItem, lv = {}) {
+    const slug = classItem?.slug
+      ?? classItem?.system?.slug
+      ?? String(classItem?.name ?? '').slugify?.({ strict: true })
+      ?? '';
+    if (!slug) return false;
+
+    const archetype = actor.items.find(i => i.type === 'archetype' && i.system?.class === slug);
+    if (!archetype) return false;
+
+    const skip = new Set();
+    for (const [id, grant] of archetype.grants?.entries?.() ?? []) {
+      if (!this.#appliesAtLevel(grant, lv)) continue;
+      if (this.#needsConfig(grant)) {
+        skip.add(id);
+        AM.log(2, `${archetype.name}: grant "${grant.label ?? id}" needs a choice — configure it on the archetype`);
+      }
+    }
+
+    await this.apply(actor, archetype, {}, lv, 0, { skip });
+    AM.log(3, `Archetype grants applied: ${archetype.name}`);
     return true;
   }
 
