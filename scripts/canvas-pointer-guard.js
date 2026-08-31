@@ -34,6 +34,20 @@
 const TAG = "a5e-mancer | pointer-guard";
 const CHECK_MS = 1000;
 
+/** Last captured removal, readable later via a5eMancerPointerGuard.lastCulprit. */
+let lastCulprit = null;
+
+/**
+ * Surface something the user must not miss. Permanent notifications stay on
+ * screen until dismissed, which matters here: the culprit reveals itself once,
+ * possibly while the user is looking elsewhere, and the stack is only in the
+ * console.
+ */
+function notifyOnScreen(message) {
+  try { ui.notifications?.warn(` | `, { permanent: true, console: false }); }
+  catch (_) { /* notifications may not exist yet during early init */ }
+}
+
 let intervalId = null;
 let patched = false;
 
@@ -46,6 +60,7 @@ function restoreListener() {
   });
   console.warn(`${TAG} | canvas.stage lost its "pointermove" listener — restored it. `
     + `Token clicking should work again. Reload (F5) to restore core's full handler chain.`);
+  notifyOnScreen("Клікання по токенах було зламане — відновлено. Подробиці в консолі (F12).");
 }
 
 /**
@@ -58,23 +73,33 @@ function instrumentStage() {
   if (!stage || stage.__a5eMancerGuarded) return;
   stage.__a5eMancerGuarded = true;
 
+  // Core itself calls stage.removeAllListeners() at the top of Canvas##addListeners
+  // and immediately re-registers everything, so a removal is not by itself a
+  // fault. Record it, then check on the next tick whether the pointermove
+  // listener actually came back — only a removal that sticks is worth reporting.
+  const record = (what, stack) => {
+    setTimeout(() => {
+      if (canvas?.stage?.listenerCount?.("pointermove") !== 0) return;  // benign
+      lastCulprit = { what, stack, at: new Date().toLocaleTimeString() };
+      console.warn(`${TAG} | ${what}\nStack:\n${stack}`);
+      notifyOnScreen(`ЗНАЙДЕНО ВИНУВАТЦЯ: ${what}. Стек у консолі (F12), `
+        + `або введи a5eMancerPointerGuard.lastCulprit`);
+    }, 0);
+  };
+
   const off = stage.off.bind(stage);
   stage.off = function(event, fn, ...rest) {
     if (!fn) {
-      console.warn(`${TAG} | something removed ALL "${event}" listeners from canvas.stage. `
-        + `In eventemitter3, .off(event) without a handler clears every listener, not just `
-        + `the caller's. Stack:\n${new Error().stack}`);
+      record(`хтось зняв УСІ слухачі "${event}" зі stage`, new Error().stack);
     }
     return off(event, fn, ...rest);
   };
 
   const removeAll = stage.removeAllListeners.bind(stage);
   stage.removeAllListeners = function(event, ...rest) {
-    console.warn(`${TAG} | canvas.stage.removeAllListeners(${event ?? "all events"}) `
-      + `was called. Stack:\n${new Error().stack}`);
+    record(`викликано stage.removeAllListeners(${event ?? "усі події"})`, new Error().stack);
     return removeAll(event, ...rest);
   };
-
   patched = true;
 }
 
@@ -105,4 +130,5 @@ globalThis.a5eMancerPointerGuard = {
     watching: intervalId !== null,
   }),
   restore: restoreListener,
+  get lastCulprit() { return lastCulprit; },
 };
