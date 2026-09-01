@@ -3,27 +3,141 @@
    Inspired by Hero Mancer's design language, adapted for A5e identity
    ========================================================================== */
 
+/* --------------------------------------------------------------------------
+   Design tokens — Tidy 5e Sheets, dark theme
+   --------------------------------------------------------------------------
+   Values read from Tidy 5e Sheets' own `main.css` (MIT, © kgar,
+   github.com/kgar/foundry-vtt-tidy-5e-sheets): its base palette plus the
+   overrides in its `.theme-dark` rule. Nothing is copied here but the values
+   themselves — every rule that consumes them is ours.
+
+   The names are deliberately unchanged. Four thousand lines of this file
+   already read `--am-*`, so the whole module re-skins from this one block and
+   reverting is a matter of restoring it. Each entry notes the Tidy token it
+   came from, so the next pass can be checked against the source rather than
+   guessed at.
+
+   Two things Tidy does that are NOT here yet, because they belong to the
+   layout pass rather than the palette: its hairline 1px borders in place of
+   our heavier gold ones, and its tight 0.875rem line height. Changing those
+   before the layout is rebuilt would misalign every existing panel.
+   -------------------------------------------------------------------------- */
 :root {
-  --am-gold:          #d4af37;
-  --am-gold-dim:      rgba(212, 175, 55, 0.18);
-  --am-gold-border:   rgba(212, 175, 55, 0.28);
-  --am-accent:        rgb(88 130 170);
+  /* Gold. Tidy's dark theme lightens it for contrast: text-gold is gold-75,
+     not the gold-56 the light theme uses. */
+  --am-gold:          #c0ad81;                    /* gold-75  */
+  --am-gold-light:    #f0f0e1;                    /* gold-94  */
+  --am-gold-dim:      rgba(192, 173, 129, 0.18);
+  --am-gold-border:   rgba(192, 173, 129, 0.28);
+
+  --am-accent:        rgb(88 130 170);            /* ours: Tidy's is user-set */
   --am-success:       rgb(143 214 147);
-  --am-error:         rgb(255 182 117);
-  --am-border-radius: 0.5rem;
+  --am-error:         rgb(255 182 117);           /* Tidy's #9a2a30 is unreadable on dark */
+
+  /* Tidy corners are far tighter than ours were: .3125rem is its commonest
+     radius by a wide margin (37 uses), .125rem next. */
+  --am-border-radius: 0.3125rem;
+  --am-radius-sm:     0.125rem;
   --am-spacing-xs:    0.25rem;
   --am-spacing-sm:    0.5rem;
   --am-spacing-md:    1rem;
 
-  /* Dark fantasy palette */
-  --am-bg-app:        #0e0c09;
-  --am-bg-sidebar:    #120e08;
-  --am-bg-content:    #0f0f13;
-  --am-bg-panel:      rgba(255, 255, 255, 0.025);
-  --am-bg-hover:      rgba(255, 255, 255, 0.045);
-  --am-text-primary:  #e8dcc8;
-  --am-text-dim:      rgba(232, 220, 200, 0.55);
-  --am-shadow-gold:   0 0 12px rgba(212, 175, 55, 0.15);
+  /* Surfaces. Tidy's dark cards are a cool near-black, where ours were a warm
+     brown-black — this is the single biggest visual change of the pass. */
+  --am-bg-app:        #1a1b20;                    /* component-card-darker  */
+  --am-bg-sidebar:    #1a1b20;                    /* component-card-darker  */
+  --am-bg-content:    #282a30;                    /* component-card-default */
+  --am-bg-panel:      #2f3238;                    /* component-card-lighter */
+  --am-bg-hover:      rgba(255, 255, 255, 0.06);
+  --am-bg-header:     #444856;                    /* grey-34, table headers */
+
+  --am-text-primary:  #ffffff;                    /* grey-100 */
+  --am-text-dim:      #cfd2da;                    /* grey-85  */
+  --am-text-faint:    #999999;                    /* grey-60  */
+  --am-text-disabled: #7a7a7a;                    /* grey-48  */
+
+  --am-border:        #7a7a7a;                    /* grey-48, field borders */
+  --am-border-soft:   #4b4a44;                    /* grey-29, pill borders  */
+  --am-divider:       rgba(224, 216, 212, 0.25);  /* table-row-divider      */
+
+  --am-shadow-gold:   0 0 12px rgba(192, 173, 129, 0.15);
+
+  /* Type. Modesto Condensed ships with the dnd5e system, not with a5e, so on
+     an a5e world the title stack falls through to Palatino — which is what
+     Tidy itself falls back to. Roboto Condensed and Signika come with Foundry.
+     Shipping Modesto ourselves is a licensing question, not a technical one. */
+  --am-font-title:    "Modesto Condensed", "Palatino Linotype", Palatino, serif;
+  --am-font-body:     "Roboto Condensed", Roboto, Arial, sans-serif;
+  --am-font-form:     "Signika", Roboto, Arial, sans-serif;
+
+  /* Accents that carry MEANING rather than theme, so they survive a palette
+     swap: attunement, concentration, damage tier, save proficiency, exertion.
+     Tidy has nothing to say about these — folding them into gold would make
+     the sheet prettier and less readable. Kept close to the values the sheet
+     always used, nudged only where contrast against the new darker surfaces
+     needed it. */
+  --am-orange:        #d98a2b;   /* exertion, attunement warnings */
+  --am-orange-dark:   #a05518;
+  --am-green:         #5cc47f;   /* proficient, lair actions */
+  --am-green-dark:    #3c9440;
+  --am-blue:          #6a9cc4;   /* bonus actions, maneuver degree */
+  --am-purple:        #a878d8;   /* attuned items, reactions */
+  --am-purple-dark:   #7a45b0;
+  --am-red:           #e0665a;   /* damage, delete */
+  --am-red-soft:      #c98080;
+  --am-pink:          #ec4899;   /* concentration */
+
+  /* Two names the stylesheet already used without ever declaring them. One had
+     no fallback at all, so it resolved to nothing and the text simply inherited
+     — invisible until the palette moved under it. Aliased rather than renamed,
+     because the call sites read fine as they are. */
+  --am-text-muted:    var(--am-text-dim);
+  --am-primary:       var(--am-gold);
+}
+
+/* --------------------------------------------------------------------------
+   Typography — Tidy's stacks, scoped to our own roots
+   --------------------------------------------------------------------------
+   Applied to the three applications this module owns and nothing else: a bare
+   `body` rule would restyle the whole of Foundry, which is not what anyone
+   asked for and would be a nuisance to trace later.
+
+   Headings take the title stack, everything else the body stack, and form
+   controls the form stack — the same three-way split Tidy makes.
+
+   Modesto Condensed ships with the dnd5e system, not with a5e, so on an a5e
+   world the headings land on Palatino. That is Tidy's own fallback, so the
+   shape is right even when the face is not.
+
+   Written flat rather than nested. A nested block whose inner selectors start
+   with a bare element name (`h1 { }` inside a rule) is newer CSS than the rest
+   of this file relies on, and a parser that rejects it discards not just that
+   block but everything after it until it recovers — which would take the whole
+   sheet layout with it. Not worth the two saved lines.
+   -------------------------------------------------------------------------- */
+.am-app,
+.a5e-mancer-sheet,
+.a5e-mancer-npc-sheet {
+  font-family: var(--am-font-body);
+}
+
+.am-app h1, .am-app h2, .am-app h3, .am-app h4, .am-app h5, .am-app h6,
+.a5e-mancer-sheet h1, .a5e-mancer-sheet h2, .a5e-mancer-sheet h3,
+.a5e-mancer-sheet h4, .a5e-mancer-sheet h5, .a5e-mancer-sheet h6,
+.a5e-mancer-npc-sheet h1, .a5e-mancer-npc-sheet h2, .a5e-mancer-npc-sheet h3,
+.a5e-mancer-npc-sheet h4, .a5e-mancer-npc-sheet h5, .a5e-mancer-npc-sheet h6,
+.am-app .am-app-header,
+.a5e-mancer-sheet .am-cs-name {
+  font-family: var(--am-font-title);
+  letter-spacing: 0.01em;
+}
+
+.am-app input, .am-app select, .am-app textarea, .am-app button,
+.a5e-mancer-sheet input, .a5e-mancer-sheet select,
+.a5e-mancer-sheet textarea, .a5e-mancer-sheet button,
+.a5e-mancer-npc-sheet input, .a5e-mancer-npc-sheet select,
+.a5e-mancer-npc-sheet textarea, .a5e-mancer-npc-sheet button {
+  font-family: var(--am-font-form);
 }
 
 /* в”Ђв”Ђ Layout utilities в”Ђв”Ђ */
@@ -2359,26 +2473,26 @@ img[src*="a5e-mancer/assets/icons/"] {
 
 .a5e-mancer-sheet {
   --sheet-gold: rgb(212 175 55);
-  --sheet-bg: #1a1810;
-  --sheet-border: #3e3522;
-  --sheet-dark: #2a2018;
-  --sheet-accent: #e06000;
+  --sheet-bg: var(--am-bg-content, #1a1810);
+  --sheet-border: var(--am-border-soft, #3e3522);
+  --sheet-dark: var(--am-bg-panel, #2a2018);
+  --sheet-accent: var(--am-orange, #e06000);
 
   .window-content {
     padding: 0;
     overflow: hidden;
-    background: #1a1810;
+    background: var(--am-bg-content, #1a1810);
   }
 
   .window-header {
-    background: #100e09 !important;
-    border-bottom: 1px solid #3e3522 !important;
-    color: #c0ad8b !important;
+    background: var(--am-bg-app, #100e09) !important;
+    border-bottom: 1px solid var(--am-border-soft, #3e3522) !important;
+    color: var(--am-gold-light, #c0ad8b) !important;
   }
 
-  .window-header h4 { color: #c0ad8b !important; }
-  .window-header a.close, .window-header a.minimize { color: #8a7e6a !important; &:hover { color: #f0e8d8 !important; } }
-  .window-resizable-handle { border-top-color: #3e3522 !important; }
+  .window-header h4 { color: var(--am-gold-light, #c0ad8b) !important; }
+  .window-header a.close, .window-header a.minimize { color: var(--am-text-dim, #8a7e6a) !important; &:hover { color: var(--am-gold-light, #f0e8d8) !important; } }
+  .window-resizable-handle { border-top-color: var(--am-border-soft, #3e3522) !important; }
 }
 
 
@@ -2472,7 +2586,7 @@ img[src*="a5e-mancer/assets/icons/"] {
   border: 1px solid var(--sheet-gold);
   border-radius: 2px;
   background: rgba(212,175,55,0.1);
-  color: #5a3a00;
+  color: var(--am-text-faint, #5a3a00);
   cursor: pointer;
   white-space: nowrap;
   font-weight: bold;
@@ -2491,7 +2605,7 @@ img[src*="a5e-mancer/assets/icons/"] {
 
   a {
     cursor: pointer;
-    color: #888;
+    color: var(--am-text-faint, #888);
     font-size: 0.8rem;
 
     &:hover { color: var(--sheet-dark); }
@@ -2529,7 +2643,7 @@ img[src*="a5e-mancer/assets/icons/"] {
 
 
 
-.am-conc-tag  { background: rgba(236,72,153,0.15); color: #ec4899; }
+.am-conc-tag  { background: rgba(236,72,153,0.15); color: var(--am-pink, #ec4899); }
 .am-spell-school { font-size: 0.7rem; }
 
 /* в”Ђв”Ђ Skills в”Ђв”Ђ */
@@ -2564,7 +2678,7 @@ img[src*="a5e-mancer/assets/icons/"] {
    CHARACTER SHEET вЂ” A5e Mancer Sheet
    ========================================================================== */
 
-.a5e-mancer-sheet .window-content { padding: 0; overflow: hidden; background: #1a1810; }
+.a5e-mancer-sheet .window-content { padding: 0; overflow: hidden; background: var(--am-bg-content, #1a1810); }
 
 
 /* в”Ђв”Ђ HEADER в”Ђв”Ђ */
@@ -2573,15 +2687,15 @@ img[src*="a5e-mancer/assets/icons/"] {
 /* в”Ђв”Ђ RESOURCES в”Ђв”Ђ */
 .am-slash { font-size:0.85rem; opacity:0.4; }
 .am-rest-row { display:flex; gap:0.25rem; margin-block-start:0.15rem; }
-.am-rest-btn { flex:1; font-size: 0.72rem; padding:0.1rem 0.25rem; border:1px solid #c8b890; border-radius:2px; background:rgba(0,0,0,0.04); cursor:pointer; white-space:nowrap;
+.am-rest-btn { flex:1; font-size: 0.72rem; padding:0.1rem 0.25rem; border:1px solid var(--am-text-dim, #c8b890); border-radius:2px; background:rgba(0,0,0,0.04); cursor:pointer; white-space:nowrap;
   &:hover { background:rgba(0,0,0,0.1); }
 }
 
 /* в”Ђв”Ђ MAIN в”Ђв”Ђ */
 
 /* LEFT: Ability blocks */
-.am-save-dot { font-size: 0.64rem; color:#bbb;
-  &.am-save-prof { color:#2a7a2a; }
+.am-save-dot { font-size: 0.64rem; color:var(--am-text-dim, #bbb);
+  &.am-save-prof { color:var(--am-green-dark, #2a7a2a); }
 }
 
 /* RIGHT: Tab panel */
@@ -2595,30 +2709,30 @@ img[src*="a5e-mancer/assets/icons/"] {
 }
 .am-ico { width:1.4rem; height:1.4rem; object-fit:cover; border-radius:2px; border:none; float:none; margin:0; flex-shrink:0; }
 .am-item-name { font-weight:bold; font-size:0.83rem; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.am-use-btn { font-size:0.7rem; padding:0.1rem 0.45rem; border:1px solid #c8a020; border-radius:2px; background:rgba(200,160,32,0.1); color:#5a3a00; cursor:pointer; font-weight:bold; white-space:nowrap; flex-shrink:0; transition:background 0.1s;
+.am-use-btn { font-size:0.7rem; padding:0.1rem 0.45rem; border:1px solid var(--am-gold, #c8a020); border-radius:2px; background:rgba(200,160,32,0.1); color:var(--am-text-faint, #5a3a00); cursor:pointer; font-weight:bold; white-space:nowrap; flex-shrink:0; transition:background 0.1s;
   &:hover { background:rgba(200,160,32,0.3); }
 }
 .am-item-controls { display:inline-flex; gap:0.3rem; opacity:0; transition:opacity 0.15s; flex-shrink:0;
-  a { cursor:pointer; color:#aaa; font-size:0.78rem; &:hover { color:#2a2010; } }
-  a:last-child:hover { color:#c0392b; }
+  a { cursor:pointer; color:var(--am-text-faint, #aaa); font-size:0.78rem; &:hover { color:#2a2010; } }
+  a:last-child:hover { color:var(--am-red, #c0392b); }
 }
 
 /* Maneuvers */
-.am-degree-pip { font-size:0.7rem; font-weight:bold; color:#4a7c9e; background:rgba(74,124,158,0.12); border-radius:2px; padding:0 0.25rem; flex-shrink:0; }
-.am-ex-cost { font-size:0.7rem; color:#c07030; display:flex; align-items:center; gap:0.1rem; flex-shrink:0; }
+.am-degree-pip { font-size:0.7rem; font-weight:bold; color:var(--am-blue, #4a7c9e); background:rgba(74,124,158,0.12); border-radius:2px; padding:0 0.25rem; flex-shrink:0; }
+.am-ex-cost { font-size:0.7rem; color:var(--am-orange, #c07030); display:flex; align-items:center; gap:0.1rem; flex-shrink:0; }
 
 /* Spell slots */
 .am-tag { font-size:0.62rem; font-weight:bold; border-radius:2px; padding:0 0.2rem; flex-shrink:0; }
-.am-tag-c { background:rgba(236,72,153,0.15); color:#ec4899; }
-.am-tag-r { background:rgba(139,92,246,0.15); color:#8b5cf6; }
+.am-tag-c { background:rgba(236,72,153,0.15); color:var(--am-pink, #ec4899); }
+.am-tag-r { background:rgba(139,92,246,0.15); color:var(--am-purple, #8b5cf6); }
 .am-school { font-size: 0.72rem; }
 
 /* Skills */
 
 /* Features */
-.am-feature-item { border:1px solid #c8b890; border-radius:3px; margin-block-end:0.25rem; overflow:hidden; }
-.am-feature-toggle { background:none; border:none; cursor:pointer; font-size:0.8rem; padding:0; color:#888; width:1rem; flex-shrink:0; }
-.am-feature-body { padding:0.4rem 0.7rem 0.5rem; font-size:0.82rem; border-top:1px solid #c8b890;
+.am-feature-item { border:1px solid var(--am-text-dim, #c8b890); border-radius:3px; margin-block-end:0.25rem; overflow:hidden; }
+.am-feature-toggle { background:none; border:none; cursor:pointer; font-size:0.8rem; padding:0; color:var(--am-text-faint, #888); width:1rem; flex-shrink:0; }
+.am-feature-body { padding:0.4rem 0.7rem 0.5rem; font-size:0.82rem; border-top:1px solid var(--am-text-dim, #c8b890);
   &.am-hidden { display:none; }
 }
 
@@ -2656,7 +2770,7 @@ img[src*="a5e-mancer/assets/icons/"] {
 /* в”Ђв”Ђ Actions tab groups в”Ђв”Ђ */
 
 .am-row-right { display: flex; align-items: center; gap: 0.3rem; margin-inline-start: auto; flex-shrink: 0; }
-.am-atk-tag { font-size: 0.78rem; font-weight: bold; color: #6a3000; flex-shrink: 0; }
+.am-atk-tag { font-size: 0.78rem; font-weight: bold; color: var(--am-orange-dark, #6a3000); flex-shrink: 0; }
 .am-dmg-tag { font-size: 0.75rem; flex-shrink: 0; }
 
 /* в”Ђв”Ђ Spells tab в”Ђв”Ђ */
@@ -2665,14 +2779,14 @@ img[src*="a5e-mancer/assets/icons/"] {
 .am-spell-count {
   margin-inline-start: auto; font-size: 0.7rem;
   background: rgba(100,60,160,0.12); border-radius: 0.8rem;
-  padding: 0.05rem 0.45rem; font-weight: normal; color: #6a30a0;
+  padding: 0.05rem 0.45rem; font-weight: normal; color: var(--am-purple-dark, #6a30a0);
 }
-.am-lvl-cantrip .am-spell-count { background: rgba(200,120,0,0.12); color: #c87800; }
+.am-lvl-cantrip .am-spell-count { background: rgba(200,120,0,0.12); color: var(--am-orange, #c87800); }
 
 .am-cast-btn {
   background: rgba(100,60,160,0.1) !important;
   border-color: rgba(100,60,160,0.4) !important;
-  color: #5a20a0 !important;
+  color: var(--am-purple-dark, #5a20a0) !important;
   &:hover { background: rgba(100,60,160,0.25) !important; }
 }
 
@@ -2681,11 +2795,11 @@ img[src*="a5e-mancer/assets/icons/"] {
 
 .am-feat-filter {
   font-size: 0.72rem; padding: 0.15rem 0.55rem;
-  border: 1px solid #c8b890; border-radius: 1rem;
-  background: none; cursor: pointer; color: #666;
+  border: 1px solid var(--am-text-dim, #c8b890); border-radius: 1rem;
+  background: none; cursor: pointer; color: var(--am-text-faint, #666);
   transition: all 0.12s;
-  &:hover { border-color: #c8a020; color: #8a6000; }
-  &.am-feat-filter-active { background: rgba(200,160,32,0.15); border-color: #c8a020; color: #8a6000; font-weight: bold; }
+  &:hover { border-color: var(--am-gold, #c8a020); color: var(--am-text-faint, #8a6000); }
+  &.am-feat-filter-active { background: rgba(200,160,32,0.15); border-color: var(--am-gold, #c8a020); color: var(--am-text-faint, #8a6000); font-weight: bold; }
 }
 
 
@@ -2696,7 +2810,7 @@ img[src*="a5e-mancer/assets/icons/"] {
 }
 .am-feat-toggle {
   background: none; border: none; cursor: pointer;
-  font-size: 0.78rem; padding: 0; color: #888; width: 1rem; flex-shrink: 0;
+  font-size: 0.78rem; padding: 0; color: var(--am-text-faint, #888); width: 1rem; flex-shrink: 0;
 }
 .am-feat-body {
   padding: 0.4rem 0.7rem 0.5rem;
@@ -2713,37 +2827,37 @@ img[src*="a5e-mancer/assets/icons/"] {
    NPC SHEET
    ========================================================================== */
 
-.a5e-mancer-npc-sheet .window-content { padding: 0; overflow: hidden; background: #1e1a14; }
+.a5e-mancer-npc-sheet .window-content { padding: 0; overflow: hidden; background: var(--am-bg-content, #1e1a14); }
 
 .am-npc-wrapper {
   display: flex; flex-direction: column; height: 100%;
-  overflow: hidden; font-size: 0.86rem; color: #e8dcc8;
+  overflow: hidden; font-size: 0.86rem; color: var(--am-gold-light, #e8dcc8);
 }
 
 /* в”Ђв”Ђ NPC Header в”Ђв”Ђ */
 .am-npc-header {
   display: grid; grid-template-columns: 4rem 1fr auto;
   gap: 0.6rem; padding: 0.5rem 0.7rem;
-  background: linear-gradient(135deg, #0e0c08 0%, #1e1a10 100%);
-  border-bottom: 2px solid #8a6820; flex-shrink: 0; align-items: center;
+  background: linear-gradient(135deg, var(--am-bg-app, #0e0c08) 0%, var(--am-bg-content, #1e1a10) 100%);
+  border-bottom: 2px solid var(--am-border, #8a6820); flex-shrink: 0; align-items: center;
 }
 .am-npc-portrait {
   width: 4rem; height: 4rem; object-fit: cover;
-  border-radius: 3px; border: 2px solid #8a6820;
+  border-radius: 3px; border: 2px solid var(--am-border, #8a6820);
   cursor: pointer; float: none; margin: 0; display: block;
 }
 .am-npc-name {
   background: transparent; border: none;
   border-bottom: 1px solid rgba(138,104,32,0.5);
-  color: #f5e8c0; font-size: 1.2rem; font-weight: bold;
+  color: var(--am-gold-light, #f5e8c0); font-size: 1.2rem; font-weight: bold;
   width: 100%; padding: 0.05rem 0.2rem;
-  &:focus { outline: none; border-bottom-color: #c8a020; }
+  &:focus { outline: none; border-bottom-color: var(--am-gold, #c8a020); }
 }
 .am-npc-subtitle { display: flex; gap: 0.3rem; flex-wrap: wrap; margin-block-start: 0.25rem; }
 .am-npc-chip {
   background: rgba(138,104,32,0.2); border: 1px solid rgba(138,104,32,0.4);
   border-radius: 3px; padding: 0.05rem 0.35rem;
-  font-size: 0.75rem; color: #d4b060;
+  font-size: 0.75rem; color: var(--am-gold, #d4b060);
 }
 .am-npc-source { font-size: 0.7rem; margin-block-start: 0.15rem; }
 .am-npc-cr-block {
@@ -2751,60 +2865,60 @@ img[src*="a5e-mancer/assets/icons/"] {
   background: rgba(138,104,32,0.15); border: 1px solid rgba(138,104,32,0.4);
   border-radius: 4px; padding: 0.3rem 0.7rem; text-align: center; flex-shrink: 0;
 }
-.am-npc-cr-val { font-size: 1.1rem; font-weight: bold; color: #c8a020; }
+.am-npc-cr-val { font-size: 1.1rem; font-weight: bold; color: var(--am-gold, #c8a020); }
 .am-npc-xp, .am-npc-prof { font-size: 0.7rem; }
 
 /* в”Ђв”Ђ Stats bar в”Ђв”Ђ */
 .am-npc-stats-bar {
   display: flex; flex-wrap: wrap; gap: 0.5rem;
-  padding: 0.45rem 0.7rem; background: #161210;
-  border-bottom: 1px solid #3a2e18; flex-shrink: 0; align-items: flex-start;
+  padding: 0.45rem 0.7rem; background: var(--am-bg-content, #161210);
+  border-bottom: 1px solid var(--am-border-soft, #3a2e18); flex-shrink: 0; align-items: flex-start;
 }
 .am-npc-stat-label { font-size: 0.62rem; font-weight: bold; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.5; margin-block-end: 0.1rem; }
 .am-npc-hp-block { display: flex; flex-direction: column; min-width: 8rem; }
 .am-npc-hp-row { display: flex; align-items: center; gap: 0.1rem; }
-.am-npc-hp-big { width: 3rem; text-align: center; font-size: 1.2rem; font-weight: bold; border: 1px solid #3a2e18; border-radius: 3px; background: #2a2018; color: #e8dcc8; padding: 0.05rem; }
-.am-npc-hp-sm  { width: 2.5rem; text-align: center; font-size: 0.9rem; font-weight: bold; border: 1px solid #3a2e18; border-radius: 3px; background: #2a2018; color: #e8dcc8; padding: 0.05rem; }
+.am-npc-hp-big { width: 3rem; text-align: center; font-size: 1.2rem; font-weight: bold; border: 1px solid var(--am-border-soft, #3a2e18); border-radius: 3px; background: var(--am-bg-panel, #2a2018); color: var(--am-gold-light, #e8dcc8); padding: 0.05rem; }
+.am-npc-hp-sm  { width: 2.5rem; text-align: center; font-size: 0.9rem; font-weight: bold; border: 1px solid var(--am-border-soft, #3a2e18); border-radius: 3px; background: var(--am-bg-panel, #2a2018); color: var(--am-gold-light, #e8dcc8); padding: 0.05rem; }
 .am-npc-hp-formula { font-size: 0.68rem; opacity: 0.68; margin-block-start: 0.1rem; }
 .am-npc-bar-track { height: 3px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; margin-block: 0.2rem; }
 .am-npc-bar-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
 .am-npc-stat-block { display: flex; flex-direction: column; align-items: center; min-width: 3.5rem; }
 .am-npc-stat-block.am-npc-stat-wide { min-width: 8rem; align-items: flex-start; }
-.am-npc-stat-big { width: 3.2rem; text-align: center; font-size: 1.3rem; font-weight: bold; border: 1px solid #3a2e18; border-radius: 3px; background: #2a2018; color: #e8dcc8; padding: 0.05rem; }
+.am-npc-stat-big { width: 3.2rem; text-align: center; font-size: 1.3rem; font-weight: bold; border: 1px solid var(--am-border-soft, #3a2e18); border-radius: 3px; background: var(--am-bg-panel, #2a2018); color: var(--am-gold-light, #e8dcc8); padding: 0.05rem; }
 .am-npc-speed { font-size: 0.85rem; line-height: 1.5rem; }
 
 /* в”Ђв”Ђ Abilities grid в”Ђв”Ђ */
 .am-npc-abilities { display: flex; gap: 0.3rem; flex: 1; justify-content: space-around; }
-.am-npc-abl { display: flex; flex-direction: column; align-items: center; gap: 0.05rem; background: rgba(255,255,255,0.04); border: 1px solid #3a2e18; border-radius: 3px; padding: 0.2rem 0.3rem; min-width: 3.2rem; }
+.am-npc-abl { display: flex; flex-direction: column; align-items: center; gap: 0.05rem; background: rgba(255,255,255,0.04); border: 1px solid var(--am-border-soft, #3a2e18); border-radius: 3px; padding: 0.2rem 0.3rem; min-width: 3.2rem; }
 .am-npc-abl-name { font-size: 0.62rem; font-weight: bold; letter-spacing: 0.05em; opacity: 0.5; }
 .am-npc-abl-score { font-size: 0.9rem; font-weight: bold; }
 .am-npc-abl-mod {
   font-size: 0.85rem; font-weight: bold;
-  background: #8a6820; color: #1a1208; border: none; border-radius: 50%;
+  background: var(--am-border, #8a6820); color: var(--am-bg-app, #1a1208); border: none; border-radius: 50%;
   width: 1.7rem; height: 1.7rem; display: flex; align-items: center; justify-content: center;
   cursor: pointer; padding: 0; transition: transform 0.1s;
-  &:hover { transform: scale(1.1); background: #c8a020; }
+  &:hover { transform: scale(1.1); background: var(--am-gold, #c8a020); }
 }
 .am-npc-save {
   font-size: 0.7rem; font-weight: bold; background: none; border: none;
-  cursor: pointer; color: #a09060; padding: 0; display: flex; align-items: center; gap: 0.1rem;
-  &:hover { color: #c8a020; }
+  cursor: pointer; color: var(--am-text-dim, #a09060); padding: 0; display: flex; align-items: center; gap: 0.1rem;
+  &:hover { color: var(--am-gold, #c8a020); }
 }
-.am-save-dot { font-size: 0.64rem; color: #554030;
-  &.am-save-prof { color: #60a060; }
+.am-save-dot { font-size: 0.64rem; color: var(--am-text-faint, #554030);
+  &.am-save-prof { color: var(--am-green, #60a060); }
 }
 
 /* в”Ђв”Ђ Traits / senses rows в”Ђв”Ђ */
 .am-npc-traits-row {
   display: flex; flex-wrap: wrap; gap: 0.6rem;
-  padding: 0.3rem 0.7rem; background: #161210;
-  border-bottom: 1px solid #3a2e18; font-size: 0.78rem;
+  padding: 0.3rem 0.7rem; background: var(--am-bg-content, #161210);
+  border-bottom: 1px solid var(--am-border-soft, #3a2e18); font-size: 0.78rem;
   flex-shrink: 0;
 }
-.am-trait-block { color: #c8b890; }
+.am-trait-block { color: var(--am-text-dim, #c8b890); }
 .am-npc-senses-row {
-  padding: 0.2rem 0.7rem; background: #161210;
-  border-bottom: 1px solid #3a2e18; font-size: 0.72rem; flex-shrink: 0;
+  padding: 0.2rem 0.7rem; background: var(--am-bg-content, #161210);
+  border-bottom: 1px solid var(--am-border-soft, #3a2e18); font-size: 0.72rem; flex-shrink: 0;
 }
 
 /* в”Ђв”Ђ Legendary pips в”Ђв”Ђ */
@@ -2813,10 +2927,10 @@ img[src*="a5e-mancer/assets/icons/"] {
   padding: 0.3rem 0.7rem; background: rgba(200,160,32,0.06);
   border-bottom: 1px solid rgba(200,160,32,0.2); flex-shrink: 0;
 }
-.am-leg-label { font-size: 0.75rem; font-weight: bold; color: #c8a020; flex-shrink: 0; }
+.am-leg-label { font-size: 0.75rem; font-weight: bold; color: var(--am-gold, #c8a020); flex-shrink: 0; }
 .am-leg-pips { display: flex; gap: 0.2rem; }
 .am-leg-pip {
-  cursor: pointer; font-size: 0.8rem; color: #c8a020; opacity: 0.2;
+  cursor: pointer; font-size: 0.8rem; color: var(--am-gold, #c8a020); opacity: 0.2;
   transition: opacity 0.1s; user-select: none;
   &.am-leg-pip-on { opacity: 0.9; }
   &:hover { opacity: 0.6; }
@@ -2824,20 +2938,20 @@ img[src*="a5e-mancer/assets/icons/"] {
 
 /* в”Ђв”Ђ Tabs в”Ђв”Ђ */
 .am-npc-tabs {
-  display: flex; background: #0e0c08;
-  border-bottom: 1px solid #3a2e18; flex-shrink: 0;
+  display: flex; background: var(--am-bg-app, #0e0c08);
+  border-bottom: 1px solid var(--am-border-soft, #3a2e18); flex-shrink: 0;
   a.item {
     flex: 1; padding: 0.35rem 0.3rem; text-align: center;
     font-size: 0.75rem; font-weight: bold; cursor: pointer;
-    color: #7a6840; border: none; transition: all 0.12s; white-space: nowrap;
-    &:hover { color: #c8b890; }
-    &.active { color: #c8a020; border-bottom: 2px solid #c8a020; }
+    color: var(--am-text-dim, #7a6840); border: none; transition: all 0.12s; white-space: nowrap;
+    &:hover { color: var(--am-text-dim, #c8b890); }
+    &.active { color: var(--am-gold, #c8a020); border-bottom: 2px solid var(--am-gold, #c8a020); }
   }
 }
 
 .am-npc-body {
   flex: 1; overflow-y: auto; padding: 0.45rem 0.6rem;
-  background: #1e1a14;
+  background: var(--am-bg-content, #1e1a14);
   .tab { display: none; }
   .tab.active { display: block; }
 }
@@ -2849,11 +2963,11 @@ img[src*="a5e-mancer/assets/icons/"] {
   padding: 0.2rem 0.4rem; border-radius: 3px 3px 0 0;
   margin-block-end: 0.15rem;
 }
-.am-npc-head-action    { background: rgba(200,160,32,0.15); color: #c8a020; border-bottom: 1px solid rgba(200,160,32,0.3); }
-.am-npc-head-bonus     { background: rgba(74,124,158,0.15); color: #6aacce; border-bottom: 1px solid rgba(74,124,158,0.3); }
-.am-npc-head-reaction  { background: rgba(150,80,180,0.15); color: #c090e0; border-bottom: 1px solid rgba(150,80,180,0.3); }
-.am-npc-head-legendary { background: rgba(200,160,32,0.1); color: #c8a020; border-bottom: 1px dashed rgba(200,160,32,0.3); }
-.am-npc-head-lair      { background: rgba(100,160,100,0.12); color: #80c080; border-bottom: 1px dashed rgba(100,160,100,0.3); margin-block-start: 0.5rem; }
+.am-npc-head-action    { background: rgba(200,160,32,0.15); color: var(--am-gold, #c8a020); border-bottom: 1px solid rgba(200,160,32,0.3); }
+.am-npc-head-bonus     { background: rgba(74,124,158,0.15); color: var(--am-blue, #6aacce); border-bottom: 1px solid rgba(74,124,158,0.3); }
+.am-npc-head-reaction  { background: rgba(150,80,180,0.15); color: var(--am-purple, #c090e0); border-bottom: 1px solid rgba(150,80,180,0.3); }
+.am-npc-head-legendary { background: rgba(200,160,32,0.1); color: var(--am-gold, #c8a020); border-bottom: 1px dashed rgba(200,160,32,0.3); }
+.am-npc-head-lair      { background: rgba(100,160,100,0.12); color: var(--am-green, #80c080); border-bottom: 1px dashed rgba(100,160,100,0.3); margin-block-start: 0.5rem; }
 
 .am-npc-action-row {
   display: flex; align-items: center; gap: 0.4rem;
@@ -2863,14 +2977,14 @@ img[src*="a5e-mancer/assets/icons/"] {
   &:hover .am-npc-ctrl { opacity: 1; }
 }
 .am-npc-action-main { flex: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; min-width: 0; }
-.am-npc-atk { font-size: 0.8rem; color: #c8a020; font-weight: bold; display: flex; align-items: center; gap: 0.2rem; flex-shrink: 0; }
-.am-npc-dmg { font-size: 0.8rem; color: #e8a050; flex-shrink: 0; }
+.am-npc-atk { font-size: 0.8rem; color: var(--am-gold, #c8a020); font-weight: bold; display: flex; align-items: center; gap: 0.2rem; flex-shrink: 0; }
+.am-npc-dmg { font-size: 0.8rem; color: var(--am-orange, #e8a050); flex-shrink: 0; }
 .am-npc-range { font-size: 0.72rem; flex-shrink: 0; }
 .am-npc-row-btns { display: flex; align-items: center; gap: 0.3rem; flex-shrink: 0; }
 .am-npc-ctrl {
-  cursor: pointer; opacity: 0; color: #6a5840; font-size: 0.78rem; transition: opacity 0.12s;
-  &:hover { color: #c8b890; }
-  &.am-npc-ctrl-del:hover { color: #e05040; }
+  cursor: pointer; opacity: 0; color: var(--am-text-faint, #6a5840); font-size: 0.78rem; transition: opacity 0.12s;
+  &:hover { color: var(--am-text-dim, #c8b890); }
+  &.am-npc-ctrl-del:hover { color: var(--am-red, #e05040); }
 }
 .am-npc-action-desc {
   padding: 0.2rem 2.2rem 0.35rem; font-size: 0.78rem;
@@ -2879,7 +2993,7 @@ img[src*="a5e-mancer/assets/icons/"] {
 
 /* в”Ђв”Ђ Features/traits в”Ђв”Ђ */
 .npc-feat-item {
-  border: 1px solid #3a2e18; border-radius: 3px;
+  border: 1px solid var(--am-border-soft, #3a2e18); border-radius: 3px;
   margin-block-end: 0.2rem; overflow: hidden;
 }
 .npc-feat-head {
@@ -2889,12 +3003,12 @@ img[src*="a5e-mancer/assets/icons/"] {
   &:hover { background: rgba(200,160,32,0.07); }
   &:hover .am-npc-ctrl { opacity: 1; }
 }
-.npc-feat-toggle { background: none; border: none; cursor: pointer; font-size: 0.75rem; padding: 0; color: #6a5840; width: 1rem; flex-shrink: 0; }
-.am-npc-recharge { font-size: 0.72rem; color: #c8a020; flex-shrink: 0; }
+.npc-feat-toggle { background: none; border: none; cursor: pointer; font-size: 0.75rem; padding: 0; color: var(--am-text-faint, #6a5840); width: 1rem; flex-shrink: 0; }
+.am-npc-recharge { font-size: 0.72rem; color: var(--am-gold, #c8a020); flex-shrink: 0; }
 .npc-feat-body {
   padding: 0.35rem 0.6rem 0.45rem; font-size: 0.8rem;
-  border-top: 1px solid #3a2e18; background: rgba(0,0,0,0.2);
-  line-height: 1.5; color: #c8b890;
+  border-top: 1px solid var(--am-border-soft, #3a2e18); background: rgba(0,0,0,0.2);
+  line-height: 1.5; color: var(--am-text-dim, #c8b890);
   &.am-hidden { display: none; }
 }
 
@@ -2903,14 +3017,14 @@ img[src*="a5e-mancer/assets/icons/"] {
 .am-npc-info-row {
   display: flex; align-items: center; gap: 0.5rem;
   label { font-size: 0.72rem; font-weight: bold; width: 6rem; flex-shrink: 0; opacity: 0.65; }
-  .form-input { flex: 1; background: #2a2018; border-color: #3a2e18; color: #e8dcc8; font-size: 0.82rem; }
+  .form-input { flex: 1; background: var(--am-bg-panel, #2a2018); border-color: var(--am-border-soft, #3a2e18); color: var(--am-gold-light, #e8dcc8); font-size: 0.82rem; }
 }
 .am-npc-conditions { margin-block-start: 0.6rem; }
 .am-npc-cond-label { font-size: 0.7rem; font-weight: bold; letter-spacing: 0.05em; text-transform: uppercase; opacity: 0.6; margin-block-end: 0.3rem; }
 .am-npc-cond-row { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 .am-npc-condition {
   display: flex; align-items: center; gap: 0.25rem;
-  background: rgba(255,255,255,0.06); border: 1px solid #3a2e18;
+  background: rgba(255,255,255,0.06); border: 1px solid var(--am-border-soft, #3a2e18);
   border-radius: 3px; padding: 0.15rem 0.4rem; font-size: 0.75rem;
   img { width: 1.2rem; height: 1.2rem; border: none; float: none; margin: 0; }
 }
@@ -2923,23 +3037,23 @@ img[src*="a5e-mancer/assets/icons/"] {
 
 /* ── Design tokens ───────────────────────────────────────────────────────── */
 .am-cs {
-  --cs-bg:       #1c1a14;
-  --cs-bg2:      #141210;
-  --cs-bg3:      #242018;
-  --cs-bg4:      #2e2b20;
-  --cs-border:   #3e3520;
-  --cs-border2:  #2e2b1e;
-  --cs-gold:     #c8a84a;
-  --cs-gold-dim: #7a6030;
-  --cs-text:     #f0e8d8;
-  --cs-text2:    #d4c8a8;
-  --cs-muted:    #9a8e78;
-  --cs-accent:   #e06000;
-  --cs-green:    #4ab870;
-  --cs-red:      #c84050;
-  --cs-purple:   #b875eb;
-  --cs-blue:     #5882aa;
-  --cs-orange:   #e06000;
+  --cs-bg:       var(--am-bg-content, #1c1a14);
+  --cs-bg2:      var(--am-bg-app, #141210);
+  --cs-bg3:      var(--am-bg-panel, #242018);
+  --cs-bg4:      var(--am-bg-panel, #2e2b20);
+  --cs-border:   var(--am-border-soft, #3e3520);
+  --cs-border2:  var(--am-bg-panel, #2e2b1e);
+  --cs-gold:     var(--am-gold, #c8a84a);
+  --cs-gold-dim: var(--am-border, #7a6030);
+  --cs-text:     var(--am-gold-light, #f0e8d8);
+  --cs-text2:    var(--am-gold-light, #d4c8a8);
+  --cs-muted:    var(--am-text-dim, #9a8e78);
+  --cs-accent:   var(--am-orange, #e06000);
+  --cs-green:    var(--am-green, #4ab870);
+  --cs-red:      var(--am-red, #c84050);
+  --cs-purple:   var(--am-purple, #b875eb);
+  --cs-blue:     var(--am-blue, #5882aa);
+  --cs-orange:   var(--am-orange, #e06000);
   --cs-radius:   4px;
 
   display: flex;
@@ -2962,7 +3076,7 @@ img[src*="a5e-mancer/assets/icons/"] {
   align-items: stretch;
   gap: 0.55rem;
   padding: 0.65rem 0.85rem;
-  background: linear-gradient(180deg, #0e0c08 0%, #18160f 55%, #1c1a14 100%);
+  background: linear-gradient(180deg, var(--am-bg-app, #0e0c08) 0%, var(--am-bg-content, #18160f) 55%, var(--am-bg-content, #1c1a14) 100%);
   border-bottom: 2px solid var(--cs-border);
   flex-shrink: 0;
   position: relative;
@@ -3301,12 +3415,12 @@ input.am-cs-stat-val {
 .am-item-props:empty { display: none; }
 
 .am-chip { display: inline-flex; align-items: center; padding: 0.1rem 0.42rem; border-radius: 2rem; font-size: 0.64rem; font-weight: 600; white-space: nowrap; line-height: 1.4; }
-.am-chip-dmg   { background: rgba(200,64,80,0.15);   color: var(--cs-red,    #c84050); border: 1px solid rgba(200,64,80,0.38); }
-.am-chip-range { background: rgba(88,130,170,0.15);  color: var(--cs-blue,   #5882aa); border: 1px solid rgba(88,130,170,0.38); }
-.am-chip-save  { background: rgba(200,168,74,0.14);  color: var(--cs-gold,   #c8a84a); border: 1px solid rgba(200,168,74,0.38); }
-.am-chip-dur   { background: rgba(184,117,235,0.13); color: var(--cs-purple, #b875eb); border: 1px solid rgba(184,117,235,0.35); }
-.am-chip-school{ background: rgba(74,184,112,0.12);  color: var(--cs-green,  #4ab870); border: 1px solid rgba(74,184,112,0.32); }
-.am-chip-desc  { background: rgba(240,232,216,0.06); color: var(--cs-muted, #9a8e78); border: 1px solid rgba(240,232,216,0.12); border-radius: 0.25rem; font-weight: 400; max-width: 28ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.am-chip-dmg   { background: rgba(200,64,80,0.15);   color: var(--cs-red,    var(--am-red, #c84050)); border: 1px solid rgba(200,64,80,0.38); }
+.am-chip-range { background: rgba(88,130,170,0.15);  color: var(--cs-blue,   var(--am-blue, #5882aa)); border: 1px solid rgba(88,130,170,0.38); }
+.am-chip-save  { background: rgba(200,168,74,0.14);  color: var(--cs-gold,   var(--am-gold, #c8a84a)); border: 1px solid rgba(200,168,74,0.38); }
+.am-chip-dur   { background: rgba(184,117,235,0.13); color: var(--cs-purple, var(--am-purple, #b875eb)); border: 1px solid rgba(184,117,235,0.35); }
+.am-chip-school{ background: rgba(74,184,112,0.12);  color: var(--cs-green,  var(--am-green, #4ab870)); border: 1px solid rgba(74,184,112,0.32); }
+.am-chip-desc  { background: rgba(240,232,216,0.06); color: var(--cs-muted, var(--am-text-dim, #9a8e78)); border: 1px solid rgba(240,232,216,0.12); border-radius: 0.25rem; font-weight: 400; max-width: 28ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* ==========================================================================
    ACTIONS TAB — rows, desc panel, item utilities
    ========================================================================== */
@@ -3536,8 +3650,8 @@ input.am-cs-stat-val {
 .am-cs-inv-equip-hint { font-size: 0.62rem; font-weight: normal; color: var(--cs-muted); letter-spacing: 0; text-transform: none; margin-inline-start: auto; }
 .am-cs-eq-equipped { border-left: 2px solid var(--cs-green) !important; background: rgba(74,154,96,0.07); }
 .am-cs-eq-stashed { opacity: 0.5; filter: grayscale(0.4); }
-.am-cs-attuned { border-left: 2px solid #9060c0 !important; background: rgba(144,96,192,0.07); }
-.am-cs-attune-warn { border-left: 2px solid #c08020 !important; background: rgba(192,128,32,0.07); }
+.am-cs-attuned { border-left: 2px solid var(--am-purple, #9060c0) !important; background: rgba(144,96,192,0.07); }
+.am-cs-attune-warn { border-left: 2px solid var(--am-orange, #c08020) !important; background: rgba(192,128,32,0.07); }
 .am-col-eq { width: 1.6rem; padding: 0.1rem 0.15rem !important; }
 .am-cs-equip-btn {
   background: none !important;
@@ -3559,20 +3673,20 @@ input.am-cs-stat-val {
 .am-cs-eq-state-2 { color: var(--cs-green); border-color: var(--cs-green) !important; background: rgba(74,154,96,0.15) !important; }
 .am-cs-eq-state-2:hover { background: rgba(74,154,96,0.28) !important; }
 .am-cs-eq-state-0 { color: var(--cs-muted); opacity: 0.5; }
-.am-cs-attune-pip { color: #9060c0; font-size: 0.64rem; margin-inline-start: 0.3rem; }
-.am-cs-attune-warn-pip { color: #c08020; font-size: 0.64rem; margin-inline-start: 0.3rem; }
+.am-cs-attune-pip { color: var(--am-purple, #9060c0); font-size: 0.64rem; margin-inline-start: 0.3rem; }
+.am-cs-attune-warn-pip { color: var(--am-orange, #c08020); font-size: 0.64rem; margin-inline-start: 0.3rem; }
 .am-cs-attune-btn {
   background: transparent !important;
-  border: 1px solid #9060c0 !important;
+  border: 1px solid var(--am-purple, #9060c0) !important;
   border-radius: 2px !important;
   box-shadow: none !important;
-  color: #9060c0;
+  color: var(--am-purple, #9060c0);
   font-size: 0.65rem;
   padding: 0.08rem 0.3rem !important;
   cursor: pointer;
 }
 .am-cs-attune-btn:hover { background: rgba(144,96,192,0.2) !important; }
-.am-cs-attuned-btn { background: rgba(144,96,192,0.2) !important; color: #c090ff; border-color: #c090ff !important; }
+.am-cs-attuned-btn { background: rgba(144,96,192,0.2) !important; color: var(--am-purple, #c090ff); border-color: var(--am-purple, #c090ff) !important; }
 
 /* Damaged-state cycle button (intact → damaged → broken), original-sheet mechanic */
 .am-cs-dmg-btn {
@@ -3586,13 +3700,13 @@ input.am-cs-stat-val {
   cursor: pointer;
 }
 .am-cs-dmg-btn:hover { background: rgba(255,255,255,0.08) !important; }
-.am-cs-dmg-1 { color: #e0a93f; border-color: #e0a93f !important; }
-.am-cs-dmg-2 { color: #e0563f; border-color: #e0563f !important; }
+.am-cs-dmg-1 { color: var(--am-gold, #e0a93f); border-color: var(--am-gold, #e0a93f) !important; }
+.am-cs-dmg-2 { color: var(--am-red, #e0563f); border-color: var(--am-red, #e0563f) !important; }
 
 /* Row states for damaged / broken items */
-.am-item-row.am-cs-item-damaged .am-item-name { color: #e0a93f; }
+.am-item-row.am-cs-item-damaged .am-item-name { color: var(--am-gold, #e0a93f); }
 .am-item-row.am-cs-item-broken .am-item-name {
-  color: #e0563f;
+  color: var(--am-red, #e0563f);
   text-decoration: line-through;
   opacity: 0.75;
 }
@@ -3617,7 +3731,7 @@ input.am-cs-stat-val {
   font-weight: bold;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--cs-accent, #c8a84b);
+  color: var(--cs-accent, var(--am-gold, #c8a84b));
   padding: 0.2rem 0.1rem;
   border-bottom: 1px solid var(--cs-border);
   margin-block-end: 0.25rem;
@@ -3741,10 +3855,10 @@ input.am-cs-stat-val {
 }
 .am-cs-cond-pip:hover { border-color: var(--cs-red); }
 .am-cs-pip-on { background: var(--cs-red); border-color: var(--cs-red); }
-.am-strife.am-cs-pip-on { background: #c87a20; border-color: #c87a20; }
-.am-strife:hover { border-color: #c87a20; }
+.am-strife.am-cs-pip-on { background: var(--am-orange, #c87a20); border-color: var(--am-orange, #c87a20); }
+.am-strife:hover { border-color: var(--am-orange, #c87a20); }
 .am-cs-exhaust-desc { font-size: 0.65rem; color: var(--cs-red); line-height: 1.3; padding: 0.1rem 0.1rem 0.05rem 3.1rem; font-style: italic; }
-.am-strife-desc { color: #c87a20; }
+.am-strife-desc { color: var(--am-orange, #c87a20); }
 
 /* Status condition grid */
 .am-cs-status-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.2rem; margin-block-end: 0.3rem; }
@@ -3782,7 +3896,7 @@ input.am-cs-stat-val {
   background-color: var(--am-duration-col, #919f00);
   border-radius: 50%;
   width: 1.25rem; aspect-ratio: 1/1;
-  color: #fff;
+  color: var(--am-text-primary, #fff);
   position: absolute;
   top: -0.75rem; left: 1.65rem;
 }
@@ -3796,9 +3910,9 @@ input.am-cs-stat-val {
   font-family: var(--a5e-font-sans-serif, sans-serif);
   font-size: var(--a5e-text-size-sm, 0.65rem);
   font-weight: 700;
-  color: #fff;
+  color: var(--am-text-primary, #fff);
   background-color: var(--am-duration-col, #919f00);
-  box-shadow: 0 0 0 1px #e9d7a1, 0 0 0 2px #956d58;
+  box-shadow: 0 0 0 1px var(--am-gold-light, #e9d7a1), 0 0 0 2px var(--am-border, #956d58);
   border-radius: 50%; aspect-ratio: 1/1;
   pointer-events: none; z-index: 2;
 }
@@ -3813,9 +3927,9 @@ input.am-cs-stat-val {
   font-family: var(--a5e-font-sans-serif, sans-serif);
   font-size: var(--a5e-text-size-sm, 0.65rem);
   font-weight: 700;
-  color: #fff;
+  color: var(--am-text-primary, #fff);
   background-color: var(--am-duration-col, #919f00);
-  box-shadow: 0 0 0 1px #e9d7a1, 0 0 0 2px #956d58;
+  box-shadow: 0 0 0 1px var(--am-gold-light, #e9d7a1), 0 0 0 2px var(--am-border, #956d58);
   border-radius: 50%; aspect-ratio: 1/1;
   pointer-events: none; z-index: 2;
 }
@@ -3853,8 +3967,8 @@ input.am-cs-stat-val {
   cursor: grab;
   transition: background 0.12s, border-color 0.12s;
 }
-.am-cs-eq-item:hover { background: rgba(144,96,192,0.14); border-color: #9060c0; }
-.am-cs-eq-item.am-cs-eq-attuned-row { border-color: #9060c0; background: rgba(144,96,192,0.12); }
+.am-cs-eq-item:hover { background: rgba(144,96,192,0.14); border-color: var(--am-purple, #9060c0); }
+.am-cs-eq-item.am-cs-eq-attuned-row { border-color: var(--am-purple, #9060c0); background: rgba(144,96,192,0.12); }
 .am-cs-eq-item .am-cs-ico { width: 1.3rem; height: 1.3rem; flex-shrink: 0; }
 .am-cs-eq-name { flex: 1; font-size: 0.77rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
 .am-cs-eq-name:hover { color: var(--cs-gold); text-decoration: underline; }
@@ -3934,7 +4048,7 @@ input.am-cs-stat-val {
 
 /* Foundry window title bar */
 .application.am-app .window-header {
-  background: linear-gradient(180deg, #1a1208 0%, var(--am-bg-sidebar) 100%) !important;
+  background: linear-gradient(180deg, var(--am-bg-app, #1a1208) 0%, var(--am-bg-sidebar) 100%) !important;
   border-bottom: 1px solid var(--am-gold-border) !important;
   color: var(--am-text-primary) !important;
 }
@@ -3953,7 +4067,7 @@ input.am-cs-stat-val {
 
 /* Sidebar (tabs part) */
 .application.am-app [data-application-part="tabs"] {
-  background: linear-gradient(180deg, #18100a 0%, var(--am-bg-sidebar) 100%) !important;
+  background: linear-gradient(180deg, var(--am-bg-app, #18100a) 0%, var(--am-bg-sidebar) 100%) !important;
 }
 
 /* Sidebar brand area */
@@ -3971,7 +4085,7 @@ input.am-cs-stat-val {
 
 /* Footer (sidebar bottom) */
 .application.am-app [data-application-part="footer"] {
-  background: linear-gradient(0deg, #100c06 0%, var(--am-bg-sidebar) 100%) !important;
+  background: linear-gradient(0deg, var(--am-bg-app, #100c06) 0%, var(--am-bg-sidebar) 100%) !important;
 }
 
 /* Footer buttons */
@@ -4029,8 +4143,8 @@ input.am-cs-stat-val {
 /* Options in selects must have explicit colors so the native dropdown popup is readable */
 .application.am-app .am-app-tab-content select option,
 .application.am-app select option {
-  background: #1a1208 !important;
-  color: #e8dcc8 !important;
+  background: var(--am-bg-app, #1a1208) !important;
+  color: var(--am-gold-light, #e8dcc8) !important;
 }
 .application.am-app .am-app-tab-content select option:checked,
 .application.am-app select option:checked {
@@ -4174,7 +4288,7 @@ input.am-cs-stat-val {
 
   /* Marked for replacement: struck through, so it reads as "on its way out" */
   &.am-replace-marked {
-    border-color: #e05040 !important;
+    border-color: var(--am-red, #e05040) !important;
     background: rgba(224,80,64,0.10) !important;
     .am-replace-name { text-decoration: line-through; opacity: 0.75; }
   }
@@ -4216,7 +4330,7 @@ input.am-cs-stat-val {
   background: none; border: none; color: inherit; cursor: pointer;
   padding: 0.2rem 0; font-size: 0.9rem; font-weight: 600; text-align: left;
 }
-.am-replace-toggle:hover { color: var(--am-gold, #c9a227); }
+.am-replace-toggle:hover { color: var(--am-gold, var(--am-gold, #c9a227)); }
 
 /* Feats use the shared card grid; only the prerequisite pip is theirs */
 .am-card-unmet { opacity: 0.5; }
@@ -4225,12 +4339,12 @@ input.am-cs-stat-val {
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   overflow: hidden; padding: 0 0.2rem; text-align: center;
 }
-.am-card-pre-fail { color: #c98080; opacity: 1; }
+.am-card-pre-fail { color: var(--am-red-soft, #c98080); opacity: 1; }
 
 /* A feature whose choice a5e states in prose and records in no grant */
 .am-feature-manual {
   flex: 0 0 auto; font-size: 0.66rem; padding: 0.05rem 0.3rem;
-  border: 1px dashed var(--am-gold, #c9a227); border-radius: 3px;
+  border: 1px dashed var(--am-gold, var(--am-gold, #c9a227)); border-radius: 3px;
   opacity: 0.85; white-space: nowrap;
 }
 
@@ -4241,14 +4355,14 @@ input.am-cs-stat-val {
 /* A feat's own choices, shown beside the feat that brings them */
 .am-feat-grants {
   margin-top: 0.4rem; padding-left: 0.5rem;
-  border-left: 2px solid var(--am-gold, #c9a227);
+  border-left: 2px solid var(--am-gold, var(--am-gold, #c9a227));
 }
 
 /* Something else in the build already grants this option */
 .am-pill-duplicate { opacity: 0.45; border-style: dashed; cursor: not-allowed; }
 
 /* Mixed heritage — only the gift comes from elsewhere */
-.am-mixed-body { margin-top: 0.4rem; padding-left: 0.5rem; border-left: 2px solid var(--am-gold, #c9a227); }
+.am-mixed-body { margin-top: 0.4rem; padding-left: 0.5rem; border-left: 2px solid var(--am-gold, var(--am-gold, #c9a227)); }
 
 /* ── Names must not push their row apart ─────────────────────────────────
    A flex child will not shrink below the width of its own content unless it
@@ -4291,3 +4405,81 @@ input.am-cs-stat-val {
    The height now comes from .am-card itself; only the clipping differs here. */
 .am-grant-block .am-card { overflow: visible; }
 .am-choose-label { margin: 0.35rem 0 0.2rem; font-weight: 600; }
+
+/* ==========================================================================
+   Tidy-style surface: texture and framing
+   ==========================================================================
+   Tidy's own furniture cannot simply be copied. Two reasons, and the second is
+   the harder one:
+
+   1. Half of what its CSS paints does not exist in an a5e world. Its AC badge
+      and every currency icon are loaded from `../../systems/dnd5e/...`, and a
+      world running a5e never loads the dnd5e system — those URLs 404.
+
+   2. Its `images/` folder (45 files) ships with no licence of its own, and the
+      package states no `license` at all. The one licensing document it does
+      carry says its icon set is covered by a Font Awesome Pro licence held by
+      the author personally. That is a careful author distinguishing what may be
+      redistributed from what may not, and artwork with no stated terms is not
+      ours to republish from a public repository.
+
+   So the texture below is generated rather than copied — an SVG turbulence
+   filter as a data URI, which costs no file, cannot 404, and re-tints itself
+   from our tokens. The frames are drawn with borders and gradients for the same
+   reason. The result follows Tidy's shapes and weights without carrying off its
+   art.
+   ========================================================================== */
+
+/* A single tileable noise field, inlined. `baseFrequency` high and opacity low:
+   at these values it reads as grain on the surface rather than as a pattern. */
+.a5e-mancer-sheet .window-content,
+.a5e-mancer-npc-sheet .window-content,
+.am-app {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-blend-mode: overlay;
+}
+
+/* Ability scores — Tidy frames each one rather than boxing it. A hairline gold
+   edge, a lifted top face and a seated bottom, so the number reads as struck
+   into the sheet instead of printed on a tile. */
+.a5e-mancer-sheet .am-cs-abl {
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--am-gold) 7%, var(--am-bg-panel)) 0%,
+      var(--am-bg-app) 100%);
+  border: 1px solid var(--am-gold-border);
+  border-top-color: var(--am-gold-dim);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 1px 2px rgba(0, 0, 0, 0.35);
+}
+.a5e-mancer-sheet .am-cs-abl:hover {
+  border-color: var(--am-gold);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 10px var(--am-gold-dim);
+}
+.a5e-mancer-sheet .am-cs-abl-name {
+  color: var(--am-gold);
+  letter-spacing: 0.08em;
+}
+
+/* The stats rail sits on the header, so it gets the header surface and a gold
+   rule beneath rather than a plain divider. */
+.a5e-mancer-sheet .am-cs-statsbar {
+  background: linear-gradient(180deg, var(--am-bg-panel) 0%, var(--am-bg-app) 100%);
+  border-bottom: 1px solid var(--am-gold-border);
+}
+.a5e-mancer-sheet .am-cs-stat + .am-cs-stat {
+  border-left: 1px solid var(--am-border-soft);
+}
+
+/* Portrait: Tidy rings it in gold and lets the frame, not a border-radius,
+   carry the weight. */
+.a5e-mancer-sheet .am-cs-portrait img {
+  border: 1px solid var(--am-gold-border);
+  border-radius: var(--am-radius-sm);
+  box-shadow: 0 0 0 1px var(--am-bg-app), 0 2px 6px rgba(0, 0, 0, 0.45);
+}
