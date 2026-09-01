@@ -289,7 +289,13 @@ export class ActorCreationService {
 
     const itemsToCreate = [];
 
-    // Helper: resolve chosen option and add its item
+    // Helper: resolve chosen option and add its item.
+    //
+    // The quantity has to be carried across the same way the fixed lists below
+    // do it. EquipmentService reads `quantityOverride` off the grant and the
+    // tab renders it — "20× Arrow" — but this only ever created the compendium
+    // item, whose own quantity is 1. The player was shown twenty and given one,
+    // with nothing to suggest the other nineteen had gone missing.
     const addChoice = async (choices, choiceIndex, key) => {
       const idx = parseInt(fd[key] ?? '0') || 0;
       const choice = choices?.[choiceIndex];
@@ -299,8 +305,16 @@ export class ActorCreationService {
       if (opt.uuid) {
         try {
           const item = await fromUuid(opt.uuid);
-          if (item) itemsToCreate.push(item.toObject());
-        } catch {}
+          if (!item) return;
+          const data = item.toObject();
+          if (opt.qty > 1) {
+            data.system = data.system || {};
+            data.system.quantity = opt.qty;
+          }
+          itemsToCreate.push(data);
+        } catch (err) {
+          AM.log(2, `Equipment choice ${opt.uuid} could not be read:`, err);
+        }
       }
     };
 

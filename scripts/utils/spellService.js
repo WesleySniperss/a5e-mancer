@@ -143,12 +143,20 @@ export class SpellService {
     if (!info) return 0;
 
     const lvl = Math.max(1, Math.min(20, Number(classLevel) || 1));
-    const half = key === 'herald' || key === 'artificer';
-    // Half casters: 1st-level spells at 2nd, then one more at 5th, 9th, 13th, 17th
-    const slotLevel = half
-      ? (lvl < 2 ? 0 : Math.floor((lvl + 3) / 4))
-      : Math.ceil(lvl / 2);
-    return Math.max(0, Math.min(9, slotLevel));
+
+    // The two half casters climb identically — one spell level at 1st/2nd, then
+    // 5th, 9th, 13th, 17th, capped at 5th — but they do not START together, and
+    // treating them as one case was wrong at exactly one level. The herald has
+    // no slots until 2nd; the artificer casts from 1st through spell inventions,
+    // and its own table reads "Maximum Spell Level: 1st" at 1st level. Lumping
+    // them together told a 1st-level artificer it could cast nothing, while
+    // CLASS_SPELL_TABLES said otherwise — the two disagreed in the same file.
+    if (key === 'herald' || key === 'artificer') {
+      if (key === 'herald' && lvl < 2) return 0;
+      return Math.min(5, Math.ceil(lvl / 4));
+    }
+
+    return Math.max(0, Math.min(9, Math.ceil(lvl / 2)));
   }
 
   /**
@@ -181,7 +189,13 @@ export class SpellService {
     // Prepared casters: no spells known, but the cantrip column is still real
     cleric:   { cantrips: [0,3,3,3,4,4,4,4,4,4,5,5,5,5,5,5,5,5,5,5,5], prepared: true },
     druid:    { cantrips: [0,2,2,2,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4], prepared: true },
-    herald:   { cantrips: [0,2,2,2,2,2,2,2,2,4,4,4,4,4,4,4,4,4,4,4,4], prepared: true }
+    herald:   { cantrips: [0,2,2,2,2,2,2,2,2,4,4,4,4,4,4,4,4,4,4,4,4], prepared: true },
+    // Absent until now, and absent is not neutral: `newAtLevel` returns null for
+    // a class it does not list, so the level-up dialog offered a levelling
+    // artificer nothing at all — no new cantrip at 4th, none at 10th. It was in
+    // CLASS_SPELL_TABLES, so character creation worked and only levelling was
+    // silent. Counts from its own progression table: 2 / 3 from 4th / 4 from 10th.
+    artificer: { cantrips: [0,2,2,2,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4], prepared: true }
   };
 
   /**
