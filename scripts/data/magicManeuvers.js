@@ -129,6 +129,15 @@ export class MagicManeuvers {
       case 'touchRange':    return String(spell.range ?? '').toLowerCase() === 'touch';
       case 'lineOrRay':     return ['line', 'ray'].includes(String(spell.shape ?? '').toLowerCase());
       case 'enchantment':   return String(spell.school ?? '').toLowerCase() === 'enchantment';
+
+      // Offered whenever the cast makes the target roll a save. The rest of
+      // Resonance's condition — that the same school already landed on this
+      // target this round — is table state no picker can see, so it lives in
+      // the effect text, the way Fire's "already taken fire damage" does.
+      // `forcesSave` is not yet part of the spell shape this receives; until it
+      // is, fall back to any spell that is not a plain attack roll.
+      case 'savingThrow':   return spell.forcesSave ?? !spell.isAttack;
+
       case 'any':           return true;
 
       // Not driven by the caster's own spell shape — these fire on their event

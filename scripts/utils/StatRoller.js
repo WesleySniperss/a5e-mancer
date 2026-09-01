@@ -14,6 +14,25 @@ export class StatRoller {
   static POINT_BUY_COSTS = { 8:0, 9:1, 10:2, 11:3, 12:4, 13:5, 14:7, 15:9 };
 
   /**
+   * What point buy can actually express, read from the cost table rather than
+   * from the settings.
+   *
+   * `abilityScoreMin`/`Max` are the GM's bounds for MANUAL and ROLLED scores,
+   * and using them for point buy too was exploitable: raise the maximum to 18
+   * and 16–18 cost nothing, because the cost lookup returns `undefined` for a
+   * score the table does not name and that was being counted as zero. Worse
+   * than free — going 15 → 16 dropped the spend by 9 and handed the points
+   * back, so every ability could be maxed with budget to spare.
+   *
+   * A cost table is a statement about which scores are purchasable. Beyond it
+   * there is no price to charge, so there is nothing to buy.
+   */
+  static get POINT_BUY_BOUNDS() {
+    const scores = Object.keys(this.POINT_BUY_COSTS).map(Number);
+    return { MIN: Math.min(...scores), MAX: Math.max(...scores) };
+  }
+
+  /**
    * Sanity bounds for *rolled* scores. Deliberately NOT AM.ABILITY_SCORES.MIN/MAX —
    * those are the point-buy budget bounds (8–15) and would squash every roll.
    */
@@ -45,9 +64,14 @@ export class StatRoller {
 
   /** @returns {number} points spent for a given array of scores */
   static calculateTotalPointsSpent(scores) {
+    const { MIN, MAX } = this.POINT_BUY_BOUNDS;
     return scores.reduce((total, score) => {
       const cost = this.POINT_BUY_COSTS[score];
-      return total + (cost !== undefined ? cost : 0);
+      if (cost !== undefined) return total + cost;
+      // A score the table does not price must never come out cheaper than the
+      // dearest one it does. Charging zero here is what made scores above the
+      // table free; below it, nothing is owed.
+      return total + (score > MAX ? this.POINT_BUY_COSTS[MAX] : 0);
     }, 0);
   }
 
@@ -127,8 +151,13 @@ export class StatRoller {
     const inputEl  = document.getElementById(`ability-${idx}-input`);
     if (!scoreEl || !inputEl) return;
 
+    // Point buy is bounded by what the cost table prices, narrowed further by
+    // the GM's own bounds — never widened past them. See POINT_BUY_BOUNDS.
+    const buy      = this.POINT_BUY_BOUNDS;
+    const lo       = Math.max(AM.ABILITY_SCORES.MIN, buy.MIN);
+    const hi       = Math.min(AM.ABILITY_SCORES.MAX, buy.MAX);
     const current  = parseInt(scoreEl.textContent) || AM.ABILITY_SCORES.DEFAULT;
-    const next     = this.clamp(current + delta, AM.ABILITY_SCORES.MIN, AM.ABILITY_SCORES.MAX);
+    const next     = this.clamp(current + delta, lo, hi);
 
     // Check point-buy budget
     const allScores = [];

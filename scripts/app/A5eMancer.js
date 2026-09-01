@@ -389,6 +389,13 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
           context.needsMementos           = !covers(/memento|keepsake|trinket/i);
           context.needsDestinyConnection  = !covers(/connection/i, 'destiny');
           context.needsDestinyFulfillment = !covers(/fulfil/i);
+          // These two had lost their inputs while everything downstream kept
+          // expecting them: the creation service still saved `destinyMotivation`
+          // and `destinyGoals`, the review tab still showed a row for each, and
+          // `system.details.goals` was still written from them — all of it from
+          // fields no template rendered any more, so the rows read "—" for good.
+          context.needsDestinyMotivation  = !covers(/motivation|inspiration/i, 'destiny');
+          context.needsDestinyGoals       = !covers(/goal/i);
 
           context.alignments = (game.settings.get(AM.ID, 'alignments') || '')
             .split(',').map(s => s.trim()).filter(Boolean);

@@ -196,6 +196,32 @@
       {{!-- Row 2: narrative fields --}}
       <div class="grid grid-2-col gap-md" style="margin-top:0.75rem">
 
+        {{!-- Source of motivation. Same rule as the two below: hidden when a
+              rollable table above already asks for it. Both this and Goals are
+              saved, reviewed and written to system.details.goals — they had
+              simply lost their inputs, so all of that ran on nothing. --}}
+        {{#if needsDestinyMotivation}}
+        <div class="form-group">
+          <label for="destinyMotivation">
+            <i class="fa-solid fa-fire fa-xs"></i>
+            {{localize 'am.app.biography.destiny-motivation'}}
+          </label>
+          <textarea id="destinyMotivation" name="destinyMotivation" class="form-input" rows="4"
+            placeholder="{{localize 'am.app.biography.destiny-motivation-placeholder'}}"></textarea>
+        </div>
+        {{/if}}
+
+        {{#if needsDestinyGoals}}
+        <div class="form-group">
+          <label for="destinyGoals">
+            <i class="fa-solid fa-flag-checkered fa-xs"></i>
+            {{localize 'am.app.biography.destiny-goals'}}
+          </label>
+          <textarea id="destinyGoals" name="destinyGoals" class="form-input" rows="4"
+            placeholder="{{localize 'am.app.biography.destiny-goals-placeholder'}}"></textarea>
+        </div>
+        {{/if}}
+
         {{!-- Connection to destiny. Hidden when the destiny's own "Connection to
               Your Destiny" table is found above — that one can be rolled. --}}
         {{#if needsDestinyConnection}}

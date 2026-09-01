@@ -142,6 +142,11 @@ export const MAGIC_MANEUVERS = [
     flavor: `The magic grazes even as it passes by.`,
     effect: `If the spell attack missed OR the target succeeded on its saving throw, the target still takes half the spell's damage.` },
 
+  { id: 'resonance', name: 'Resonance', school: 'probiy', degree: 2, cost: 2,
+    trigger: 'savingThrow', activation: 'cast', consumesState: false,
+    flavor: `The second blow lands where the first is still ringing.`,
+    effect: `If a spell or cantrip of the same school as this one has already been cast at the target earlier this round, the target makes its saving throw against this spell with disadvantage.` },
+
   /* ── Dominion ─────────────────────────────────────────── */
   { id: 'suggestion', name: 'Suggestion', school: 'vlada', degree: 1, cost: 2,
     trigger: 'enchantment', activation: 'cast', consumesState: false,

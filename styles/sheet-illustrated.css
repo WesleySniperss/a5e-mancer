@@ -1,0 +1,134 @@
+/* ==========================================================================
+   Illustrated sheet — the coordinate map
+   ==========================================================================
+   Every field is placed as a percentage of the page, and the page is pinned to
+   the artwork's aspect ratio. That pairing is the whole trick: fix the ratio
+   once and a field at 42% stays on its box whatever size the window is dragged
+   to, with no JavaScript measuring anything.
+
+   Coordinates were read off the artwork by eye. They WILL need nudging, and
+   nudging them is meant to be easy — every block is one line in the map below,
+   and nothing in the template has to be touched to move a field.
+
+   `--am-ill-ratio` is the page's height ÷ width. The reference art is A4
+   portrait, 1.414. Swap the picture for one of another shape and this is the
+   only number that has to change.
+   ========================================================================== */
+
+.a5e-mancer-sheet.am-illustrated {
+  /* 952 ÷ 736 — measured from assets/sheet/frame.jpg, not assumed. Replace the
+     artwork and this is the one number that has to follow it, or every
+     percentage in the map below lands off its box. */
+  --am-ill-ratio: 1.293;
+  --am-ill-ink: #2a2010;          /* dark ink reads on parchment, not our gold */
+  --am-ill-ink-dim: #6a5a3a;
+}
+
+.a5e-mancer-sheet.am-illustrated .window-content {
+  padding: 0;
+  overflow: auto;
+  background: var(--am-bg-app);
+}
+
+/* The page. `aspect-ratio` keeps art and overlay in register; the art is a
+   plain <img> at 100% so a missing file shows a broken image rather than an
+   empty window with fields floating on nothing. */
+.am-ill-page {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / var(--am-ill-ratio);
+  container-type: size;
+}
+.am-ill-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Every placed block. Text scales with the page — cqw units, so a field that
+   fits at one size fits at all of them. */
+.am-ill {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  color: var(--am-ill-ink);
+  font-size: 1.5cqw;
+  line-height: 1.15;
+  overflow: hidden;
+}
+.am-ill input,
+.am-ill button {
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  width: 100%;
+  text-align: inherit;
+}
+.am-ill input:focus { outline: 1px solid var(--am-gold); }
+.am-ill button { cursor: pointer; text-align: left; }
+.am-ill button:hover { color: var(--am-gold); }
+
+.am-ill-num        { justify-content: center; font-weight: 700; font-size: 2.4cqw; }
+.am-ill-num input  { text-align: center; }
+
+.am-ill-list       { flex-direction: column; align-items: stretch; gap: 0.15cqw; overflow-y: auto; }
+.am-ill-row        { display: flex; align-items: center; gap: 0.6cqw; font-size: 1.45cqw; }
+.am-ill-row button { flex: 1 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.am-ill-abl        { opacity: 0.6; font-size: 1.15cqw; }
+.am-ill-bonus      { font-weight: 700; min-width: 3cqw; text-align: right; }
+.am-ill-dmg        { min-width: 7cqw; text-align: right; opacity: 0.85; }
+.am-ill-prose      { display: block; font-size: 1.35cqw; overflow-y: auto; }
+
+/* --------------------------------------------------------------------------
+   The map. top / left / width / height, all in per cent of the page.
+   -------------------------------------------------------------------------- */
+[data-slot="name"]        { top: 3.4%;  left: 5%;   width: 30%;  height: 4.5%; font-size: 2.6cqw; }
+[data-slot="class-level"] { top: 3.2%;  left: 41%;  width: 17%;  height: 2.6%; }
+[data-slot="background"]  { top: 3.2%;  left: 59%;  width: 17%;  height: 2.6%; }
+[data-slot="player"]      { top: 3.2%;  left: 77%;  width: 18%;  height: 2.6%; }
+[data-slot="race"]        { top: 7.4%;  left: 41%;  width: 17%;  height: 2.6%; }
+[data-slot="alignment"]   { top: 7.4%;  left: 59%;  width: 17%;  height: 2.6%; }
+[data-slot="xp"]          { top: 7.4%;  left: 77%;  width: 18%;  height: 2.6%; }
+
+[data-slot="inspiration"] { top: 10.4%; left: 15.5%; width: 5%;  height: 3.4%; }
+[data-slot="prof-bonus"]  { top: 10.4%; left: 40%;   width: 5%;  height: 3.4%; }
+[data-slot="ac"]          { top: 14.2%; left: 85.5%; width: 8%;  height: 5%; }
+
+/* Ability badges. The art puts STR/DEX/CON across the middle and INT/WIS/CHA
+   down the right edge, each as a circle with the modifier over the score. */
+.am-ill-abl { flex-direction: column; justify-content: center; gap: 0.2cqw; }
+.am-ill-abl-mod   { text-align: center !important; font-size: 2.6cqw; font-weight: 700; }
+.am-ill-abl-score { text-align: center; font-size: 1.4cqw; opacity: 0.75; }
+
+[data-slot="abl-str"] { top: 15.8%; left: 30.5%; width: 9%;  height: 7%; }
+[data-slot="abl-dex"] { top: 14.4%; left: 44.5%; width: 10%; height: 8%; }
+[data-slot="abl-con"] { top: 15.8%; left: 58.5%; width: 9%;  height: 7%; }
+[data-slot="abl-int"] { top: 22.6%; left: 71.5%; width: 9%;  height: 7%; }
+[data-slot="abl-wis"] { top: 30.6%; left: 78.5%; width: 9%;  height: 7%; }
+[data-slot="abl-cha"] { top: 38.4%; left: 78.5%; width: 9%;  height: 7%; }
+
+[data-slot="saves"]   { top: 11.2%; left: 4.5%;  width: 22%; height: 6%; flex-direction: row; gap: 0.4cqw; }
+
+[data-slot="skills"]  { top: 30.5%; left: 4.5%;  width: 25%; height: 22%; }
+[data-slot="passive"] { top: 51.5%; left: 30.5%; width: 6%;  height: 4%; }
+[data-slot="speed"]   { top: 52.5%; left: 74%;   width: 9%;  height: 4%; }
+
+[data-slot="a5e-strip"] { top: 57.5%; left: 4.5%; width: 92%; height: 3.4%;
+  justify-content: space-around; font-size: 1.3cqw; font-weight: 700;
+  letter-spacing: 0.04em; opacity: 0.9; }
+.am-ill-a5e-item input { width: 3cqw; text-align: center; }
+
+[data-slot="hit-dice"]   { top: 63.5%; left: 36%; width: 8%;  height: 3.5%; font-size: 1.8cqw; }
+[data-slot="hp-max"]     { top: 63.5%; left: 50%; width: 8%;  height: 3.5%; font-size: 1.8cqw; }
+[data-slot="hp-current"] { top: 68.5%; left: 40%; width: 18%; height: 5%;   font-size: 3cqw; }
+[data-slot="hp-temp"]    { top: 74%;   left: 40%; width: 18%; height: 3.5%; font-size: 1.8cqw; }
+
+[data-slot="attacks"]       { top: 63.5%; left: 4%;  width: 29%; height: 30%; }
+[data-slot="proficiencies"] { top: 86%;   left: 35%; width: 28%; height: 11%; }
+[data-slot="features"]      { top: 63.5%; left: 66%; width: 30%; height: 33%; }

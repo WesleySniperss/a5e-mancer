@@ -286,6 +286,25 @@ export class ManeuverService {
     return item?.type === 'maneuver';
   }
 
+  /**
+   * A maneuver from a COMBAT tradition, as opposed to one of the magic schools.
+   *
+   * Magic maneuvers are maneuver items too — that is the whole point of the
+   * design, they ride the same code path — so a plain `isManeuver` filter picks
+   * up both and the sheet listed every magic maneuver twice, once here and once
+   * in its own section.
+   *
+   * This existed only as a call site: the sheet asked for it, nothing defined
+   * it, and `getData` threw before it could render. The sheet did not open at
+   * all — the failure looked like a missing sheet rather than a missing method,
+   * which is why it was chased through registration, imports and CSS first.
+   */
+  static isCombatManeuver(item) {
+    if (!this.isManeuver(item)) return false;
+    const tradition = item.system?.tradition ?? item.system?.combatTradition ?? '';
+    return !isMagicSchool(tradition);
+  }
+
   /** A maneuver that came from a class's allowance, so it counts against it. */
   static isChosenManeuver(item) {
     return this.isManeuver(item) && !this.isBasicManeuver(item);
