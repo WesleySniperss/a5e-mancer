@@ -306,7 +306,7 @@ export class SpellService {
    * @param {string} classUuid
    * @returns {Promise<object|null>} spell info or null if not a level-1 caster
    */
-  static async loadClassSpellInfo(classUuid) {
+  static async loadClassSpellInfo(classUuid, { requireSpellsAtFirst = true } = {}) {
     this._dynamicSpellInfo = null;
     this._dynamicIsSpellcaster = false;
     if (!classUuid) return null;
@@ -329,8 +329,11 @@ export class SpellService {
         || casterType === 'wielder';
 
       // Half-casters (ranger, herald archetype variants) get spells at level 2+ — no level-1 picker
-      if (!hasSpellsAtOne) return null;
+      if (requireSpellsAtFirst && !hasSpellsAtOne) return null;
 
+      // The gate above is a CREATION rule: a half caster has no slots at 1st, so
+      // the builder must not show it a spell tab. At level-up it is wrong — a
+      // half caster at 5th certainly casts — so the caller can turn it off.
       const isPrepared = ['halfCaster', 'halfCasterWithFirstLevel'].includes(casterType) && !isFullCaster;
       const info = {
         type: isPrepared ? 'prepared' : 'known',

@@ -246,7 +246,26 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     // level table, and inventing one would be worse than trusting the player,
     // which is what the sheet's Manage Spells already does.
     if (!context.spellInfo) {
-      const info = SpellService.getClassSpellInfo(selectedClass?.name ?? '');
+      let info = SpellService.getClassSpellInfo(selectedClass?.name ?? '');
+
+      // A caster the tables do not name got no spell section at all, because
+      // this whole block is gated on `info`. CLASS_SPELL_TABLES lists eight
+      // classes; the compendium here holds thirty, among them the witch, the
+      // elementalist, the psion, the wielder and the esper. Creation already
+      // falls back to reading `casterType` off the class item — level-up never
+      // did, so those classes levelled with nowhere to learn anything.
+      //
+      // Asking the item is not a guess: the class states its own caster type.
+      // `requireSpellsAtFirst: false` because the level-1 rule that suppresses
+      // a half caster's tab at creation must not suppress it at 5th.
+      if (!info && selectedClass?.id) {
+        const item = this.actor.items.get(selectedClass.id);
+        if (item) {
+          info = await SpellService.loadClassSpellInfo(item.uuid, { requireSpellsAtFirst: false });
+          if (info) AM.log(3, `${selectedClass.name}: spell info read from the class item`);
+        }
+      }
+
       if (info) {
         // What this level actually brings. a5e ships no spells-known table, so
         // it comes from SpellService.SPELLS_KNOWN; a class that learns nothing
