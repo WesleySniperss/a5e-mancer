@@ -113,6 +113,13 @@ export class FeatService {
    * One clause. Returns null when the shape is not recognised, so the caller can
    * tell "not satisfied" from "cannot tell".
    */
+  /** Single words that follow a number in a prerequisite but name no class. */
+  static #NOT_A_CLASS = new Set([
+    'level', 'levels', 'spell', 'spells', 'feat', 'feats', 'cantrip', 'cantrips',
+    'maneuver', 'maneuvers', 'attack', 'attacks', 'point', 'points',
+    'die', 'dice', 'round', 'rounds', 'hour', 'hours', 'foot', 'feet'
+  ]);
+
   static #checkClause(actor, clause) {
     // "3 levels in marshal" / "3 Levels in Sorcerer"
     let m = clause.match(/^(\d+)\s+levels?\s+in\s+(.+)$/i);
@@ -123,6 +130,37 @@ export class FeatService {
         i.type === 'class' && i.name.toLowerCase() === name);
       const have = cls?.system?.classLevels ?? cls?.system?.levels ?? 0;
       return { ok: have >= need, reason: `${m[2].trim()} ${have}/${need}` };
+    }
+
+    // "3 herald" / "3 witch" / "3 berserker (rugged defense)"
+    //
+    // This is how a5e actually writes class prerequisites — the "N levels in X"
+    // shape above is the rarer one. Missing it was why the filter barely
+    // filtered: an unrecognised clause counts as unjudged, and unjudged feats
+    // are kept, so a cleric was offered every herald and deathwalker feat in
+    // the book.
+    //
+    // The class name must be ONE word. A5e's are (herald, berserker, witch,
+    // deathwalker), and the restriction is what keeps this from swallowing
+    // clauses like "3 spells known" and judging them as a class nobody has.
+    m = clause.match(/^(\d+)\s+([a-z][a-z'-]+)(?:\s*\(([^)]*)\))?$/i);
+    if (m && !this.#NOT_A_CLASS.has(m[2].toLowerCase())) {
+      const need = Number(m[1]);
+      const name = m[2].toLowerCase();
+      const arch = m[3]?.trim().toLowerCase() ?? '';
+      const cls  = (actor?.items ?? []).find(i =>
+        i.type === 'class' && i.name.toLowerCase() === name);
+      const have = cls?.system?.classLevels ?? cls?.system?.levels ?? 0;
+
+      if (have < need) return { ok: false, reason: `${m[2]} ${have}/${need}` };
+
+      // A parenthetical names the archetype the levels have to be in.
+      if (arch) {
+        const hasArch = (actor?.items ?? []).some(i =>
+          i.type === 'archetype' && i.name.toLowerCase() === arch);
+        if (!hasArch) return { ok: false, reason: `${m[2]} (${m[3].trim()})` };
+      }
+      return { ok: true, reason: `${m[2]} ${have}/${need}` };
     }
 
     // "Strength 13 or higher" / "Dexterity 13"
