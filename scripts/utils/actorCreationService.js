@@ -213,6 +213,7 @@ export class ActorCreationService {
               ability:   store.spellcastingAbility,
               charLevel: 1
             });
+            await this.#applyArchetype(actor);
           }
         }
         continue;
@@ -221,6 +222,29 @@ export class ActorCreationService {
       await actor.createEmbeddedDocuments('Item', [data]);
     }
     if (itemDatas.length) AM.log(3, `Added ${itemDatas.length} items`);
+  }
+
+  /**
+   * The archetype chosen on the class tab, for classes that pick one at 1st.
+   *
+   * Runs after the class exists, because a5e matches an archetype to its class
+   * by slug and reads `classLevels` off it — added before the class, it would
+   * attach to nothing. GrantAbsorber.applyArchetype is the same call the
+   * level-up dialog makes, so the two paths produce the same result.
+   */
+  static async #applyArchetype(actor) {
+    const arch = AM.archetypes;
+    if (!arch?.uuid || arch.level !== 1) return;
+    try {
+      const ok = await GrantAbsorber.applyArchetype(actor, arch.uuid, { charLevel: 1, clsLevel: 1 });
+      AM.log(3, ok ? `Archetype applied: ${arch.uuid}` : `Archetype not applied: ${arch.uuid}`);
+    } catch (err) {
+      // The character is already created at this point, so this is reported
+      // rather than thrown — losing the domain is bad, losing the character
+      // would be worse.
+      AM.log(1, 'Could not apply the chosen archetype:', err);
+      ui.notifications.warn(game.i18n.localize('am.errors.archetype-failed'));
+    }
   }
 
   /**

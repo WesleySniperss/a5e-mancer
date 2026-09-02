@@ -43,6 +43,9 @@ export class AM {
   // Spells a heritage/culture hands out in its text rather than through a grant
   // — a5e has no grant type for spells. { heritage: {name, rows:[{level,count}]} }
   static originSpells      = {};
+  // The class's archetype, when the class picks one at 1st level (cleric's
+  // Divine Domain and its like). { level, options: [{name,uuid,img}], uuid }
+  static archetypes        = { level: 0, options: [], uuid: null };
   static loreTables        = {};
   static loreRolls         = {};
   static app               = null;

@@ -6,6 +6,7 @@ import { SpellService } from './spellService.js';
 import { GrantAbsorber } from './grantAbsorber.js';
 import { ItemDescPanel } from './itemDescPanel.js';
 import { LoreTableService } from './loreTableService.js';
+import { LevelUpService } from './levelUpService.js';
 
 const ITEM_TYPES = ['heritage', 'culture', 'background', 'destiny', 'class'];
 
@@ -372,7 +373,24 @@ export class DOMManager {
       if (classItem && AM.SELECTED.class) {
         AM.SELECTED.class.hitDie = classItem.system?.hitDice ?? classItem.system?.hitDie ?? '';
       }
-    } catch {}
+
+      // Some classes pick their archetype at 1st level — the cleric's Divine
+      // Domain is the one everybody notices. The level-up dialog has asked for
+      // this for a long time; the builder never did, so a cleric made here
+      // started play with no domain and nothing saying one was owed.
+      //
+      // `archetypeLevel` is the class item's own field, so this asks the class
+      // rather than keeping a list of which ones do it at 1st.
+      AM.archetypes = { level: 0, options: [], uuid: null };
+      const archLevel = LevelUpService.archetypeLevelOf(classItem);
+      if (archLevel === 1) {
+        AM.archetypes.level   = 1;
+        AM.archetypes.options = await LevelUpService.getArchetypesForClass(classItem);
+        AM.log(3, `${classItem.name}: ${AM.archetypes.options.length} archetype(s) at 1st level`);
+      }
+    } catch (err) {
+      AM.log(2, 'Could not read the class for its archetype level:', err);
+    }
 
     // Reset selections and inline browser state when class changes
     AM.creationManeuvers = null;

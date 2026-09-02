@@ -33,6 +33,7 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
       toggleMixedHeritage:    A5eMancer.toggleMixedHeritage,
       selectMixedGift:        A5eMancer.selectMixedGift,
       setCastingAbility:      A5eMancer.setCastingAbility,
+      selectArchetype:        A5eMancer.selectArchetype,
       rollWealth:             A5eMancer.rollWealth,
       selectCharacterArt:     CharacterArtPicker.selectCharacterArt,
       selectTokenArt:         CharacterArtPicker.selectTokenArt,
@@ -173,6 +174,19 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
             context.hitDieAvg = hitNum > 0 ? Math.floor(hitNum / 2) + 1 : 0;
             context.hpChoice  = AM.hpChoice;
             A5eMancer.#addGrantContext(context, 'class');
+
+            // The archetype. Classes differ on when it is picked — the cleric's
+            // Divine Domain comes at 1st level, most others later — and the tab
+            // used to state "at level 3" for all of them, in a hardcoded string.
+            // For a cleric that was both wrong and the reason nobody looked for
+            // a picker: the sentence said there was nothing to pick yet.
+            const arch = AM.archetypes ?? { level: 0, options: [], uuid: null };
+            context.archetypeLevel = arch.level;
+            context.archetypeAtOne = arch.level === 1 && arch.options.length > 0;
+            context.archetypeOptions = arch.options.map(a => ({
+              ...a, selected: a.uuid === arch.uuid
+            }));
+            context.archetypeChosen = arch.options.find(a => a.uuid === arch.uuid)?.name ?? '';
 
             // Spellcasting ability, when the class leaves the choice open
             const cls = AM.itemGrants?.class;
@@ -566,6 +580,16 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     const store = AM.itemGrants?.class;
     if (!store?.absorb || !btn.dataset.ability) return;
     store.spellcastingAbility = btn.dataset.ability;
+    await AM.app?.render(false, { parts: ['class'] });
+  }
+
+  /** Pick the class's archetype, for the classes that choose one at 1st level. */
+  static async selectArchetype(_event, btn) {
+    const arch = AM.archetypes;
+    if (!arch || arch.level !== 1) return;
+    // Clicking the chosen one again clears it — the same toggle the level-up
+    // dialog uses, so a misclick does not need a different gesture to undo.
+    arch.uuid = arch.uuid === btn.dataset.uuid ? null : btn.dataset.uuid;
     await AM.app?.render(false, { parts: ['class'] });
   }
 

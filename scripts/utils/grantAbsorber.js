@@ -600,10 +600,13 @@ export class GrantAbsorber {
    * silently take their default instead of asking.
    */
   static async applyArchetypeGrants(actor, classItem, lv = {}) {
+    // `||`, not `??` — see the same chain in LevelUpService.getArchetypesForClass.
+    // a5e leaves `system.slug` as an empty string on several classes, and `??`
+    // treats that as a value, so the archetype lookup matched on "" instead.
     const slug = classItem?.slug
-      ?? classItem?.system?.slug
-      ?? String(classItem?.name ?? '').slugify?.({ strict: true })
-      ?? '';
+      || classItem?.system?.slug
+      || String(classItem?.name ?? '').slugify?.({ strict: true })
+      || '';
     if (!slug) return false;
 
     const archetype = actor.items.find(i => i.type === 'archetype' && i.system?.class === slug);

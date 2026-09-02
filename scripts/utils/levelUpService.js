@@ -350,10 +350,15 @@ export class LevelUpService {
    * offers them only at the class's archetypeLevel.
    */
   static async getArchetypesForClass(classItem) {
+    // `||`, not `??`. a5e stores `system.slug` as an EMPTY STRING when it was
+    // never filled in — the cleric is one — and `??` only falls through on null
+    // or undefined, so a `??` chain stops on the empty string and matches
+    // archetypes whose class field is equally empty. a5e's own `get slug()`
+    // uses `||` for exactly this reason.
     const slug = classItem?.slug
-      ?? classItem?.system?.slug
-      ?? String(classItem?.name ?? '').slugify?.({ strict: true })
-      ?? '';
+      || classItem?.system?.slug
+      || String(classItem?.name ?? '').slugify?.({ strict: true })
+      || '';
     if (!slug) return [];
 
     const results = [];
