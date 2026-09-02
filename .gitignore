@@ -7,5 +7,3 @@ module.zip
 # Crash dumps / junk
 *.stackdump
 
-# The illustrated layout works over artwork the repository does not own.
-assets/sheet/
