@@ -73,7 +73,7 @@ let intervalId = null;
 let patched = false;
 
 /** Re-attach a minimal replacement for core's position updater. */
-function restoreListener() {
+function restoreListener({ quiet = false } = {}) {
   const stage = canvas?.stage;
   if (!stage) return;
   stage.on("pointermove", event => {
@@ -81,7 +81,7 @@ function restoreListener() {
   });
   console.warn(`${TAG} | canvas.stage lost its "pointermove" listener — restored it. `
     + `Token clicking should work again. Reload (F5) to restore core's full handler chain.`);
-  notifyOnScreen("Клікання по токенах було зламане — відновлено. Подробиці в консолі (F12).");
+  if (!quiet) notifyOnScreen("Клікання по токенах було зламане — відновлено. Подробиці в консолі (F12).");
 }
 
 /**
@@ -124,10 +124,46 @@ function instrumentStage() {
   patched = true;
 }
 
+/**
+ * The precise fix, now that the trigger is known.
+ *
+ * Canvas##addListeners builds the manager over the stage and activates it, and
+ * only AFTER that attaches the listener which updates canvas.mousePosition:
+ *
+ *     const mgr = new MouseInteractionManager(this.stage, this.stage, ...);
+ *     this.mouseInteractionManager = mgr.activate();      // board.mjs ~2069
+ *     this.stage.on("pointermove", e => e.getLocalPosition(...));  // ~2076
+ *
+ * MouseInteractionManager#activate calls `this.target.removeAllListeners()` and
+ * re-registers only its own handlers. Because the target here is the shared
+ * canvas.stage, any later activate() wipes the position updater and never puts
+ * it back — #addListeners only runs on a canvas draw.
+ *
+ * Observed trigger: dice-so-nice calls activate() from its pointer-up handler
+ * (InputHandler.onMouseUp -> _dsnPointerUp).
+ *
+ * Wrapping activate lets us restore the listener in the same turn rather than
+ * waiting up to a second for the polling watchdog to notice.
+ */
+function guardMouseInteractionManager() {
+  const mgr = canvas?.mouseInteractionManager;
+  if (!mgr || mgr.__a5eMancerGuarded) return;
+  if (mgr.target !== canvas.stage) return;   // only the shared-stage manager matters
+  mgr.__a5eMancerGuarded = true;
+
+  const activate = mgr.activate.bind(mgr);
+  mgr.activate = function(...args) {
+    const result = activate(...args);
+    if (canvas.stage.listenerCount?.("pointermove") === 0) restoreListener({ quiet: true });
+    return result;
+  };
+}
+
 function start() {
   stop();
   if (!enabled()) return;
   instrumentStage();
+  guardMouseInteractionManager();
   intervalId = setInterval(() => {
     if (!canvas?.ready || !canvas.stage) return;
     if (canvas.stage.listenerCount?.("pointermove") === 0) restoreListener();
