@@ -422,7 +422,7 @@
               <li class="skill-list-item" data-tidy-sheet-part="skill-container"
                 data-key="{{this.key}}">
                 <span class="button button-borderless button-icon-only proficiency"
-                  data-proficiency="{{this.profLvl}}" data-tooltip="{{this.profIcon}}">
+                  data-proficiency="{{this.profLvl}}" data-tooltip="{{this.profLabel}}">
                   <i class="{{this.profIconClass}}"></i>
                 </span>
 
@@ -664,7 +664,7 @@
       {{/if}}
 
       {{#unless hasFavorites}}
-        <div class="empty-state-container">
+        <div class="empty-state-container empty-state-description">
           <span class="color-text-lighter">
             Nothing starred yet. The star on any item or skill keeps it here.
           </span>
@@ -723,7 +723,7 @@
           {{/tidy-table}}
         {{/each}}
       {{else}}
-        <div class="empty-state-container">
+        <div class="empty-state-container empty-state-description">
           <span class="color-text-lighter">No spells known.</span>
         </div>
       {{/if}}
@@ -759,7 +759,7 @@
       {{/if}}
 
       {{#unless hasCombat}}
-        <div class="empty-state-container">
+        <div class="empty-state-container empty-state-description">
           <span class="color-text-lighter">No weapons or maneuvers.</span>
         </div>
       {{/unless}}
@@ -853,7 +853,7 @@
       {{/each}}
 
       {{#if inventory.isEmpty}}
-        <div class="empty-state-container">
+        <div class="empty-state-container empty-state-description">
           <span class="color-text-lighter">Nothing carried.</span>
         </div>
       {{/if}}
@@ -898,7 +898,7 @@
       {{/each}}
 
       {{#unless featuresBySource.length}}
-        <div class="empty-state-container">
+        <div class="empty-state-container empty-state-description">
           <span class="color-text-lighter">No features yet.</span>
         </div>
       {{/unless}}

@@ -45,7 +45,13 @@ const SKILLS = [
   { key: 'survival',      label: 'Survival',        ability: 'WIS' }
 ];
 
-const PROF_ICONS = ['○', '◑', '●', '◉'];
+/* a5e skill proficiency runs 0 to 2 — see the NumberField in
+   dataModels/actor/common.ts, min 0 max 2 — where 1 already means
+   proficient and 2 means expertise. This sheet had dnd5e's four steps, so
+   a proficient skill drew the half-filled circle and, wherever a5e did not
+   supply a total of its own, took half the proficiency bonus. */
+const PROF_LABELS = ['Not proficient', 'Proficient', 'Expertise'];
+const PROF_MULTIPLIERS = [0, 1, 2];
 
 /* Object types a5e has no plural label for still need a readable heading. */
 /* Turns a description into a one-line subtitle. It has to undo two things
@@ -72,10 +78,9 @@ const titleCase = (s) => String(s ?? '')
   .replace(/^./, c => c.toUpperCase());
 
 /* Tidy draws proficiency with Font Awesome circles rather than glyphs; same
-   four steps, same order as PROF_ICONS above. */
+   three steps, same order as PROF_LABELS above. */
 const PROF_ICON_CLASSES = [
   'fa-regular fa-circle',
-  'fa-solid fa-circle-half-stroke',
   'fa-solid fa-circle',
   'fa-solid fa-circle-star'
 ];
@@ -174,19 +179,19 @@ export class A5eCharacterSheet extends ActorSheet {
       const d       = sys.skills?.[key] ?? {};
       const abilMod = abilMap[ability] ?? 0;
       const profLvl = d.proficient ?? d.proficiency ?? 0;
-      const mult    = [0, 0.5, 1, 2][Math.min(profLvl, 3)] ?? 0;
+      const mult    = PROF_MULTIPLIERS[Math.min(profLvl, 2)] ?? 0;
       // Prefer A5e's derived total; fall back to manual computation
       const bonus   = d.total ?? d.value ?? (abilMod + Math.floor(profBonus * mult));
       const expDie  = d.expertiseDice > 0 ? `+d${4 + (d.expertiseDice - 1) * 2}` : '';
-      const profIcon = PROF_ICONS[Math.min(profLvl, 3)];
+      const profLabel = PROF_LABELS[Math.min(profLvl, 2)] ?? PROF_LABELS[0];
       // Tidy prints the sign and the number in separate spans, and shows a
       // passive score in its own column, so both are precomputed here.
       return {
         key, label, ability, bonus, bonusStr: sign(bonus),
         bonusSign: bonus < 0 ? '-' : '+',
         bonusAbs: Math.abs(bonus),
-        profLvl, profIcon,
-        profIconClass: PROF_ICON_CLASSES[Math.min(profLvl, 3)] ?? PROF_ICON_CLASSES[0],
+        profLvl, profLabel,
+        profIconClass: PROF_ICON_CLASSES[Math.min(profLvl, 2)] ?? PROF_ICON_CLASSES[0],
         expDie
       };
     });

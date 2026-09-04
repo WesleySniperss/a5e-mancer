@@ -180,14 +180,6 @@
   margin-block-start: 0;
 }
 
-/* ── Empty states ─────────────────────────────────────────────────────────
-   Tidy styles .empty-state-container for its own tabs; ours only needs
-   centring when it holds a bare sentence rather than a create button. */
-.tidy5e-sheet.application.a5e-mancer-sheet .empty-state-container {
-  display: flex;
-  justify-content: center;
-  padding-block: var(--t5e-size-6x);
-}
 
 /* ── Making Tidy's layout survive a v1 sheet frame ────────────────────────
    Tidy is an ApplicationV2 sheet: .window-content is a column flex box whose
