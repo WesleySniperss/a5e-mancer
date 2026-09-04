@@ -25,9 +25,22 @@ export class SpellDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     this.onConfirm        = options.onConfirm ?? null;
 
     this._allSpells        = new Map(); // level → spell[]
-    // Pre-populate from AM.creationSpells so re-opening the dialog restores selections
-    this._selectedCantrips = new Set(AM.creationSpells?.cantrips ?? []);
-    this._selectedSpells   = new Set(AM.creationSpells?.spells   ?? []);
+
+    /* Managing an existing character is a different job from building one.
+       In manage mode the dialog starts from what the actor actually knows,
+       every card can be ticked and unticked, and confirming makes the
+       actor's spells match the ticks — adding and removing.
+
+       Without it the dialog seeded from AM.creationSpells, the builder's
+       draft, whatever character it belonged to, and marked the actor's own
+       spells 'already known' and unclickable — so it showed the wrong
+       selection and nothing could ever be taken away. */
+    this.manage = !!actor && (options.manage ?? false);
+
+    // The builder's draft is only ever restored for the builder.
+    this._selectedCantrips = new Set(this.manage ? [] : (AM.creationSpells?.cantrips ?? []));
+    this._selectedSpells   = new Set(this.manage ? [] : (AM.creationSpells?.spells   ?? []));
+    this._seeded           = false;
     this._activeLevel           = null;    // null = show all
     this._activeSchool          = null;    // primary school filter
     this._activeSecondarySchool = null;    // secondary school tag filter
@@ -65,6 +78,10 @@ export class SpellDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       SpellService.collectExpandedLists(this.actor);
       this._allSpells = await SpellService.loadSpells(this.className, this.maxSpellLevel);
       this._loading   = false;
+      if (this.manage && !this._seeded) {
+        this.#seedFromActor();
+        this._seeded = true;
+      }
       // Pre-fill desc map with all loaded spells
       for (const spells of this._allSpells.values()) {
         for (const s of spells) this._descMap.set(s.uuid, s);
@@ -93,6 +110,11 @@ export class SpellDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       className:             this.className,
       cantripsToChoose:      this.cantripsToChoose,
       spellsToChoose:        this.spellsToChoose,
+      /* -1 means unlimited, and Handlebars counts it as truthy — so the
+         chips read '0 / -1' until asked explicitly. */
+      cantripsLimited:       this.cantripsToChoose > 0,
+      spellsLimited:         this.spellsToChoose > 0,
+      manage:                this.manage,
       maxSpellLevel:         this.maxSpellLevel,
       selectedCantrips:      this._selectedCantrips.size,
       selectedSpells:        this._selectedSpells.size,
@@ -249,7 +271,10 @@ export class SpellDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         }
         results.push({
           ...s,
-          alreadyKnown: knownUuids.has(s.uuid) || knownUuids.has(s.name.toLowerCase()),
+          /* While managing, a spell the actor knows is shown ticked rather
+             than locked — the whole point is to be able to untick it. */
+          alreadyKnown: !this.manage &&
+            (knownUuids.has(s.uuid) || knownUuids.has(s.name.toLowerCase())),
           selected:     this._selectedCantrips.has(s.uuid) || this._selectedSpells.has(s.uuid),
           levelLabel:   level === 0 ? 'Cantrip' : `Level ${level}`
         });
@@ -353,13 +378,63 @@ export class SpellDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     return '';
   }
 
+  /* Tick whatever the actor already has. Matched on the compendium source
+     first and on the name second, which is the same pair applySpellsToActor
+     uses when it decides something is a duplicate. */
+  #seedFromActor() {
+    const known = this.actor.items.filter(i => i.type === 'spell');
+    const sources = new Set(known
+      .map(i => i._stats?.compendiumSource ?? i.flags?.core?.sourceId ?? '')
+      .filter(Boolean));
+    const names = new Set(known.map(i => i.name.toLowerCase()));
+
+    for (const [level, spells] of this._allSpells) {
+      for (const s of spells) {
+        if (!sources.has(s.uuid) && !names.has(s.name.toLowerCase())) continue;
+        (level === 0 ? this._selectedCantrips : this._selectedSpells).add(s.uuid);
+      }
+    }
+  }
+
+  /* Spells the actor has that are no longer ticked. Only ones that came
+     from a compendium are eligible: a spell written by hand has no source
+     to match against, and taking it away because it is not on a list it
+     never came from would be wrong. */
+  #spellsToRemove(selected) {
+    return this.actor.items.filter((i) => {
+      if (i.type !== 'spell') return false;
+      const source = i._stats?.compendiumSource ?? i.flags?.core?.sourceId ?? '';
+      if (!source) return false;
+      return !selected.has(source);
+    });
+  }
+
   async #confirm() {
     if (this.onConfirm) {
       await this.onConfirm([...this._selectedCantrips], [...this._selectedSpells]);
-    } else if (this.actor) {
-      const all = [...this._selectedCantrips, ...this._selectedSpells];
-      await SpellService.applySpellsToActor(this.actor, all);
+      this.close();
+      return;
     }
+
+    if (!this.actor) { this.close(); return; }
+
+    const selected = new Set([...this._selectedCantrips, ...this._selectedSpells]);
+    const removing = this.manage ? this.#spellsToRemove(selected) : [];
+
+    /* Deleting spells is not undoable, so it is asked for rather than done
+       quietly — adding is not, and needs no prompt. */
+    if (removing.length) {
+      const names = removing.map(i => i.name).join(', ');
+      const ok = await foundry.applications.api.DialogV2.confirm({
+        window: { title: game.i18n.localize('am.spells.title-manage') || 'Manage Spells' },
+        content: `<p>Remove ${removing.length} spell(s) from ${this.actor.name}?</p>`
+               + `<p class="am-hint">${names}</p>`
+      }).catch(() => false);
+      if (!ok) return;
+      await this.actor.deleteEmbeddedDocuments('Item', removing.map(i => i.id));
+    }
+
+    await SpellService.applySpellsToActor(this.actor, [...selected]);
     this.close();
   }
 }

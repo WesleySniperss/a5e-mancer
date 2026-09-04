@@ -807,10 +807,17 @@ export class A5eCharacterSheet extends ActorSheet {
     /* Casting or activation cost. */
     const activation = action.activation ?? {};
     let activationLabel = null;
+    let reactionTrigger = null;
     if (activation.type) {
       if (activation.type === 'reaction') {
         const base = loc('A5E.actions.headings.activation.reaction') || 'Reaction';
-        activationLabel = activation.reactionTrigger ? `${base} (${activation.reactionTrigger})` : base;
+        /* a5e writes the whole trigger into this label — 'Reaction (which
+           you take when you are targeted by a ranged attack)'. That is a
+           sentence, and in a column six characters wide it ran across its
+           neighbours. The column gets the word; the trigger is kept apart
+           and shown in the summary. */
+        activationLabel = base;
+        reactionTrigger = activation.reactionTrigger || null;
       } else if (activation.cost === 0 || activation.cost > 1) {
         activationLabel = `${activation.cost} ${loc(A.abilityActivationTypesPlural?.[activation.type]) || activation.type}`;
       } else if (['none', 'special'].includes(activation.type)) {
@@ -832,7 +839,7 @@ export class A5eCharacterSheet extends ActorSheet {
       .filter(Boolean)
       .join(', ') || null;
 
-    return { activationLabel, rangeLabel, durationLabel, saveLabel };
+    return { activationLabel, reactionTrigger, rangeLabel, durationLabel, saveLabel };
   }
 
   /* An item's description, or its actions' if it has none of its own.
@@ -1032,6 +1039,7 @@ export class A5eCharacterSheet extends ActorSheet {
       levelLabel: level === 0 ? 'Cantrip' : `Level ${level}`,
       school: schoolKey,
       summaryTags: [
+        labels.reactionTrigger ? `Trigger: ${labels.reactionTrigger}` : null,
         level === 0 ? 'Cantrip' : `Level ${level}`,
         schoolLabel || null,
         conc ? 'Concentration' : null,
@@ -2001,6 +2009,7 @@ export class A5eCharacterSheet extends ActorSheet {
         : (this.actor.items.filter(i => i.type === 'class')
              .reduce((n, i) => n + (i.system?.classLevels ?? i.system?.levels ?? i.system?.level ?? 1), 0) || 1);
       new SpellDialog(this.actor, {
+        manage:           true,
         className:        casterClass?.name ?? '',
         cantripsToChoose: -1,
         spellsToChoose:   -1,

@@ -635,3 +635,21 @@
   outline: 1px solid var(--t5e-color-gold);
   outline-offset: 1px;
 }
+
+/* ── Value cells never spill into their neighbours ────────────────────────
+   Tidy caps a non-primary cell's width, but a long value still painted past
+   it: a5e writes whole sentences into some of these — a reaction's trigger,
+   a duration that carries "(Concentration)" — and they ran clean across the
+   columns beside them. Clipping is stated here rather than relied upon. */
+.tidy5e-sheet.application.a5e-mancer-sheet .tidy-table-cell.text-cell {
+  overflow: hidden;
+  min-width: 0;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .tidy-table-cell.text-cell .cell-text {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

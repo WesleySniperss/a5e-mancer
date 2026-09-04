@@ -909,37 +909,41 @@
       data-tab="notes" data-group="primary" data-tab-contents-for="notes"
       role="tabpanel">
 
-      <div class="am-notes-grid">
-        {{#if charInfo.heritageDesc}}
-          <section class="card am-origin-card">
-            <h3 class="font-title-small">Heritage — {{charInfo.heritage}}</h3>
-            <div class="am-origin-desc">{{{charInfo.heritageDesc}}}</div>
-          </section>
-        {{/if}}
-        {{#if charInfo.cultureDesc}}
-          <section class="card am-origin-card">
-            <h3 class="font-title-small">Culture — {{charInfo.culture}}</h3>
-            <div class="am-origin-desc">{{{charInfo.cultureDesc}}}</div>
-          </section>
-        {{/if}}
-        {{#if charInfo.backgroundDesc}}
-          <section class="card am-origin-card">
-            <h3 class="font-title-small">Background — {{charInfo.background}}</h3>
-            <div class="am-origin-desc">{{{charInfo.backgroundDesc}}}</div>
-          </section>
-        {{/if}}
-        {{#if charInfo.destinyDesc}}
-          <section class="card am-origin-card">
-            <h3 class="font-title-small">Destiny — {{charInfo.destiny}}</h3>
-            <div class="am-origin-desc">{{{charInfo.destinyDesc}}}</div>
-          </section>
-        {{/if}}
-      </div>
+      {{!-- Heritage, culture, background and destiny write-ups used to be
+           repeated here. They are items, and Features already lists them,
+           so this tab held a second copy of a tab that was already open.
+
+           What is left is what the character creation asked the player to
+           roll or write, and which lives nowhere else: the backstory, the
+           destiny answers and the lore-table results. --}}
 
       {{#if bio.backstory}}
         <section class="card am-bio-card">
           <h3 class="font-title-small">Backstory</h3>
           <div class="am-origin-desc">{{{bio.backstory}}}</div>
+        </section>
+      {{/if}}
+
+      {{!-- The other three the builder asks for in the player own words. They
+           were collected at creation and then shown nowhere at all. --}}
+      {{#if bio.traits}}
+        <section class="card am-bio-card">
+          <h3 class="font-title-small">Personality Traits</h3>
+          <div class="am-origin-desc">{{{bio.traits}}}</div>
+        </section>
+      {{/if}}
+
+      {{#if bio.connections}}
+        <section class="card am-bio-card">
+          <h3 class="font-title-small">Connections</h3>
+          <div class="am-origin-desc">{{{bio.connections}}}</div>
+        </section>
+      {{/if}}
+
+      {{#if bio.mementos}}
+        <section class="card am-bio-card">
+          <h3 class="font-title-small">Mementos</h3>
+          <div class="am-origin-desc">{{{bio.mementos}}}</div>
         </section>
       {{/if}}
 

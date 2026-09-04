@@ -16,13 +16,13 @@
 
     {{!-- Selection counters --}}
     <div class="am-spell-counters">
-      {{#if cantripsToChoose}}
+      {{#if cantripsLimited}}
         <div class="am-counter-row">
           <span>{{localize 'am.spells.cantrips'}}</span>
           <span><span class="am-cantrip-count">{{selectedCantrips}}</span>/{{cantripsToChoose}}</span>
         </div>
       {{/if}}
-      {{#if spellsToChoose}}
+      {{#if spellsLimited}}
         <div class="am-counter-row">
           <span>{{localize 'am.spells.spells'}}</span>
           <span><span class="am-spell-count">{{selectedSpells}}</span>/{{spellsToChoose}}</span>
