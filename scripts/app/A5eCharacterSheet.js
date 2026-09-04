@@ -413,6 +413,9 @@ export class A5eCharacterSheet extends ActorSheet {
 
     const tidy = this.#tidyContext({ sys, abilities, classes, resources, profBonus, currency });
     const inventory = this.#inventory(actor, items);
+    inventory.objectTypes = Object.entries(CONFIG?.A5E?.objectTypes ?? {})
+      .map(([key, label]) => ({ key, label: game.i18n.localize(label) || titleCase(key) }))
+      .sort((a, b) => a.label.localeCompare(b.label));
 
     /* Item descriptions arrive exactly as written, and a5e writes
        @UUID[…]{…} links, @Check[…] prompts and inline rolls into them.
@@ -575,7 +578,55 @@ export class A5eCharacterSheet extends ActorSheet {
      utils/view/{groupItemsByType,usesRequired,quantityRequired,
      weightRequired}.ts helpers, read out of the system's own a5e.js.map. */
   #inventory(actor, items) {
-    const objects = items.filter(i => i.type === 'object');
+    /* Search and filters, ported from a5e's ActorInventoryPage and its
+       UtilityBar. The filter state is read from — and written back to —
+       a5e's own flag, `flags.a5e.filters.objects`, so filtering set here
+       shows up on the system's sheet and the other way round.
+
+       The rule a5e uses: an item is hidden if ANY of its filterable values
+       is excluded; and when anything is included, an item must match at
+       least one of those to show at all. */
+    const search = (this._invSearch ?? '').trim().toLowerCase();
+    const searchDesc = !!this._invSearchDesc;
+    const active = actor.getFlag('a5e', 'filters')?.objects ?? { inclusive: [], exclusive: [] };
+    const inclusive = active.inclusive ?? [];
+    const exclusive = active.exclusive ?? [];
+
+    const valuesOf = (item) => {
+      const out = new Set();
+      const acts = item.system?.actions;
+      const list = acts instanceof Map ? [...acts.values()] : Object.values(acts ?? {});
+      for (const a of list) if (a?.activation?.type) out.add(a.activation.type);
+      if (item.system?.rarity) out.add(item.system.rarity);
+      if (item.system?.attuned) out.add('attuned');
+      if (item.system?.bulky) out.add('bulky');
+      if (item.system?.equipped) out.add('equipped');
+      if (item.system?.plotItem) out.add('plotItem');
+      if (item.system?.requiresAttunement) out.add('requiresAttunement');
+      return out;
+    };
+
+    const matches = (item) => {
+      if (search) {
+        const inName = item.name.toLowerCase().includes(search);
+        const inDesc = searchDesc &&
+          plainText(descOf(item.system)).toLowerCase().includes(search);
+        if (!inName && !inDesc) return false;
+      }
+      if (!inclusive.length && !exclusive.length) return true;
+      const values = valuesOf(item);
+      for (const v of values) if (exclusive.includes(v)) return false;
+      if (inclusive.length) {
+        for (const v of values) if (inclusive.includes(v)) return true;
+        return false;
+      }
+      return true;
+    };
+
+    const objects = items.filter(i => i.type === 'object' && matches(i));
+    /* Column tests and carried weight look at everything, not at what
+       survived the filter, so a filtered view does not change the numbers. */
+    const allObjects = items.filter(i => i.type === 'object');
 
     /* Contents of a container are listed under it, so they are kept out of
        the top level. a5e matches on the container's uuid, not its id. */
@@ -631,19 +682,38 @@ export class A5eCharacterSheet extends ActorSheet {
       item?.system?.uses?.max || actionsOf(item).some(x => x?.uses?.max));
 
     const weightFlag = Number(actor.getFlag('a5e', 'showWeightColumn') ?? 0);
-    const anythingWeighs = objects.some(i => i.system?.weight);
+    const anythingWeighs = allObjects.some(i => i.system?.weight);
     const showWeight =
       weightFlag !== 0 && anythingWeighs && (
         weightFlag === 1 ||
-        (weightFlag === 2 && objects.some(i =>
+        (weightFlag === 2 && allObjects.some(i =>
           i.system?.objectType === 'container' &&
           i.system?.containerSortMethod === 'weight'))
       );
 
+    /* The sections and their labels come from CONFIG.A5E.filters.objects,
+       so a system update that adds a filter adds it here too. */
+    const filterSections = Object.entries(CONFIG?.A5E?.filters?.objects ?? {})
+      .map(([key, section]) => ({
+        key,
+        label: game.i18n.localize(section.label ?? '') || titleCase(key),
+        filters: Object.entries(section.filters ?? {}).map(([fk, f]) => ({
+          key: fk,
+          label: game.i18n.localize(f?.label ?? '') || titleCase(fk),
+          state: exclusive.includes(fk) ? 'exclusive'
+               : inclusive.includes(fk) ? 'inclusive' : 'neutral'
+        }))
+      }))
+      .filter(s => s.filters.length > 0);
+
     return {
+      search: this._invSearch ?? '',
+      searchDesc,
+      filterSections,
+      filtersActive: inclusive.length + exclusive.length > 0,
       groups,
-      showUses:   hasUses(objects),
-      showQty:    objects.length > 0,
+      showUses:   hasUses(allObjects),
+      showQty:    allObjects.length > 0,
       showWeight,
       carried:    this.#carriedWeight(actor, items),
       isEmpty:    groups.length === 0
@@ -1711,6 +1781,88 @@ export class A5eCharacterSheet extends ActorSheet {
        because we render its markup from Handlebars. Each one is written
        against Tidy's own classes so the animations and states it styles
        are the ones that actually appear. */
+
+    /* ══ Inventory utility bar ═════════════════════════════════════════
+       Search, filters, sort and add — a5e's UtilityBar, rebuilt against our
+       markup. Filters live in a5e's own flag so the two sheets agree. */
+
+    const invSearch = el.querySelector('[data-action="inv-search"]');
+    if (invSearch) {
+      /* Re-render on a pause rather than per keystroke: each render rebuilds
+         every row, and doing that on every letter makes typing stutter. */
+      let timer = null;
+      invSearch.addEventListener('input', () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          this._invSearch = invSearch.value;
+          this.render(false);
+        }, 250);
+      });
+    }
+
+    el.querySelector('[data-action="inv-search-desc"]')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      this._invSearchDesc = !this._invSearchDesc;
+      this.render(false);
+    });
+
+    el.querySelector('[data-action="inv-filters"]')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      el.querySelector('.am-filter-panel')?.toggleAttribute('hidden');
+    });
+
+    /* Each filter cycles neutral → include → exclude → neutral. */
+    el.querySelectorAll('[data-action="inv-filter"]').forEach(b =>
+      b.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const key = b.dataset.filter;
+        const f = this.actor.getFlag('a5e', 'filters') ?? {};
+        const cur = f.objects ?? { inclusive: [], exclusive: [] };
+        const inc = new Set(cur.inclusive ?? []);
+        const exc = new Set(cur.exclusive ?? []);
+        if (inc.has(key)) { inc.delete(key); exc.add(key); }
+        else if (exc.has(key)) { exc.delete(key); }
+        else { inc.add(key); }
+        await this.actor.setFlag('a5e', 'filters', {
+          ...f, objects: { inclusive: [...inc], exclusive: [...exc] }
+        });
+      })
+    );
+
+    el.querySelector('[data-action="inv-filters-clear"]')?.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const f = this.actor.getFlag('a5e', 'filters') ?? {};
+      await this.actor.setFlag('a5e', 'filters', {
+        ...f, objects: { inclusive: [], exclusive: [] }
+      });
+    });
+
+    /* Alphabetical sort. a5e does this by rewriting each item's sort value,
+       which is what keeps the order after a reload. */
+    el.querySelectorAll('[data-action="inv-sort"]').forEach(b =>
+      b.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const desc = b.dataset.dir === 'desc';
+        const objects = this.actor.items.filter(i => i.type === 'object');
+        const sorted = [...objects].sort((a, z) =>
+          desc ? z.name.localeCompare(a.name) : a.name.localeCompare(z.name));
+        await this.actor.updateEmbeddedDocuments('Item',
+          sorted.map((item, i) => ({ _id: item.id, sort: (i + 1) * 100000 })));
+      })
+    );
+
+    /* Add an object of a chosen subtype, the way a5e's plus menu does. */
+    el.querySelector('[data-action="inv-add"]')?.addEventListener('change', async (e) => {
+      const objectType = e.currentTarget.value;
+      if (!objectType) return;
+      e.currentTarget.value = '';
+      const label = game.i18n.localize(CONFIG?.A5E?.objectTypes?.[objectType] ?? '') || 'Object';
+      await this.actor.createEmbeddedDocuments('Item', [{
+        name: game.i18n.format('DOCUMENT.New', { type: label }),
+        type: 'object',
+        system: { objectType }
+      }]);
+    });
 
     /* Hit points read as a label and edit as inputs, which is how Tidy does
        it — the bar is too small to hold three live fields and still be

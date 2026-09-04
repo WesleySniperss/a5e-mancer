@@ -521,3 +521,72 @@
 .a5e-mancer-sheet .actor-vitals .hit-points .label {
   padding-inline-end: 3.5rem;
 }
+
+/* ── Inventory utility bar ────────────────────────────────────────────────
+   A5e's UtilityBar: search, a toggle for searching descriptions as well,
+   alphabetical sort both ways, the filter panel and an add menu. Laid out with
+   Tidy's own buttons and pills so it reads as part of the sheet.
+
+   The three filter states are the system's own — a filter is off, included, or
+   excluded — and they are stored in a5e's `flags.a5e.filters.objects`, which is
+   why filtering set here also applies on the system's sheet. */
+.a5e-mancer-sheet .am-utility-bar {
+  align-items: center;
+  gap: var(--t5e-size-1x);
+  margin-block-end: var(--t5e-size-2x);
+}
+
+.a5e-mancer-sheet .am-inv-search {
+  flex: 1;
+  min-width: 0;
+}
+
+.a5e-mancer-sheet .am-inv-add {
+  flex: 0 0 auto;
+  max-width: 9rem;
+}
+
+/* A toggle that is on takes the gold Tidy uses for an active control. */
+.a5e-mancer-sheet .am-utility-bar .button.am-on,
+.a5e-mancer-sheet .am-utility-bar .button.am-on i {
+  color: var(--t5e-color-text-gold-emphasis);
+}
+
+.a5e-mancer-sheet .am-filter-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--t5e-size-2x);
+  padding: var(--t5e-size-2x);
+  margin-block-end: var(--t5e-size-2x);
+  background: var(--t5e-component-card-darker);
+  border-radius: var(--t5e-component-card-radius);
+}
+
+.a5e-mancer-sheet .am-filter-panel[hidden] {
+  display: none;
+}
+
+.a5e-mancer-sheet .am-filter-section h4 {
+  margin: 0 0 var(--t5e-size-1) 0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Included reads as gold, excluded as struck through and dimmed — the same
+   two ideas a5e uses, so the panel is legible at a glance. */
+.a5e-mancer-sheet .am-filter-inclusive {
+  border-color: var(--t5e-color-text-gold-emphasis);
+  color: var(--t5e-color-text-gold-emphasis);
+}
+
+.a5e-mancer-sheet .am-filter-exclusive {
+  opacity: 0.55;
+}
+
+.a5e-mancer-sheet .am-filter-exclusive .label {
+  text-decoration: line-through;
+}
+
+.a5e-mancer-sheet .am-filter-clear {
+  align-self: flex-start;
+}

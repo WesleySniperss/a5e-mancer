@@ -827,6 +827,69 @@
       data-tab="inventory" data-group="primary" data-tab-contents-for="inventory"
       role="tabpanel">
 
+      {{!-- Utility bar, from a5e own: search, description toggle, sort,
+           filters and add. The filters read and write a5e own flag, so this
+           sheet and the system sheet always agree on what is filtered out. --}}
+      <div class="am-utility-bar flexrow">
+        <input type="search" class="am-inv-search" data-action="inv-search"
+          value="{{inventory.search}}" placeholder="Search…"
+          aria-label="Search inventory" />
+
+        <button type="button"
+          class="button button-borderless button-icon-only{{#if inventory.searchDesc}} am-on{{/if}}"
+          data-action="inv-search-desc" data-tooltip="Search descriptions too"
+          aria-label="Search descriptions too">
+          <i class="fa-solid fa-info-circle"></i>
+        </button>
+
+        <button type="button" class="button button-borderless button-icon-only"
+          data-action="inv-sort" data-dir="asc" data-tooltip="Sort A to Z"
+          aria-label="Sort A to Z"><i class="fa-solid fa-arrow-down-a-z"></i></button>
+        <button type="button" class="button button-borderless button-icon-only"
+          data-action="inv-sort" data-dir="desc" data-tooltip="Sort Z to A"
+          aria-label="Sort Z to A"><i class="fa-solid fa-arrow-down-z-a"></i></button>
+
+        {{#if inventory.filterSections.length}}
+          <button type="button"
+            class="button button-borderless button-icon-only{{#if inventory.filtersActive}} am-on{{/if}}"
+            data-action="inv-filters" data-tooltip="Filters" aria-label="Filters">
+            <i class="fa-solid fa-filter"></i>
+          </button>
+        {{/if}}
+
+        <select class="am-inv-add" data-action="inv-add" aria-label="Add an object">
+          <option value="">+ Add…</option>
+          {{#each inventory.objectTypes}}
+            <option value="{{this.key}}">{{this.label}}</option>
+          {{/each}}
+        </select>
+      </div>
+
+      {{#if inventory.filterSections.length}}
+        <div class="am-filter-panel" hidden>
+          {{#each inventory.filterSections}}
+            <div class="am-filter-section">
+              <h4 class="font-label-medium color-text-gold">{{this.label}}</h4>
+              <ul class="pills">
+                {{#each this.filters}}
+                  <li class="pill pill-medium trait-pill am-filter-{{this.state}}">
+                    <a role="button" tabindex="0" class="button button-borderless"
+                      data-action="inv-filter" data-filter="{{this.key}}"
+                      data-tooltip="Click to include, again to exclude, again to clear">
+                      <span class="label font-label-medium">{{this.label}}</span>
+                    </a>
+                  </li>
+                {{/each}}
+              </ul>
+            </div>
+          {{/each}}
+          {{#if inventory.filtersActive}}
+            <button type="button" class="button button-secondary am-filter-clear"
+              data-action="inv-filters-clear">Clear filters</button>
+          {{/if}}
+        </div>
+      {{/if}}
+
       {{#each inventory.groups}}
         {{#> tidy-table key=this.key label=this.label count=this.items.length
                         items=this.items
