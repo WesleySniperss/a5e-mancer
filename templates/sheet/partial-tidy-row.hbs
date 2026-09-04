@@ -68,19 +68,23 @@
             <i class="{{#if attuned}}fa-solid fa-sun color-icon-theme-highlight highlighted{{else}}fa-regular fa-sun color-text-lightest{{/if}}"></i>
           </button>
         {{/if}}
+        {{!-- Both of these are three-state in a5e, and both cycle on click.
+              The icon IS the state — see #stateBadges for the mapping. The
+              equip control is hidden for anything inside a container, as it
+              is on a5e's own sheet. --}}
         {{#if isEquippable}}
-          <button type="button" data-action="item-equip" data-id="{{id}}"
+          {{#unless inContainer}}
+            <button type="button" data-action="item-equip" data-id="{{id}}"
+              class="unbutton item-state-indicator"
+              aria-label="Equipped state: {{equipLabel}}" data-tooltip="{{equipLabel}}">
+              <i class="fa-solid {{equipIcon}} equip-icon {{#if equipActive}}color-icon-theme-highlight highlighted{{else}}color-text-lightest{{/if}}"></i>
+            </button>
+          {{/unless}}
+          <button type="button" data-action="item-damaged" data-id="{{id}}"
             class="unbutton item-state-indicator"
-            data-tooltip="{{#if equipped}}Equipped{{else}}{{#if carried}}Carried{{else}}Not carried{{/if}}{{/if}}">
-            <i class="fa-solid fa-hand-fist equip-icon {{#if equipped}}color-icon-theme-highlight highlighted{{else}}color-text-lightest{{/if}}"></i>
+            aria-label="Condition: {{damagedLabel}}" data-tooltip="{{damagedLabel}}">
+            <i class="fa-solid {{damagedIcon}} {{#if damagedActive}}color-icon-theme-highlight highlighted{{else}}color-text-lightest{{/if}}"></i>
           </button>
-        {{/if}}
-        {{#if broken}}
-          <i class="fa-solid fa-heart-crack color-text-lightest item-state-indicator"
-            data-tooltip="Broken"></i>
-        {{else if damaged}}
-          <i class="fa-solid fa-bandage color-text-lightest item-state-indicator"
-            data-tooltip="Damaged"></i>
         {{/if}}
       </span>
     </div>

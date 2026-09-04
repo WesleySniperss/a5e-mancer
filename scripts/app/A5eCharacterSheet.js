@@ -749,6 +749,44 @@ export class A5eCharacterSheet extends ActorSheet {
     return Math.round(total * 100) / 100;
   }
 
+  /* Equipped and damaged state, drawn the way a5e draws them.
+
+     Both are three-state, not two, which is why a single 'equipped or not'
+     icon never changed: carried and not-carried looked identical. The icons
+     and the active states below are a5e's own, from ItemListData.svelte:
+
+       equipped     2 shield-alt · 1 person-carry-box · 0 tents
+       damaged      0 heart      · 1 heart-crack      · 2 heart-pulse
+
+     Active — the lit state — is 'equipped or carried' and 'damaged or
+     broken' respectively, so the lit icon always means something is true
+     rather than merely set. */
+  #stateBadges(item) {
+    const sys = item.system ?? {};
+    const equipped = Number(sys.equippedState ?? 0);
+    const damaged  = Number(sys.damagedState ?? 0);
+    const label = (table, key, fallback) => {
+      const id = CONFIG?.A5E?.[table]?.[key];
+      return id ? game.i18n.localize(id) : fallback;
+    };
+
+    return {
+      equippedState: equipped,
+      equipIcon: ['fa-tents', 'fa-person-carry-box', 'fa-shield-alt'][equipped] ?? 'fa-tents',
+      equipLabel: label('equippedStates', equipped, ['Not carried', 'Carried', 'Equipped'][equipped] ?? 'Not carried'),
+      equipActive: equipped === 1 || equipped === 2,
+
+      damagedState: damaged,
+      damagedIcon: ['fa-heart', 'fa-heart-crack', 'fa-heart-pulse'][damaged] ?? 'fa-heart',
+      damagedLabel: label('damagedStates', damaged, ['Intact', 'Damaged', 'Broken'][damaged] ?? 'Intact'),
+      damagedActive: damaged === 1 || damaged === 2,
+
+      /* a5e hides the equip control for anything inside a container: what
+         is in a bag is neither worn nor carried in its own right. */
+      inContainer: !!sys.containerId
+    };
+  }
+
   /* ── Item builders ────────────────────────────────── */
 
   /* Helper: build compact one-liner summary */
@@ -827,15 +865,12 @@ export class A5eCharacterSheet extends ActorSheet {
       atkBonusCell: atkBonusFmt ?? '—',  // for inventory table column
       dmg: dmg ?? '—', dmgFull,
       range, saveDC,
-      equippedState,
       equipped:   equippedState === 2,
       carried:    equippedState === 1,
       notCarried: equippedState === 0,
       attuned, needsAttune,
       attuneProblem: needsAttune && !attuned,
-      damagedState: sys.damagedState ?? 0,
-      damaged:      (sys.damagedState ?? 0) === 1,
-      broken:       (sys.damagedState ?? 0) === 2,
+      ...this.#stateBadges(item),
       activation,
       desc: descOf(sys),
       actions: this.#allActionsForItem(item),
@@ -981,15 +1016,12 @@ export class A5eCharacterSheet extends ActorSheet {
       id: item.id, uuid: item.uuid, name: item.name, img: item.img,
       qty:    sys.quantity ?? 1,
       weight: sys.weight?.value ?? sys.weight ?? 0,
-      equippedState,
       equipped:     equippedState === 2,
       carried:      equippedState === 1,
       notCarried:   equippedState === 0,
       attuned, needsAttune,
       attuneProblem: needsAttune && !attuned,
-      damagedState: sys.damagedState ?? 0,
-      damaged:      (sys.damagedState ?? 0) === 1,
-      broken:       (sys.damagedState ?? 0) === 2,
+      ...this.#stateBadges(item),
       desc: descOf(sys),
     };
   }
@@ -1230,6 +1262,22 @@ export class A5eCharacterSheet extends ActorSheet {
        (stashed → carried → equipped) so its rules apply: only one armor +
        one underarmor may be equipped, max two shields, with the system's
        own warnings. Raw updates bypassed all of that. */
+    /* The damaged state cycles the same way the equipped one does, and a5e
+       has its own method for it too. */
+    el.querySelectorAll('[data-action="item-damaged"]').forEach(b =>
+      b.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const item = this.actor.items.get(b.dataset.id);
+        if (!item) return;
+        if (typeof item.toggleDamagedState === 'function') {
+          await item.toggleDamagedState();
+        } else {
+          const cur = Number(item.system?.damagedState ?? 0);
+          await item.update({ 'system.damagedState': (cur + 1) % 3 });
+        }
+      })
+    );
+
     el.querySelectorAll('[data-action="item-equip"]').forEach(b =>
       b.addEventListener('click', async () => {
         const item = this.actor.items.get(b.dataset.id);
@@ -2244,10 +2292,10 @@ export class A5eCharacterSheet extends ActorSheet {
       id: item.id, uuid: item.uuid, name: item.name, img: item.img,
       type: item.type,
       isEquippable,
-      equippedState,
       equipped:   equippedState === 2,
       carried:    equippedState === 1,
       notCarried: equippedState === 0,
+      ...this.#stateBadges(item),
       attuned:    sys.attuned ?? false,
       needsAttune: sys.requiresAttunement ?? false,
       starred,
