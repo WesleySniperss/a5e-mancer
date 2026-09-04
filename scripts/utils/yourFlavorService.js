@@ -478,4 +478,71 @@ export class YourFlavorService {
       AM.log(2, 'Your Flavor bridge: could not load its modules, standing down', err);
     });
   }
+
+  /* ============================================================
+     Diagnostics
+     ============================================================ */
+
+  /**
+   * One snapshot of everything that has to be true for a message to end up
+   * styled, printed as a table.
+   *
+   * Exists because the failure it is meant to catch is intermittent: chased on
+   * 2026-09-04 with the chat style reportedly resetting between sessions, and
+   * every reading came back healthy — flags saved, config resolving, 100 of 100
+   * messages processed. Nothing can be concluded from a healthy state, so this
+   * has to be run at the moment it misbehaves, and a snapshot is worth more
+   * than a description after the fact.
+   *
+   * Read-only. Safe to run at any time, by anyone.
+   *
+   *     game.modules.get('a5e-mancer').api.yfDiag()
+   */
+  static diagnose() {
+    const M = this.YF_ID;
+    const yf = (key, fallback) => this._yfSetting(key, fallback);
+
+    const rows = document.querySelectorAll('.chat-message');
+    const unstyled = [...rows].filter(el => !el.classList.contains('yf-processed'));
+
+    let resolved = null;
+    try { resolved = game.modules.get(M)?.api?.getManager?.()?.resolveConfig?.(game.user.id, null); }
+    catch (err) { resolved = `resolveConfig threw: ${err.message}`; }
+
+    const report = {
+      /* Our side */
+      'bridge: a5e cards': this.enabled,
+      'bridge: generic restyle': this.restyleEnabled,
+      'bridge: hook attached': this._renderHook !== null,
+      'bridge: YF modules loaded': Boolean(this._styles && this._classifier),
+      'bridge: import failed': this._importFailed,
+
+      /* Your Flavor's side */
+      'YF active': this.installed,
+      'YF api up': this.available,
+      'YF moduleEnabled': yf('moduleEnabled', true),
+      'YF user flags': Object.keys(game.user.flags?.[M] ?? {}).join(', ') || '(none)',
+      'YF resolved layout': resolved?.layout ?? String(resolved),
+      'YF resolved enabled': resolved?.enabled,
+      'YF policy': this._policy(),
+      'YF forcePlayerLayout': yf('forcePlayerLayout', 'none'),
+      'YF allowPlayerCustomization': yf('allowPlayerCustomization', true),
+
+      /* The overlay is a different store entirely: world-scoped, GM-authored. */
+      'overlay feature on': yf('enableFoundryCustomization', false),
+      'overlay config enabled': yf('sharedFoundryCustomization', {})?.enabled,
+      'overlay shared': yf('shareFoundryCustomization', true),
+
+      /* What actually landed on screen */
+      'messages in DOM': rows.length,
+      'messages unstyled': unstyled.length,
+    };
+
+    console.table(report);
+    if (unstyled.length) {
+      console.warn(`${unstyled.length} message(s) carry no yf-processed marker:`,
+        unstyled.slice(0, 10).map(el => el.dataset?.messageId));
+    }
+    return report;
+  }
 }

@@ -599,3 +599,37 @@
 .tidy5e-sheet.application.a5e-mancer-sheet .am-filter-clear {
   align-self: flex-start;
 }
+
+/* ── Condition description panel ──────────────────────────────────────────
+   Right-clicking a condition drops its description in here; clicking the
+   panel closes it. It used to be painted from the sheet's old --cs-* palette,
+   which is the brown one the rest of the sheet no longer uses, so it arrived
+   looking like a leftover. Repainted with Tidy's tokens. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-cs-cond-desc-panel {
+  margin-block-start: var(--t5e-size-1x);
+  padding: var(--t5e-size-2x);
+  background: var(--t5e-component-card-lighter);
+  border: 1px solid var(--t5e-color-gold);
+  border-radius: var(--t5e-component-card-radius);
+  color: var(--t5e-color-text-default);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-cs-cond-desc-panel strong {
+  display: block;
+  margin-block-end: var(--t5e-size-1);
+  color: var(--t5e-color-text-gold-emphasis);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-cs-cond-desc-panel p {
+  margin: 0;
+  color: var(--t5e-color-text-lighter);
+}
+
+/* A hint that the tile does more than switch on and off. */
+.tidy5e-sheet.application.a5e-mancer-sheet .conditions-list .condition .condition-toggle-label:focus-visible {
+  outline: 1px solid var(--t5e-color-gold);
+  outline-offset: 1px;
+}

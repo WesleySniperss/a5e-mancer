@@ -221,6 +221,21 @@ Hooks.once('ready', () => {
   MagicManeuverPack.ensure().catch(err => AM.log(1, 'Magic maneuver pack:', err));
 });
 
+/* ── Public API ─────────────────────────────────────────── */
+/* Registered on its own hook rather than inside the one above, so the
+   diagnostic stays reachable even in a world where the module is switched off
+   and that hook returns early — being unable to ask "why is nothing working"
+   precisely when nothing is working would defeat the point. */
+Hooks.once('ready', () => {
+  const module = game.modules.get(AM.ID);
+  if (!module) return;
+  module.api = {
+    /* Snapshot of the Your Flavor bridge, for a fault that only shows up
+       intermittently — see YourFlavorService.diagnose(). */
+    yfDiag: () => YourFlavorService.diagnose(),
+  };
+});
+
 /* ── Ready ──────────────────────────────────────────────── */
 Hooks.once('ready', async () => {
   if (!game.settings.get(AM.ID, 'enable')) return;

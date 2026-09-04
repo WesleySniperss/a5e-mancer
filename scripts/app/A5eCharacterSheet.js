@@ -1491,7 +1491,11 @@ export class A5eCharacterSheet extends ActorSheet {
       if (isNaN(n) || n < 1 || n > 9) return;
       ev.preventDefault();
       const id      = _hoveredCondBtn.dataset.id;
-      const isActive = _hoveredCondBtn.classList.contains('am-cs-status-active');
+      /* The active state lives on the tile, not on the button inside it —
+         it used to be a class on the button itself, and testing for that
+         after the markup changed meant isActive was always false, so a repeat
+         of the same digit never cleared the counter. */
+      const isActive = !!_hoveredCondBtn.closest('.condition')?.classList.contains('active');
       const durs    = foundry.utils.deepClone(this.actor.getFlag?.('a5e-mancer', 'durations') ?? {});
       if (!isActive) await _activateCond(id);
       // Same digit on already-active condition with same number → clear duration

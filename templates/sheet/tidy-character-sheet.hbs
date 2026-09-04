@@ -521,7 +521,8 @@
                       data-action="toggle-condition"
                       data-id="{{this.id}}" data-label="{{this.label}}"
                       data-description="{{this.description}}"
-                      data-tooltip="{{this.label}}" aria-pressed="{{#if this.active}}true{{else}}false{{/if}}">
+                      data-tooltip="{{this.label}} — right-click for the description, 1-9 to set rounds"
+                      aria-pressed="{{#if this.active}}true{{else}}false{{/if}}">
                       <img class="am-condition-icon" src="{{this.icon}}" alt="" />
                       <span class="am-cond-name">{{this.label}}</span>
                       {{#if this.duration}}
