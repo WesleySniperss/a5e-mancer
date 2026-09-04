@@ -514,23 +514,28 @@
             </header>
             <div class="item-table-body">
               <ul class="conditions-list">
+                {{!-- The whole tile is the toggle: left click switches the
+                     condition, right click shows its description in the panel
+                     below. The handlers read data-id, data-label and
+                     data-description - they were named data-condition here,
+                     so the toggle bailed out on its first line and the
+                     description had nothing to show. --}}
                 {{#each statusConditions}}
                   <li class="condition{{#if this.active}} active{{/if}}"
-                    data-condition-id="{{this.id}}" data-tooltip="{{this.label}}">
-                    <label class="condition-toggle-label effect-toggle"
-                      data-tidy-sheet-part="condition-toggle">
+                    data-condition-id="{{this.id}}">
+                    <button type="button"
+                      class="condition-toggle-label effect-toggle unbutton"
+                      data-action="toggle-condition"
+                      data-id="{{this.id}}" data-label="{{this.label}}"
+                      data-description="{{this.description}}"
+                      data-tooltip="{{this.label}}" aria-pressed="{{#if this.active}}true{{else}}false{{/if}}">
                       <img class="am-condition-icon" src="{{this.icon}}" alt="" />
-                      <span class="flex1 truncate">{{this.label}}</span>
+                      <span class="am-cond-name">{{this.label}}</span>
                       {{#if this.duration}}
                         <span class="am-cond-duration"
                           style="color:{{this.durationColor}}">{{this.duration}}</span>
                       {{/if}}
-                      <button type="button" class="unbutton am-cond-toggle"
-                        data-action="toggle-condition" data-condition="{{this.id}}"
-                        aria-label="Toggle {{this.label}}">
-                        <i class="{{#if this.active}}fa-solid fa-toggle-on{{else}}fa-solid fa-toggle-off color-text-lightest{{/if}}"></i>
-                      </button>
-                    </label>
+                    </button>
                   </li>
                 {{/each}}
               </ul>
