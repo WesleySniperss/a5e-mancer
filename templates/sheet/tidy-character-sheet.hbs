@@ -1,0 +1,975 @@
+{{!-- ═══════════════════════════════════════════════════════════════════════
+     A5e Mancer character sheet, dressed in the Quadrone layout of Tidy 5e
+     Sheets.
+
+     The markup below mirrors Tidy's own CharacterSheet.svelte element for
+     element, so tidy/quadrone.css styles it without a single override. Where
+     a block is A5e-only (exertion, maneuver DC, fatigue and strife) it is
+     built from Tidy's own pieces — .meter, .card, .button — so it reads as
+     part of the same sheet rather than as an addition to it.
+
+     Our own hooks ride along on Tidy's elements: every data-action, every
+     .am-* class and every data-path is the one activateListeners already
+     binds, so behaviour is unchanged by the redress. Do not rename them
+     without changing A5eCharacterSheet.js to match.
+     ═══════════════════════════════════════════════════════════════════════ --}}
+
+{{!-- FormApplication needs a form element to submit through: without one,
+     closing the sheet throws "no registered form element" and the name field
+     never saves. It sits inside .window-content, so it also has to carry the
+     column flex that Tidy puts on .window-content, or the header and body
+     stop being flex items and the tab strip collapses. See styles/tidy-a5e.css. --}}
+<form class="am-sheet-form" autocomplete="off">
+
+<header class="sheet-header flexcol">
+  <div class="sheet-header-content flexrow">
+
+    <div class="actor-details-container flexcol">
+
+      {{!-- ── Name, rests, subtitle, level ─────────────────────────────── --}}
+      <div class="actor-context-row flexrow">
+        <div class="flexcol flex1">
+
+          <div class="actor-details-name-row" data-tidy-sheet-part="name-header-row">
+            <input class="actor-name flex1 h1" type="text"
+              name="name" value="{{actor.name}}" data-tidy-sheet-part="actor-name" />
+
+            <div class="sheet-header-actions flexrow"
+              data-tidy-sheet-part="sheet-header-actions-container">
+              <button type="button" class="button button-icon-only button-gold"
+                data-action="short-rest" aria-label="Short Rest" data-tooltip="Short Rest">
+                <i class="fas fa-utensils"></i>
+              </button>
+              <button type="button" class="button button-icon-only button-gold"
+                data-action="long-rest" aria-label="Long Rest" data-tooltip="Long Rest">
+                <i class="fas fa-campground"></i>
+              </button>
+              <button type="button" class="button button-icon-only button-gold"
+                data-action="level-up" aria-label="Level Up" data-tooltip="Level Up">
+                <i class="fas fa-arrow-up-right-dots"></i>
+              </button>
+            </div>
+          </div>
+
+          {{!-- Subtitle: speeds, senses, origin, classes --}}
+          <div class="actor-details-subtitle-row" data-tidy-sheet-part="actor-details-row">
+            <div class="actor-subtitle flexrow" data-tidy-sheet-part="subtitle-row">
+              {{#each tidy.speeds}}
+                <span class="speed main-speed">
+                  <span class="color-text-gold font-label-medium">{{this.label}}</span>
+                  <span class="color-text-default font-data-medium">{{this.value}}</span>
+                  <span class="color-text-lighter font-label-medium">{{this.units}}</span>
+                </span>
+                <div class="divider-dot"></div>
+              {{/each}}
+
+              {{#each tidy.senses}}
+                <span class="sense main-sense hide-under-600">
+                  <span class="color-text-gold font-label-medium">{{this.label}}</span>
+                  <span class="color-text-default font-data-medium">{{this.value}}</span>
+                  <span class="color-text-lighter font-label-medium">{{this.units}}</span>
+                </span>
+                <div class="hide-under-600 divider-dot"></div>
+              {{/each}}
+
+              {{#if charInfo.heritage}}
+                <span class="species">
+                  <span class="font-label-medium color-text-gold">{{charInfo.heritage}}</span>
+                </span>
+                <div class="divider-dot"></div>
+              {{/if}}
+
+              {{#if charInfo.culture}}
+                <span class="creature-type hide-under-600">
+                  <span class="font-label-medium color-text-gold">{{charInfo.culture}}</span>
+                </span>
+                <div class="hide-under-600 divider-dot"></div>
+              {{/if}}
+
+              {{#if charInfo.background}}
+                <span class="alignment hide-under-700">
+                  <span class="font-label-medium color-text-gold">{{charInfo.background}}</span>
+                </span>
+                <div class="hide-under-700 divider-dot"></div>
+              {{/if}}
+
+              {{#each tidy.classLine}}
+                <span class="class">
+                  <span class="color-text-gold font-label-medium">{{this.name}}</span>
+                  <span class="color-text-default font-data-medium">{{this.levels}}</span>
+                  {{#if this.dc}}
+                    <span class="color-text-lighter font-label-medium dc">{{this.ability}} DC</span>
+                    <span class="color-text-default font-data-medium">{{this.dc}}</span>
+                  {{/if}}
+                </span>
+                {{#unless @last}}<div class="divider-dot"></div>{{/unless}}
+              {{/each}}
+            </div>
+          </div>
+        </div>
+
+        {{!-- Inspiration badge + level block --}}
+        <div class="level-container flex0 flexrow">
+          <div class="inspiration-badge theme-dark single"
+            data-tidy-sheet-part="inspiration-tracker-container">
+            <button type="button"
+              class="inspiration button button-borderless button-icon-only single{{#if resources.inspiration}} inspired{{/if}}"
+              aria-label="Inspiration" data-tooltip="Inspiration"
+              data-action="toggle-inspiration"
+              data-tidy-sheet-part="inspiration-tracker-toggle"></button>
+          </div>
+
+          <div class="level-block">
+            <span class="level bonus font-data-xlarge color-text-default"
+              data-tooltip="Level">{{charInfo.totalLevel}}</span>
+            <div class="proficiency-bonus flexrow" data-tooltip="Proficiency Bonus">
+              <span class="label font-label-medium color-text-gold">PB</span>
+              <span class="modifier font-label-medium color-text-lightest">{{tidy.pb.sign}}</span>
+              <span class="value font-data-medium color-text-default">{{tidy.pb.value}}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {{!-- ── AC, ability plates, initiative, concentration ────────────── --}}
+      <div class="abilities-container">
+        <div class="abilities-container-inner flexrow">
+
+          <div class="ac-container flexcol">
+            <div class="shield" data-attribution="attributes.ac" data-tooltip-direction="DOWN">
+              <span class="ac-value color-text-default">{{resources.ac}}</span>
+              <span class="ac-label font-label-medium color-text-gold">AC</span>
+            </div>
+            <div class="ability-labels flexcol">
+              <span class="label font-label-medium color-text-gold">Score</span>
+              <span class="divider"></span>
+              <span class="label font-label-medium color-text-gold">Save</span>
+            </div>
+          </div>
+
+          {{#each tidy.abilities}}
+            <div class="ability {{this.key}}{{#if this.saveProf}} has-proficiency{{/if}}"
+              data-tidy-sheet-part="ability-container">
+
+              <div class="ability-bonus-container{{#if this.saveProf}} proficient{{/if}}"
+                data-tidy-sheet-part="ability-mod-container">
+                <button type="button" class="button-borderless ability-roll-button"
+                  data-action="ability-check" data-ability="{{this.key}}"
+                  data-label="{{this.label}}" data-mod="{{this.mod}}"
+                  data-tooltip="{{this.label}} Check"
+                  data-tidy-sheet-part="ability-roller">
+                  <span class="ability-abbr color-text-gold">{{this.abbr}}</span>
+                  <span class="ability-label-container">
+                    <span class="modifier font-label-xlarge color-text-lightest"
+                      data-tidy-sheet-part="ability-mod">{{this.modSign}}</span>
+                    <span class="value bonus font-data-xlarge color-text-default"
+                      data-tidy-sheet-part="ability-value">{{this.modAbs}}</span>
+                  </span>
+                </button>
+              </div>
+
+              <div class="ability-score-container">
+                <label class="ability-score" data-tooltip="{{this.label}} Score"
+                  data-tidy-sheet-part="ability-score">
+                  <input class="font-title-small color-text-default am-ability-score uninput"
+                    type="number" data-ability="{{this.key}}"
+                    data-path="system.abilities.{{this.key}}.value" value="{{this.value}}" />
+                  {{#if this.saveProf}}
+                    <span class="ability-proficiency-indicator"></span>
+                  {{/if}}
+                </label>
+              </div>
+
+              <div class="ability-save-container">
+                <button type="button" class="button-borderless ability-save flexrow saving-throw"
+                  data-action="saving-throw" data-ability="{{this.key}}"
+                  data-label="{{this.label}}" data-mod="{{this.saveMod}}"
+                  data-tooltip="{{this.label}} Save"
+                  data-tidy-sheet-part="ability-save-roller">
+                  <span class="modifier font-label-medium color-text-lightest">{{this.saveSign}}</span>
+                  <span class="value save font-data-medium color-text-default">{{this.saveAbs}}</span>
+                  <span class="icon"><i class="fas fa-shield-heart"></i></span>
+                </button>
+              </div>
+            </div>
+          {{/each}}
+
+          <div class="ability initiative flexcol">
+            <div class="initiative-score-container" data-tooltip="Initiative">
+              <button type="button" class="ability-roll-button button-borderless"
+                data-action="roll-initiative">
+                <span class="ability-abbr color-text-gold">INIT</span>
+                <span class="ability-label-container initiative-bonus">
+                  <span class="modifier color-text-lightest">{{tidy.init.sign}}</span><span
+                    class="bonus color-text-default">{{tidy.init.value}}</span>
+                </span>
+              </button>
+            </div>
+
+            <div class="concentration flexcol">
+              <div class="flexrow concentration-bonus">
+                <i class="fas fa-head-side-brain color-text-gold"></i>
+                <span class="modifier font-label-medium color-text-lightest">{{tidy.conc.sign}}</span>
+                <span class="value font-data-medium color-text-default">{{tidy.conc.value}}</span>
+              </div>
+              <button type="button" class="unbutton concentration-roll-button"
+                data-action="concentration-check">
+                <span class="label font-label-medium color-text-gold">Conc.</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {{!-- ── Portrait and vitals ──────────────────────────────────────────── --}}
+    <div class="actor-vitals-container">
+      <div class="actor-image {{tidy.portrait.shape}}" style="position: relative;">
+        <img src="{{actor.img}}" alt="{{actor.name}}" class="pointer" data-edit="img" />
+      </div>
+
+      <div class="actor-vitals theme-dark">
+        {{!-- Hit points.
+
+             Tidy shows a label reading "current / max" and swaps in an input
+             only while it is being edited; two live inputs sitting in the bar
+             is not a shape its stylesheet has any rule for, which is why this
+             row came out unreadable. Temp HP is a separate block that appears
+             ONLY when there is any — otherwise its blue band sits there
+             permanently and crowds out the numbers.
+
+             The heal and damage buttons are wrapped, because Tidy pins every
+             bare .button-icon-only in this row to the right edge with
+             position:absolute — two of them landed on top of each other and
+             only the last was clickable. The wrapper is pinned instead, and
+             the buttons sit inside it normally. --}}
+        <div class="hp-row flexrow">
+          <div class="meter progress hit-points" style="--bar-percentage: {{tidy.hp.pct}}%">
+            <button type="button" class="label pointer" data-action="hp-edit"
+              data-tooltip="Click to edit">
+              <div class="value">{{resources.hp.value}}</div>
+              <div class="separator">/</div>
+              <div class="max">{{resources.hp.max}}</div>
+            </button>
+
+            <div class="am-hp-edit" hidden>
+              <input type="text" class="hp-input uninput" id="am-hp-current"
+                value="{{resources.hp.value}}" aria-label="Current Hit Points" />
+              <span class="separator">/</span>
+              <input type="text" class="hp-input uninput" id="am-hp-max"
+                value="{{resources.hp.max}}" aria-label="Maximum Hit Points" />
+              <span class="separator">tmp</span>
+              <input type="text" class="hp-input uninput" id="am-hp-temp"
+                value="{{resources.hp.temp}}" aria-label="Temporary Hit Points" />
+            </div>
+          </div>
+
+          {{#if resources.hp.temp}}
+            <div class="temp-hp label pointer" data-action="hp-edit"
+              data-tooltip="Temporary hit points: {{resources.hp.temp}}">
+              <i class="fas fa-hand-holding-heart"></i>
+              <span class="am-temp-value">{{resources.hp.temp}}</span>
+            </div>
+          {{/if}}
+
+          <div class="am-hp-buttons">
+            <button type="button" class="button button-borderless button-icon-only"
+              data-action="heal-hp" aria-label="Heal" data-tooltip="Heal">
+              <i class="fas fa-plus"></i>
+            </button>
+            <button type="button" class="button button-borderless button-icon-only"
+              data-action="damage-hp" aria-label="Damage" data-tooltip="Damage">
+              <i class="fas fa-minus"></i>
+            </button>
+          </div>        </div>
+
+        <div class="actor-vitals-row">
+          <div class="hd-row-container">
+            <div class="hd-row">
+              <div class="meter progress hit-die view-only" style="--bar-percentage: {{tidy.hd.pct}}%">
+                <span class="label">
+                  <div class="value" data-tooltip="Hit Dice Remaining">{{tidy.hd.value}}</div>
+                  <div class="separator">/</div>
+                  <div class="max" data-tooltip="Hit Dice Total">{{tidy.hd.max}}</div>
+                  <div class="hd-label" data-tooltip="Hit Dice">HD</div>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {{!-- A5e replaces exhaustion with two tracks. Same control Tidy uses
+                for exhaustion, once per track, so the row still reads as one. --}}
+          <div class="exhaustion{{#if resources.fatigue}} exhausted{{/if}}">
+            <button type="button" class="button button-borderless button-icon-only"
+              aria-label="Fatigue"
+              data-tooltip="{{#if fatigueDesc}}Fatigue — {{fatigueDesc}}{{else}}Fatigue{{/if}}"
+              data-action="cycle-fatigue">
+              <i class="fas fa-heart-pulse"></i>
+              <span class="value">{{resources.fatigue}}</span>
+            </button>
+          </div>
+
+          <div class="exhaustion am-strife{{#if resources.strife}} exhausted{{/if}}">
+            <button type="button" class="button button-borderless button-icon-only"
+              aria-label="Strife"
+              data-tooltip="{{#if strifeDesc}}Strife — {{strifeDesc}}{{else}}Strife{{/if}}"
+              data-action="cycle-strife">
+              <i class="fas fa-brain"></i>
+              <span class="value">{{resources.strife}}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {{!-- ── A5e resource strip: exertion, maneuver DC, passive perception ──── --}}
+  <div class="am-a5e-strip flexrow">
+    <div class="am-a5e-stat am-a5e-exertion" data-tooltip="Exertion Pool">
+      <span class="am-a5e-label font-label-medium color-text-gold">
+        <i class="fa-solid fa-bolt"></i> Exertion
+      </span>
+      <div class="meter progress am-exertion-meter"
+        style="--bar-percentage: {{resources.exertion.pct}}%">
+        <div class="label">
+          <input type="number" class="value uninput" id="am-exertion-current"
+            value="{{resources.exertion.current}}" min="0" aria-label="Current Exertion" />
+          <div class="separator">/</div>
+          <div class="max">{{resources.exertion.max}}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="am-a5e-stat" data-tooltip="Maneuver DC">
+      <span class="am-a5e-label font-label-medium color-text-gold">Maneuver DC</span>
+      <span class="am-a5e-value font-data-medium color-text-default">{{maneuverDC}}</span>
+    </div>
+
+    <div class="am-a5e-stat" data-tooltip="Passive Perception">
+      <span class="am-a5e-label font-label-medium color-text-gold">Passive Perception</span>
+      <span class="am-a5e-value font-data-medium color-text-default">{{passivePerception}}</span>
+    </div>
+  </div>
+
+  {{!-- ── Tab strip ──────────────────────────────────────────────────────── --}}
+  <div class="tabs-row">
+    <a class="sidebar-toggle button button-borderless" data-action="toggle-sidebar"
+      data-tooltip="Toggle Sidebar">
+      <i class="fa-solid fa-caret-left"></i>
+      <i class="fa-solid fa-sidebar-flip"></i>
+    </a>
+    <nav class="tidy-tabs actor-tabs tabs" role="tablist" data-group="primary">
+      <a class="tab-option item active first-tab" role="tab" data-tab="favorites"
+        data-tab-id="favorites" data-group="primary"><span class="tab-title">Favorites</span></a>
+      <a class="tab-option item" role="tab" data-tab="magic"
+        data-tab-id="magic" data-group="primary"><span class="tab-title">Magic</span></a>
+      <a class="tab-option item" role="tab" data-tab="martial"
+        data-tab-id="martial" data-group="primary"><span class="tab-title">Martial</span></a>
+      <a class="tab-option item" role="tab" data-tab="inventory"
+        data-tab-id="inventory" data-group="primary"><span class="tab-title">Inventory</span></a>
+      <a class="tab-option item" role="tab" data-tab="features"
+        data-tab-id="features" data-group="primary"><span class="tab-title">Features</span></a>
+      <a class="tab-option item no-border-on-last-tab" role="tab" data-tab="notes"
+        data-tab-id="notes" data-group="primary"><span class="tab-title">Notes</span></a>
+    </nav>
+  </div>
+</header>
+
+<div class="sheet-body">
+  <div class="main-content">
+
+    {{!-- ══ SIDEBAR ══════════════════════════════════════════════════════════
+         Tidy's sidebar, with its two stock tabs. Skills is Tidy's SkillsCard
+         verbatim; Traits collects what A5e keeps that dnd5e does not — the
+         expertise dice live on the skill rows, and attunement, conditions and
+         proficiencies fill the Traits tab.
+         ═══════════════════════════════════════════════════════════════════ --}}
+    <div class="sidebar flexcol expanded" data-tidy-sheet-part="sidebar-container">
+
+      <div class="sidebar-header" data-tidy-sheet-part="sidebar-header">
+        <div class="flexrow">
+          <nav class="tidy-tabs sidebar-tab-strip button-group wrap tabs"
+            role="tablist">
+            <a class="tab-option button button-secondary button-toggle active"
+              role="tab" data-sidebar-tab="skills">
+              <span class="tab-title">Skills</span>
+            </a>
+            <a class="tab-option button button-secondary button-toggle"
+              role="tab" data-sidebar-tab="traits">
+              <span class="tab-title">Traits</span>
+            </a>
+          </nav>
+        </div>
+      </div>
+
+      {{!-- ── Sidebar: skills ────────────────────────────────────────────── --}}
+      <div class="tidy-tab skills sidebar-tab-contents flexcol active"
+        data-sidebar-tab="skills" data-tab-contents-for="skills"
+        role="tabpanel">
+        <div class="skills card">
+          <div class="use-ability-header flexrow">
+            <div class="button button-borderless skill-expand-button">
+              <i class="fa-solid fa-briefcase"></i>
+              <h3 class="font-label-medium">Skills</h3>
+              <span class="modifier-label color-text-lightest font-default-medium">
+                Modifier / Passive
+              </span>
+            </div>
+          </div>
+
+          <ul class="skill-list unlist use-ability-list" data-tidy-sheet-part="skills-list">
+            {{#each skills}}
+              <li class="skill-list-item" data-tidy-sheet-part="skill-container"
+                data-key="{{this.key}}">
+                <span class="button button-borderless button-icon-only proficiency"
+                  data-proficiency="{{this.profLvl}}" data-tooltip="{{this.profIcon}}">
+                  <i class="{{this.profIconClass}}"></i>
+                </span>
+
+                <span class="button button-borderless skill-ability font-label-medium color-text-gold-emphasis">
+                  {{this.ability}}
+                </span>
+
+                <button type="button" class="button button-borderless use-ability-roll-button"
+                  data-action="skill-check" data-skill="{{this.key}}"
+                  data-label="{{this.label}}" data-bonus="{{this.bonus}}"
+                  data-tidy-sheet-part="skill-roller">
+                  {{this.label}}
+                </button>
+
+                {{!-- Expertise dice are A5e's own; Tidy has no column for them,
+                      so they ride as a pill on the row using Tidy's tokens. --}}
+                {{#if this.expDie}}
+                  <span class="pill pill-medium am-exp-die" data-tooltip="Expertise Die">
+                    <span class="label font-label-medium">{{this.expDie}}</span>
+                  </span>
+                {{/if}}
+
+                <span class="modifier">
+                  <span class="color-text-lightest font-label-medium">{{this.bonusSign}}</span>
+                  <span class="font-data-medium">{{this.bonusAbs}}</span>
+                </span>
+
+                <span class="passive color-text-lighter">{{this.passive}}</span>
+
+                <button type="button"
+                  class="button button-borderless button-icon-only am-skill-star"
+                  data-action="skill-star" data-skill="{{this.key}}"
+                  data-tooltip="{{#if this.starred}}Remove from favorites{{else}}Add to favorites{{/if}}">
+                  <i class="{{#if this.starred}}fa-solid{{else}}fa-regular{{/if}} fa-star"></i>
+                </button>
+              </li>
+            {{/each}}
+          </ul>
+        </div>
+      </div>
+
+      {{!-- ── Sidebar: traits ────────────────────────────────────────────── --}}
+      <div class="tidy-tab traits sidebar-tab-contents flexcol"
+        data-sidebar-tab="traits" data-tab-contents-for="traits"
+        role="tabpanel">
+
+        {{#if hasAttunementItems}}
+          <section class="character-traits">
+            <div class="flexrow space-between character-traits-header">
+              <div class="character-traits-title">
+                <h3 class="font-title-small">Attunement</h3>
+              </div>
+              <span class="pill pill-medium">
+                <span class="label font-label-medium">{{attuneCount}} / 3</span>
+              </span>
+            </div>
+            <div class="list traits">
+              <div class="list-entry">
+                <div class="list-content">
+                  <div class="list-values">
+                    <ul class="pills">
+                      {{#each attunementItems}}
+                        <li class="pill pill-medium trait-pill{{#unless this.attuned}} diminished{{/unless}}"
+                          data-tooltip="{{#if this.attuned}}Attuned{{else}}Not attuned{{/if}}">
+                          <a role="button" tabindex="0" class="button button-borderless"
+                            data-action="item-attune" data-id="{{this.id}}">
+                            <i class="{{#if this.attuned}}fa-solid fa-sun color-icon-theme-highlight highlighted{{else}}fa-regular fa-sun color-text-lightest{{/if}}"></i>
+                            <span class="label font-label-medium">{{this.name}}</span>
+                          </a>
+                        </li>
+                      {{/each}}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        {{/if}}
+
+        {{#if statusConditions.length}}
+          <section class="tidy-table conditions" data-tidy-sheet-part="item-table"
+            data-tidy-section-key="conditions">
+            <header class="tidy-table-header-row theme-dark"
+              data-tidy-sheet-part="table-header-row">
+              <div class="tidy-table-header-cell primary header-label-cell"
+                data-tidy-sheet-part="table-header-cell">
+                <h3>Conditions</h3>
+              </div>
+            </header>
+            <div class="item-table-body">
+              <ul class="conditions-list">
+                {{#each statusConditions}}
+                  <li class="condition{{#if this.active}} active{{/if}}"
+                    data-condition-id="{{this.id}}" data-tooltip="{{this.label}}">
+                    <label class="condition-toggle-label effect-toggle"
+                      data-tidy-sheet-part="condition-toggle">
+                      <img class="am-condition-icon" src="{{this.icon}}" alt="" />
+                      <span class="flex1 truncate">{{this.label}}</span>
+                      {{#if this.duration}}
+                        <span class="am-cond-duration"
+                          style="color:{{this.durationColor}}">{{this.duration}}</span>
+                      {{/if}}
+                      <button type="button" class="unbutton am-cond-toggle"
+                        data-action="toggle-condition" data-condition="{{this.id}}"
+                        aria-label="Toggle {{this.label}}">
+                        <i class="{{#if this.active}}fa-solid fa-toggle-on{{else}}fa-solid fa-toggle-off color-text-lightest{{/if}}"></i>
+                      </button>
+                    </label>
+                  </li>
+                {{/each}}
+              </ul>
+              <div class="am-cs-cond-desc-panel" style="display:none"></div>
+            </div>
+          </section>
+        {{/if}}
+
+        <section class="character-traits">
+          <div class="flexrow space-between character-traits-header">
+            <div class="character-traits-title">
+              <h3 class="font-title-small">Traits</h3>
+            </div>
+          </div>
+
+          <div class="list traits">
+            {{#if proficiencies.senses.length}}
+              <div class="list-entry">
+                <div class="list-label flexrow">
+                  <h4 class="font-weight-label"><i class="fa-solid fa-eye"></i> Senses</h4>
+                </div>
+                <div class="list-content"><div class="list-values">
+                  <ul class="pills">
+                    {{#each proficiencies.senses}}
+                      <li class="pill pill-medium trait-pill">
+                        <span class="label font-label-medium">{{this}}</span>
+                      </li>
+                    {{/each}}
+                  </ul>
+                </div></div>
+              </div>
+            {{/if}}
+
+            {{#if proficiencies.languages.length}}
+              <div class="list-entry">
+                <div class="list-label flexrow">
+                  <h4 class="font-weight-label"><i class="fa-solid fa-comments"></i> Languages</h4>
+                </div>
+                <div class="list-content"><div class="list-values">
+                  <ul class="pills">
+                    {{#each proficiencies.languages}}
+                      <li class="pill pill-medium trait-pill">
+                        <span class="label font-label-medium">{{this}}</span>
+                      </li>
+                    {{/each}}
+                  </ul>
+                </div></div>
+              </div>
+            {{/if}}
+
+            {{#if proficiencies.weapons.length}}
+              <div class="list-entry">
+                <div class="list-label flexrow">
+                  <h4 class="font-weight-label"><i class="fa-solid fa-sword"></i> Weapons</h4>
+                </div>
+                <div class="list-content"><div class="list-values">
+                  <ul class="pills">
+                    {{#each proficiencies.weapons}}
+                      <li class="pill pill-medium trait-pill">
+                        <span class="label font-label-medium">{{this}}</span>
+                      </li>
+                    {{/each}}
+                  </ul>
+                </div></div>
+              </div>
+            {{/if}}
+
+            {{#if proficiencies.armor.length}}
+              <div class="list-entry">
+                <div class="list-label flexrow">
+                  <h4 class="font-weight-label"><i class="fa-solid fa-shield-halved"></i> Armor</h4>
+                </div>
+                <div class="list-content"><div class="list-values">
+                  <ul class="pills">
+                    {{#each proficiencies.armor}}
+                      <li class="pill pill-medium trait-pill">
+                        <span class="label font-label-medium">{{this}}</span>
+                      </li>
+                    {{/each}}
+                  </ul>
+                </div></div>
+              </div>
+            {{/if}}
+
+            {{#if proficiencies.tools.length}}
+              <div class="list-entry">
+                <div class="list-label flexrow">
+                  <h4 class="font-weight-label"><i class="fa-solid fa-screwdriver-wrench"></i> Tools</h4>
+                </div>
+                <div class="list-content"><div class="list-values">
+                  <ul class="pills">
+                    {{#each proficiencies.tools}}
+                      <li class="pill pill-medium trait-pill">
+                        <span class="label font-label-medium">{{this}}</span>
+                      </li>
+                    {{/each}}
+                  </ul>
+                </div></div>
+              </div>
+            {{/if}}
+          </div>
+        </section>
+      </div>
+    </div>
+
+    {{!-- ══ TAB CONTENTS ════════════════════════════════════════════════════
+         Each panel carries Tidy's .tidy-tab + .tidy-tab-contents alongside
+         Foundry's .tab, so v1 Tabs drives them and Tidy styles them.
+         ═══════════════════════════════════════════════════════════════════ --}}
+
+    {{!-- ▸ FAVORITES ──────────────────────────────────────────────────────
+         Only what the player starred, and nothing else. The star sits on every
+         item row and on every skill row; this tab is where the two meet.
+
+         It used to also carry an "All Actions" table that gathered every
+         weapon, maneuver and feature with an action on it. That duplicated the
+         Martial tab, listed maneuvers in two places at once, and filled the tab
+         with things nobody had chosen. Removed.
+         ────────────────────────────────────────────────────────────────── --}}
+    <div class="tab tidy-tab favorites tidy-tab-contents active"
+      data-tab="favorites" data-group="primary" data-tab-contents-for="favorites"
+      role="tabpanel">
+
+      {{#if favoriteSkills.length}}
+        {{#> tidy-table key="favorite-skills" label="Skills" count=favoriteSkills.length
+                        c1=true col1="Modifier" c2=true col2="Passive"}}
+          {{#each favoriteSkills}}
+            <div class="tidy-table-row-container" data-skill="{{this.key}}">
+              <div class="tidy-table-row tidy-table-row-v2" data-tidy-table-row
+                data-tidy-sheet-part="item-table-row">
+                <div class="highlight"></div>
+                <a class="tidy-table-row-use-button" data-action="skill-check"
+                  data-skill="{{this.key}}" data-label="{{this.label}}"
+                  data-bonus="{{this.bonus}}" aria-label="Roll {{this.label}}">
+                  <span class="roll-prompt"><i class="fa-solid fa-dice-d20"></i></span>
+                </a>
+                <div class="tidy-table-cell primary item-label text-cell"
+                  data-tidy-sheet-part="table-cell">
+                  <span class="cell-text">
+                    <span class="cell-name">{{this.label}}</span>
+                    <span class="cell-context">{{this.ability}}</span>
+                  </span>
+                  {{#if this.expDie}}
+                    <span class="am-state-icons">
+                      <span class="pill pill-medium am-exp-die" data-tooltip="Expertise Die">
+                        <span class="label font-label-medium">{{this.expDie}}</span>
+                      </span>
+                    </span>
+                  {{/if}}
+                </div>
+                <div class="tidy-table-cell text-cell" data-tidy-sheet-part="table-cell"
+                  style="--tidy-table-column-width: var(--am-col)">
+                  <span class="cell-text">{{this.bonusStr}}</span>
+                </div>
+                <div class="tidy-table-cell text-cell hide-under-500"
+                  data-tidy-sheet-part="table-cell"
+                  style="--tidy-table-column-width: var(--am-col)">
+                  <span class="cell-text">{{this.passive}}</span>
+                </div>
+                <div class="tidy-table-cell header-cell-actions row-actions"
+                  data-tidy-sheet-part="table-cell"
+                  style="--tidy-table-column-width: var(--am-col-actions)">
+                  <button type="button" class="button button-borderless button-icon-only"
+                    data-action="skill-star" data-skill="{{this.key}}"
+                    data-tooltip="Remove from favorites">
+                    <i class="fa-solid fa-star"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          {{/each}}
+        {{/tidy-table}}
+      {{/if}}
+
+      {{#if favorites.length}}
+        {{#> tidy-table key="favorites" label="Favorites" count=favorites.length
+                        c1=true col1="Attack" c2=true col2="Damage"}}
+          {{#each favorites}}
+            {{> tidy-row starred=true subtitle=this.activationLabel
+                         c1=true cell1=this.atkBonus c2=true cell2=this.dmgFull}}
+          {{/each}}
+        {{/tidy-table}}
+      {{/if}}
+
+      {{#unless hasFavorites}}
+        <div class="empty-state-container">
+          <span class="color-text-lighter">
+            Nothing starred yet. The star on any item or skill keeps it here.
+          </span>
+        </div>
+      {{/unless}}
+    </div>
+
+    {{!-- ▸ MAGIC ────────────────────────────────────────────────────────── --}}
+    <div class="tab tidy-tab magic tidy-tab-contents"
+      data-tab="magic" data-group="primary" data-tab-contents-for="magic"
+      role="tabpanel">
+
+      <div class="tab-action-bar flexrow">
+        <button type="button" class="button button-secondary" data-action="manage-spells">
+          <i class="fa-solid fa-book-sparkles"></i> Manage Spells
+        </button>
+      </div>
+
+      {{#if slotRows.length}}
+        <div class="spell-slots-row flexrow">
+          {{#each slotRows}}
+            <div class="spell-slot-group card">
+              <span class="label font-label-medium color-text-gold">Level {{this.level}}</span>
+              <div class="spell-slot-tracker flexrow">
+                <button type="button"
+                  class="spell-slot-tracker-button button button-borderless button-icon-only flexshrink"
+                  data-action="slot-dec" data-level="{{this.level}}"
+                  aria-label="Spend a slot">
+                  <i class="fa-solid fa-hexagon-minus"></i>
+                </button>
+                <span class="value{{#unless this.value}} color-text-lightest{{/unless}}">{{this.value}}</span>
+                <span class="separator color-text-lightest">/</span>
+                <span class="max color-text-lighter">{{this.max}}</span>
+                <button type="button"
+                  class="spell-slot-tracker-button button button-borderless button-icon-only flexshrink"
+                  data-action="slot-inc" data-level="{{this.level}}"
+                  aria-label="Recover a slot">
+                  <i class="fa-solid fa-hexagon-plus"></i>
+                </button>
+              </div>
+            </div>
+          {{/each}}
+        </div>
+      {{/if}}
+
+      {{#if hasSpells}}
+        {{#each spellGroups}}
+          {{#> tidy-table key=@key label=@key count=this.length items=this c1=true col1="Range" c2=true col2="Duration" c3=true col3="Save"}}
+            {{#each items}}
+              {{> tidy-row subtitle=this.schoolLabel c1=true cell1=this.range c2=true cell2=this.duration c3=true cell3=this.saveDC}}
+            {{/each}}
+          {{/tidy-table}}
+        {{/each}}
+      {{else}}
+        <div class="empty-state-container">
+          <span class="color-text-lighter">No spells known.</span>
+        </div>
+      {{/if}}
+    </div>
+
+    {{!-- ▸ MARTIAL ──────────────────────────────────────────────────────── --}}
+    <div class="tab tidy-tab martial tidy-tab-contents"
+      data-tab="martial" data-group="primary" data-tab-contents-for="martial"
+      role="tabpanel">
+
+      <div class="tab-action-bar flexrow">
+        <button type="button" class="button button-secondary" data-action="manage-maneuvers">
+          <i class="fa-solid fa-hand-fist"></i> Manage Maneuvers
+        </button>
+      </div>
+
+      {{#if hasWeapons}}
+        {{#> tidy-table key="weapons" label="Weapons" count=weapons.length c1=true col1="Attack" c2=true col2="Damage" c3=true col3="Range"}}
+          {{#each weapons}}
+            {{> tidy-row isEquippable=true c1=true cell1=this.atkBonusCell c2=true cell2=this.dmgFull c3=true cell3=this.range}}
+          {{/each}}
+        {{/tidy-table}}
+      {{/if}}
+
+      {{#if hasManeuvers}}
+        {{#each maneuverGroups}}
+          {{#> tidy-table key=@key label=@key count=this.length items=this c1=true col1="Degree" c2=true col2="Exertion" c3=true col3="Damage"}}
+            {{#each items}}
+              {{> tidy-row subtitle=this.activation c1=true cell1=this.degree c2=true cell2=this.exertion c3=true cell3=this.dmgFull}}
+            {{/each}}
+          {{/tidy-table}}
+        {{/each}}
+      {{/if}}
+
+      {{#unless hasCombat}}
+        <div class="empty-state-container">
+          <span class="color-text-lighter">No weapons or maneuvers.</span>
+        </div>
+      {{/unless}}
+    </div>
+
+    {{!-- ▸ INVENTORY ────────────────────────────────────────────────────
+         Grouped and column-gated exactly as a5e does it — see #inventory in
+         A5eCharacterSheet. The group headings, their order, which columns
+         appear and what counts as carried all come from the system, not from
+         choices made here. --}}
+    <div class="tab tidy-tab inventory tidy-tab-contents"
+      data-tab="inventory" data-group="primary" data-tab-contents-for="inventory"
+      role="tabpanel">
+
+      {{#each inventory.groups}}
+        {{#> tidy-table key=this.key label=this.label count=this.items.length
+                        items=this.items
+                        showUses=@root.inventory.showUses
+                        showQty=@root.inventory.showQty
+                        c1=@root.inventory.showWeight col1="Weight"}}
+          {{#each items}}
+            {{> tidy-row isEquippable=true
+                         showUses=@root.inventory.showUses
+                         showQty=@root.inventory.showQty
+                         c1=@root.inventory.showWeight cell1=this.weight}}
+          {{/each}}
+        {{/tidy-table}}
+      {{/each}}
+
+      {{#if inventory.isEmpty}}
+        <div class="empty-state-container">
+          <span class="color-text-lighter">Nothing carried.</span>
+        </div>
+      {{/if}}
+
+      <div class="inventory-footer flexrow">
+        <div class="currency flexrow">
+          {{#each tidy.currencies}}
+            <label class="denomination {{this.key}}" data-tooltip="{{this.label}}">
+              <i class="currency {{this.key}}"></i>
+              <input type="number" class="uninput" data-action="currency-edit"
+                data-denom="{{this.key}}" value="{{this.value}}" min="0"
+                aria-label="{{this.label}}" />
+            </label>
+          {{/each}}
+        </div>
+        <div class="am-carried" data-tooltip="Carried weight">
+          <span class="am-a5e-label font-label-medium color-text-gold">Carried</span>
+          <span class="am-a5e-value font-data-medium color-text-default">{{inventory.carried}}</span>
+        </div>
+      </div>
+    </div>
+
+    {{!-- ▸ FEATURES ─────────────────────────────────────────────────────── --}}
+    <div class="tab tidy-tab features tidy-tab-contents"
+      data-tab="features" data-group="primary" data-tab-contents-for="features"
+      role="tabpanel">
+
+      <div class="tab-action-bar flexrow">
+        <input type="search" id="am-feature-search" class="am-feature-filter"
+          placeholder="Search features…" aria-label="Search features" />
+        <button type="button" class="button button-secondary" data-action="open-feat-picker">
+          <i class="fa-solid fa-plus"></i> Add Feat
+        </button>
+      </div>
+
+      {{#each featuresBySource}}
+        {{#> tidy-table key=this.source label=this.source count=this.items.length c1=true col1="Activation"}}
+          {{#each this.items}}
+            {{> tidy-row subtitle=this.shortDesc c1=true cell1=this.activation}}
+          {{/each}}
+        {{/tidy-table}}
+      {{/each}}
+
+      {{#unless featuresBySource.length}}
+        <div class="empty-state-container">
+          <span class="color-text-lighter">No features yet.</span>
+        </div>
+      {{/unless}}
+    </div>
+
+    {{!-- ▸ NOTES ────────────────────────────────────────────────────────── --}}
+    <div class="tab tidy-tab notes tidy-tab-contents"
+      data-tab="notes" data-group="primary" data-tab-contents-for="notes"
+      role="tabpanel">
+
+      <div class="am-notes-grid">
+        {{#if charInfo.heritageDesc}}
+          <section class="card am-origin-card">
+            <h3 class="font-title-small">Heritage — {{charInfo.heritage}}</h3>
+            <div class="am-origin-desc">{{{charInfo.heritageDesc}}}</div>
+          </section>
+        {{/if}}
+        {{#if charInfo.cultureDesc}}
+          <section class="card am-origin-card">
+            <h3 class="font-title-small">Culture — {{charInfo.culture}}</h3>
+            <div class="am-origin-desc">{{{charInfo.cultureDesc}}}</div>
+          </section>
+        {{/if}}
+        {{#if charInfo.backgroundDesc}}
+          <section class="card am-origin-card">
+            <h3 class="font-title-small">Background — {{charInfo.background}}</h3>
+            <div class="am-origin-desc">{{{charInfo.backgroundDesc}}}</div>
+          </section>
+        {{/if}}
+        {{#if charInfo.destinyDesc}}
+          <section class="card am-origin-card">
+            <h3 class="font-title-small">Destiny — {{charInfo.destiny}}</h3>
+            <div class="am-origin-desc">{{{charInfo.destinyDesc}}}</div>
+          </section>
+        {{/if}}
+      </div>
+
+      {{#if bio.backstory}}
+        <section class="card am-bio-card">
+          <h3 class="font-title-small">Backstory</h3>
+          <div class="am-origin-desc">{{{bio.backstory}}}</div>
+        </section>
+      {{/if}}
+
+      {{#if bio.hasDestiny}}
+        <section class="card am-bio-card">
+          <h3 class="font-title-small">Destiny</h3>
+          <div class="list traits">
+            {{#if bio.motivation}}
+              <div class="list-entry">
+                <div class="list-label flexrow"><h4 class="font-weight-label">Motivation</h4></div>
+                <div class="list-content">{{bio.motivation}}</div>
+              </div>
+            {{/if}}
+            {{#if bio.goals}}
+              <div class="list-entry">
+                <div class="list-label flexrow"><h4 class="font-weight-label">Goals</h4></div>
+                <div class="list-content">{{bio.goals}}</div>
+              </div>
+            {{/if}}
+            {{#if bio.connection}}
+              <div class="list-entry">
+                <div class="list-label flexrow"><h4 class="font-weight-label">Connection</h4></div>
+                <div class="list-content">{{bio.connection}}</div>
+              </div>
+            {{/if}}
+            {{#if bio.fulfillment}}
+              <div class="list-entry">
+                <div class="list-label flexrow"><h4 class="font-weight-label">Fulfillment</h4></div>
+                <div class="list-content">{{bio.fulfillment}}</div>
+              </div>
+            {{/if}}
+          </div>
+          {{#if bio.lore.length}}
+            <ul class="pills">
+              {{#each bio.lore}}
+                <li class="pill pill-medium trait-pill">
+                  <span class="label font-label-medium">{{this.text}}</span>
+                </li>
+              {{/each}}
+            </ul>
+          {{/if}}
+        </section>
+      {{/if}}
+    </div>
+
+  </div>
+</div>
+</form>

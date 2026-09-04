@@ -1,0 +1,267 @@
+{{!-- ───────────────────────────────────────────────────────────────────────
+     One row of a Tidy item table.
+
+     The element shape is Tidy's TidyItemTableRow: a .tidy-table-row-container
+     holding a .tidy-table-row, whose first children are the use button and the
+     primary name cell, followed by state icons, the value cells and the
+     actions cell. Reproduced so tidy/quadrone.css lays it out.
+
+     data-item-id sits on the container, which is where Tidy puts it too, so
+     activateListeners finds rows by .tidy-table-row-container[data-item-id]
+     for drag, edit and the description panel. The use button carries our own
+     data-action rather than Tidy's, so the click reaches our handler.
+
+     COLUMNS. The c1/c2/c3/showUses/showQty flags MUST match the ones given to
+     tidy-table for the same section: a row that renders fewer cells than the
+     header pushes every later column out of line, which is what made the
+     tables look crooked. Each declared cell renders whether or not this item
+     has a value — an empty cell still holds its column open.
+
+     The state icons deliberately sit inside the flexible name column, exactly
+     as Tidy has them, so a row carrying more icons than its neighbour still
+     lines up down the right-hand side.
+     ─────────────────────────────────────────────────────────────────────── --}}
+<div class="tidy-table-row-container" data-item-id="{{id}}">
+  <div
+    class="tidy-table-row tidy-table-row-v2{{#if equipped}} equipped{{/if}}{{#if attuneProblem}} attunement-problem{{/if}}"
+    data-tidy-table-row data-tidy-draggable
+    data-tidy-sheet-part="item-table-row" data-tidy-item-type="{{type}}">
+
+    <div class="highlight"></div>
+
+    <a class="tidy-table-row-use-button" data-action="item-use" data-id="{{id}}"
+      aria-label="Use {{name}}"
+      data-tooltip="Use — right-click to skip the dialog">
+      <img class="item-image" src="{{img}}" alt="{{name}}" />
+      <span class="roll-prompt"><i class="fa-solid fa-dice-d20"></i></span>
+    </a>
+
+    <div class="tidy-table-cell primary item-label text-cell"
+      data-tidy-sheet-part="table-cell">
+      <a class="item-name" role="button" tabindex="0">
+        <span class="cell-text">
+          <span class="cell-name">{{name}}</span>
+          {{#if subtitle}}<span class="cell-context">{{subtitle}}</span>{{/if}}
+        </span>
+        <span class="row-detail-expand-indicator collapsed">
+          <i class="fa-solid fa-angle-right expand-indicator"></i>
+        </span>
+      </a>
+
+      {{!-- State icons, in Tidy's order: marks, then attunement, then equipped.
+            A5e adds damaged and broken, which have no Tidy equivalent, so they
+            borrow its item-state-indicator styling. --}}
+      <span class="am-state-icons">
+        {{#if concentration}}
+          <i class="fa-solid fa-head-side-brain color-icon-theme-highlight highlighted item-state-indicator"
+            data-tooltip="Concentration"></i>
+        {{/if}}
+        {{#if ritual}}
+          <i class="fa-solid fa-hands-praying color-text-lightest item-state-indicator"
+            data-tooltip="Ritual"></i>
+        {{/if}}
+        {{#if needsAttune}}
+          <button type="button" data-action="item-attune" data-id="{{id}}"
+            class="unbutton item-state-indicator"
+            data-tooltip="{{#if attuned}}Attuned{{else}}Requires attunement{{/if}}">
+            <i class="{{#if attuned}}fa-solid fa-sun color-icon-theme-highlight highlighted{{else}}fa-regular fa-sun color-text-lightest{{/if}}"></i>
+          </button>
+        {{/if}}
+        {{#if isEquippable}}
+          <button type="button" data-action="item-equip" data-id="{{id}}"
+            class="unbutton item-state-indicator"
+            data-tooltip="{{#if equipped}}Equipped{{else}}{{#if carried}}Carried{{else}}Not carried{{/if}}{{/if}}">
+            <i class="fa-solid fa-hand-fist equip-icon {{#if equipped}}color-icon-theme-highlight highlighted{{else}}color-text-lightest{{/if}}"></i>
+          </button>
+        {{/if}}
+        {{#if broken}}
+          <i class="fa-solid fa-heart-crack color-text-lightest item-state-indicator"
+            data-tooltip="Broken"></i>
+        {{else if damaged}}
+          <i class="fa-solid fa-bandage color-text-lightest item-state-indicator"
+            data-tooltip="Damaged"></i>
+        {{/if}}
+      </span>
+    </div>
+
+    {{!-- Value cells — see the COLUMNS note above. --}}
+    {{#if showUses}}
+      <div class="tidy-table-cell uses-cell" data-tidy-sheet-part="table-cell"
+        style="--tidy-table-column-width: var(--am-col-uses)">
+        {{#if uses.hasUses}}
+          <input type="number" class="uninput uses-value" data-action="item-uses"
+            data-id="{{id}}" value="{{uses.current}}" min="0" max="{{uses.max}}"
+            aria-label="Uses remaining" />
+          <span class="separator">/</span>
+          <span class="uses-max color-text-lighter">{{uses.max}}</span>
+        {{/if}}
+      </div>
+    {{/if}}
+    {{#if showQty}}
+      <div class="tidy-table-cell quantity-cell" data-tidy-sheet-part="table-cell"
+        style="--tidy-table-column-width: var(--am-col-narrow)">
+        <input type="number" class="uninput" data-action="item-qty" data-id="{{id}}"
+          value="{{qty}}" min="0" aria-label="Quantity" />
+      </div>
+    {{/if}}
+    {{#if c1}}
+      <div class="tidy-table-cell text-cell" data-tidy-sheet-part="table-cell"
+        style="--tidy-table-column-width: var(--am-col)">
+        <span class="cell-text">{{cell1}}</span>
+      </div>
+    {{/if}}
+    {{#if c2}}
+      <div class="tidy-table-cell text-cell hide-under-500" data-tidy-sheet-part="table-cell"
+        style="--tidy-table-column-width: var(--am-col)">
+        <span class="cell-text">{{cell2}}</span>
+      </div>
+    {{/if}}
+    {{#if c3}}
+      <div class="tidy-table-cell text-cell hide-under-600" data-tidy-sheet-part="table-cell"
+        style="--tidy-table-column-width: var(--am-col)">
+        <span class="cell-text">{{cell3}}</span>
+      </div>
+    {{/if}}
+
+    <div class="tidy-table-cell header-cell-actions row-actions"
+      data-tidy-sheet-part="table-cell"
+      style="--tidy-table-column-width: var(--am-col-actions)">
+      <button type="button" class="button button-borderless button-icon-only"
+        data-action="item-star" data-id="{{id}}"
+        data-tooltip="{{#if starred}}Remove from favorites{{else}}Add to favorites{{/if}}">
+        <i class="{{#if starred}}fa-solid{{else}}fa-regular{{/if}} fa-star"></i>
+      </button>
+      <button type="button" class="button button-borderless button-icon-only"
+        data-action="item-chat" data-id="{{id}}" data-tooltip="Send to Chat">
+        <i class="fa-solid fa-comment"></i>
+      </button>
+      <button type="button" class="button button-borderless button-icon-only"
+        data-action="item-edit" data-id="{{id}}" data-tooltip="Edit">
+        <i class="fa-solid fa-pen"></i>
+      </button>
+      <button type="button" class="button button-borderless button-icon-only"
+        data-action="item-delete" data-id="{{id}}" data-tooltip="Delete">
+        <i class="fa-solid fa-trash"></i>
+      </button>
+    </div>
+  </div>
+
+  {{!-- The summary, collapsed until the name is clicked. This is where an
+        item description and its actions belong — in Tidy the actions are a
+        NESTED table in here, never loose rows in the parent table, which is
+        what kept our columns from lining up. --}}
+  <div class="expandable" role="presentation">
+    <div class="expandable-child-animation-wrapper" role="presentation">
+
+      {{#if desc}}
+        <div class="editor-rendered-content" data-tidy-sheet-part="item-summary">
+          <div class="user-select-text">{{{desc}}}</div>
+        </div>
+      {{/if}}
+
+      {{#if actions.length}}
+        <section class="tidy-table inline-activities-table"
+          data-tidy-sheet-part="item-table">
+          <header class="tidy-table-header-row no-background"
+            data-tidy-sheet-part="table-header-row">
+            <div class="tidy-table-header-cell primary header-label-cell"
+              data-tidy-sheet-part="table-header-cell"><h3>Actions</h3></div>
+            <div class="tidy-table-header-cell" data-tidy-sheet-part="table-header-cell"
+              style="--tidy-table-column-width: var(--am-col)">Cost</div>
+            <div class="tidy-table-header-cell" data-tidy-sheet-part="table-header-cell"
+              style="--tidy-table-column-width: var(--am-col)">Attack</div>
+            <div class="tidy-table-header-cell" data-tidy-sheet-part="table-header-cell"
+              style="--tidy-table-column-width: var(--am-col)">Damage</div>
+          </header>
+          <div class="item-table-body">
+            {{#each actions}}
+              <div class="tidy-table-row-container">
+                <div class="tidy-table-row tidy-table-row-v2 activity"
+                  data-tidy-table-row data-item-id="{{this.itemId}}"
+                  data-action-id="{{this.actionId}}"
+                  data-tidy-sheet-part="item-table-row">
+                  <a class="tidy-table-row-use-button" data-action="item-action-use"
+                    data-id="{{this.itemId}}" data-action-id="{{this.actionId}}"
+                    aria-label="Use {{this.name}}"
+                    data-tooltip="Use — right-click to skip the dialog">
+                    <img class="item-image" src="{{this.img}}" alt="{{this.name}}" />
+                    <span class="roll-prompt"><i class="fa-solid fa-dice-d20"></i></span>
+                  </a>
+                  <div class="tidy-table-cell primary item-label text-cell"
+                    data-tidy-sheet-part="table-cell">
+                    <span class="cell-text"><span class="cell-name">{{this.name}}</span></span>
+                  </div>
+                  <div class="tidy-table-cell text-cell" data-tidy-sheet-part="table-cell"
+                    style="--tidy-table-column-width: var(--am-col)">
+                    <span class="cell-text">{{this.activationLabel}}</span>
+                  </div>
+                  <div class="tidy-table-cell text-cell" data-tidy-sheet-part="table-cell"
+                    style="--tidy-table-column-width: var(--am-col)">
+                    <span class="cell-text">{{this.atkBonus}}</span>
+                  </div>
+                  <div class="tidy-table-cell text-cell" data-tidy-sheet-part="table-cell"
+                    style="--tidy-table-column-width: var(--am-col)">
+                    <span class="cell-text">{{this.dmgFull}}</span>
+                  </div>
+                </div>
+              </div>
+            {{/each}}
+          </div>
+        </section>
+      {{/if}}
+
+      {{#if contents.length}}
+        <section class="tidy-table inline-activities-table"
+          data-tidy-sheet-part="item-table">
+          <header class="tidy-table-header-row no-background"
+            data-tidy-sheet-part="table-header-row">
+            <div class="tidy-table-header-cell primary header-label-cell"
+              data-tidy-sheet-part="table-header-cell"><h3>Contents</h3></div>
+            <div class="tidy-table-header-cell" data-tidy-sheet-part="table-header-cell"
+              style="--tidy-table-column-width: var(--am-col-narrow)">Qty</div>
+            <div class="tidy-table-header-cell" data-tidy-sheet-part="table-header-cell"
+              style="--tidy-table-column-width: var(--am-col)">Weight</div>
+          </header>
+          <div class="item-table-body">
+            {{#each contents}}
+              <div class="tidy-table-row-container" data-item-id="{{this.id}}">
+                <div class="tidy-table-row tidy-table-row-v2" data-tidy-table-row
+                  data-tidy-sheet-part="item-table-row">
+                  <a class="tidy-table-row-use-button" data-action="item-use"
+                    data-id="{{this.id}}" aria-label="Use {{this.name}}">
+                    <img class="item-image" src="{{this.img}}" alt="{{this.name}}" />
+                    <span class="roll-prompt"><i class="fa-solid fa-dice-d20"></i></span>
+                  </a>
+                  <div class="tidy-table-cell primary item-label text-cell"
+                    data-tidy-sheet-part="table-cell">
+                    <span class="cell-text"><span class="cell-name">{{this.name}}</span></span>
+                  </div>
+                  <div class="tidy-table-cell text-cell" data-tidy-sheet-part="table-cell"
+                    style="--tidy-table-column-width: var(--am-col-narrow)">
+                    <span class="cell-text">{{this.qty}}</span>
+                  </div>
+                  <div class="tidy-table-cell text-cell" data-tidy-sheet-part="table-cell"
+                    style="--tidy-table-column-width: var(--am-col)">
+                    <span class="cell-text">{{this.weight}}</span>
+                  </div>
+                </div>
+              </div>
+            {{/each}}
+          </div>
+        </section>
+      {{/if}}
+
+      {{!-- Costs and requirements a5e keeps and dnd5e has no column for. --}}
+      {{#if summaryTags.length}}
+        <div class="inline-wrapped-elements user-select-text"
+          data-tidy-sheet-part="item-property-list">
+          <div class="left-aligned-elements">
+            {{#each summaryTags}}
+              <span class="tag"><span class="value">{{this}}</span></span>
+            {{/each}}
+          </div>
+        </div>
+      {{/if}}
+    </div>
+  </div>
+</div>

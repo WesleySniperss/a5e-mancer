@@ -1,0 +1,75 @@
+{{!-- ───────────────────────────────────────────────────────────────────────
+     A Tidy item table: gold-ruled header row, count badge, expandable body.
+
+     Element shape is Tidy's TidyTable + TidyTableHeaderRow + ExpandableContainer.
+     The expandable wrapper renders already-expanded; the header row is the
+     click target that collapses it, handled in A5eCharacterSheet.
+
+     COLUMNS. Every fixed-width column must exist in the header AND in every
+     row, or the table goes crooked — a row that skips a column shifts every
+     column after it. So the flags below are passed to BOTH this partial and
+     tidy-row, and the widths come from shared custom properties in
+     styles/tidy-a5e.css rather than being written twice.
+
+     The name column is the only flexible one; everything right of it is fixed,
+     which is what keeps the columns lined up when names differ in length.
+
+       {{#> tidy-table key="weapons" label="Weapons" count=weapons.length
+                       c1=true col1="Attack" c2=true col2="Damage"
+                       c3=true col3="Range"}}
+         {{#each weapons}}
+           {{> tidy-row c1=true cell1=this.atkBonusCell
+                        c2=true cell2=this.dmgFull
+                        c3=true cell3=this.range}}
+         {{/each}}
+       {{/tidy-table}}
+     ─────────────────────────────────────────────────────────────────────── --}}
+<section class="tidy-table" data-tidy-sheet-part="item-table"
+  data-tidy-section-key="{{key}}">
+
+  <header class="tidy-table-header-row theme-dark toggleable"
+    data-tidy-sheet-part="table-header-row">
+
+    <div class="tidy-table-header-cell primary header-label-cell"
+      data-tidy-sheet-part="table-header-cell">
+      <div class="button expand-button expanded">
+        <i class="fa-solid fa-chevron-right" data-tidy-sheet-part="expansion-toggle"></i>
+      </div>
+      <h3>{{label}}</h3>
+      <span class="table-header-count">{{count}}</span>
+    </div>
+
+    {{#if showUses}}
+      <div class="tidy-table-header-cell" data-tidy-sheet-part="table-header-cell"
+        style="--tidy-table-column-width: var(--am-col-uses)">Uses</div>
+    {{/if}}
+    {{#if showQty}}
+      <div class="tidy-table-header-cell" data-tidy-sheet-part="table-header-cell"
+        style="--tidy-table-column-width: var(--am-col-narrow)">Qty</div>
+    {{/if}}
+    {{#if c1}}
+      <div class="tidy-table-header-cell" data-tidy-sheet-part="table-header-cell"
+        style="--tidy-table-column-width: var(--am-col)">{{col1}}</div>
+    {{/if}}
+    {{#if c2}}
+      <div class="tidy-table-header-cell hide-under-500" data-tidy-sheet-part="table-header-cell"
+        style="--tidy-table-column-width: var(--am-col)">{{col2}}</div>
+    {{/if}}
+    {{#if c3}}
+      <div class="tidy-table-header-cell hide-under-600" data-tidy-sheet-part="table-header-cell"
+        style="--tidy-table-column-width: var(--am-col)">{{col3}}</div>
+    {{/if}}
+
+    <div class="tidy-table-header-cell header-cell-actions"
+      data-tidy-sheet-part="table-header-cell"
+      style="--tidy-table-column-width: var(--am-col-actions)"></div>
+  </header>
+
+  <div class="expandable expanded" role="presentation">
+    <div class="expandable-child-animation-wrapper" role="presentation">
+      <div class="item-table-body">
+        {{> @partial-block}}
+      </div>
+    </div>
+  </div>
+</section>

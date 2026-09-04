@@ -35,7 +35,8 @@
     "styles/a5e-mancer.css",
     "styles/beyond20.css",
     "styles/your-flavor.css",
-    "tidy/quadrone.css"
+    "tidy/quadrone.css",
+    "styles/tidy-a5e.css"
   ],
   "languages": [
     {

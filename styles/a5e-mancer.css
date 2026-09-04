@@ -2364,21 +2364,16 @@ img[src*="a5e-mancer/assets/icons/"] {
   --sheet-dark: #2a2018;
   --sheet-accent: #e06000;
 
-  .window-content {
-    padding: 0;
-    overflow: hidden;
-    background: #1a1810;
-  }
+  /* The window chrome — title bar, content background, resize handle — used
+     to be repainted here, with !important throughout. Tidy paints all three
+     itself now, and !important outranks it however the stylesheets are
+     ordered, so the sheet kept the old brown frame around the new design.
+     Removed rather than reordered, because load order cannot beat
+     !important. The custom properties above stay: the builder reads them.
 
-  .window-header {
-    background: #100e09 !important;
-    border-bottom: 1px solid #3e3522 !important;
-    color: #c0ad8b !important;
-  }
-
-  .window-header h4 { color: #c0ad8b !important; }
-  .window-header a.close, .window-header a.minimize { color: #8a7e6a !important; &:hover { color: #f0e8d8 !important; } }
-  .window-resizable-handle { border-top-color: #3e3522 !important; }
+     The rest of this section styles .am-cs-* elements, which the Tidy
+     markup no longer emits. Those rules are inert rather than harmful, and
+     are left in place until the NPC sheet is redressed too. */
 }
 
 

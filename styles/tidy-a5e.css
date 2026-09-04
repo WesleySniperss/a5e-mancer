@@ -1,0 +1,492 @@
+/* ==========================================================================
+   A5e blocks that Tidy has no design for
+   ==========================================================================
+   Tidy 5e Sheets was drawn for D&D 5e, so nothing in its stylesheet covers
+   exertion, maneuver DC, expertise dice, or a second exhaustion track. This
+   file supplies those, and nothing else.
+
+   Every value here is one of Tidy's own --t5e-* tokens rather than a literal,
+   so these blocks re-tint with the rest of the sheet when the theme or accent
+   colour changes, and cannot drift out of step with it.
+
+   Loaded AFTER tidy/quadrone.css. Scoped to .a5e-mancer-sheet, which is the
+   last class on our sheet root, so nothing here can reach Tidy's own sheets
+   if they are installed alongside.
+   ========================================================================== */
+
+/* ── The exertion / maneuver DC / passive perception strip ────────────────
+   Sits between the header proper and the tab strip, in the band Tidy leaves
+   to the header gradient. Reads as a continuation of the vitals row. */
+.a5e-mancer-sheet .am-a5e-strip {
+  align-items: center;
+  gap: var(--t5e-size-4x);
+  padding: var(--t5e-size-2x) var(--t5e-size-3x);
+  margin-block-start: var(--t5e-size-1x);
+  border-block-start: 1px solid var(--t5e-table-header-border-color);
+}
+
+.a5e-mancer-sheet .am-a5e-stat {
+  display: flex;
+  align-items: center;
+  gap: var(--t5e-size-2x);
+}
+
+.a5e-mancer-sheet .am-a5e-label {
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.a5e-mancer-sheet .am-a5e-value {
+  color: var(--t5e-color-text-default);
+}
+
+/* The exertion meter borrows Tidy's .meter bar wholesale; it only needs a
+   width and its own fill colour, since the bar geometry is already Tidy's. */
+.a5e-mancer-sheet .am-exertion-meter {
+  min-width: 7rem;
+  --bar-color: var(--t5e-color-text-gold);
+}
+
+.a5e-mancer-sheet .am-exertion-meter .label {
+  display: flex;
+  align-items: center;
+  gap: var(--t5e-size-halfx);
+}
+
+.a5e-mancer-sheet .am-exertion-meter input.value {
+  width: 2.25rem;
+  text-align: end;
+  color: var(--t5e-color-text-default);
+}
+
+/* ── Expertise dice ───────────────────────────────────────────────────────
+   A5e's answer to expertise: a die added to the roll rather than a doubled
+   bonus, so it earns a pill on the skill row instead of a fourth
+   proficiency step. */
+.a5e-mancer-sheet .am-exp-die {
+  flex: 0 0 auto;
+  margin-inline-start: auto;
+  color: var(--t5e-color-text-gold-emphasis);
+  border-color: var(--t5e-component-pill-border);
+}
+
+/* ── Strife ───────────────────────────────────────────────────────────────
+   The second of a5e's two exhaustion tracks. Same control as fatigue beside
+   it, distinguished only by hue, so the pair reads as one idea. */
+.a5e-mancer-sheet .exhaustion.am-strife.exhausted i {
+  color: var(--t5e-color-palette-gold-62);
+}
+
+/* ── Child action rows ────────────────────────────────────────────────────
+   One item can expose several actions in a5e — a weapon with a thrown and a
+   melee attack, a feature with three uses. Tidy shows activities inline
+   under their item; these are the same idea, indented under the parent row
+   and without an icon of their own. */
+.a5e-mancer-sheet .am-child-row {
+  padding-inline-start: var(--t5e-size-6x);
+  background: var(--t5e-component-card-darker);
+}
+
+.a5e-mancer-sheet .am-child-row .tidy-table-row-use-button {
+  justify-content: center;
+}
+
+.a5e-mancer-sheet .am-child-row .cell-name {
+  color: var(--t5e-color-text-lighter);
+}
+
+/* ── Conditions ───────────────────────────────────────────────────────────
+   Tidy's condition list plus the round counter a5e tracks per condition. */
+.a5e-mancer-sheet .am-cond-duration {
+  font-variant-numeric: tabular-nums;
+  padding-inline: var(--t5e-size-1x);
+  font-weight: 600;
+}
+
+.a5e-mancer-sheet .am-cond-toggle {
+  color: var(--t5e-color-text-lightest);
+  cursor: pointer;
+}
+
+.a5e-mancer-sheet .condition.active .am-cond-toggle {
+  color: var(--t5e-color-text-gold-emphasis);
+}
+
+/* ── Spell slots ──────────────────────────────────────────────────────────
+   Tidy puts one tracker per level in its spellbook header; a5e has no
+   preparation modes to group by, so they sit in a single wrapping row. */
+.a5e-mancer-sheet .spell-slots-row {
+  flex-wrap: wrap;
+  gap: var(--t5e-size-2x);
+}
+
+.a5e-mancer-sheet .spell-slot-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--t5e-size-halfx);
+  padding: var(--t5e-size-1x) var(--t5e-size-2x);
+  background: var(--t5e-component-card-default);
+  border-radius: var(--t5e-component-card-radius);
+  box-shadow: var(--t5e-drop-shadow-card);
+}
+
+/* ── Tab action bars ──────────────────────────────────────────────────────
+   Where Tidy has a search field and a create button, our tabs have the
+   mancer's own dialogs. Same position, same spacing. */
+.a5e-mancer-sheet .tab-action-bar {
+  align-items: center;
+  gap: var(--t5e-size-2x);
+  margin-block-end: var(--t5e-size-2x);
+}
+
+.a5e-mancer-sheet .am-feature-filter {
+  flex: 1;
+}
+
+/* ── Notes ────────────────────────────────────────────────────────────────
+   Origin write-ups are long-form prose, so they take Tidy's longform text
+   colour rather than its data colour. */
+.a5e-mancer-sheet .am-notes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: var(--t5e-size-3x);
+}
+
+.a5e-mancer-sheet .am-origin-card,
+.a5e-mancer-sheet .am-bio-card {
+  padding: var(--t5e-size-3x);
+  background: var(--t5e-component-card-default);
+  border-radius: var(--t5e-component-card-radius);
+  box-shadow: var(--t5e-drop-shadow-card);
+}
+
+.a5e-mancer-sheet .am-origin-desc {
+  color: var(--t5e-color-text-longform);
+  margin-block-start: var(--t5e-size-2x);
+}
+
+.a5e-mancer-sheet .am-origin-desc :is(p, ul, ol):first-child {
+  margin-block-start: 0;
+}
+
+/* ── Empty states ─────────────────────────────────────────────────────────
+   Tidy styles .empty-state-container for its own tabs; ours only needs
+   centring when it holds a bare sentence rather than a create button. */
+.a5e-mancer-sheet .empty-state-container {
+  display: flex;
+  justify-content: center;
+  padding-block: var(--t5e-size-6x);
+}
+
+/* ── Making Tidy's layout survive a v1 sheet frame ────────────────────────
+   Tidy is an ApplicationV2 sheet: .window-content is a column flex box whose
+   direct children are the header and the body. Ours is a v1 ActorSheet, and
+   FormApplication needs a <form>, so the form now stands between them and has
+   to take that role over — otherwise the header and the body stop being flex
+   items of anything.
+
+   .tabs-row is where this showed first, and it is worth writing down. Tidy
+   declares `container: sheet-tabs/inline-size` on it, and container-type:
+   inline-size switches OFF intrinsic sizing: the element takes its width from
+   its parent and never from its contents. With the flex chain broken it
+   measured exactly zero wide, and .window-content's overflow:hidden then
+   clipped all six tabs out of sight — which looked like the tab strip had not
+   rendered at all, when in fact every tab was present, styled, and 41px wide.
+   ------------------------------------------------------------------------ */
+.a5e-mancer-sheet .window-content > form.am-sheet-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* .flexcol is a Foundry utility class. Restating it here means the header does
+   not depend on that class continuing to exist for its rows to stack. */
+.a5e-mancer-sheet .sheet-header {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.a5e-mancer-sheet .tabs-row {
+  width: 100%;
+  align-self: stretch;
+}
+
+.a5e-mancer-sheet .sheet-body {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Tidy reserves 8x of padding below the portrait for its death-saves overlay,
+   which slides up over the image. A5e has no death saves in that form and we
+   never render the overlay, so that band was simply empty. Reclaim it. */
+.a5e-mancer-sheet .actor-vitals-container {
+  padding-block-end: var(--t5e-size-2x);
+}
+
+/* ── Base text colour ─────────────────────────────────────────────────────
+   Foundry styles old-style windows with `.window-app .window-content { color:
+   var(--color-text-primary) }`, which is #191813 — near black. Tidy never
+   overrides it because Tidy is an ApplicationV2 sheet and never matches
+   `.window-app` at all; it simply inherits ApplicationV2's light text.
+
+   On our v1 frame that left every element WITHOUT an explicit Tidy colour
+   class rendering black on Tidy's dark ground: item names, row subtitles, the
+   prose in Notes. Headings and skills looked fine only because they carry
+   .color-text-default and .color-text-gold themselves, which hid how broad
+   the problem was.
+
+   One declaration fixes the lot, and it has to live here rather than in
+   quadrone.css so regenerating Tidy's stylesheet never drops it. */
+.a5e-mancer-sheet .window-content {
+  color: var(--t5e-color-text-default);
+}
+
+/* ── The header banner ────────────────────────────────────────────────────
+   Tidy paints the banner as a pseudo-element on the SHEET ROOT: 18.75rem
+   tall, greyscaled and blended as luminosity at 40% opacity, at z-index -2.
+   Per CSS painting order a negative-z-index child sits above its parent's
+   own background but below any in-flow content — so an opaque .window-content
+   hides it completely.
+
+   ApplicationV2 leaves .window-content transparent, which is why it works for
+   Tidy. Foundry's old window frame does not: `.window-app .window-content`
+   carries a background, and it was covering the banner, leaving only the strip
+   above it visible. Hence "cropped, and mostly black".
+
+   The body keeps its own background — Tidy paints the parchment texture on
+   .sheet-body — so only the header band goes see-through. */
+.a5e-mancer-sheet .window-content,
+.a5e-mancer-sheet .window-content > form.am-sheet-form {
+  background: none;
+}
+
+/* ── Table column widths ──────────────────────────────────────────────────
+   Tidy sizes every fixed column by writing --tidy-table-column-width inline
+   from its column definitions. We have no such definitions, so the widths
+   live here and both the header cells and the row cells reference the same
+   custom properties — which is what stops the two drifting apart and
+   throwing the columns out of line.
+
+   Only the name column is flexible. Everything to its right is fixed, so
+   names of different lengths cannot push the numbers around. */
+.a5e-mancer-sheet .tidy-table {
+  --am-col:         5.5rem;   /* attack, damage, range, duration, save … */
+  --am-col-uses:    4.5rem;   /* "3 / 5" plus its separator              */
+  --am-col-narrow:  3.5rem;   /* quantity                                */
+  --am-col-actions: 7rem;     /* star, chat, edit, delete                */
+}
+
+/* The state icons live inside the flexible name column, as they do in Tidy,
+   so a row with three of them still lines up with a row that has none. */
+.a5e-mancer-sheet .am-state-icons {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--t5e-size-halfx);
+  padding-inline-start: var(--t5e-size-1x);
+}
+
+/* ── Collapsing the item summary ──────────────────────────────────────────
+   Tidy collapses .expandable with `grid-template-rows: 0fr`, which gives the
+   content a zero-height track but does NOT clip it. Tidy gets away with that
+   because its ExpandableContainer defers rendering entirely — the children do
+   not exist until the row is opened.
+
+   We render the whole sheet up front from Handlebars, so the children always
+   exist and would spill out of the zero-height track in full view. Clipping
+   the wrapper is what actually hides them. Harmless when expanded, where the
+   track is 1fr and there is nothing to clip. */
+.a5e-mancer-sheet .expandable > .expandable-child-animation-wrapper {
+  overflow: hidden;
+}
+
+/* The nested actions table inside a summary is not a section of the sheet, so
+   it drops the heavy header treatment and sits inset under its item. */
+.a5e-mancer-sheet .inline-activities-table {
+  margin-inline-start: var(--t5e-size-6x);
+  margin-block: var(--t5e-size-1x);
+}
+
+.a5e-mancer-sheet .inline-activities-table .tidy-table-header-row.no-background {
+  background: none;
+}
+
+/* ── Inventory footer ─────────────────────────────────────────────────────
+   Currency on the left, carried weight on the right. Weight is a5e's own
+   figure — equipped and carried items only, plus excess supply and, when the
+   world tracks it, coins. See #carriedWeight. */
+.a5e-mancer-sheet .inventory-footer {
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--t5e-size-3x);
+}
+
+.a5e-mancer-sheet .am-carried {
+  display: flex;
+  align-items: center;
+  gap: var(--t5e-size-2x);
+  white-space: nowrap;
+}
+
+/* A container's contents sit under it in the summary, one step further in
+   than the actions table so the nesting reads at a glance. */
+.a5e-mancer-sheet .inline-activities-table + .inline-activities-table {
+  margin-block-start: var(--t5e-size-2x);
+}
+
+/* ── Conditions ───────────────────────────────────────────────────────────
+   Tidy draws each condition's icon as <dnd5e-icon>, a custom element the dnd5e
+   system registers and sizes through --icon-size. A5e has no such element, so
+   ours is a plain <img> — and nothing in Tidy's stylesheet constrains an <img>
+   here, so every condition rendered its SVG at full natural size: one giant
+   picture per row, with the labels pushed out of sight.
+
+   The list itself is already a grid in Tidy (auto-fit, min 12.5rem), so only
+   the row and the icon need describing. */
+.a5e-mancer-sheet .conditions-list .condition .condition-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: var(--t5e-size-2x);
+  width: 100%;
+  cursor: pointer;
+}
+
+.a5e-mancer-sheet .am-condition-icon {
+  flex: 0 0 auto;
+  width: 1.5rem;
+  height: 1.5rem;
+  object-fit: contain;
+  border: none;
+  opacity: 0.6;
+}
+
+.a5e-mancer-sheet .conditions-list .condition.active .am-condition-icon {
+  opacity: 1;
+}
+
+/* The name takes the middle and ellipsises; the round counter and the toggle
+   keep their size at the end. */
+.a5e-mancer-sheet .conditions-list .condition .flex1 {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.a5e-mancer-sheet .conditions-list .condition .am-cond-toggle,
+.a5e-mancer-sheet .conditions-list .condition .am-cond-duration {
+  flex: 0 0 auto;
+}
+
+/* ── Section headings ─────────────────────────────────────────────────────
+   Tidy marks these with <tidy-gold-header-underline>, an element its own
+   script renders. The stylesheet carries no rule for it, so on our sheet it
+   was inert markup drawing nothing. The line is drawn here instead, on the
+   heading itself, which needs no script. */
+.a5e-mancer-sheet .character-traits-title h3,
+.a5e-mancer-sheet .am-origin-card > h3,
+.a5e-mancer-sheet .am-bio-card > h3 {
+  padding-block-end: var(--t5e-size-1x);
+  border-block-end: 0.0625rem solid var(--t5e-color-gold);
+}
+
+/* ── Coin icons ───────────────────────────────────────────────────────────
+   Tidy paints these through `.form-group label.label-icon.currency.gp:after`,
+   a shape that only occurs inside its own currency form. Rather than contort
+   our footer to match a selector we do not otherwise want, the icons are
+   painted here from the same images, which are already vendored in tidy/. */
+.a5e-mancer-sheet .inventory-footer .denomination {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--t5e-size-1x);
+}
+
+.a5e-mancer-sheet .inventory-footer .denomination i.currency {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 1rem;
+  height: 1rem;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.a5e-mancer-sheet .inventory-footer .denomination i.currency.pp { background-image: url(../tidy/images/platinum.webp); }
+.a5e-mancer-sheet .inventory-footer .denomination i.currency.gp { background-image: url(../tidy/images/gold.webp); }
+.a5e-mancer-sheet .inventory-footer .denomination i.currency.ep { background-image: url(../tidy/images/electrum.webp); }
+.a5e-mancer-sheet .inventory-footer .denomination i.currency.sp { background-image: url(../tidy/images/silver.webp); }
+.a5e-mancer-sheet .inventory-footer .denomination i.currency.cp { background-image: url(../tidy/images/copper.webp); }
+
+.a5e-mancer-sheet .inventory-footer .denomination input {
+  width: 3.5rem;
+  text-align: end;
+}
+
+/* ── Hit points ───────────────────────────────────────────────────────────
+   Tidy pins every bare .button-icon-only in this row to the right edge with
+   position:absolute. That is fine when there is one of them — its config cog —
+   but we have two, heal and damage, and they landed exactly on top of each
+   other so only the upper one could be clicked. The wrapper takes the pinning
+   and the buttons sit inside it normally. */
+.a5e-mancer-sheet .actor-vitals .hp-row .am-hp-buttons {
+  position: absolute;
+  inset-inline-end: var(--t5e-size-1x);
+  inset-block-start: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--t5e-size-halfx);
+  z-index: 2;
+}
+
+.a5e-mancer-sheet .actor-vitals .hp-row .am-hp-buttons .button.button-icon-only.button-borderless {
+  position: static;
+  inset-inline-end: auto;
+  flex: 0 0 auto;
+}
+
+/* The inline editor that replaces the label. [hidden] has to be restated,
+   because a display rule of our own would otherwise beat it. */
+.a5e-mancer-sheet .am-hp-edit {
+  display: flex;
+  align-items: center;
+  gap: var(--t5e-size-halfx);
+  height: 100%;
+  padding-inline: var(--t5e-size-1x);
+}
+
+.a5e-mancer-sheet .am-hp-edit[hidden] {
+  display: none;
+}
+
+.a5e-mancer-sheet .am-hp-edit .hp-input {
+  width: 2.75rem;
+  text-align: center;
+  color: var(--t5e-color-text-default);
+  background: rgba(0, 0, 0, 0.35);
+  border: none;
+  border-radius: var(--t5e-size-halfx);
+}
+
+.a5e-mancer-sheet .am-hp-edit .separator {
+  color: var(--t5e-color-text-lighter);
+  flex: 0 0 auto;
+}
+
+/* Temp HP only appears when there is any — see the template. The value sits
+   beside the icon so the band is readable rather than being a bare colour. */
+.a5e-mancer-sheet .actor-vitals .hp-row .temp-hp .am-temp-value {
+  font-weight: 600;
+  padding-inline-start: var(--t5e-size-halfx);
+}
+
+/* Keep the numbers clear of the buttons. */
+.a5e-mancer-sheet .actor-vitals .hit-points .label {
+  padding-inline-end: 3.5rem;
+}

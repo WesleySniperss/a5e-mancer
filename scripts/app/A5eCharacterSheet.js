@@ -47,6 +47,39 @@ const SKILLS = [
 
 const PROF_ICONS = ['○', '◑', '●', '◉'];
 
+/* Object types a5e has no plural label for still need a readable heading. */
+/* Turns a description into a one-line subtitle. It has to undo two things
+   that were showing through raw on the sheet: Foundry's enricher syntax,
+   where @UUID[…]{Produce Flame} should read as just 'Produce Flame', and
+   HTML entities, where &nbsp; was being printed literally because stripping
+   tags leaves entities behind. */
+const plainText = (html) => String(html ?? '')
+  .replace(/@UUID\[[^\]]+\]\{([^}]*)\}/g, '$1')
+  .replace(/@\w+\[[^\]]*\]\{([^}]*)\}/g, '$1')
+  .replace(/@\w+\[([^\]]*)\]/g, '$1')
+  .replace(/<[^>]*>/g, ' ')
+  .replace(/&nbsp;/g, ' ')
+  .replace(/&amp;/g, '&')
+  .replace(/&lt;/g, '<')
+  .replace(/&gt;/g, '>')
+  .replace(/&quot;/g, '"')
+  .replace(/&#39;/g, "'")
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const titleCase = (s) => String(s ?? '')
+  .replace(/([a-z])([A-Z])/g, '$1 $2')
+  .replace(/^./, c => c.toUpperCase());
+
+/* Tidy draws proficiency with Font Awesome circles rather than glyphs; same
+   four steps, same order as PROF_ICONS above. */
+const PROF_ICON_CLASSES = [
+  'fa-regular fa-circle',
+  'fa-solid fa-circle-half-stroke',
+  'fa-solid fa-circle',
+  'fa-solid fa-circle-star'
+];
+
 /* A5e uses abbreviated keys in CONFIG.A5E.skills; system.skills uses long keys.
    Map long → abbreviated so rollSkillCheck's dialog path can localise properly. */
 const A5E_SKILL_ABBR = {
@@ -63,13 +96,26 @@ export class A5eCharacterSheet extends ActorSheet {
 
   static get defaultOptions() {
     return foundry.utils.mergeObject(super.defaultOptions, {
-      classes: ['a5e-mancer-sheet', 'sheet', 'actor'],
-      template: `modules/${MODULE_ID}/templates/sheet/character-sheet.hbs`,
-      width: 960,
-      height: 740,
+      /* Tidy's Quadrone rules are scoped to
+           .tidy5e-sheet.application:where(.quadrone.actor) …
+         so the root has to carry every one of those classes for the design to
+         land. 'application' is what ApplicationV2 adds by itself; this is still
+         a v1 ActorSheet, so we add it by hand. 'themed' + 'theme-dark' pick
+         Tidy's dark palette. 'a5e-mancer-sheet' stays last so our own rules
+         still have somewhere to hang. See tidy/README.md. */
+      classes: ['tidy5e-sheet', 'application', 'sheet', 'actor', 'character',
+                'quadrone', 'themed', 'theme-dark', 'a5e-mancer-sheet'],
+      template: `modules/${MODULE_ID}/templates/sheet/tidy-character-sheet.hbs`,
+      /* Tidy's own character sheet opens at 740x810; a5e needs a little more
+         width for the exertion strip and the expertise-die column. */
+      width: 820,
+      height: 860,
       resizable: true,
-      tabs: [{ navSelector: '.am-cs-tabs', contentSelector: '.am-cs-tabcontent', initial: 'favorites' }],
-      dragDrop: [{ dragSelector: '.am-item-row', dropSelector: '.am-cs-tabcontent' }]
+      /* Only the primary strip is a Foundry tab group. The sidebar's two tabs
+         use data-sidebar-tab and are switched in activateListeners, because a
+         second group nested inside .main-content would be caught by this one. */
+      tabs: [{ navSelector: '.actor-tabs', contentSelector: '.main-content', initial: 'favorites' }],
+      dragDrop: [{ dragSelector: '.tidy-table-row-container[data-item-id]', dropSelector: '.main-content' }]
     });
   }
 
@@ -80,6 +126,11 @@ export class A5eCharacterSheet extends ActorSheet {
     const items  = actor.items.contents;
 
     const profBonus = sys.attributes?.prof ?? sys.proficiencyBonus ?? this.#calcProf(actor);
+
+    /* Favourites hold two kinds of thing. Items are remembered by id, the
+       way they always were; skills have no id, so their keys live in a flag
+       of their own rather than being squeezed into the same list. */
+    const favoriteSkillKeys = new Set(actor.getFlag(MODULE_ID, 'favoriteSkills') ?? []);
 
     /* Abilities */
     const abilities = ABILITIES.map(({ key, label, abbr }) => {
@@ -132,7 +183,18 @@ export class A5eCharacterSheet extends ActorSheet {
       const bonus   = d.total ?? d.value ?? (abilMod + Math.floor(profBonus * mult));
       const expDie  = d.expertiseDice > 0 ? `+d${4 + (d.expertiseDice - 1) * 2}` : '';
       const profIcon = PROF_ICONS[Math.min(profLvl, 3)];
-      return { key, label, ability, bonus, bonusStr: sign(bonus), profLvl, profIcon, expDie };
+      // Tidy prints the sign and the number in separate spans, and shows a
+      // passive score in its own column, so both are precomputed here.
+      return {
+        key, label, ability, bonus, bonusStr: sign(bonus),
+        bonusSign: bonus < 0 ? '-' : '+',
+        bonusAbs: Math.abs(bonus),
+        passive: 10 + bonus,
+        profLvl, profIcon,
+        profIconClass: PROF_ICON_CLASSES[Math.min(profLvl, 3)] ?? PROF_ICON_CLASSES[0],
+        starred: favoriteSkillKeys.has(key),
+        expDie
+      };
     });
 
     /* Resources */
@@ -349,8 +411,31 @@ export class A5eCharacterSheet extends ActorSheet {
     bio.hasDestiny = !!(bio.motivation || bio.goals || bio.connection
                         || bio.fulfillment || bio.inspiration || bio.lore.length);
 
+    const tidy = this.#tidyContext({ sys, abilities, classes, resources, profBonus, currency });
+    const inventory = this.#inventory(actor, items);
+
+    /* Item descriptions arrive exactly as written, and a5e writes
+       @UUID[…]{…} links, @Check[…] prompts and inline rolls into them.
+       Those only become links once enrichHTML has run; until then they show
+       as raw bracket soup, which is what the summary panels were doing.
+       Enriched here, once, over every row object the template can reach —
+       the rows are plain objects, so this edits them in place. */
+    const enrichRows = async (...lists) => {
+      const rows = lists.flat().filter(r => r && typeof r.desc === 'string' && r.desc);
+      await Promise.all(rows.map(async (row) => {
+        row.desc = await enrichDesc(row.desc, actor);
+      }));
+    };
+    await enrichRows(
+      weapons, maneuvers, spells, features, feats, allFeatures, equipment,
+      inventory.groups.flatMap(g => g.items),
+      inventory.groups.flatMap(g => g.items.flatMap(i => i.contents ?? []))
+    );
+
     return {
       actor, system: sys, isOwner: actor.isOwner, isGM: game.user.isGM,
+      tidy,
+      inventory,
       abilities, skills, resources, classes,
       savingThrows, maneuverDC, proficiencies,
       weapons, maneuvers, maneuverGroups, spells, spellGroups, slotRows,
@@ -371,28 +456,28 @@ export class A5eCharacterSheet extends ActorSheet {
           ...maneuvers.map(i => ({...i, isManeuver: true})),
           ...spells.map(i => ({...i, isSpell: true}))].forEach(() => {}),
 
-      // Actions tab — grouped by item (parent + child actions) + favorites
+      /* Favourites tab.
+
+         It lists what the player starred and nothing else — a maneuver
+         starred in Martial, a potion starred in Inventory, a skill starred
+         in the sidebar. It used to also carry an "All Actions" table that
+         swept up every weapon, maneuver and feature that had an action,
+         which duplicated the Martial tab and put maneuvers in two places at
+         once. That table is gone; nothing arrives here on its own. */
       ...(() => {
         const favoriteIds = new Set([
           ...(actor.getFlag(MODULE_ID, 'favorites') ?? []),
           ...items.filter(i => i.system?.favorite).map(i => i.id),
         ]);
-        const actionItems = items.filter(i => {
-          if (i.type === 'object' && i.system?.objectType === 'weapon') return true;
-          if (i.type === 'maneuver') return true;
-          if (i.type === 'feature') {
-            const a = i.system?.actions ?? {};
-            const len = a instanceof Map ? a.size
-              : (a.contents?.length ?? Object.keys(a).length);
-            return len > 0;
-          }
-          return false;
-        });
-        const actionGroups = actionItems.map(i => this.#buildActionGroup(i, favoriteIds));
+        const favorites = items
+          .filter(i => favoriteIds.has(i.id))
+          .map(i => this.#buildActionGroup(i, favoriteIds))
+          .sort((a, b) => a.name.localeCompare(b.name));
+        const favoriteSkills = skills.filter(s => favoriteSkillKeys.has(s.key));
         return {
-          actionGroups,
-          favorites: actionGroups.filter(g => g.starred),
-          hasActions: actionGroups.length > 0,
+          favorites,
+          favoriteSkills,
+          hasFavorites: favorites.length > 0 || favoriteSkills.length > 0,
         };
       })(),
 
@@ -400,6 +485,202 @@ export class A5eCharacterSheet extends ActorSheet {
       spellLevelOrder: ['Level 1','Level 2','Level 3','Level 4','Level 5',
                         'Level 6','Level 7','Level 8','Level 9']
     };
+  }
+
+  /* ── Tidy context ─────────────────────────────────
+     Everything Tidy's Quadrone markup reads that our own context did not
+     already carry. Kept in one place, and separate from the data the old
+     layout used, so the two never drift into each other.
+
+     Tidy splits every modifier into a sign and a bare number, because it
+     styles them differently — hence the {sign, value} pairs throughout. */
+  #tidyContext({ sys, abilities, classes, resources, profBonus, currency }) {
+    const split = (n) => ({ sign: n < 0 ? '-' : '+', value: Math.abs(Number(n) || 0) });
+    const pct = (v, max) => (max > 0 ? Math.round(Math.min(Math.max(v / max, 0), 1) * 100) : 0);
+
+    /* A5e keeps hit dice per die size — attributes.hitDice.d8.current — where
+       dnd5e keeps a single pool, so Tidy's one meter sums them. */
+    const hitDice = sys.attributes?.hitDice ?? {};
+    let hdValue = 0, hdMax = 0;
+    for (const die of Object.values(hitDice)) {
+      hdValue += Number(die?.current ?? 0) || 0;
+      hdMax   += Number(die?.total ?? die?.max ?? 0) || 0;
+    }
+
+    /* Movement and senses are printed in the subtitle. Both are stored either
+       as {distance} objects or as bare numbers depending on how the actor was
+       made, so read both shapes and drop anything empty. */
+    const distanceOf = (v) => Number(v?.distance ?? v?.value ?? v ?? 0) || 0;
+    const titleCase  = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+    const entries = (obj) => Object.entries(obj ?? {})
+      .map(([key, raw]) => ({ key, value: distanceOf(raw) }))
+      .filter((e) => e.value > 0)
+      .map((e) => ({ label: titleCase(e.key), value: e.value, units: 'ft' }));
+
+    const speeds = entries(sys.attributes?.movement);
+    const senses = entries(sys.senses);
+
+    /* Concentration in a5e is a Constitution save plus its own bonus, and is
+       rolled by actor.rollConcentrationCheck rather than by a save. */
+    const conMod = abilities.find((a) => a.key === 'con')?.saveMod ?? 0;
+    const concBonus = Number(
+      sys.bonuses?.concentration ?? sys.attributes?.concentration?.bonus ?? 0
+    ) || 0;
+
+    const DENOMINATIONS = [
+      { key: 'pp', label: 'Platinum' }, { key: 'gp', label: 'Gold' },
+      { key: 'ep', label: 'Electrum' }, { key: 'sp', label: 'Silver' },
+      { key: 'cp', label: 'Copper' }
+    ];
+
+    return {
+      pb:   split(profBonus),
+      init: split(sys.attributes?.initiative?.mod ?? sys.attributes?.initiative?.value ?? 0),
+      conc: split(conMod + concBonus),
+      hp:   { pct: pct(resources.hp.value, resources.hp.max) },
+      hd:   { value: hdValue, max: hdMax, pct: pct(hdValue, hdMax) },
+      portrait: { shape: 'round' },
+      speeds,
+      senses,
+      classLine: classes.map((c) => ({ name: c.name, levels: c.level })),
+      currencies: DENOMINATIONS.map((d) => ({ ...d, value: currency?.[d.key] ?? 0 })),
+      abilities: abilities.map((a) => ({
+        ...a,
+        modSign:  a.mod < 0 ? '-' : '+',
+        modAbs:   Math.abs(a.mod),
+        saveSign: a.saveMod < 0 ? '-' : '+',
+        saveAbs:  Math.abs(a.saveMod)
+      }))
+    };
+  }
+
+  /* ── Inventory ────────────────────────────────────
+     Ported from a5e's own inventory page rather than invented here, so the
+     sheet groups and hides things the way the system does:
+
+       · objects are grouped by system.objectType, with shield and helm
+         folded into armor, and anything untyped landing in 'uncategorized'
+       · the order of the groups comes from CONFIG.A5E.reducerSortMap
+       · an item that lives inside a container is NOT listed at the top
+         level — it appears under its container
+       · the Uses, Quantity and Weight columns only appear when something
+         actually needs them, which is why each has its own test
+
+     Weight is the odd one out: it has a three-state flag rather than a
+     boolean, so 'nothing weighs anything' is not the only reason to hide
+     it. State 0 hides it always, 1 shows it whenever anything has weight,
+     2 shows it only when a container sorts by weight.
+
+     Source: src/view/sheets/pages/ActorInventoryPage.svelte and the
+     utils/view/{groupItemsByType,usesRequired,quantityRequired,
+     weightRequired}.ts helpers, read out of the system's own a5e.js.map. */
+  #inventory(actor, items) {
+    const objects = items.filter(i => i.type === 'object');
+
+    /* Contents of a container are listed under it, so they are kept out of
+       the top level. a5e matches on the container's uuid, not its id. */
+    const topLevel = objects
+      .filter(i => !i.system?.containerId)
+      .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
+
+    const groupKey = (item) => {
+      let sub = item.system?.objectType;
+      if (['armor', 'shield', 'helm'].includes(sub)) sub = 'armor';
+      return sub || 'uncategorized';
+    };
+
+    const labels = CONFIG?.A5E?.objectTypesPlural ?? {};
+    const sortMap = CONFIG?.A5E?.reducerSortMap?.object ?? {};
+
+    /* Seed the map in the system's own order so empty groups keep their
+       place and the list does not reshuffle as items come and go. */
+    const grouped = new Map(Object.keys(sortMap).map(k => [k, []]));
+    for (const item of topLevel) {
+      const key = groupKey(item);
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key).push(item);
+    }
+
+    const contentsOf = (container) => objects
+      .filter(i => i.system?.containerId === container.uuid)
+      .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0))
+      .map(i => this.#gear(i));
+
+    const groups = [...grouped.entries()]
+      .filter(([, list]) => list.length > 0)
+      .map(([key, list]) => ({
+        key,
+        label: game.i18n.localize(labels[key] ?? '') || titleCase(key),
+        items: list.map(item => {
+          const row = this.#gear(item);
+          if (item.system?.objectType === 'container') {
+            row.contents = contentsOf(item);
+            row.isContainer = true;
+          }
+          return row;
+        })
+      }));
+
+    /* Column tests, one per a5e helper. 'Uses' looks at the item and at
+       every action on it, because an action can carry its own uses. */
+    const actionsOf = (item) => {
+      const a = item.system?.actions;
+      return a instanceof Map ? [...a.values()] : Object.values(a ?? {});
+    };
+    const hasUses = (list) => list.some(item =>
+      item?.system?.uses?.max || actionsOf(item).some(x => x?.uses?.max));
+
+    const weightFlag = Number(actor.getFlag('a5e', 'showWeightColumn') ?? 0);
+    const anythingWeighs = objects.some(i => i.system?.weight);
+    const showWeight =
+      weightFlag !== 0 && anythingWeighs && (
+        weightFlag === 1 ||
+        (weightFlag === 2 && objects.some(i =>
+          i.system?.objectType === 'container' &&
+          i.system?.containerSortMethod === 'weight'))
+      );
+
+    return {
+      groups,
+      showUses:   hasUses(objects),
+      showQty:    objects.length > 0,
+      showWeight,
+      carried:    this.#carriedWeight(actor, items),
+      isEmpty:    groups.length === 0
+    };
+  }
+
+  /* Carried weight, ported from a5e's calculateInventoryWeight.
+
+     Only equipped and carried things count, and only at the top level —
+     what is inside a container is counted through the container, never
+     twice. Supply beyond what the carrying ability allows adds 2 per point,
+     and coins weigh 0.02 each when the world or the actor tracks that. */
+  #carriedWeight(actor, items) {
+    const sys = actor.system ?? {};
+    const carryAbility = actor.getFlag('a5e', 'carryCapacityAbility') ?? 'str';
+    const abilityValue = sys.abilities?.[carryAbility]?.value ?? 10;
+
+    const itemWeight = items.reduce((acc, item) => {
+      if (item.system?.containerId) return acc;          // counted via its container
+      const state = item.system?.equippedState ?? 0;
+      if (state !== 1 && state !== 2) return acc;         // not carried, not equipped
+      const weight = parseFloat(item.system?.weight ?? 0) || 0;
+      const qty    = Number(item.system?.quantity ?? 0) || 0;
+      return acc + (qty ? weight * qty : weight);
+    }, 0);
+
+    const coins = Object.values(sys.currency ?? {})
+      .reduce((acc, n) => acc + (Number(n) || 0), 0);
+    const excessSupply = 2 * Math.abs(Math.min(abilityValue - (sys.supply ?? 0), 0));
+
+    let trackCoins = actor.flags?.a5e?.trackCurrencyWeight;
+    if (trackCoins === undefined) {
+      try { trackCoins = game.settings.get('a5e', 'currencyWeight'); } catch { trackCoins = false; }
+    }
+
+    const total = itemWeight + excessSupply + (trackCoins ? coins * 0.02 : 0);
+    return Math.round(total * 100) / 100;
   }
 
   /* ── Item builders ────────────────────────────────── */
@@ -491,6 +772,7 @@ export class A5eCharacterSheet extends ActorSheet {
       broken:       (sys.damagedState ?? 0) === 2,
       activation,
       desc: descOf(sys),
+      actions: this.#allActionsForItem(item),
     };
   }
 
@@ -506,8 +788,16 @@ export class A5eCharacterSheet extends ActorSheet {
       id: item.id, name: item.name, img: item.img,
       tradition: tradition || 'Other',
       degree, exertion, activation,
+      // Degree and exertion are the cost of a maneuver, and dnd5e has no
+      // column for either, so they are shown as tags in the summary panel.
+      summaryTags: [
+        degree   ? `Degree ${degree}` : null,
+        exertion ? `${exertion} exertion` : null,
+        sys.prerequisite || null
+      ].filter(Boolean),
       range, dmgFull, saveDC,
       desc: descOf(sys),
+      actions: this.#allActionsForItem(item),
     };
   }
 
@@ -536,6 +826,12 @@ export class A5eCharacterSheet extends ActorSheet {
       level,
       levelLabel: level === 0 ? 'Cantrip' : `Level ${level}`,
       school: schoolKey,
+      summaryTags: [
+        level === 0 ? 'Cantrip' : `Level ${level}`,
+        schoolLabel || null,
+        conc ? 'Concentration' : null,
+        sys.ritual ? 'Ritual' : null
+      ].filter(Boolean),
       schoolLabel,
       ritual: sys.ritual ?? false,
       concentration: conc,
@@ -543,6 +839,7 @@ export class A5eCharacterSheet extends ActorSheet {
       activation,
       range, duration, dmgFull, saveDC,
       desc: descOf(sys),
+      actions: this.#allActionsForItem(item),
     };
   }
 
@@ -556,7 +853,7 @@ export class A5eCharacterSheet extends ActorSheet {
     const rawDesc  = descOf(sys);
     const hasCombatProps = !!(dmgFull || range || saveDC);
     const shortDesc = !hasCombatProps && rawDesc
-      ? rawDesc.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 90)
+      ? plainText(rawDesc).slice(0, 90)
       : null;
 
     return {
@@ -573,6 +870,7 @@ export class A5eCharacterSheet extends ActorSheet {
       isAbility: true,
       atkBonus: atkBonus ? sign(Number(atkBonus)) : null,
       dmgFull, range, saveDC, shortDesc,
+      actions: this.#allActionsForItem(item),
     };
   }
 
@@ -626,6 +924,7 @@ export class A5eCharacterSheet extends ActorSheet {
       damagedState: sys.damagedState ?? 0,
       damaged:      (sys.damagedState ?? 0) === 1,
       broken:       (sys.damagedState ?? 0) === 2,
+      desc: descOf(sys),
     };
   }
 
@@ -665,9 +964,9 @@ export class A5eCharacterSheet extends ActorSheet {
 
     /* ── Roll listeners (work for all viewers, not just owners) ── */
 
-    /* Ability left-click → instant roll; right-click → system dialog */
+    /* Ability left-click → A5e roll dialog; right-click → instant roll */
     el.querySelectorAll('[data-action="ability-check"]').forEach(b => {
-      b.addEventListener('click', async (e) => {
+      b.addEventListener('contextmenu', async (e) => {
         e.preventDefault();
         e.stopPropagation();
         const id    = b.dataset.ability;
@@ -682,7 +981,7 @@ export class A5eCharacterSheet extends ActorSheet {
           await this.#roll(`1d20 + ${mod}`, label);
         }
       });
-      b.addEventListener('contextmenu', async (e) => {
+      b.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
         const id    = b.dataset.ability;
@@ -705,9 +1004,9 @@ export class A5eCharacterSheet extends ActorSheet {
       });
     });
 
-    /* Saving throw left-click → instant roll; right-click → system dialog */
+    /* Saving throw left-click → A5e roll dialog; right-click → instant roll */
     el.querySelectorAll('[data-action="saving-throw"]').forEach(b => {
-      b.addEventListener('click', async (e) => {
+      b.addEventListener('contextmenu', async (e) => {
         e.preventDefault();
         e.stopPropagation();
         const id    = b.dataset.ability;
@@ -722,7 +1021,7 @@ export class A5eCharacterSheet extends ActorSheet {
           await this.#roll(`1d20 + ${mod}`, label);
         }
       });
-      b.addEventListener('contextmenu', async (e) => {
+      b.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
         const id    = b.dataset.ability;
@@ -746,9 +1045,9 @@ export class A5eCharacterSheet extends ActorSheet {
       });
     });
 
-    /* Skill left-click → instant roll (no dialog) */
+    /* Skill left-click → A5e roll dialog */
     el.querySelectorAll('[data-action="skill-check"]').forEach(b => {
-      b.addEventListener('click', async (e) => {
+      b.addEventListener('contextmenu', async (e) => {
         e.preventDefault();
         e.stopPropagation();
         const longKey = b.dataset.skill;
@@ -765,9 +1064,10 @@ export class A5eCharacterSheet extends ActorSheet {
       });
     });
 
-    /* Skill right-click → system dialog (uses abbreviated key for CONFIG.A5E.skills lookup) */
+    /* Skill right-click → instant roll, no dialog (uses the abbreviated key,
+       which is what CONFIG.A5E.skills is keyed by) */
     el.querySelectorAll('[data-action="skill-check"]').forEach(b => {
-      b.addEventListener('contextmenu', async (e) => {
+      b.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
         const longKey  = b.dataset.skill;
@@ -784,20 +1084,10 @@ export class A5eCharacterSheet extends ActorSheet {
       });
     });
 
-    /* Item image click → A5e activation dialog (with adv/disadv/bonus selection) */
-    el.querySelectorAll('.am-item-row[data-item-id] .am-cs-ico').forEach(img => {
-      img.style.cursor = 'pointer';
-      img.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        const row  = img.closest('[data-item-id]');
-        const item = row ? this.actor.items.get(row.dataset.itemId) : null;
-        if (!item) return;
-        try {
-          if (typeof item.activate === 'function') await item.activate();
-          else item.sheet.render(true);
-        } catch(err) { AM.log(2, 'img activate error:', err); }
-      });
-    });
+    /* The item image used to carry its own activation handler. It now sits
+       INSIDE the use button, which carries data-action="item-use", so a
+       click on the icon fired both and activated the item twice. Removed;
+       the use button below handles the whole target. */
 
     if (!this.isEditable) return;
 
@@ -841,22 +1131,44 @@ export class A5eCharacterSheet extends ActorSheet {
     );
 
     /* Use button — skip dialog, just roll with defaults */
-    el.querySelectorAll('[data-action="item-use"]').forEach(b =>
-      b.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        const item = this.actor.items.get(b.dataset.id);
-        if (!item) return;
-        try {
-          if (typeof item.activate === 'function') { await item.activate(null, { skipRollDialog: true }); return; }
-          if (typeof item.use      === 'function') { await item.use({ configureDialog: false });          return; }
-          if (typeof item.roll     === 'function') { await item.roll();                                   return; }
-          item.sheet.render(true);
-        } catch(err) {
-          AM.log(2, 'item-use error:', err);
-          item.sheet.render(true);
+    /* Using an item, and using one named action on it.
+
+       Left click asks: a5e's activation dialog, where advantage, bonuses and
+       what gets consumed are chosen. Right click skips it and rolls straight
+       away. Same arrangement as the ability, save and skill rolls above, so
+       the whole sheet behaves one way.
+
+       Both selectors share the handler; they differ only in whether an
+       action id is passed, and 'default' means the item's implicit action. */
+    const activateItem = (actionIdOf, skipRollDialog) => async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const b = e.currentTarget;
+      const item = this.actor.items.get(b.dataset.id);
+      if (!item) return;
+      try {
+        if (typeof item.activate === 'function') {
+          await item.activate(actionIdOf(b), { skipRollDialog });
+          return;
         }
-      })
-    );
+        if (typeof item.use  === 'function') { await item.use({ configureDialog: !skipRollDialog }); return; }
+        if (typeof item.roll === 'function') { await item.roll(); return; }
+        item.sheet.render(true);
+      } catch (err) {
+        AM.log(2, 'item activation:', err);
+        item.sheet.render(true);
+      }
+    };
+
+    for (const [selector, actionIdOf] of [
+      ['[data-action="item-use"]',        () => null],
+      ['[data-action="item-action-use"]', (b) => (b.dataset.actionId !== 'default' ? b.dataset.actionId : null)]
+    ]) {
+      el.querySelectorAll(selector).forEach(b => {
+        b.addEventListener('click',       activateItem(actionIdOf, false));
+        b.addEventListener('contextmenu', activateItem(actionIdOf, true));
+      });
+    }
 
     /* Star / favorite toggle */
     el.querySelectorAll('[data-action="item-star"]').forEach(b =>
@@ -869,24 +1181,21 @@ export class A5eCharacterSheet extends ActorSheet {
       })
     );
 
-    /* Use a specific named action on an item */
-    el.querySelectorAll('[data-action="item-action-use"]').forEach(b =>
+    /* Same idea for a skill, which has a key rather than an id and so is
+       kept in its own flag. See the note beside favoriteSkillKeys. */
+    el.querySelectorAll('[data-action="skill-star"]').forEach(b =>
       b.addEventListener('click', async (e) => {
+        e.preventDefault();
         e.stopPropagation();
-        const item     = this.actor.items.get(b.dataset.id);
-        const actionId = b.dataset.actionId;
-        if (!item) return;
-        try {
-          if (typeof item.activate === 'function') {
-            await item.activate(actionId !== 'default' ? actionId : null, { skipRollDialog: true });
-            return;
-          }
-          if (typeof item.use  === 'function') { await item.use({ configureDialog: false }); return; }
-          if (typeof item.roll === 'function') { await item.roll(); return; }
-          item.sheet.render(true);
-        } catch(err) { AM.log(2, 'item-action-use:', err); item.sheet.render(true); }
+        const key = b.dataset.skill;
+        const cur = new Set(this.actor.getFlag(MODULE_ID, 'favoriteSkills') ?? []);
+        if (cur.has(key)) cur.delete(key); else cur.add(key);
+        await this.actor.setFlag(MODULE_ID, 'favoriteSkills', [...cur]);
       })
     );
+
+    /* Use a specific named action on an item */
+
 
     /* Item uses input (current uses tracker on parent row) */
     el.querySelectorAll('[data-action="item-uses"]').forEach(inp =>
@@ -900,17 +1209,26 @@ export class A5eCharacterSheet extends ActorSheet {
     );
 
     /* Item name click — open item sheet */
-    el.querySelectorAll('.am-item-name').forEach(span =>
-      span.addEventListener('click', () => {
-        const row  = span.closest('[data-item-id]');
-        const id   = row?.dataset?.itemId;
-        const item = id ? this.actor.items.get(id) : null;
-        item?.sheet?.render(true);
+    /* Clicking a row's name expands its summary — the description and the
+       item's own actions — the way Tidy does it. The pencil in the actions
+       column still opens the item sheet. */
+    el.querySelectorAll('.item-name').forEach(name =>
+      name.addEventListener('click', (e) => {
+        e.preventDefault();
+        const container = name.closest('.tidy-table-row-container');
+        const summary = container?.querySelector(':scope > .expandable');
+        if (!summary) return;
+        const open = summary.classList.toggle('expanded');
+        container.querySelector('.row-detail-expand-indicator')
+          ?.classList.toggle('collapsed', !open);
+        container.querySelector('.row-detail-expand-indicator')
+          ?.classList.toggle('expanded', open);
+        container.querySelector('.tidy-table-row')?.classList.toggle('expanded', open);
       })
     );
 
     /* Right-click any item row → A5e activation dialog (with adv/disadv modifiers) */
-    el.querySelectorAll('.am-item-row[data-item-id]').forEach(row =>
+    el.querySelectorAll('.tidy-table-row-container[data-item-id]').forEach(row =>
       row.addEventListener('contextmenu', async (e) => {
         e.preventDefault();
         const item = this.actor.items.get(row.dataset.itemId);
@@ -1212,7 +1530,7 @@ export class A5eCharacterSheet extends ActorSheet {
       featSearch.addEventListener('input', (e) => {
         const q = e.target.value.toLowerCase();
         el.querySelectorAll('.am-feat-item').forEach(item => {
-          const name = item.querySelector('.am-item-name')?.textContent?.toLowerCase() ?? '';
+          const name = item.querySelector('.item-name')?.textContent?.toLowerCase() ?? '';
           item.style.display = name.includes(q) ? '' : 'none';
         });
       });
@@ -1299,7 +1617,7 @@ export class A5eCharacterSheet extends ActorSheet {
     el.querySelector('#am-feature-search')?.addEventListener('input', (e) => {
       const q = e.target.value.toLowerCase();
       el.querySelectorAll('.am-feat-item').forEach(item => {
-        const name = item.querySelector('.am-item-name')?.textContent?.toLowerCase() ?? '';
+        const name = item.querySelector('.item-name')?.textContent?.toLowerCase() ?? '';
         item.style.display = name.includes(q) ? '' : 'none';
       });
     });
@@ -1387,6 +1705,137 @@ export class A5eCharacterSheet extends ActorSheet {
         await this.actor.update({ [e.target.dataset.path]: e.target.value });
       })
     );
+
+    /* ══ Tidy layout controls ═══════════════════════════════════════════
+       Behaviour Tidy implements in Svelte and we have to supply ourselves,
+       because we render its markup from Handlebars. Each one is written
+       against Tidy's own classes so the animations and states it styles
+       are the ones that actually appear. */
+
+    /* Hit points read as a label and edit as inputs, which is how Tidy does
+       it — the bar is too small to hold three live fields and still be
+       legible. Clicking the label (or the temp badge) swaps them, and
+       leaving the block puts the label back. */
+    const hpMeter = el.querySelector('.hit-points');
+    const hpLabel = hpMeter?.querySelector('.label');
+    const hpEdit  = hpMeter?.querySelector('.am-hp-edit');
+    if (hpLabel && hpEdit) {
+      const showEditor = (show) => {
+        hpLabel.hidden = show;
+        hpEdit.hidden = !show;
+        if (show) hpEdit.querySelector('input')?.focus();
+      };
+      el.querySelectorAll('[data-action="hp-edit"]').forEach(b =>
+        b.addEventListener('click', (e) => { e.preventDefault(); showEditor(true); }));
+      hpEdit.addEventListener('focusout', () => {
+        /* focusout fires before focus lands on the next element, so wait a
+           tick before deciding the block has really been left. */
+        setTimeout(() => { if (!hpEdit.contains(document.activeElement)) showEditor(false); }, 0);
+      });
+    }
+
+    /* Sidebar collapse. Tidy stores this per tab as a user preference; we
+       keep it for the life of the sheet, which is the part that shows. */
+    el.querySelector('.sidebar-toggle')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      const sidebar = el.querySelector('.sidebar');
+      if (!sidebar) return;
+      const expanded = sidebar.classList.toggle('expanded');
+      const icons = e.currentTarget.querySelectorAll('i');
+      if (icons.length === 2) {
+        icons[0].className = expanded ? 'fa-solid fa-caret-left' : 'fa-solid fa-sidebar';
+        icons[1].className = expanded ? 'fa-solid fa-sidebar-flip' : 'fa-solid fa-caret-right';
+      }
+    });
+
+    /* The sidebar's own Skills/Traits strip. Not a Foundry tab group — see
+       the note in defaultOptions for why it cannot be one. */
+    el.querySelectorAll('[data-sidebar-tab]').forEach(node => {
+      if (node.tagName !== 'A') return;
+      node.addEventListener('click', (e) => {
+        e.preventDefault();
+        const wanted = node.dataset.sidebarTab;
+        el.querySelectorAll('a[data-sidebar-tab]').forEach(a =>
+          a.classList.toggle('active', a.dataset.sidebarTab === wanted));
+        el.querySelectorAll('div[data-sidebar-tab]').forEach(p =>
+          p.classList.toggle('active', p.dataset.sidebarTab === wanted));
+      });
+    });
+
+    /* Collapsing an item table. Tidy toggles .expanded on the wrapper and on
+       the chevron; the height animation is entirely CSS, so setting the two
+       classes is the whole job. */
+    el.querySelectorAll('.tidy-table-header-row.toggleable').forEach(header => {
+      header.addEventListener('click', (e) => {
+        if (e.target.closest('button, a, input')) return;
+        const section = header.closest('.tidy-table');
+        const wrapper = section?.querySelector('.expandable');
+        const chevron = header.querySelector('.expand-button');
+        if (!wrapper) return;
+        const expanded = wrapper.classList.toggle('expanded');
+        chevron?.classList.toggle('expanded', expanded);
+        chevron?.classList.toggle('collapsed', !expanded);
+      });
+    });
+
+    /* Fatigue and strife. A5e's two tracks run 0-7 and replace exhaustion,
+       so they take the control Tidy gives exhaustion: click steps up,
+       right-click steps down, both wrapping at the ends. */
+    const cycleTrack = (path, max) => async (e, down) => {
+      e.preventDefault();
+      const current = Number(foundry.utils.getProperty(this.actor, path) ?? 0) || 0;
+      const next = down
+        ? (current <= 0 ? max : current - 1)
+        : (current >= max ? 0 : current + 1);
+      await this.actor.update({ [path]: next });
+    };
+    for (const [action, path] of [
+      ['cycle-fatigue', 'system.attributes.fatigue'],
+      ['cycle-strife',  'system.attributes.strife']
+    ]) {
+      const step = cycleTrack(path, 7);
+      el.querySelectorAll(`[data-action="${action}"]`).forEach(btn => {
+        btn.addEventListener('click', (e) => step(e, false));
+        btn.addEventListener('contextmenu', (e) => step(e, true));
+      });
+    }
+
+    /* Spell slots. Tidy spends and restores with a pair of hexagon buttons
+       rather than with pips; a5e keeps the count at .current. */
+    const stepSlot = (delta) => async (e) => {
+      e.preventDefault();
+      const level = e.currentTarget.dataset.level;
+      const slots = this.actor.system?.spellResources?.slots?.[level];
+      if (!slots) return;
+      const max = Number(slots.max ?? 0) || 0;
+      const now = Number(slots.current ?? 0) || 0;
+      const next = Math.min(Math.max(now + delta, 0), max);
+      if (next === now) return;
+      await this.actor.update({ [`system.spellResources.slots.${level}.current`]: next });
+    };
+    el.querySelectorAll('[data-action="slot-dec"]').forEach(b =>
+      b.addEventListener('click', stepSlot(-1)));
+    el.querySelectorAll('[data-action="slot-inc"]').forEach(b =>
+      b.addEventListener('click', stepSlot(1)));
+
+    /* Initiative and concentration, which the old header had no buttons for. */
+    el.querySelector('[data-action="roll-initiative"]')?.addEventListener('click', async (e) => {
+      e.preventDefault();
+      if (typeof this.actor.rollInitiative === 'function') {
+        await this.actor.rollInitiative({ createCombatants: true });
+      }
+    });
+
+    el.querySelector('[data-action="concentration-check"]')?.addEventListener('click', async (e) => {
+      e.preventDefault();
+      /* a5e rolls this itself; fall back to a Constitution save if the system
+         ever renames the method, so the button is never simply dead. */
+      if (typeof this.actor.rollConcentrationCheck === 'function') {
+        await this.actor.rollConcentrationCheck();
+      } else if (typeof this.actor.rollSavingThrow === 'function') {
+        await this.actor.rollSavingThrow('con');
+      }
+    });
   }
 
   /* ── Private helpers ──────────────────────────────── */
@@ -1396,7 +1845,13 @@ export class A5eCharacterSheet extends ActorSheet {
   }
 
   #parseRollsFromAction(action) {
-    const rolls       = Array.isArray(action?.rolls) ? action.rolls : [];
+    /* a5e declares rolls as a RecordField — an object keyed by roll id, not
+       an array (see ActionDataModel.rolls). Testing Array.isArray on it was
+       always false, so every attack bonus and damage formula on the sheet
+       came out empty. Accept all three shapes the data can take. */
+    const rolls = Array.isArray(action?.rolls) ? action.rolls
+      : action?.rolls instanceof Map ? [...action.rolls.values()]
+      : Object.values(action?.rolls ?? {});
     const attackRoll  = rolls.find(r => r.type === 'attack');
     const damageRolls = rolls.filter(r => r.type === 'damage');
     const saveRoll    = rolls.find(r => r.type === 'savingThrow');
@@ -1407,7 +1862,8 @@ export class A5eCharacterSheet extends ActorSheet {
     const oldDmgType  = oldDmgArr[0]?.damageType ?? null;
     const atkRaw      = attackRoll?.bonus ?? oldAtkBonus ?? '';
     const dmg         = damageRolls[0]?.formula ?? oldDmg;
-    const saveDC      = saveRoll?.dc ? `DC ${saveRoll.dc}` : oldSaveDC;
+    const saveDCRaw   = saveRoll?.dc ?? saveRoll?.saveDC ?? null;
+    const saveDC      = saveDCRaw ? `DC ${saveDCRaw}` : oldSaveDC;
     const rawType     = damageRolls[0]?.damageType ?? oldDmgType;
     const dmgType     = rawType ? rawType.charAt(0).toUpperCase() + rawType.slice(1) : null;
     const atkBonus    = atkRaw !== '' && !isNaN(Number(atkRaw)) ? sign(Number(atkRaw)) : null;
@@ -1429,7 +1885,7 @@ export class A5eCharacterSheet extends ActorSheet {
     }
     if (!entries.length) {
       const activation = this.#resolveActivation({}, sys);
-      return [{ actionId: 'default', itemId: item.id, name: item.name,
+      return [{ actionId: 'default', itemId: item.id, name: item.name, img: item.img,
                 activation, activationLabel: this.#actCostLabel(activation),
                 ...this.#parseRollsFromAction({}) }];
     }
@@ -1437,6 +1893,9 @@ export class A5eCharacterSheet extends ActorSheet {
       const activation = this.#resolveActivation(action, action);
       return { actionId, itemId: item.id,
                name: action.name || item.name,
+               /* Actions carry no art of their own in a5e, so they show the
+                  item's, which is what a5e's own cards do. */
+               img: action.img || item.img,
                activation, activationLabel: this.#actCostLabel(activation),
                ...this.#parseRollsFromAction(action) };
     });
@@ -1448,6 +1907,8 @@ export class A5eCharacterSheet extends ActorSheet {
     const isEquippable  = item.type === 'object';
     const equippedState = isEquippable ? (sys.equippedState ?? 1) : null;
     const starred       = favoriteIds.has(item.id) || !!(sys.favorite);
+    const actions       = this.#allActionsForItem(item);
+    const primary       = actions[0] ?? {};
     return {
       id: item.id, name: item.name, img: item.img,
       type: item.type,
@@ -1462,7 +1923,17 @@ export class A5eCharacterSheet extends ActorSheet {
       qty:  isEquippable ? (sys.quantity ?? 1) : null,
       uses: { current: uses.current ?? uses.value ?? null,
                max: uses.max ?? null, hasUses: !!(uses.max > 0) },
-      actions: this.#allActionsForItem(item),
+      actions,
+      /* An item with a single action would otherwise draw a second row that
+         only repeats its own name — allActionsForItem falls back to the item
+         name when an action has none. So the row shows the first action's
+         numbers itself, and the separate rows appear only where there is
+         genuinely more than one thing to choose between. */
+      multiAction: actions.length > 1,
+      atkBonus:        primary.atkBonus ?? null,
+      dmgFull:         primary.dmgFull ?? null,
+      saveDC:          primary.saveDC ?? null,
+      activationLabel: primary.activationLabel ?? null,
       desc: descOf(sys),
     };
   }

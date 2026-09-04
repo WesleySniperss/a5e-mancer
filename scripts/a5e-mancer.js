@@ -232,7 +232,12 @@ Hooks.once('ready', async () => {
     ['am-item-grants',   'partial-item-grants.hbs'],
     // The spell browser is used by both level-up branches; the level-up half had
     // no spell section at all before it was pulled out here.
-    ['am-spell-browser', 'partial-spell-browser.hbs']
+    ['am-spell-browser', 'partial-spell-browser.hbs'],
+    // The character sheet is Tidy's Quadrone markup; its item table and item
+    // row are the two shapes it repeats, so they live as partials rather than
+    // being written out once per tab. See templates/sheet/ and tidy/README.md.
+    ['tidy-table',       'sheet/partial-tidy-table.hbs'],
+    ['tidy-row',         'sheet/partial-tidy-row.hbs']
   ]) {
     try {
       Handlebars.registerPartial(name, await getTpl(`modules/a5e-mancer/templates/${file}`));
