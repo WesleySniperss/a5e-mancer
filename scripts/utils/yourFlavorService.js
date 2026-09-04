@@ -65,6 +65,10 @@ export class YourFlavorService {
   static A5E_MESSAGE_TYPES = new Set(['item', 'roll', 'rollTableOutput']);
 
   static _renderHook = null;
+  /** Re-sweep on log re-render; see _watchChatLog. */
+  static _logHook = null;
+  /** How the one-shot sweep ended, so diagnose() can say so. */
+  static _sweepState = 'not started';
   /** Your Flavor's style pipeline; required by both features. */
   static _styles = null;
   /** Your Flavor's classifier + surface renderer; required by the log sweep. */
@@ -135,6 +139,7 @@ export class YourFlavorService {
     }
 
     this._sweepWhenReady();
+    this._watchChatLog();
     AM.log(3, 'Your Flavor bridge installed');
   }
 
@@ -142,6 +147,10 @@ export class YourFlavorService {
     if (this._renderHook !== null) {
       Hooks.off('renderChatMessageHTML', this._renderHook);
       this._renderHook = null;
+    }
+    if (this._logHook !== null) {
+      Hooks.off('renderChatLog', this._logHook);
+      this._logHook = null;
     }
   }
 
@@ -153,16 +162,59 @@ export class YourFlavorService {
    * here. Bounded, once per session, silent if Your Flavor never boots.
    */
   static _sweepWhenReady(attempt = 0) {
-    if (this.available) {
-      try { this._sweepChatLog(); }
-      catch (err) { AM.log(2, 'Your Flavor bridge: log sweep failed', err); }
+    /* Both conditions, not just the first.
+     *
+     * This used to sweep the moment Your Flavor's API appeared and then return
+     * for good. But its API is published from its own ready hook, while the
+     * chat log paints separately — so on a slow or remote host the API can win,
+     * the sweep runs across an empty document, styles nothing, and never comes
+     * back. That is the whole intermittency: whoever wins the race decides
+     * whether the backlog is styled, which is why the same world looked correct
+     * one session (100 of 100) and completely unstyled the next (0 of 50).
+     *
+     * game.messages.size guards the legitimate empty case, so a world with no
+     * chat history stops immediately instead of waiting out the budget. */
+    const logPainted = document.querySelector('.chat-message') !== null;
+    if (this.available && (logPainted || !game.messages?.size)) {
+      try {
+        const styled = this._sweepChatLog();
+        this._sweepState = `swept on attempt ${attempt}, styled ${styled}`;
+      } catch (err) {
+        this._sweepState = `threw on attempt ${attempt}: ${err.message}`;
+        AM.log(2, 'Your Flavor bridge: log sweep failed', err);
+      }
       return;
     }
-    if (attempt >= 20) {
-      AM.log(2, 'Your Flavor bridge: its API never appeared, existing messages left unstyled');
+
+    /* 10s, not the 2s this had. The budget has to cover a remote host painting
+     * a long backlog, and the cost of waiting is nothing - we are idle. */
+    if (attempt >= 100) {
+      this._sweepState = `gave up after 10s (API up: ${this.available}, log painted: ${logPainted})`;
+      AM.log(2, 'Your Flavor bridge: gave up waiting - '
+        + `API up: ${this.available}, chat log painted: ${logPainted}. `
+        + 'Existing messages left unstyled.');
       return;
     }
+    this._sweepState = `waiting (attempt ${attempt}, API up: ${this.available}, log painted: ${logPainted})`;
     setTimeout(() => this._sweepWhenReady(attempt + 1), 100);
+  }
+
+  /**
+   * Sweep again whenever the log itself re-renders.
+   *
+   * Covers what the one-shot sweep cannot: popping chat out into its own
+   * window, and Foundry re-rendering the log. Cheap to repeat - _styleMessage
+   * skips anything already marked yf-processed - so this is idempotent.
+   */
+  static _watchChatLog() {
+    this._logHook = Hooks.on('renderChatLog', () => {
+      /* After the render, not during: the messages are not in the document yet
+         when the hook fires. */
+      requestAnimationFrame(() => {
+        try { this._sweepChatLog(); }
+        catch (err) { AM.log(2, 'Your Flavor bridge: re-sweep failed', err); }
+      });
+    });
   }
 
   /**
@@ -176,7 +228,7 @@ export class YourFlavorService {
   static _sweepChatLog() {
     const a5e = this.enabled && game.system?.id === 'a5e';
     const generic = this.restyleEnabled;
-    if (!a5e && !generic) return;
+    if (!a5e && !generic) return 0;
 
     let styled = 0;
     for (const element of document.querySelectorAll('.chat-message')) {
@@ -191,6 +243,7 @@ export class YourFlavorService {
     }
 
     if (styled) AM.log(3, `Your Flavor bridge: restyled ${styled} message(s) Your Flavor had skipped`);
+    return styled;
   }
 
   /* ============================================================
@@ -514,6 +567,8 @@ export class YourFlavorService {
       'bridge: a5e cards': this.enabled,
       'bridge: generic restyle': this.restyleEnabled,
       'bridge: hook attached': this._renderHook !== null,
+      'bridge: log watcher': this._logHook !== null,
+      'bridge: initial sweep': this._sweepState,
       'bridge: YF modules loaded': Boolean(this._styles && this._classifier),
       'bridge: import failed': this._importFailed,
 
