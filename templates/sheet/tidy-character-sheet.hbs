@@ -712,9 +712,13 @@
 
       {{#if hasSpells}}
         {{#each spellGroups}}
-          {{#> tidy-table key=@key label=@key count=this.length items=this c1=true col1="Range" c2=true col2="Duration" c3=true col3="Save"}}
+          {{#> tidy-table key=@key label=@key count=this.length items=this
+                          c1=true col1="Cast Time" c2=true col2="Range"
+                          c3=true col3="Duration" c4=true col4="Save"}}
             {{#each items}}
-              {{> tidy-row subtitle=this.schoolLabel c1=true cell1=this.range c2=true cell2=this.duration c3=true cell3=this.saveDC}}
+              {{> tidy-row subtitle=this.schoolLabel
+                           c1=true cell1=this.castTime c2=true cell2=this.range
+                           c3=true cell3=this.duration c4=true cell4=this.saveDC}}
             {{/each}}
           {{/tidy-table}}
         {{/each}}

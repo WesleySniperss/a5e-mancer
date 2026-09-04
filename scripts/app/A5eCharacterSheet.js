@@ -749,6 +749,95 @@ export class A5eCharacterSheet extends ActorSheet {
     return Math.round(total * 100) / 100;
   }
 
+  /* Range, duration, casting time and saving throw all live on an ACTION in
+     a5e, never on the item itself. Reading item.system.range and
+     item.system.duration — which is what this sheet did — finds nothing,
+     which is why every one of those columns was blank for spells.
+
+     The saving throw is stored differently again: it comes from the
+     action's prompts, not from its rolls, so looking for it beside the
+     damage found nothing either.
+
+     Ported from a5e's utils/summaries: getRangeLabels, getDurationLabel,
+     getActivationCostLabel and getSavingThrowLabel. */
+  #actionLabels(item, action) {
+    const A = CONFIG?.A5E ?? {};
+    const loc = (v) => (v ? game.i18n.localize(v) : '');
+    const empty = { activationLabel: null, rangeLabel: null, durationLabel: null, saveLabel: null };
+    if (!action) return empty;
+
+    /* Ranges. The three named bands print their distance alongside the name;
+       self, touch and five feet are names alone; anything else is a number
+       with a unit. */
+    const ranges = Object.values(action.ranges ?? {});
+    const rangeLabel = ranges.map((r) => {
+      const range = r?.range;
+      if (!range) return '';
+      if (['short', 'medium', 'long'].includes(range)) {
+        const feet = A.distanceAbbreviations?.feet ?? 'ft';
+        return `${loc(A.rangeDescriptors?.[range]) || range} (${A.rangeValues?.[range] ?? ''} ${feet})`.replace(/\s+/g, ' ');
+      }
+      if (['fiveFeet', 'self', 'touch'].includes(range)) return loc(A.rangeDescriptors?.[range]) || range;
+      if (!r.unit) return String(range);
+      return `${range} ${A.distanceAbbreviations?.[r.unit] ?? r.unit}`;
+    }).filter(Boolean).join(', ') || null;
+
+    /* Duration. A value of 0 or more than 1 takes the plural period. */
+    const duration = action.duration ?? {};
+    let durationLabel = null;
+    if (duration.unit) {
+      const n = this.#formulaToNumber(duration.value ?? '0') ?? 0;
+      if (['instantaneous', 'permanent', 'special'].includes(duration.unit)) {
+        durationLabel = loc(A.timePeriods?.[duration.unit]) || duration.unit;
+      } else {
+        const table = (n === 0 || n > 1) ? A.timePeriodsPlural : A.timePeriods;
+        durationLabel = `${(n || duration.value) ?? 1} ${loc(table?.[duration.unit]) || duration.unit}`;
+      }
+      if (item?.type === 'spell' && item.system?.concentration) {
+        durationLabel += ` (${loc('A5E.SpellConcentration') || 'Concentration'})`;
+      }
+      durationLabel = durationLabel.trim();
+    }
+
+    /* Casting or activation cost. */
+    const activation = action.activation ?? {};
+    let activationLabel = null;
+    if (activation.type) {
+      if (activation.type === 'reaction') {
+        const base = loc('A5E.actions.headings.activation.reaction') || 'Reaction';
+        activationLabel = activation.reactionTrigger ? `${base} (${activation.reactionTrigger})` : base;
+      } else if (activation.cost === 0 || activation.cost > 1) {
+        activationLabel = `${activation.cost} ${loc(A.abilityActivationTypesPlural?.[activation.type]) || activation.type}`;
+      } else if (['none', 'special'].includes(activation.type)) {
+        activationLabel = loc(A.abilityActivationTypes?.[activation.type]) || activation.type;
+      } else {
+        activationLabel = `${activation.cost ?? 1} ${loc(A.abilityActivationTypes?.[activation.type]) || activation.type}`;
+      }
+      if (item?.type === 'spell' && item.system?.ritual) activationLabel += ' (Ritual)';
+    }
+
+    /* Saving throw, from the prompts. */
+    const prompts = Object.values(action.prompts ?? {});
+    const saveLabel = prompts
+      .filter((p) => p?.type === 'savingThrow')
+      .map((p) => {
+        const ability = loc(A.abilities?.[p.ability]) || p.ability || '';
+        return p.onSave ? `${ability} (${p.onSave})` : ability;
+      })
+      .filter(Boolean)
+      .join(', ') || null;
+
+    return { activationLabel, rangeLabel, durationLabel, saveLabel };
+  }
+
+  /* The action a row speaks for: the first one, which is what a5e's own
+     summaries use when an item has several. */
+  #primaryAction(item) {
+    const a = item.system?.actions;
+    const list = a instanceof Map ? [...a.values()] : Object.values(a ?? {});
+    return list[0] ?? null;
+  }
+
   /* Equipped and damaged state, drawn the way a5e draws them.
 
      Both are three-state, not two, which is why a single 'equipped or not'
@@ -906,14 +995,11 @@ export class A5eCharacterSheet extends ActorSheet {
     const sys = item.system;
     const { activation, dmgFull, saveDC } = this.#parseActions(item);
     const level    = sys.level ?? sys.spellLevel ?? 0;
-    const range    = sys.range?.value ? `${sys.range.value} ${sys.range.units ?? ''}`.trim() : null;
     const conc     = sys.concentration ?? false;
+    const labels   = this.#actionLabels(item, this.#primaryAction(item));
+    const range    = labels.rangeLabel;
 
-    // Duration: e.g. "1 minute", "1 hour", "instantaneous"
-    const dur = sys.duration ?? {};
-    const duration = dur.value
-      ? `${dur.value} ${dur.units ?? ''}`.trim()
-      : (dur.units && dur.units !== 'instantaneous' && dur.units !== 'special' ? dur.units : null);
+    const duration = labels.durationLabel;
 
     // School key may be in sys.schools.primary (A5e) or sys.school (legacy)
     const schoolKey   = sys.schools?.primary ?? sys.school ?? '';
@@ -938,7 +1024,12 @@ export class A5eCharacterSheet extends ActorSheet {
       concentration: conc,
       prepared: sys.prepared !== false,
       activation,
-      range, duration, dmgFull, saveDC,
+      range, duration, dmgFull,
+      /* The saving throw comes from the action's prompts. saveDC, read off
+         the rolls beside the damage, is only ever set for the few actions
+         that carry one there, so it is the fallback rather than the source. */
+      saveDC: labels.saveLabel ?? saveDC,
+      castTime: labels.activationLabel,
       desc: descOf(sys),
       actions: this.#allActionsForItem(item),
     };
