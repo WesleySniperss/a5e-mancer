@@ -830,6 +830,19 @@ export class A5eCharacterSheet extends ActorSheet {
     return { activationLabel, rangeLabel, durationLabel, saveLabel };
   }
 
+  /* An item's description, or its actions' if it has none of its own.
+
+     Both the item and each action carry a description field in a5e, and a
+     generated spell very often has nothing at the item level — which is why
+     opening a cantrip showed its actions and no text at all. */
+  #itemDesc(item) {
+    const own = descOf(item.system);
+    if (own) return own;
+    const a = item.system?.actions;
+    const list = a instanceof Map ? [...a.values()] : Object.values(a ?? {});
+    return list.map((x) => x?.description).filter(Boolean).join('\n') || '';
+  }
+
   /* The action a row speaks for: the first one, which is what a5e's own
      summaries use when an item has several. */
   #primaryAction(item) {
@@ -961,7 +974,7 @@ export class A5eCharacterSheet extends ActorSheet {
       attuneProblem: needsAttune && !attuned,
       ...this.#stateBadges(item),
       activation,
-      desc: descOf(sys),
+      desc: this.#itemDesc(item),
       actions: this.#allActionsForItem(item),
     };
   }
@@ -986,7 +999,7 @@ export class A5eCharacterSheet extends ActorSheet {
         sys.prerequisite || null
       ].filter(Boolean),
       range, dmgFull, saveDC,
-      desc: descOf(sys),
+      desc: this.#itemDesc(item),
       actions: this.#allActionsForItem(item),
     };
   }
@@ -1030,7 +1043,7 @@ export class A5eCharacterSheet extends ActorSheet {
          that carry one there, so it is the fallback rather than the source. */
       saveDC: labels.saveLabel ?? saveDC,
       castTime: labels.activationLabel,
-      desc: descOf(sys),
+      desc: this.#itemDesc(item),
       actions: this.#allActionsForItem(item),
     };
   }
@@ -1042,7 +1055,7 @@ export class A5eCharacterSheet extends ActorSheet {
     const range    = rangeVal ? `${rangeVal} ${sys.range?.units ?? 'ft'}` : null;
 
     // For purely descriptive features (no combat props), show a text snippet
-    const rawDesc  = descOf(sys);
+    const rawDesc  = this.#itemDesc(item);
     const hasCombatProps = !!(dmgFull || range || saveDC);
     const shortDesc = !hasCombatProps && rawDesc
       ? plainText(rawDesc).slice(0, 90)
@@ -1075,7 +1088,7 @@ export class A5eCharacterSheet extends ActorSheet {
       id: item.id, uuid: item.uuid, name: item.name, img: item.img,
       source: this.#normFeatSource(source),
       prereq,
-      desc: descOf(sys)
+      desc: this.#itemDesc(item)
     };
   }
 
@@ -1113,7 +1126,7 @@ export class A5eCharacterSheet extends ActorSheet {
       attuned, needsAttune,
       attuneProblem: needsAttune && !attuned,
       ...this.#stateBadges(item),
-      desc: descOf(sys),
+      desc: this.#itemDesc(item),
     };
   }
 
@@ -2247,11 +2260,51 @@ export class A5eCharacterSheet extends ActorSheet {
       AM.log(2, 'formula resolve:', err);
       return String(formula);
     }
+    out = this.#simplifyArithmetic(out);
+
     return out
       .replace(/\+\s*-\s*/g, '- ')
       .replace(/\s*\+\s*0(?![\d.])/g, '')
       .replace(/\s+/g, ' ')
       .trim();
+  }
+
+  /* Works out the arithmetic left behind once roll data has been
+     substituted, without touching the dice.
+
+     A scaling cantrip is written as something like
+     '(floor((@details.level+1)/6)+1)d10', and substituting the level turns
+     that into '(floor((1+1)/6)+1)d10' — correct, unreadable, and too long
+     for the column. Reduced innermost-first it becomes '1d10'.
+
+     Only groups that are pure arithmetic are touched: the test rejects any
+     letter, so '1d10' is never mistaken for something to evaluate. */
+  #simplifyArithmetic(formula) {
+    const SAFE = /^[\d\s+\-*/().]+$/;
+    const FN = /\b(floor|ceil|round|abs)\(([^()]*)\)/;
+    const evalSafe = (expr) => Function('"use strict"; return (' + expr + ');')();
+
+    let out = String(formula);
+    /* Bounded rather than while(true): a formula this loop cannot reduce
+       should be left alone, not spun on. */
+    for (let pass = 0; pass < 24; pass++) {
+      let changed = false;
+
+      out = out.replace(FN, (whole, name, inner) => {
+        if (!SAFE.test(inner)) return whole;
+        try { const v = Math[name](evalSafe(inner)); changed = true; return String(v); }
+        catch { return whole; }
+      });
+
+      out = out.replace(/\(([^()]+)\)/, (whole, inner) => {
+        if (!SAFE.test(inner)) return whole;
+        try { const v = evalSafe(inner); changed = true; return String(v); }
+        catch { return whole; }
+      });
+
+      if (!changed) break;
+    }
+    return out;
   }
 
   /* A whole formula for a number: an attack bonus is usually written as
@@ -2366,6 +2419,7 @@ export class A5eCharacterSheet extends ActorSheet {
                /* Actions carry no art of their own in a5e, so they show the
                   item's, which is what a5e's own cards do. */
                img: action.img || item.img,
+               desc: action.description || '',
                activation, activationLabel: this.#actCostLabel(activation),
                ...this.#parseRollsFromAction(action, item) };
     });
@@ -2404,7 +2458,7 @@ export class A5eCharacterSheet extends ActorSheet {
       dmgFull:         primary.dmgFull ?? null,
       saveDC:          primary.saveDC ?? null,
       activationLabel: primary.activationLabel ?? null,
-      desc: descOf(sys),
+      desc: this.#itemDesc(item),
     };
   }
 

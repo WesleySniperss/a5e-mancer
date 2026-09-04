@@ -201,7 +201,10 @@
                   </a>
                   <div class="tidy-table-cell primary item-label text-cell"
                     data-tidy-sheet-part="table-cell">
-                    <span class="cell-text"><span class="cell-name">{{this.name}}</span></span>
+                    <span class="cell-text">
+                      <span class="cell-name">{{this.name}}</span>
+                      {{#if this.desc}}<span class="cell-context">{{this.desc}}</span>{{/if}}
+                    </span>
                   </div>
                   <div class="tidy-table-cell text-cell" data-tidy-sheet-part="table-cell"
                     style="--tidy-table-column-width: var(--am-col)">
