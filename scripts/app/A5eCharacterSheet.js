@@ -2419,7 +2419,10 @@ export class A5eCharacterSheet extends ActorSheet {
                /* Actions carry no art of their own in a5e, so they show the
                   item's, which is what a5e's own cards do. */
                img: action.img || item.img,
-               desc: action.description || '',
+               /* Rendered as an escaped one-line subtitle, so it is reduced to
+                  text here: printed as-is it showed its own <p> tags and any
+                  @UUID[…] link it contained, unresolved. */
+               desc: plainText(action.description || '').slice(0, 120),
                activation, activationLabel: this.#actCostLabel(activation),
                ...this.#parseRollsFromAction(action, item) };
     });

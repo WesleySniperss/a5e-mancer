@@ -77,7 +77,7 @@
             <button type="button" data-action="item-equip" data-id="{{id}}"
               class="unbutton item-state-indicator"
               aria-label="Equipped state: {{equipLabel}}" data-tooltip="{{equipLabel}}">
-              <i class="fa-solid {{equipIcon}} equip-icon {{#if equipActive}}color-icon-theme-highlight highlighted{{else}}color-text-lightest{{/if}}"></i>
+              <i class="fa-solid {{equipIcon}} {{#if equipActive}}color-icon-theme-highlight highlighted{{else}}color-text-lightest{{/if}}"></i>
             </button>
           {{/unless}}
           <button type="button" data-action="item-damaged" data-id="{{id}}"
