@@ -127,10 +127,6 @@ export class A5eCharacterSheet extends ActorSheet {
 
     const profBonus = sys.attributes?.prof ?? sys.proficiencyBonus ?? this.#calcProf(actor);
 
-    /* Favourites hold two kinds of thing. Items are remembered by id, the
-       way they always were; skills have no id, so their keys live in a flag
-       of their own rather than being squeezed into the same list. */
-    const favoriteSkillKeys = new Set(actor.getFlag(MODULE_ID, 'favoriteSkills') ?? []);
 
     /* Abilities */
     const abilities = ABILITIES.map(({ key, label, abbr }) => {
@@ -189,10 +185,8 @@ export class A5eCharacterSheet extends ActorSheet {
         key, label, ability, bonus, bonusStr: sign(bonus),
         bonusSign: bonus < 0 ? '-' : '+',
         bonusAbs: Math.abs(bonus),
-        passive: 10 + bonus,
         profLvl, profIcon,
         profIconClass: PROF_ICON_CLASSES[Math.min(profLvl, 3)] ?? PROF_ICON_CLASSES[0],
-        starred: favoriteSkillKeys.has(key),
         expDie
       };
     });
@@ -476,11 +470,9 @@ export class A5eCharacterSheet extends ActorSheet {
           .filter(i => favoriteIds.has(i.id))
           .map(i => this.#buildActionGroup(i, favoriteIds))
           .sort((a, b) => a.name.localeCompare(b.name));
-        const favoriteSkills = skills.filter(s => favoriteSkillKeys.has(s.key));
         return {
           favorites,
-          favoriteSkills,
-          hasFavorites: favorites.length > 0 || favoriteSkills.length > 0,
+          hasFavorites: favorites.length > 0,
         };
       })(),
 
@@ -1251,18 +1243,6 @@ export class A5eCharacterSheet extends ActorSheet {
       })
     );
 
-    /* Same idea for a skill, which has a key rather than an id and so is
-       kept in its own flag. See the note beside favoriteSkillKeys. */
-    el.querySelectorAll('[data-action="skill-star"]').forEach(b =>
-      b.addEventListener('click', async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const key = b.dataset.skill;
-        const cur = new Set(this.actor.getFlag(MODULE_ID, 'favoriteSkills') ?? []);
-        if (cur.has(key)) cur.delete(key); else cur.add(key);
-        await this.actor.setFlag(MODULE_ID, 'favoriteSkills', [...cur]);
-      })
-    );
 
     /* Use a specific named action on an item */
 
@@ -2036,7 +2016,35 @@ export class A5eCharacterSheet extends ActorSheet {
     }
   }
 
-  #parseRollsFromAction(action) {
+  /* Which ability an attack uses, ported from a5e's getAttackAbility.
+     'default' is not a value but a rule: melee weapons use Strength unless
+     the weapon is finesse, in which case whichever of Strength and
+     Dexterity is higher; ranged weapons use Dexterity unless thrown, same
+     tie-break; spell attacks use the spellcasting ability. */
+  #attackAbility(item, attack) {
+    const sys = this.actor.system ?? {};
+    const mod = (k) => sys.abilities?.[k]?.mod
+      ?? Math.floor(((sys.abilities?.[k]?.value ?? 10) - 10) / 2);
+    const spellAbility = () => sys.spellcasting?.ability
+      ?? sys.attributes?.spellcasting
+      ?? item?.system?.ability
+      ?? 'int';
+
+    const ability = attack?.ability;
+    if (ability === 'spellcasting') return spellAbility();
+    if (ability && ability !== 'default') return ability;
+
+    const type  = attack?.attackType || 'meleeWeaponAttack';
+    const props = item?.system?.weaponProperties ?? [];
+    const better = () => (mod('dex') > mod('str') ? 'dex' : 'str');
+
+    if (type === 'meleeSpellAttack' || type === 'rangedSpellAttack') return spellAbility();
+    if (type === 'meleeWeaponAttack') return props.includes('finesse') ? better() : 'str';
+    if (type === 'rangedWeaponAttack') return props.includes('thrown') ? better() : 'dex';
+    return 'str';
+  }
+
+  #parseRollsFromAction(action, item) {
     /* a5e declares rolls as a RecordField — an object keyed by roll id, not
        an array (see ActionDataModel.rolls). Testing Array.isArray on it was
        always false, so every attack bonus and damage formula on the sheet
@@ -2058,8 +2066,23 @@ export class A5eCharacterSheet extends ActorSheet {
     const saveDC      = saveDCRaw ? `DC ${saveDCRaw}` : oldSaveDC;
     const rawType     = damageRolls[0]?.damageType ?? oldDmgType;
     const dmgType     = rawType ? rawType.charAt(0).toUpperCase() + rawType.slice(1) : null;
-    const atkNum      = atkRaw === '' ? null : this.#formulaToNumber(atkRaw);
-    const atkBonus    = atkNum === null ? null : sign(atkNum);
+    /* The stored bonus is only the EXTRA on top; a5e works the shown
+       number out from the ability, proficiency and that extra. Reading the
+       field alone left the column empty, because it is usually ''. */
+    let atkBonus = null;
+    if (attackRoll) {
+      const sys = this.actor.system ?? {};
+      const key = this.#attackAbility(item, attackRoll);
+      const abilityMod = sys.abilities?.[key]?.mod
+        ?? Math.floor(((sys.abilities?.[key]?.value ?? 10) - 10) / 2);
+      const profBonus = sys.attributes?.prof ?? sys.proficiencyBonus ?? this.#calcProf(this.actor);
+      const extra = this.#formulaToNumber(attackRoll.bonus) ?? 0;
+      const proficient = attackRoll.proficient !== false;
+      atkBonus = sign(abilityMod + (proficient ? profBonus : 0) + extra);
+    } else if (atkRaw !== '') {
+      const n = this.#formulaToNumber(atkRaw);
+      atkBonus = n === null ? null : sign(n);
+    }
     return { atkBonus, dmg, dmgFull: dmg ? (dmgType ? `${dmg} ${dmgType}` : dmg) : null, dmgType, saveDC };
   }
 
@@ -2080,7 +2103,7 @@ export class A5eCharacterSheet extends ActorSheet {
       const activation = this.#resolveActivation({}, sys);
       return [{ actionId: 'default', itemId: item.id, name: item.name, img: item.img,
                 activation, activationLabel: this.#actCostLabel(activation),
-                ...this.#parseRollsFromAction({}) }];
+                ...this.#parseRollsFromAction({}, item) }];
     }
     return entries.map(([actionId, action]) => {
       const activation = this.#resolveActivation(action, action);
@@ -2090,7 +2113,7 @@ export class A5eCharacterSheet extends ActorSheet {
                   item's, which is what a5e's own cards do. */
                img: action.img || item.img,
                activation, activationLabel: this.#actCostLabel(activation),
-               ...this.#parseRollsFromAction(action) };
+               ...this.#parseRollsFromAction(action, item) };
     });
   }
 

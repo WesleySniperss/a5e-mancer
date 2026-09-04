@@ -412,7 +412,7 @@
               <i class="fa-solid fa-briefcase"></i>
               <h3 class="font-label-medium">Skills</h3>
               <span class="modifier-label color-text-lightest font-default-medium">
-                Modifier / Passive
+                Modifier
               </span>
             </div>
           </div>
@@ -450,14 +450,7 @@
                   <span class="font-data-medium">{{this.bonusAbs}}</span>
                 </span>
 
-                <span class="passive color-text-lighter">{{this.passive}}</span>
 
-                <button type="button"
-                  class="button button-borderless button-icon-only am-skill-star"
-                  data-action="skill-star" data-skill="{{this.key}}"
-                  data-tooltip="{{#if this.starred}}Remove from favorites{{else}}Add to favorites{{/if}}">
-                  <i class="{{#if this.starred}}fa-solid{{else}}fa-regular{{/if}} fa-star"></i>
-                </button>
               </li>
             {{/each}}
           </ul>
@@ -658,57 +651,6 @@
     <div class="tab tidy-tab favorites tidy-tab-contents active"
       data-tab="favorites" data-group="primary" data-tab-contents-for="favorites"
       role="tabpanel">
-
-      {{#if favoriteSkills.length}}
-        {{#> tidy-table key="favorite-skills" label="Skills" count=favoriteSkills.length
-                        c1=true col1="Modifier" c2=true col2="Passive"}}
-          {{#each favoriteSkills}}
-            <div class="tidy-table-row-container" data-skill="{{this.key}}">
-              <div class="tidy-table-row tidy-table-row-v2" data-tidy-table-row
-                data-tidy-sheet-part="item-table-row">
-                <div class="highlight"></div>
-                <a class="tidy-table-row-use-button" data-action="skill-check"
-                  data-skill="{{this.key}}" data-label="{{this.label}}"
-                  data-bonus="{{this.bonus}}" aria-label="Roll {{this.label}}">
-                  <span class="roll-prompt"><i class="fa-solid fa-dice-d20"></i></span>
-                </a>
-                <div class="tidy-table-cell primary item-label text-cell"
-                  data-tidy-sheet-part="table-cell">
-                  <span class="cell-text">
-                    <span class="cell-name">{{this.label}}</span>
-                    <span class="cell-context">{{this.ability}}</span>
-                  </span>
-                  {{#if this.expDie}}
-                    <span class="am-state-icons">
-                      <span class="pill pill-medium am-exp-die" data-tooltip="Expertise Die">
-                        <span class="label font-label-medium">{{this.expDie}}</span>
-                      </span>
-                    </span>
-                  {{/if}}
-                </div>
-                <div class="tidy-table-cell text-cell" data-tidy-sheet-part="table-cell"
-                  style="--tidy-table-column-width: var(--am-col)">
-                  <span class="cell-text">{{this.bonusStr}}</span>
-                </div>
-                <div class="tidy-table-cell text-cell hide-under-500"
-                  data-tidy-sheet-part="table-cell"
-                  style="--tidy-table-column-width: var(--am-col)">
-                  <span class="cell-text">{{this.passive}}</span>
-                </div>
-                <div class="tidy-table-cell header-cell-actions row-actions"
-                  data-tidy-sheet-part="table-cell"
-                  style="--tidy-table-column-width: var(--am-col-actions)">
-                  <button type="button" class="button button-borderless button-icon-only"
-                    data-action="skill-star" data-skill="{{this.key}}"
-                    data-tooltip="Remove from favorites">
-                    <i class="fa-solid fa-star"></i>
-                  </button>
-                </div>
-              </div>
-            </div>
-          {{/each}}
-        {{/tidy-table}}
-      {{/if}}
 
       {{#if favorites.length}}
         {{#> tidy-table key="favorites" label="Favorites" count=favorites.length
