@@ -1,0 +1,80 @@
+#!/bin/sh
+#
+# Refuse to push commits under a version that already has a release.
+#
+# Foundry updates a module by reading `version` from the manifest on master and
+# then downloading the release named by `download`. Work pushed without a
+# version bump therefore reaches GitHub and nothing else: the cloud host keeps
+# serving the previous release, and the change is invisible to every client.
+#
+# That has happened three times. The canvas pointer-guard fix sat on master
+# through a whole release cycle before anyone noticed it had never shipped;
+# then six commits, then seven more. Two Claude sessions work in this
+# repository at once, which is exactly the situation where "I thought the other
+# one released it" goes unnoticed.
+#
+# So this refuses the push when module.json's version already has a matching
+# tag AND the push actually carries new commits. It does not block:
+#   - tag pushes
+#   - branch deletions
+#   - a push with nothing new on it
+#
+# Deliberate exception: `git push --no-verify`.
+#
+# Install (both sessions share this working tree, so once is enough):
+#     cp tools/hooks/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push
+
+version=$(grep -m1 '"version"' module.json | sed 's/.*: *"\([^"]*\)".*/\1/')
+
+# If the version cannot be read, say so and stand aside rather than blocking a
+# push for a reason nobody can act on.
+if [ -z "$version" ]; then
+  echo "pre-push: could not read version from module.json, skipping check" >&2
+  exit 0
+fi
+
+zero=0000000000000000000000000000000000000000
+carries_commits=0
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$local_ref" in
+    refs/tags/*) continue ;;
+  esac
+  [ "$local_sha" = "$zero" ] && continue
+
+  if [ "$remote_sha" = "$zero" ]; then
+    range="$local_sha"
+  else
+    range="$remote_sha..$local_sha"
+  fi
+
+  count=$(git rev-list --count "$range" 2>/dev/null) || count=0
+  [ "${count:-0}" -gt 0 ] && carries_commits=1
+done
+
+[ "$carries_commits" -eq 0 ] && exit 0
+
+if git rev-parse -q --verify "refs/tags/v$version" >/dev/null 2>&1; then
+  cat >&2 <<EOF
+
+  ✖  Пуш зупинено: версія v$version вже випущена.
+
+     У маніфесті стоїть $version, і тег v$version уже існує. Ці коміти
+     потраплять на GitHub, але Foundry їх не побачить — він читає version
+     з master і тягне реліз, названий у download. Хмарний хост
+     продовжить віддавати стару збірку.
+
+     Підніми версію і випусти як слід:
+
+       1. module.json -> version і download (patch для fix, minor для feat)
+       2. git commit -am "chore: X.Y.Z" && git push
+       3. git archive --format=zip --output=module.zip HEAD    (ПІСЛЯ коміту)
+       4. gh release create vX.Y.Z module.zip --title "vX.Y.Z" --notes "..."
+
+     Свідомо пропустити перевірку: git push --no-verify
+
+EOF
+  exit 1
+fi
+
+exit 0

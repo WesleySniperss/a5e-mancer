@@ -1,0 +1,5 @@
+# module.zip is built with `git archive HEAD`, so anything tracked here would
+# otherwise be shipped into every user's Foundry install. Development tooling
+# is not part of the module.
+tools/ export-ignore
+.gitattributes export-ignore
