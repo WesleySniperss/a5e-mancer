@@ -600,32 +600,42 @@
   align-self: flex-start;
 }
 
-/* ── Condition description panel ──────────────────────────────────────────
-   Right-clicking a condition drops its description in here; clicking the
-   panel closes it. It used to be painted from the sheet's old --cs-* palette,
-   which is the brown one the rest of the sheet no longer uses, so it arrived
-   looking like a leftover. Repainted with Tidy's tokens. */
-.tidy5e-sheet.application.a5e-mancer-sheet .am-cs-cond-desc-panel {
-  margin-block-start: var(--t5e-size-1x);
-  padding: var(--t5e-size-2x);
-  background: var(--t5e-component-card-lighter);
-  border: 1px solid var(--t5e-color-gold);
-  border-radius: var(--t5e-component-card-radius);
-  color: var(--t5e-color-text-default);
+/* ── Condition description popover ────────────────────────────────────────
+   Right-clicking a condition opens this by the pointer; clicking anywhere,
+   or Escape, closes it.
+
+   It lives on <body> rather than inside the sheet — see the note in
+   activateListeners — so it cannot be scoped to .a5e-mancer-sheet like
+   everything else here. The class name is ours alone, which is what keeps it
+   from reaching anything it should not. The colours are Tidy tokens, and
+   they resolve because the sheet defines them on a root the popover no
+   longer sits under: so the few used here are restated as literals taken
+   from Tidy own dark palette. */
+.am-cond-popover {
+  position: fixed;
+  z-index: 1000;
+  max-width: 22rem;
+  padding: 0.5rem 0.625rem;
+  background: #2f3238;
+  border: 1px solid #c0ad81;
+  border-radius: 0.3125rem;
+  box-shadow: 0 0.25rem 1rem rgba(0, 0, 0, 0.55);
+  color: #ffffff;
+  font-family: "Roboto Condensed", Roboto, Arial, sans-serif;
   font-size: 0.75rem;
   line-height: 1.4;
   cursor: pointer;
 }
 
-.tidy5e-sheet.application.a5e-mancer-sheet .am-cs-cond-desc-panel strong {
+.am-cond-popover strong {
   display: block;
-  margin-block-end: var(--t5e-size-1);
-  color: var(--t5e-color-text-gold-emphasis);
+  margin-block-end: 0.25rem;
+  color: #dcc9a0;
 }
 
-.tidy5e-sheet.application.a5e-mancer-sheet .am-cs-cond-desc-panel p {
+.am-cond-popover p {
   margin: 0;
-  color: var(--t5e-color-text-lighter);
+  color: #cfd2da;
 }
 
 /* A hint that the tile does more than switch on and off. */

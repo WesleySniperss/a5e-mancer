@@ -390,11 +390,11 @@
         <div class="flexrow">
           <nav class="tidy-tabs sidebar-tab-strip button-group wrap tabs"
             role="tablist">
-            <a class="tab-option button button-secondary button-toggle active"
+            <a class="tab-option button button-secondary button-toggle{{#if sidebarOnSkills}} active{{/if}}"
               role="tab" data-sidebar-tab="skills">
               <span class="tab-title">Skills</span>
             </a>
-            <a class="tab-option button button-secondary button-toggle"
+            <a class="tab-option button button-secondary button-toggle{{#if sidebarOnTraits}} active{{/if}}"
               role="tab" data-sidebar-tab="traits">
               <span class="tab-title">Traits</span>
             </a>
@@ -403,7 +403,7 @@
       </div>
 
       {{!-- ── Sidebar: skills ────────────────────────────────────────────── --}}
-      <div class="tidy-tab skills sidebar-tab-contents flexcol active"
+      <div class="tidy-tab skills sidebar-tab-contents flexcol{{#if sidebarOnSkills}} active{{/if}}"
         data-sidebar-tab="skills" data-tab-contents-for="skills"
         role="tabpanel">
         <div class="skills card">
@@ -458,7 +458,7 @@
       </div>
 
       {{!-- ── Sidebar: traits ────────────────────────────────────────────── --}}
-      <div class="tidy-tab traits sidebar-tab-contents flexcol"
+      <div class="tidy-tab traits sidebar-tab-contents flexcol{{#if sidebarOnTraits}} active{{/if}}"
         data-sidebar-tab="traits" data-tab-contents-for="traits"
         role="tabpanel">
 

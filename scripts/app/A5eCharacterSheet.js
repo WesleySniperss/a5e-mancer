@@ -407,6 +407,7 @@ export class A5eCharacterSheet extends ActorSheet {
 
     const tidy = this.#tidyContext({ sys, abilities, classes, resources, profBonus, currency });
     const inventory = this.#inventory(actor, items);
+    const sidebarTab = this._sidebarTab ?? 'skills';
     inventory.objectTypes = Object.entries(CONFIG?.A5E?.objectTypes ?? {})
       .map(([key, label]) => ({ key, label: game.i18n.localize(label) || titleCase(key) }))
       .sort((a, b) => a.label.localeCompare(b.label));
@@ -433,6 +434,9 @@ export class A5eCharacterSheet extends ActorSheet {
       actor, system: sys, isOwner: actor.isOwner, isGM: game.user.isGM,
       tidy,
       inventory,
+      sidebarTab,
+      sidebarOnSkills: sidebarTab === 'skills',
+      sidebarOnTraits: sidebarTab === 'traits',
       abilities, skills, resources, classes,
       savingThrows, maneuverDC, proficiencies,
       weapons, maneuvers, maneuverGroups, spells, spellGroups, slotRows,
@@ -1509,8 +1513,20 @@ export class A5eCharacterSheet extends ActorSheet {
     window.addEventListener('keydown', this._condKeydownHandler);
 
     /* Condition description popover — click icon to show desc in panel */
+    /* The panel is moved to <body>. position:fixed is measured against the
+       nearest ancestor carrying a transform, not against the window, and the
+       sheet has such ancestors — so left over inside the sheet the pointer
+       coordinates would be wrong and .window-content overflow:hidden could
+       clip it. Every render builds a fresh panel, so the previous one is
+       taken away first, and close() takes the last one away for good. */
+    this._condPanel?.remove();
     const condDescPanel = el.querySelector('.am-cs-cond-desc-panel');
     if (condDescPanel) {
+      condDescPanel.classList.add('am-cond-popover');
+      document.body.appendChild(condDescPanel);
+      this._condPanel = condDescPanel;
+      const hidePanel = () => { condDescPanel.style.display = 'none'; };
+
       el.querySelectorAll('[data-action="toggle-condition"]').forEach(btn => {
         btn.addEventListener('contextmenu', (e) => {
           e.preventDefault();
@@ -1518,12 +1534,36 @@ export class A5eCharacterSheet extends ActorSheet {
           const label = btn.dataset.label;
           if (!desc) return;
           condDescPanel.innerHTML = `<strong>${label}</strong><p>${desc}</p>`;
+
+          /* The panel used to sit at the foot of the sidebar, which is far
+             from wherever the pointer was and easy to miss entirely. It is
+             positioned by the pointer instead. Measured while hidden so the
+             size is the real one, then pulled back inside the window if it
+             would run off an edge — and flipped above the pointer rather
+             than squashed when there is no room below. */
+          condDescPanel.style.visibility = 'hidden';
           condDescPanel.style.display = '';
+          const rect = condDescPanel.getBoundingClientRect();
+          const pad = 8;
+          let x = e.clientX + 12;
+          let y = e.clientY + 12;
+          if (x + rect.width + pad > window.innerWidth) x = window.innerWidth - rect.width - pad;
+          if (y + rect.height + pad > window.innerHeight) y = e.clientY - rect.height - 12;
+          condDescPanel.style.left = `${Math.max(pad, x)}px`;
+          condDescPanel.style.top  = `${Math.max(pad, y)}px`;
+          condDescPanel.style.visibility = '';
         });
       });
-      condDescPanel.addEventListener('click', () => {
-        condDescPanel.style.display = 'none';
+
+      condDescPanel.addEventListener('click', hidePanel);
+      /* Anywhere else on the sheet, and Escape, close it too — a popover
+         that only closes by being clicked is a popover people leave open. */
+      el.addEventListener('mousedown', (e) => {
+        if (!condDescPanel.contains(e.target)) hidePanel();
       });
+      if (this._condEscHandler) window.removeEventListener('keydown', this._condEscHandler);
+      this._condEscHandler = (e) => { if (e.key === 'Escape') hidePanel(); };
+      window.addEventListener('keydown', this._condEscHandler);
     }
 
     /* Spell slot pips */
@@ -1891,6 +1931,10 @@ export class A5eCharacterSheet extends ActorSheet {
       node.addEventListener('click', (e) => {
         e.preventDefault();
         const wanted = node.dataset.sidebarTab;
+        /* Remembered on the sheet, because switching a condition updates the
+           actor and the whole sheet re-renders — without this the sidebar
+           snapped back to Skills every time a condition was clicked. */
+        this._sidebarTab = wanted;
         el.querySelectorAll('a[data-sidebar-tab]').forEach(a =>
           a.classList.toggle('active', a.dataset.sidebarTab === wanted));
         el.querySelectorAll('div[data-sidebar-tab]').forEach(p =>
@@ -2352,6 +2396,12 @@ export class A5eCharacterSheet extends ActorSheet {
   }
 
   async close(options = {}) {
+    this._condPanel?.remove();
+    this._condPanel = null;
+    if (this._condEscHandler) {
+      window.removeEventListener('keydown', this._condEscHandler);
+      this._condEscHandler = null;
+    }
     if (this._condKeydownHandler) {
       window.removeEventListener('keydown', this._condKeydownHandler);
       this._condKeydownHandler = null;
