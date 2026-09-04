@@ -822,7 +822,7 @@ export class A5eCharacterSheet extends ActorSheet {
     const atkBonusFmt = atkBonus !== '' && atkBonus !== null && !isNaN(Number(atkBonus))
       ? sign(Number(atkBonus)) : null;
     return {
-      id: item.id, name: item.name, img: item.img,
+      id: item.id, uuid: item.uuid, name: item.name, img: item.img,
       atkBonus: atkBonusFmt,      // null → tag hidden; signed string → tag shown
       atkBonusCell: atkBonusFmt ?? '—',  // for inventory table column
       dmg: dmg ?? '—', dmgFull,
@@ -851,7 +851,7 @@ export class A5eCharacterSheet extends ActorSheet {
     const rangeVal = sys.range?.value;
     const range    = rangeVal ? `${rangeVal} ${sys.range?.units ?? 'ft'}` : null;
     return {
-      id: item.id, name: item.name, img: item.img,
+      id: item.id, uuid: item.uuid, name: item.name, img: item.img,
       tradition: tradition || 'Other',
       degree, exertion, activation,
       // Degree and exertion are the cost of a maneuver, and dnd5e has no
@@ -888,7 +888,7 @@ export class A5eCharacterSheet extends ActorSheet {
       : (schoolKey ? schoolKey.charAt(0).toUpperCase() + schoolKey.slice(1) : '');
 
     return {
-      id: item.id, name: item.name, img: item.img,
+      id: item.id, uuid: item.uuid, name: item.name, img: item.img,
       level,
       levelLabel: level === 0 ? 'Cantrip' : `Level ${level}`,
       school: schoolKey,
@@ -923,7 +923,7 @@ export class A5eCharacterSheet extends ActorSheet {
       : null;
 
     return {
-      id: item.id, name: item.name, img: item.img,
+      id: item.id, uuid: item.uuid, name: item.name, img: item.img,
       type: item.type,
       featureType: sys.featureType ?? (item.type !== 'feature' ? item.type : 'other'),
       source: ({ class:'Class', heritage:'Heritage', culture:'Culture', background:'Background',
@@ -946,7 +946,7 @@ export class A5eCharacterSheet extends ActorSheet {
     const source = sys.featType ?? sys.category ?? sys.source?.book ?? 'General';
     const prereq = sys.prerequisites?.value ?? sys.prerequisite ?? '';
     return {
-      id: item.id, name: item.name, img: item.img,
+      id: item.id, uuid: item.uuid, name: item.name, img: item.img,
       source: this.#normFeatSource(source),
       prereq,
       desc: descOf(sys)
@@ -978,7 +978,7 @@ export class A5eCharacterSheet extends ActorSheet {
     const attuned       = sys.attuned ?? false;
     const needsAttune   = sys.requiresAttunement ?? false;
     return {
-      id: item.id, name: item.name, img: item.img,
+      id: item.id, uuid: item.uuid, name: item.name, img: item.img,
       qty:    sys.quantity ?? 1,
       weight: sys.weight?.value ?? sys.weight ?? 0,
       equippedState,
@@ -996,7 +996,7 @@ export class A5eCharacterSheet extends ActorSheet {
 
   #classItem(item) {
     return {
-      id: item.id, name: item.name, img: item.img,
+      id: item.id, uuid: item.uuid, name: item.name, img: item.img,
       // A5e stores these as system.classLevels and system.hp.hitDiceSize — the
       // 5e-style paths below are fallbacks for imported data. Reading only those
       // meant every class showed as level 1, which also made the header's total
@@ -1010,17 +1010,84 @@ export class A5eCharacterSheet extends ActorSheet {
   }
 
   /* ── Drag support ────────────────────────────────── */
+  /* ── Drag and drop ────────────────────────────────
+     Ported from a5e's own ActorSheet. The part that matters is the first
+     branch of _onDropItem: when the item is already on this actor the drop
+     has to SORT it. Foundry's default creates instead, which is why
+     dragging a row duplicated the item rather than moving it — we had no
+     drop handling at all, so the default was all there was.
+
+     Containers are a5e's own idea and it already knows the move:
+     Item#updateContainer takes the target's uuid, lifts the item out of
+     whichever container it was in and puts it in the new one. Dropping
+     anywhere that is not a container passes '' and takes it out.
+
+     Source: src/documents/sheets/ActorSheet.svelte.ts, read out of the
+     system's own a5e.js.map. */
   _onDragStart(event) {
     const row = event.currentTarget.closest('[data-item-id]');
-    if (!row) return super._onDragStart(event);
-    const item = this.actor.items.get(row.dataset.itemId);
+    const item = row ? this.actor.items.get(row.dataset.itemId) : null;
     if (!item) return super._onDragStart(event);
-    event.dataTransfer.setData('text/plain', JSON.stringify({
-      type: 'Item',
-      uuid: item.uuid,
-      actorId: this.actor.id,
-      data: item.toObject()
-    }));
+
+    /* toDragData is the shape Foundry expects. The old code sent the whole
+       item data alongside it, which is exactly what pushes the default
+       handler into creating a new item instead of moving this one. */
+    const dragData = item.toDragData();
+
+    /* An action row carries its own id, so one action can be dragged out
+       on its own rather than the whole item. */
+    const actionId = row.dataset.actionId;
+    if (actionId && actionId !== 'default') dragData.actionId = actionId;
+
+    event.dataTransfer.setData('text/plain', JSON.stringify(dragData));
+  }
+
+  /* Where the pointer let go, and what that means for containers. */
+  async #dropTargetOptions(event, item) {
+    const target = event.target?.closest?.('[data-document-uuid]');
+    const targetUuid = target?.dataset?.documentUuid;
+    const targetItem = targetUuid ? await fromUuid(targetUuid).catch(() => null) : null;
+
+    const droppedOnContainer = targetItem?.system?.objectType === 'container';
+    /* Dropped on a container: into it. Dropped on something that lives in a
+       container: into that same container, beside it. Otherwise: nowhere. */
+    const containerUuid = droppedOnContainer
+      ? targetUuid
+      : (targetItem?.system?.containerId || '');
+    const isMovingOut = !!item?.system?.containerId && !containerUuid;
+
+    return {
+      containerUuid,
+      changesContainer: (!!containerUuid && containerUuid !== item?.system?.containerId) || isMovingOut
+    };
+  }
+
+  async _onDropItem(event, data) {
+    if (!this.actor.isOwner) return false;
+
+    const item = await Item.implementation.fromDropData(data);
+    if (!item) return false;
+
+    const options = await this.#dropTargetOptions(event, item);
+
+    /* Already ours and not changing container: reorder, do not duplicate. */
+    if (item.parent?.uuid === this.actor.uuid && !options.changesContainer) {
+      return this._onSortItem(event, item.toObject());
+    }
+
+    if (item.type === 'object') {
+      if (item.parent?.id === this.actor.id) {
+        await item.updateContainer?.(options.containerUuid);
+        return item;
+      }
+      const source = item.toObject();
+      foundry.utils.setProperty(source, 'system.containerId', options.containerUuid);
+      const created = (await this.actor.createEmbeddedDocuments('Item', [source]))?.[0];
+      await created?.updateContainer?.(options.containerUuid);
+      return created;
+    }
+
+    return super._onDropItem(event, data);
   }
 
   /* ── Listeners ────────────────────────────────────── */
@@ -2174,7 +2241,7 @@ export class A5eCharacterSheet extends ActorSheet {
     const actions       = this.#allActionsForItem(item);
     const primary       = actions[0] ?? {};
     return {
-      id: item.id, name: item.name, img: item.img,
+      id: item.id, uuid: item.uuid, name: item.name, img: item.img,
       type: item.type,
       isEquippable,
       equippedState,

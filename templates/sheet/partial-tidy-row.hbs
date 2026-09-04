@@ -21,7 +21,8 @@
      as Tidy has them, so a row carrying more icons than its neighbour still
      lines up down the right-hand side.
      ─────────────────────────────────────────────────────────────────────── --}}
-<div class="tidy-table-row-container" data-item-id="{{id}}">
+<div class="tidy-table-row-container" data-item-id="{{id}}"
+  data-document-uuid="{{uuid}}">
   <div
     class="tidy-table-row tidy-table-row-v2{{#if equipped}} equipped{{/if}}{{#if attuneProblem}} attunement-problem{{/if}}"
     data-tidy-table-row data-tidy-draggable
@@ -175,7 +176,8 @@
           </header>
           <div class="item-table-body">
             {{#each actions}}
-              <div class="tidy-table-row-container">
+              <div class="tidy-table-row-container"
+                data-item-id="{{this.itemId}}" data-action-id="{{this.actionId}}">
                 <div class="tidy-table-row tidy-table-row-v2 activity"
                   data-tidy-table-row data-item-id="{{this.itemId}}"
                   data-action-id="{{this.actionId}}"
@@ -224,7 +226,8 @@
           </header>
           <div class="item-table-body">
             {{#each contents}}
-              <div class="tidy-table-row-container" data-item-id="{{this.id}}">
+              <div class="tidy-table-row-container" data-item-id="{{this.id}}"
+                data-document-uuid="{{this.uuid}}">
                 <div class="tidy-table-row tidy-table-row-v2" data-tidy-table-row
                   data-tidy-sheet-part="item-table-row">
                   <a class="tidy-table-row-use-button" data-action="item-use"
