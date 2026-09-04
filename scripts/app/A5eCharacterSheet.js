@@ -1996,6 +1996,46 @@ export class A5eCharacterSheet extends ActorSheet {
     return { action: 'A', bonus: 'B', reaction: 'R', other: '' }[activation] ?? 'A';
   }
 
+  /* a5e stores damage and attack formulas with roll-data references, so a
+     mace reads "1d8 + @str.mod" until it is resolved against the actor.
+     Printed as written, that is what the sheet showed.
+
+     Foundry does the substitution; the tidying afterwards is only so the
+     result reads as a person would write it — no "+ -2", no dangling
+     "+ 0" from an ability the formula names but the actor has nothing in. */
+  #resolveFormula(formula) {
+    if (formula === null || formula === undefined || formula === '') return formula;
+    let out = String(formula);
+    try {
+      const rollData = this.actor?.getRollData?.() ?? {};
+      out = Roll.replaceFormulaData(out, rollData, { missing: '0', warn: false });
+    } catch (err) {
+      AM.log(2, 'formula resolve:', err);
+      return String(formula);
+    }
+    return out
+      .replace(/\+\s*-\s*/g, '- ')
+      .replace(/\s*\+\s*0(?![\d.])/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /* A whole formula for a number: an attack bonus is usually written as
+     something like "@mod + @prof", so it has to be worked out rather than
+     read. Number() alone gives NaN and the column came out empty. */
+  #formulaToNumber(formula) {
+    const resolved = this.#resolveFormula(formula);
+    if (resolved === '' || resolved === null || resolved === undefined) return null;
+    const direct = Number(resolved);
+    if (Number.isFinite(direct)) return direct;
+    try {
+      const value = Roll.safeEval(resolved);
+      return Number.isFinite(value) ? value : null;
+    } catch {
+      return null;
+    }
+  }
+
   #parseRollsFromAction(action) {
     /* a5e declares rolls as a RecordField — an object keyed by roll id, not
        an array (see ActionDataModel.rolls). Testing Array.isArray on it was
@@ -2013,12 +2053,13 @@ export class A5eCharacterSheet extends ActorSheet {
     const oldSaveDC   = action?.save?.dc ? `DC ${action.save.dc}` : null;
     const oldDmgType  = oldDmgArr[0]?.damageType ?? null;
     const atkRaw      = attackRoll?.bonus ?? oldAtkBonus ?? '';
-    const dmg         = damageRolls[0]?.formula ?? oldDmg;
+    const dmg         = this.#resolveFormula(damageRolls[0]?.formula ?? oldDmg);
     const saveDCRaw   = saveRoll?.dc ?? saveRoll?.saveDC ?? null;
     const saveDC      = saveDCRaw ? `DC ${saveDCRaw}` : oldSaveDC;
     const rawType     = damageRolls[0]?.damageType ?? oldDmgType;
     const dmgType     = rawType ? rawType.charAt(0).toUpperCase() + rawType.slice(1) : null;
-    const atkBonus    = atkRaw !== '' && !isNaN(Number(atkRaw)) ? sign(Number(atkRaw)) : null;
+    const atkNum      = atkRaw === '' ? null : this.#formulaToNumber(atkRaw);
+    const atkBonus    = atkNum === null ? null : sign(atkNum);
     return { atkBonus, dmg, dmgFull: dmg ? (dmgType ? `${dmg} ${dmgType}` : dmg) : null, dmgType, saveDC };
   }
 
