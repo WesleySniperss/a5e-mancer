@@ -254,9 +254,178 @@ export class ManeuverService {
   /**
    * Get maneuver table info for a class at a given level.
    */
-  static getClassManeuverInfo(className, level) {
+  /* ── The book's own progression tables ─────────────────────────────────
+
+     Every a5e class ships its progression table inside its description, as
+     real HTML: Level | Prof. Bonus | Features | … | Maneuvers Known |
+     Maneuver Degree. That is the same table the hardcoded CLASS_MANEUVER_
+     TABLES above were copied out of by hand — so the copy could only ever
+     cover the classes someone had got around to typing in, and could be
+     wrong where they mistyped. It was nine classes; the books installed here
+     describe fourteen with maneuvers, and any third-party class laying its
+     table out the same way comes along for free.
+
+     Read at ready and folded into CLASS_MANEUVER_TABLES under the class name,
+     so every caller that already asks by name gets the book's numbers without
+     knowing this exists. */
+
+  /** Text of an HTML cell, entities and tags gone. */
+  static #cellText(html) {
+    return String(html ?? '')
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&[a-z]+;/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  static #rowCells(rowHtml) {
+    return [...rowHtml.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)]
+      .map(m => this.#cellText(m[1]));
+  }
+
+  /**
+   * Pull the maneuver columns out of a class description.
+   *
+   * The header row uses <td>, not <th> — looking for <th> finds nothing on
+   * every class but one. Levels read as '1ˢᵗ', '2ⁿᵈ' and so on in superscript,
+   * so only the digits are taken; an em dash means none.
+   *
+   * @returns {{maneuversKnown: object, maxDegree: object}|null}
+   */
+  static parseClassProgression(html) {
+    const tables = [...String(html ?? '').matchAll(/<table[\s\S]*?<\/table>/gi)].map(m => m[0]);
+    for (const table of tables) {
+      const rows = [...table.matchAll(/<tr[\s\S]*?<\/tr>/gi)].map(m => m[0]);
+      if (rows.length < 2) continue;
+
+      const head    = this.#rowCells(rows[0]).map(h => h.toLowerCase());
+      const iLevel  = head.findIndex(h => /^level$/.test(h));
+      if (iLevel === -1) continue;
+      const iKnown  = head.findIndex(h => /maneuvers?\s*known/.test(h));
+      const iDegree = head.findIndex(h => /maneuver\s*degree/.test(h));
+      if (iKnown === -1 && iDegree === -1) continue;   // not a maneuver class
+
+      const maneuversKnown = {}, maxDegree = {};
+      for (const row of rows.slice(1)) {
+        const cells = this.#rowCells(row);
+        if (cells.length <= iLevel) continue;
+        const lvl = parseInt(String(cells[iLevel]).replace(/[^\d]/g, ''), 10);
+        if (!lvl || lvl < 1 || lvl > 20) continue;
+
+        const num = (i) => {
+          if (i === -1 || cells[i] === undefined) return null;
+          const t = String(cells[i]).replace(/[\u2014\u2013]/g, '-').trim();
+          if (!t || t === '-') return 0;
+          const n = parseInt(t.replace(/[^\d]/g, ''), 10);
+          return Number.isFinite(n) ? n : null;
+        };
+        const k = num(iKnown), d = num(iDegree);
+        if (k !== null) maneuversKnown[lvl] = k;
+        if (d !== null) maxDegree[lvl] = d;
+      }
+
+      if (Object.keys(maneuversKnown).length || Object.keys(maxDegree).length) {
+        return { maneuversKnown, maxDegree };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Read every installed class and let the book overrule the copy.
+   *
+   * The book wins where both exist — checked against the nine hand-typed
+   * classes, 169 of 180 level entries already agreed, and the eleven that did
+   * not were all one class whose numbers had been typed too generously.
+   *
+   * Traditions are left alone. The table has no column for them: a class's
+   * tradition allowance is granted by a5e itself, through the tradition
+   * proficiency grant on its Combat Maneuvers feature. For a class we are
+   * meeting here for the first time we say 0, which this code reads as
+   * uncapped — better than inventing a limit a5e will grant around.
+   */
+  /**
+   * The progression printed on one class item, parsed once.
+   *
+   * Cached by item id because getClassManeuverInfo is called repeatedly while a
+   * level-up dialog is open — twice per redraw for the before-and-after — and a
+   * class description runs to tens of thousands of characters.
+   */
+  static #ownProgression = new Map();
+
+  static #progressionOf(classItem) {
+    const id = classItem?.id ?? classItem?.uuid;
+    if (!id) return null;
+    if (this.#ownProgression.has(id)) return this.#ownProgression.get(id);
+    const parsed = this.parseClassProgression(classItem.system?.description);
+    this.#ownProgression.set(id, parsed);
+    return parsed;
+  }
+
+  static async loadClassProgressions() {
+    let learned = 0, overruled = 0;
+    for (const pack of PackFilter.packsOfType('Item')) {
+      let index;
+      try {
+        index = await pack.getIndex({ fields: ['name', 'type', 'system.description'] });
+      } catch (err) {
+        AM.log(2, `Could not index ${pack.collection} for class tables:`, err);
+        continue;
+      }
+      for (const entry of index) {
+        if (entry.type !== 'class') continue;
+        const key = entry.name.toLowerCase();
+        /* The four magic-maneuver classes run on this module's own progression,
+           not the book's. None of them prints a maneuver column today, so this
+           changes nothing now — it is here so a later printing that gave one to,
+           say, the wizard could not quietly replace the magic school layer. */
+        if (MM_CLASSES.includes(key)) continue;
+
+        const parsed = this.parseClassProgression(entry.system?.description);
+        if (!parsed) continue;
+
+        const prior = CLASS_MANEUVER_TABLES[key];
+        if (prior) overruled++; else learned++;
+
+        CLASS_MANEUVER_TABLES[key] = {
+          maneuversKnown:    parsed.maneuversKnown,
+          maxDegree:         parsed.maxDegree,
+          traditions:        prior?.traditions ?? 0,
+          allowedTraditions: prior?.allowedTraditions ?? null
+        };
+      }
+    }
+    AM.log(3, `Class tables: ${learned} learned from the books, ${overruled} refreshed`);
+    return { learned, overruled };
+  }
+
+  /**
+   * @param {string} className
+   * @param {number} level
+   * @param {Item}  [classItem]  the class ON the actor, when there is one.
+   *   Read in preference to the name lookup: it is the actual class the
+   *   character has, table and all, so a homebrew or imported class nobody
+   *   published to a compendium still gets its progression. Illrigger, the most
+   *   common class in this world, turns out to name no maneuvers, no exertion
+   *   and no traditions anywhere in its text — so it correctly gets nothing,
+   *   which is not the same as being unsupported.
+   */
+  static getClassManeuverInfo(className, level, classItem = null) {
     const key = className.toLowerCase();
-    const table = CLASS_MANEUVER_TABLES[key];
+    let table = CLASS_MANEUVER_TABLES[key];
+
+    if (classItem && !MM_CLASSES.includes(key)) {
+      const own = this.#progressionOf(classItem);
+      if (own) {
+        table = {
+          maneuversKnown:    own.maneuversKnown,
+          maxDegree:         own.maxDegree,
+          traditions:        table?.traditions ?? 0,
+          allowedTraditions: table?.allowedTraditions ?? null
+        };
+      }
+    }
     if (!table) return null;
 
     const lvl          = Math.max(1, Math.min(20, level));
@@ -412,7 +581,7 @@ export class ManeuverService {
     for (const item of actor.items) {
       if (item.type !== 'class') continue;
       const level = item.system?.classLevels ?? item.system?.levels ?? item.system?.level ?? 1;
-      const info  = this.getClassManeuverInfo(item.name, level);
+      const info  = this.getClassManeuverInfo(item.name, level, item);
       if (!info) continue;
       found = true;
       maneuversKnown += info.maneuversKnown;
