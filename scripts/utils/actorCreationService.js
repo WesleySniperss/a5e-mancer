@@ -1,5 +1,4 @@
 import { AM } from '../a5e-mancer.js';
-import { LevelUpService } from './levelUpService.js';
 import { DocumentService } from './documentService.js';
 import { EquipmentService } from './equipmentService.js';
 import { ManeuverService } from './maneuverService.js';
@@ -214,17 +213,6 @@ export class ActorCreationService {
               ability:   store.spellcastingAbility,
               charLevel: 1
             });
-            /* Put the corrected level on the actor's own class item, not
-               just in our reading of it. a5e's level-up and grant code read
-               system.archetypeLevel straight from the item, so writing it
-               here is what makes the two agree — and it is the actor's copy,
-               never the system's compendium, which is not ours to edit and
-               would be overwritten by an update in any case. */
-            const archLevel = LevelUpService.archetypeLevelOf(created);
-            if (archLevel && Number(created.system?.archetypeLevel) !== archLevel) {
-              await created.update({ 'system.archetypeLevel': archLevel });
-              AM.log(3, `${created.name}: archetype level corrected to ${archLevel}`);
-            }
             await this.#applyArchetype(actor);
           }
         }
