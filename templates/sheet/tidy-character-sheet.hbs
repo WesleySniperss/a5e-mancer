@@ -284,8 +284,13 @@
 
         <div class="actor-vitals-row">
           <div class="hd-row-container">
-            <div class="hd-row">
-              <div class="meter progress hit-die view-only" style="--bar-percentage: {{tidy.hd.pct}}%">
+            {{!-- Hit dice are spent in a5e's rest dialog, so the meter leads
+                 there rather than being a number that cannot be touched.
+                 The tooltip carries the per-die breakdown, which a single
+                 total cannot show. --}}
+            <div class="hd-row" data-action="rest" role="button" tabindex="0"
+              data-tooltip="Hit dice{{#if tidy.hd.breakdown}} — {{tidy.hd.breakdown}}{{/if}}. Click to rest.">
+              <div class="meter progress hit-die" style="--bar-percentage: {{tidy.hd.pct}}%">
                 <span class="label">
                   <div class="value" data-tooltip="Hit Dice Remaining">{{tidy.hd.value}}</div>
                   <div class="separator">/</div>

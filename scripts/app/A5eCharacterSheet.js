@@ -542,7 +542,15 @@ export class A5eCharacterSheet extends ActorSheet {
       init: split(sys.attributes?.initiative?.mod ?? sys.attributes?.initiative?.value ?? 0),
       conc: split(conMod + concBonus),
       hp:   { pct: pct(resources.hp.value, resources.hp.max) },
-      hd:   { value: hdValue, max: hdMax, pct: pct(hdValue, hdMax) },
+      hd:   {
+        value: hdValue, max: hdMax, pct: pct(hdValue, hdMax),
+        /* a5e keeps hit dice per die size, so a single total hides which
+           dice are actually left. The breakdown goes in the tooltip. */
+        breakdown: Object.entries(hitDice)
+          .filter(([, d]) => (Number(d?.total ?? d?.max ?? 0) || 0) > 0)
+          .map(([die, d]) => `${die}: ${Number(d?.current ?? 0) || 0}/${Number(d?.total ?? d?.max ?? 0) || 0}`)
+          .join(', ')
+      },
       portrait: { shape: 'round' },
       speeds,
       senses,
@@ -1565,10 +1573,12 @@ export class A5eCharacterSheet extends ActorSheet {
     this.#bindNumericInput(el, '#am-hp-temp',    v => ({ 'system.attributes.hp.temp': v }));
 
     /* Exertion */
-    this.#bindNumericInput(el, '#am-exertion-current', v => ({
-      'system.attributes.exertion.current': v,
-      'system.attributes.exertion.value': v   // fallback path
-    }));
+    /* a5e's exertion is a SchemaField of current, max and recoverOnRest —
+       there is no `value`. Writing one alongside `current` made the data
+       model reject the WHOLE update, so exertion could never be changed;
+       the catch below swallowed the complaint, so nothing said why. */
+    this.#bindNumericInput(el, '#am-exertion-current',
+      v => ({ 'system.attributes.exertion.current': v }));
 
     /* AC / Initiative / Speed */
     [
@@ -1985,13 +1995,19 @@ export class A5eCharacterSheet extends ActorSheet {
        rest type is chosen and hit dice are spent and rolled. The two buttons
        here called methods that do not exist, so `?.()` returned undefined and
        nothing happened beyond a notice claiming it had. */
-    el.querySelector('[data-action="rest"]')?.addEventListener('click', async () => {
-      if (typeof this.actor.triggerRest === 'function') {
-        await this.actor.triggerRest();
-        return;
-      }
-      ui.notifications.warn('This version of the a5e system has no rest dialog.');
-    });
+    /* Two things open the rest dialog now: the header button and the hit-dice
+       meter, since hit dice are spent there. querySelector would have bound
+       only the first and left the meter dead. */
+    el.querySelectorAll('[data-action="rest"]').forEach(node =>
+      node.addEventListener('click', async (e) => {
+        e.preventDefault();
+        if (typeof this.actor.triggerRest === 'function') {
+          await this.actor.triggerRest();
+          return;
+        }
+        ui.notifications.warn('This version of the a5e system has no rest dialog.');
+      })
+    );
 
     /* Level Up */
     el.querySelector('[data-action="level-up"]')?.addEventListener('click', () =>
@@ -2653,7 +2669,18 @@ export class A5eCharacterSheet extends ActorSheet {
     if (!inp) return;
     inp.addEventListener('change', async (e) => {
       const val = parseInt(e.target.value);
-      if (!isNaN(val)) await this.actor.update(pathFn(val)).catch(() => {});
+      if (isNaN(val)) return;
+      try {
+        await this.actor.update(pathFn(val));
+      } catch (err) {
+        /* This used to be `.catch(() => {})`. A field the data model does
+           not have makes it reject the whole update, and swallowing that
+           left a control that looked fine and did nothing — which is how
+           the exertion bug survived. Say so instead. */
+        AM.log(1, `Could not update ${Object.keys(pathFn(val)).join(', ')}:`, err);
+        ui.notifications.warn(err.message ?? 'The sheet could not save that value.');
+        e.target.value = foundry.utils.getProperty(this.actor, Object.keys(pathFn(val))[0]) ?? '';
+      }
     });
   }
 
