@@ -371,7 +371,20 @@ export class DOMManager {
     try {
       const classItem = await fromUuid(uuid);
       if (classItem && AM.SELECTED.class) {
-        AM.SELECTED.class.hitDie = classItem.system?.hitDice ?? classItem.system?.hitDie ?? '';
+        /* a5e keeps the hit die at system.hp.hitDiceSize, as a NUMBER. There is
+         * no system.hitDice field at all — ClassItemA5e.hitDice is a computed
+         * property on the document, not system data — so both paths this used
+         * to read returned undefined and every class got ''. That emptied the
+         * HP picker, and the archetype picker with it, because the template had
+         * nested one inside the other. Old names kept as fallbacks in case a
+         * homebrew class carries them. */
+        const size = classItem.system?.hp?.hitDiceSize
+          ?? classItem.system?.hitDice
+          ?? classItem.system?.hitDie
+          ?? '';
+        AM.SELECTED.class.hitDie = typeof size === 'number' && size > 0
+          ? `d${size}`
+          : String(size || '');
       }
 
       // Some classes pick their archetype at 1st level — the cleric's Divine

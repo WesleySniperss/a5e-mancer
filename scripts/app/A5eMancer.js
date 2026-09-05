@@ -129,11 +129,24 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     super._syncPartState(partId, newElement, priorElement, state);
     const tops = state.amScroll;
     if (!tops?.some(Boolean)) return;
-    // After layout: the elements exist but have no height until the browser has
-    // laid them out, and scrollTop on a zero-height box is silently dropped.
+
+    /* Restore from the SAME scope the positions were recorded in.
+     *
+     * _preSyncPartState reads priorElement — one part. This used to write back
+     * across this.element — the whole application. The two lists have different
+     * lengths and different orders, so tops[i] landed on whichever scroller sat
+     * at index i application-wide, normally one belonging to another tab. The
+     * spell grid never got its own position back, which is why picking a spell
+     * snapped the list to the top every time. */
     requestAnimationFrame(() => {
-      const els = this.element?.querySelectorAll(A5eMancer.#SCROLLERS) ?? [];
-      els.forEach((el, i) => { if (tops[i]) el.scrollTop = tops[i]; });
+      const root = newElement?.isConnected
+        ? newElement
+        : this.element?.querySelector(`[data-application-part="${partId}"]`);
+      if (!root) return;
+      // After layout: the elements exist but have no height until the browser
+      // has laid them out, and scrollTop on a zero-height box is dropped.
+      root.querySelectorAll(A5eMancer.#SCROLLERS)
+        .forEach((el, i) => { if (tops[i]) el.scrollTop = tops[i]; });
     });
   }
 

@@ -91,34 +91,40 @@
           {{/if}}
 
           {{> am-item-grants}}
+        {{/if}}
 
-          {{!-- The archetype, when this class picks one at 1st level. Everything
-                needed already existed for the level-up dialog; the builder just
-                never asked, so a cleric started play with no Divine Domain. --}}
-          {{#if archetypeAtOne}}
-            <div class="am-archetype-picker">
-              <h4 class="am-hp-picker-title">
-                <i class="fa-solid fa-sitemap"></i> {{localize 'am.app.class.archetype-title'}}
-              </h4>
-              <p class="am-hint">{{localize 'am.app.class.archetype-hint'}}</p>
-              <div class="am-card-grid" data-type="archetype" role="list">
-                {{#each archetypeOptions}}
-                  <button type="button" role="listitem"
-                    class="am-card {{#if this.selected}}am-card-selected{{/if}}"
-                    data-action="selectArchetype" data-uuid="{{this.uuid}}"
-                    data-tooltip="{{this.name}}">
-                    <img class="am-card-img" src="{{this.img}}" alt="" />
-                    <span class="am-card-name">{{this.name}}</span>
-                  </button>
-                {{/each}}
-              </div>
+        {{!-- The archetype, when this class picks one at 1st level. Everything
+              needed already existed for the level-up dialog; the builder just
+              never asked, so a cleric started play with no Divine Domain.
+
+              Outside the hitDie block deliberately. It used to sit inside,
+              which tied the archetype to a completely unrelated field — and
+              since hitDie was read from a system path a5e does not have, it
+              was always empty and this never rendered for any class. Nothing
+              here needs the hit die. --}}
+        {{#if archetypeAtOne}}
+          <div class="am-archetype-picker">
+            <h4 class="am-hp-picker-title">
+              <i class="fa-solid fa-sitemap"></i> {{localize 'am.app.class.archetype-title'}}
+            </h4>
+            <p class="am-hint">{{localize 'am.app.class.archetype-hint'}}</p>
+            <div class="am-card-grid" data-type="archetype" role="list">
+              {{#each archetypeOptions}}
+                <button type="button" role="listitem"
+                  class="am-card {{#if this.selected}}am-card-selected{{/if}}"
+                  data-action="selectArchetype" data-uuid="{{this.uuid}}"
+                  data-tooltip="{{this.name}}">
+                  <img class="am-card-img" src="{{this.img}}" alt="" />
+                  <span class="am-card-name">{{this.name}}</span>
+                </button>
+              {{/each}}
             </div>
-          {{else if archetypeLevel}}
-            <p class="am-hint am-archetype-note">
-              <i class="fa-solid fa-info-circle"></i>
-              {{localize 'am.app.class.archetype-later'}} {{archetypeLevel}}.
-            </p>
-          {{/if}}
+          </div>
+        {{else if archetypeLevel}}
+          <p class="am-hint am-archetype-note">
+            <i class="fa-solid fa-info-circle"></i>
+            {{localize 'am.app.class.archetype-later'}} {{archetypeLevel}}.
+          </p>
         {{/if}}
       </div>
     {{else}}

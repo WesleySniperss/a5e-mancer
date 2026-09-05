@@ -1,7 +1,7 @@
 import { AM } from '../a5e-mancer.js';
 import { PackFilter } from './packFilter.js';
 import { DocumentService } from './documentService.js';
-import { A5E_CLASS_DATA, classKey as classKeyOf } from '../data/a5eClassData.js';
+import { A5E_CLASS_DATA, classKey as classKeyOf, knackNameFor, knackLevelsFor } from '../data/a5eClassData.js';
 import { iconForItem } from '../data/a5eIcons.js';
 import { GrantAbsorber } from './grantAbsorber.js';
 import { MulticlassRules } from './multiclassRules.js';
@@ -93,7 +93,12 @@ export class LevelUpService {
                   ?? HIT_DICE[classKeyOf(i.name)]
                   ?? 8,
         img:      i.img,
-        uuid:     i.getFlag('core', 'sourceId') ?? i.flags?.core?.sourceId ?? null
+        uuid:     i.getFlag('core', 'sourceId') ?? i.flags?.core?.sourceId ?? null,
+        /* Resolved here because this is where the class ITEM is in scope, and
+           reading its grants is the only way a class our table never heard of
+           can still be given its knack. See knackNameFor / knackLevelsFor. */
+        knackName:   knackNameFor({ slug: i.slug, name: i.name }),
+        knackLevels: knackLevelsFor({ slug: i.slug, name: i.name, item: i })
       }));
   }
 
@@ -111,12 +116,15 @@ export class LevelUpService {
    * each class has its own progression table.
    */
   static getLevelUpInfo(cls, newClassLevel, newTotalLevel) {
-    const knack      = A5E_CLASS_DATA[classKeyOf(cls.name)]?.knack ?? null;
-    const knackLevels = knack?.levels ?? [];
+    /* Prefer what getActorClasses already resolved from the item and the
+       system's own knackTypes; fall back to the hand-written table for callers
+       that build `cls` themselves and never passed through there. */
+    const fallback    = A5E_CLASS_DATA[classKeyOf(cls.name)]?.knack ?? null;
+    const knackName   = cls.knackName ?? fallback?.name ?? null;
+    const knackLevels = cls.knackLevels?.length ? cls.knackLevels : (fallback?.levels ?? []);
 
     const gainsASI   = ASI_LEVELS.includes(newClassLevel);
     const gainsKnack = knackLevels.includes(newClassLevel);
-    const knackName  = knack?.name ?? null;
     const avgHP      = Math.ceil(cls.hitDie / 2) + 1;
 
     return { gainsASI, gainsKnack, knackName, avgHP, hitDie: cls.hitDie, newClassLevel, newTotalLevel };

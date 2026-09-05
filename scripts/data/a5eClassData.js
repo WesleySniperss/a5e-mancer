@@ -51,6 +51,85 @@ export function classKey(name) {
   return (name ?? '').toLowerCase().replace(/\s*\(.*\)\s*/, '').trim();
 }
 
+/* ============================================================
+   Asking the system before asking this file
+   ============================================================
+   The table above was written by hand and knows 20 classes. a5e publishes the
+   same thing itself in CONFIG.A5E.knackTypes, and that knows 27 — every one of
+   ours plus artificerrevised, bloodblade, elementalist, fireLord, scholar,
+   wielder and witch. Those seven currently get no knack at all, so a Wielder
+   levelling up is never offered its Artifact Whisper.
+
+   Consulting the system first means a class that arrives with an a5e update, or
+   from a third-party module, is named correctly without anyone editing this
+   file. Keys there are camelCase ("fireLord") while a5e's own slug() lowercases
+   and strips spaces ("firelord"), so every lookup is normalised on both sides.
+   ============================================================ */
+
+/** `CONFIG.A5E.knackTypes` with normalised keys. Rebuilt if the system swaps it. */
+let _knackCache = null;
+function systemKnackNames() {
+  const raw = globalThis.CONFIG?.A5E?.knackTypes;
+  if (!raw) return null;
+  if (_knackCache?.src !== raw) {
+    const map = new Map();
+    for (const [k, v] of Object.entries(raw)) map.set(normaliseKey(k), v);
+    _knackCache = { src: raw, map };
+  }
+  return _knackCache.map;
+}
+
+function normaliseKey(s) {
+  return String(s ?? '').toLowerCase().replace(/\s*\(.*\)\s*/, '').replace(/[^a-z0-9]/g, '');
+}
+
+/**
+ * The knack's name for a class — the system's answer if it has one, ours if not.
+ * Returns null when neither knows the class, which is the honest answer: a
+ * homebrew class with no knack should not be offered one.
+ */
+export function knackNameFor({ slug, name } = {}) {
+  const keys = [slug, name].filter(Boolean).map(normaliseKey).filter(Boolean);
+  const sys = systemKnackNames();
+  if (sys) for (const k of keys) { const hit = sys.get(k); if (hit) return hit; }
+  for (const k of keys) { const hit = A5E_CLASS_DATA[k]?.knack?.name; if (hit) return hit; }
+  return null;
+}
+
+/**
+ * The class levels at which a knack is gained.
+ *
+ * Our table wins here, unlike the name. Its cadences were verified one class at
+ * a time against a5e.tools and they follow no pattern whatsoever — the warlock
+ * gains one at 2/8/14, the scientist at every level from 1 to 20 — so they
+ * cannot be inferred, only looked up. The system publishes names but not
+ * levels, which is why this half still needs the table.
+ *
+ * For a class the table does not know, the class item's own grants are read:
+ * a knack arrives as a grant labelled with the knack's name, so the levels of
+ * the grants carrying that label are the cadence. Best effort, and it degrades
+ * to an empty list rather than to a wrong one.
+ */
+export function knackLevelsFor({ slug, name, item } = {}) {
+  for (const k of [slug, name].filter(Boolean).map(normaliseKey)) {
+    const known = A5E_CLASS_DATA[k]?.knack?.levels;
+    if (known?.length) return known;
+  }
+
+  const label = knackNameFor({ slug, name });
+  const grants = item?.system?.grants;
+  if (!label || !grants) return [];
+
+  const wanted = normaliseKey(label);
+  const levels = new Set();
+  for (const grant of Object.values(grants)) {
+    if (normaliseKey(grant?.label) !== wanted) continue;
+    const lvl = Number(grant?.level);
+    if (Number.isInteger(lvl) && lvl > 0) levels.add(lvl);
+  }
+  return [...levels].sort((a, b) => a - b);
+}
+
 /**
  * What an ADDITIONAL class hands out when you multiclass into it.
  *
