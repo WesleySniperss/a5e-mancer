@@ -341,7 +341,35 @@ export class LevelUpService {
   /**
    * The level at which a class picks its archetype, per the class item itself.
    */
+  /* a5e's ClassDataModel declares archetypeLevel with `initial: 3`, and NO
+     class in the compendium ever sets it — checked across the whole pack.
+     So every class reports 3, the cleric included, and a cleric built here
+     was never offered the Divine Domain it is owed at 1st level.
+
+     a5e's own code reads the same field the same way, so its level-up has
+     the same gap; this is a hole in the data, not in either module.
+
+     Only put a class here when the rules and the compendium disagree. When
+     a5e fills the field in, these entries become redundant rather than
+     wrong — but they will still win, so check this list against the pack
+     after a system update. */
+  static ARCHETYPE_LEVEL_CORRECTIONS = {
+    cleric: 1   // Divine Domain, chosen at 1st
+  };
+
+  /* Same `||` chain the archetype lookup uses: a5e stores system.slug as an
+     empty string for several classes, the cleric among them, so `??` would
+     stop on the empty string and never reach the name. */
+  static classSlug(classItem) {
+    return classItem?.slug
+      || classItem?.system?.slug
+      || String(classItem?.name ?? '').slugify?.({ strict: true })
+      || '';
+  }
+
   static archetypeLevelOf(classItem) {
+    const corrected = this.ARCHETYPE_LEVEL_CORRECTIONS[this.classSlug(classItem)];
+    if (corrected) return corrected;
     return Number(classItem?.system?.archetypeLevel ?? 0) || 0;
   }
 
