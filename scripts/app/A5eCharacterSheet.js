@@ -552,6 +552,14 @@ export class A5eCharacterSheet extends ActorSheet {
           .join(', ')
       },
       portrait: { shape: 'round' },
+      /* a5e derives attunement.current itself — requiresAttunement && attuned,
+         counted on the actor — and carries its own max, which a feature can
+         raise above three. Reading both means this cannot drift from what the
+         system sheet shows; the local count is only a fallback. */
+      attunement: {
+        current: sys.attributes?.attunement?.current ?? null,
+        max: Number(sys.attributes?.attunement?.max ?? 3) || 3
+      },
       speeds,
       senses,
       classLine: classes.map((c) => ({ name: c.name, levels: c.level })),

@@ -473,7 +473,10 @@
                 <h3 class="font-title-small">Attunement</h3>
               </div>
               <span class="pill pill-medium">
-                <span class="label font-label-medium">{{attuneCount}} / 3</span>
+                <span class="label font-label-medium">
+                  {{#if tidy.attunement.current}}{{tidy.attunement.current}}{{else}}{{attuneCount}}{{/if}}
+                  / {{tidy.attunement.max}}
+                </span>
               </span>
             </div>
             <div class="list traits">
