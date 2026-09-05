@@ -744,13 +744,10 @@
         </button>
       </div>
 
-      {{#if hasWeapons}}
-        {{#> tidy-table key="weapons" label="Weapons" count=weapons.length c1=true col1="Attack" c2=true col2="Damage" c3=true col3="Range"}}
-          {{#each weapons}}
-            {{> tidy-row isEquippable=true c1=true cell1=this.atkBonusCell c2=true cell2=this.dmgFull c3=true cell3=this.range}}
-          {{/each}}
-        {{/tidy-table}}
-      {{/if}}
+      {{!-- Weapons are objects and belong to Inventory, which groups them
+           under their own heading. They reach the first tab the way
+           everything else does — by being starred. Martial is maneuvers,
+           grouped by tradition, and nothing else. --}}
 
       {{#if hasManeuvers}}
         {{#each maneuverGroups}}
@@ -762,9 +759,9 @@
         {{/each}}
       {{/if}}
 
-      {{#unless hasCombat}}
+      {{#unless hasManeuvers}}
         <div class="empty-state-container empty-state-description">
-          <span class="color-text-lighter">No weapons or maneuvers.</span>
+          <span class="color-text-lighter">No maneuvers known.</span>
         </div>
       {{/unless}}
     </div>

@@ -654,3 +654,23 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ── Equipped rows read green, as they do on a5e's own sheet ──────────────
+   Tidy tints the equipped stripe with --t5e-item-color, which only its rarity
+   classes ever set. Our rows carry no rarity, so the variable was undefined
+   and the gradient fell back to the theme accent — Tidy's default accent is a
+   dark crimson, which is why equipped weapons looked flagged rather than
+   ready.
+
+   Setting the variable on the row is enough: Tidy's own gradient, its own
+   opacity, its own geometry, just the hue a5e uses. */
+.tidy5e-sheet.application.a5e-mancer-sheet .tidy-table-row.equipped {
+  --t5e-item-color: var(--t5e-color-palette-green-65);
+}
+
+/* The equip icon takes the same green when it is lit, so the row and its
+   icon agree. It is addressed through its button: the .equip-icon class was
+   removed when Tidy was found to rotate and mirror anything carrying it. */
+.tidy5e-sheet.application.a5e-mancer-sheet .tidy-table-row.equipped [data-action="item-equip"] i.highlighted {
+  color: var(--t5e-color-palette-green-65);
+}
