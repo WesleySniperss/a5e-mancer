@@ -6,6 +6,7 @@ import { SpellService } from '../utils/spellService.js';
 import { PackFilter } from '../utils/packFilter.js';
 import { ManeuverService } from '../utils/maneuverService.js';
 import { ConditionSource } from '../utils/conditionSource.js';
+import { ItemRepair } from '../utils/itemRepair.js';
 
 const MODULE_ID = 'a5e-mancer';
 
@@ -123,6 +124,30 @@ export class A5eCharacterSheet extends ActorSheet {
       tabs: [{ navSelector: '.actor-tabs', contentSelector: '.main-content', initial: 'favorites' }],
       dragDrop: [{ dragSelector: '.tidy-table-row-container[data-item-id]', dropSelector: '.main-content' }]
     });
+  }
+
+  /* ── Window header ────────────────────────────────── */
+
+  /**
+   * Items on a real character are often stubs — a name and its actions, every
+   * other field at its default. A spell like that shows no description, but
+   * also no level, no components and no casting time, because none of them
+   * were ever written. The compendium entry still has all of it.
+   *
+   * It sits in the title bar rather than on the sheet because it is a repair,
+   * run once when a character looks empty, not a thing to reach for in play.
+   */
+  _getHeaderButtons() {
+    const buttons = super._getHeaderButtons();
+    if (this.actor.isOwner) {
+      buttons.unshift({
+        label: 'Fill In',
+        class: 'am-repair-items',
+        icon:  'fa-solid fa-book-medical',
+        onclick: () => ItemRepair.run(this.actor)
+      });
+    }
+    return buttons;
   }
 
   /* ── Data ─────────────────────────────────────────── */

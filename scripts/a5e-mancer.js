@@ -8,6 +8,7 @@ import { registerMagicSchools } from './utils/maneuverService.js';
 import { iconForItem } from './data/a5eIcons.js';
 import { installCompendiumFilterFix } from './utils/compendiumIndexFix.js';
 import { ConditionSource } from './utils/conditionSource.js';
+import { ItemRepair } from './utils/itemRepair.js';
 
 export class AM {
   static ID   = 'a5e-mancer';
@@ -95,6 +96,16 @@ export class AM {
     if (this.levelUpDialog) this.levelUpDialog.close();
     this.levelUpDialog = new LevelUpDialog(actor);
     this.levelUpDialog.render(true);
+  }
+
+  /**
+   * Put back what a character's items are missing, from the compendium entries
+   * they came from. Exposed here as well as on the sheet so it can be reached
+   * from a5e's own sheet, a macro or the console — the stubs are not this
+   * sheet's problem, they are the character's.
+   */
+  static repairItems(actor, options = {}) {
+    return ItemRepair.run(actor, options);
   }
 }
 
