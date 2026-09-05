@@ -767,3 +767,66 @@
   text-transform: none;
   letter-spacing: normal;
 }
+
+/* ── Effects and Bonuses ───────────────────────────────────────────────────
+   The two tabs a5e own sheet has that this one was missing. Both reuse Tidy
+   table rows, so only the bits Tidy has no opinion about are set here. */
+
+/* Filtering hides rows in the browser rather than re-rendering, so it needs a
+   rule of its own. The module has .am-hidden already, but only ever nested
+   inside other selectors, so it did not reach anything here. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-hidden { display: none !important; }
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-fx-img {
+  width: var(--t5e-size-6x);
+  height: var(--t5e-size-6x);
+  border-radius: var(--t5e-border-radius-standard, 3px);
+  object-fit: cover;
+  flex: none;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-fx-temp { margin-inline-start: var(--t5e-size-2x); }
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-fx-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--t5e-size-1);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-fx-search {
+  flex: 1;
+  min-width: 6rem;
+}
+
+/* An inactive effect is still worth reading, just not worth reading first. */
+.tidy5e-sheet.application.a5e-mancer-sheet [data-tidy-section-key="effects-inactive"] .tidy-table-row {
+  opacity: 0.6;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet [data-tidy-section-key="effects-inactive"] .tidy-table-row:hover {
+  opacity: 1;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-bonus-globals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--t5e-size-4x);
+  padding: var(--t5e-size-2x) var(--t5e-size-3x);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-bonus-global {
+  display: flex;
+  align-items: center;
+  gap: var(--t5e-size-2x);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-bonus-dc {
+  width: 3rem;
+  text-align: center;
+  color: var(--t5e-color-text-default);
+}
+
+/* A category with no bonuses in it still shows its heading and its add button
+   — that is where a bonus is made, so an empty one must stay reachable. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-bonus-table .tidy-table-header-row { min-height: var(--t5e-size-8x); }

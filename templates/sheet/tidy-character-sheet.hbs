@@ -464,8 +464,15 @@
         data-tab-id="inventory" data-group="primary"><span class="tab-title">Inventory</span></a>
       <a class="tab-option item" role="tab" data-tab="features"
         data-tab-id="features" data-group="primary"><span class="tab-title">Features</span></a>
-      <a class="tab-option item no-border-on-last-tab" role="tab" data-tab="notes"
+      <a class="tab-option item" role="tab" data-tab="notes"
         data-tab-id="notes" data-group="primary"><span class="tab-title">Notes</span></a>
+      {{!-- Effects and Bonuses are two of the four tabs a5e own sheet has and
+           this one did not. Both are thin over a5e own API, so what is made
+           here is the same document its sheet would make. --}}
+      <a class="tab-option item" role="tab" data-tab="effects"
+        data-tab-id="effects" data-group="primary"><span class="tab-title">Effects</span></a>
+      <a class="tab-option item no-border-on-last-tab" role="tab" data-tab="bonuses"
+        data-tab-id="bonuses" data-group="primary"><span class="tab-title">Bonuses</span></a>
     </nav>
   </div>
 </header>
@@ -1082,6 +1089,172 @@
           {{/if}}
         </section>
       {{/if}}
+    </div>
+
+    {{!-- ▸ EFFECTS ──────────────────────────────────────────────────────
+         a5e groups these into what is running and what is not, and leaves
+         conditions out — they are tiles in the Traits sidebar already. The
+         hourglass marks an effect with a duration. --}}
+    <div class="tab tidy-tab effects tidy-tab-contents"
+      data-tab="effects" data-group="primary" data-tab-contents-for="effects"
+      role="tabpanel">
+
+      <div class="am-utility-bar flexrow">
+        <input type="search" class="am-fx-search" data-action="fx-search"
+          placeholder="Search effects…" aria-label="Search effects" />
+        <button type="button" class="button button-secondary" data-action="effect-add">
+          <i class="fa-solid fa-plus"></i> New Effect
+        </button>
+      </div>
+
+      {{#each effectGroups}}
+        <section class="tidy-table am-fx-table" data-tidy-sheet-part="item-table"
+          data-tidy-section-key="effects-{{this.key}}">
+          <header class="tidy-table-header-row theme-dark"
+            data-tidy-sheet-part="table-header-row">
+            <div class="tidy-table-header-cell primary header-label-cell"
+              data-tidy-sheet-part="table-header-cell">
+              <h3>{{this.label}}</h3>
+            </div>
+            <div class="tidy-table-header-cell text-cell"
+              style="--tidy-table-column-width: var(--am-col-actions)">
+              <span class="color-text-lighter">{{this.items.length}}</span>
+            </div>
+          </header>
+          <div class="item-table-body">
+            {{#each this.items}}
+              <div class="tidy-table-row-container am-fx-row" data-effect-id="{{this.id}}"
+                data-name="{{this.name}}">
+                <div class="tidy-table-row" data-tidy-sheet-part="table-row">
+                  <div class="tidy-table-cell primary">
+                    <img class="am-fx-img" src="{{this.img}}" alt="" />
+                    <span class="cell-text">{{this.name}}</span>
+                    {{#if this.temporary}}
+                      <i class="fa-solid fa-hourglass-half color-text-lighter am-fx-temp"
+                        data-tooltip="Temporary{{#if this.duration}} — {{this.duration}}{{/if}}"></i>
+                    {{/if}}
+                  </div>
+                  <div class="tidy-table-cell text-cell am-fx-buttons"
+                    style="--tidy-table-column-width: var(--am-col-actions)">
+                    <button type="button" class="button button-borderless button-icon-only"
+                      data-action="effect-toggle" data-id="{{this.id}}"
+                      data-tooltip="{{#if this.suppressed}}Suppressed — switch on{{else}}Switch off{{/if}}"
+                      aria-label="Toggle {{this.name}}">
+                      <i class="fa-solid {{#if this.suppressed}}fa-toggle-off{{else}}fa-toggle-on{{/if}}"></i>
+                    </button>
+                    <button type="button" class="button button-borderless button-icon-only"
+                      data-action="effect-edit" data-id="{{this.id}}"
+                      data-tooltip="Edit" aria-label="Edit {{this.name}}">
+                      <i class="fa-solid fa-pen-to-square"></i>
+                    </button>
+                    <button type="button" class="button button-borderless button-icon-only"
+                      data-action="effect-delete" data-id="{{this.id}}"
+                      data-tooltip="Delete" aria-label="Delete {{this.name}}">
+                      <i class="fa-solid fa-trash"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            {{/each}}
+          </div>
+        </section>
+      {{/each}}
+
+      {{#unless effectGroups.length}}
+        <div class="empty-state-container empty-state-description">
+          <span class="color-text-lighter">No active effects. Conditions are in the Traits sidebar.</span>
+        </div>
+      {{/unless}}
+    </div>
+
+    {{!-- ▸ BONUSES ──────────────────────────────────────────────────────
+         The categories come from CONFIG.A5E.bonusTypes, not a list of ours,
+         so one a5e adds later shows up here on its own. Every button calls
+         a5e own actor method. --}}
+    <div class="tab tidy-tab bonuses tidy-tab-contents"
+      data-tab="bonuses" data-group="primary" data-tab-contents-for="bonuses"
+      role="tabpanel">
+
+      <section class="tidy-table" data-tidy-sheet-part="item-table"
+        data-tidy-section-key="global-bonuses">
+        <header class="tidy-table-header-row theme-dark"
+          data-tidy-sheet-part="table-header-row">
+          <div class="tidy-table-header-cell primary header-label-cell"
+            data-tidy-sheet-part="table-header-cell">
+            <h3>Global Bonuses</h3>
+          </div>
+        </header>
+        <div class="item-table-body am-bonus-globals">
+          <label class="am-bonus-global">
+            <span class="font-label-medium color-text-gold">Maneuver DC</span>
+            <input type="number" class="uninput am-bonus-dc" data-action="bonus-dc"
+              data-key="maneuverDC" value="{{bonuses.maneuverDC}}" aria-label="Maneuver DC bonus" />
+          </label>
+          <label class="am-bonus-global">
+            <span class="font-label-medium color-text-gold">Spell DC</span>
+            <input type="number" class="uninput am-bonus-dc" data-action="bonus-dc"
+              data-key="spellDC" value="{{bonuses.spellDC}}" aria-label="Spell DC bonus" />
+          </label>
+        </div>
+      </section>
+
+      {{#each bonuses.categories}}
+        <section class="tidy-table am-bonus-table" data-tidy-sheet-part="item-table"
+          data-tidy-section-key="bonus-{{this.key}}">
+          <header class="tidy-table-header-row theme-dark"
+            data-tidy-sheet-part="table-header-row">
+            <div class="tidy-table-header-cell primary header-label-cell"
+              data-tidy-sheet-part="table-header-cell">
+              <h3>{{this.label}}</h3>
+            </div>
+            <div class="tidy-table-header-cell text-cell"
+              style="--tidy-table-column-width: var(--am-col-narrow)">
+              <button type="button" class="button button-borderless button-icon-only"
+                data-action="bonus-add" data-type="{{this.key}}"
+                data-tooltip="{{this.addLabel}}" aria-label="{{this.addLabel}}">
+                <i class="fa-solid fa-plus"></i>
+              </button>
+            </div>
+          </header>
+          {{#if this.items.length}}
+            <div class="item-table-body">
+              {{#each this.items}}
+                <div class="tidy-table-row-container">
+                  <div class="tidy-table-row" data-tidy-sheet-part="table-row">
+                    <div class="tidy-table-cell primary">
+                      {{#if this.img}}<img class="am-fx-img" src="{{this.img}}" alt="" />{{/if}}
+                      <span class="cell-text">{{this.label}}</span>
+                    </div>
+                    <div class="tidy-table-cell text-cell"
+                      style="--tidy-table-column-width: var(--am-col)">
+                      <span class="cell-text color-text-lighter">{{this.formula}}</span>
+                    </div>
+                    <div class="tidy-table-cell text-cell am-fx-buttons"
+                      style="--tidy-table-column-width: var(--am-col-actions)">
+                      <button type="button" class="button button-borderless button-icon-only"
+                        data-action="bonus-configure" data-id="{{this.id}}" data-type="{{../key}}"
+                        data-tooltip="Configure" aria-label="Configure {{this.label}}">
+                        <i class="fa-solid fa-cog"></i>
+                      </button>
+                      <button type="button" class="button button-borderless button-icon-only"
+                        data-action="bonus-duplicate" data-id="{{this.id}}" data-type="{{../key}}"
+                        data-tooltip="Duplicate" aria-label="Duplicate {{this.label}}">
+                        <i class="fa-solid fa-clone"></i>
+                      </button>
+                      <button type="button" class="button button-borderless button-icon-only"
+                        data-action="bonus-delete" data-id="{{this.id}}" data-type="{{../key}}"
+                        data-label="{{this.label}}"
+                        data-tooltip="Delete" aria-label="Delete {{this.label}}">
+                        <i class="fa-solid fa-trash"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              {{/each}}
+            </div>
+          {{/if}}
+        </section>
+      {{/each}}
     </div>
 
   </div>

@@ -287,6 +287,59 @@ export class A5eCharacterSheet extends ActorSheet {
         : [];
       return { name: s.name ?? '', value: val, max, pips };
     });
+    /* ── Active effects, as a5e's own Effects tab lists them ──────────────
+       Grouped into what is running and what is not, with conditions left out:
+       a5e's page skips them too, and the Traits sidebar already shows them as
+       tiles you can click. */
+    const effectGroups = (() => {
+      const ongoing = [], inactive = [];
+      for (const e of actor.effects ?? []) {
+        if (e.system?.effectType === 'condition') continue;
+        const row = {
+          id:         e.id,
+          name:       e.name,
+          img:        e.img || 'icons/svg/aura.svg',
+          temporary:  !!e.isTemporary,
+          suppressed: !!e.isSuppressed,
+          duration:   e.duration?.label ?? ''
+        };
+        (e.active ? ongoing : inactive).push(row);
+      }
+      return [
+        { key: 'ongoing',  label: 'Ongoing',  items: ongoing },
+        { key: 'inactive', label: 'Inactive', items: inactive }
+      ].filter(g => g.items.length);
+    })();
+
+    /* ── Global bonuses, as a5e's Bonuses tab lists them ──────────────────
+       Every category comes from CONFIG.A5E.bonusTypes rather than a list of
+       our own, so a category a5e adds later appears here without us knowing
+       about it. The buttons call a5e's own actor methods — addBonus,
+       configureBonus, duplicateBonus, deleteBonus — so a bonus made here is
+       the same bonus its own sheet would make. */
+    const bonusTypes = CONFIG?.A5E?.bonusTypes ?? {};
+    const bonusLabels = CONFIG?.A5E?.bonusLabels ?? {};
+    const bonuses = {
+      maneuverDC: sys.bonuses?.maneuverDC ?? 0,
+      spellDC:    sys.bonuses?.spellDC ?? 0,
+      categories: Object.entries(bonusTypes).map(([key, i18n]) => {
+        const entries = sys.bonuses?.[key] ?? {};
+        const fallback = bonusLabels[key]?.defaultName;
+        return {
+          key,
+          label: game.i18n.localize(bonusLabels[key]?.sectionHeader ?? i18n),
+          addLabel: game.i18n.localize(bonusLabels[key]?.addButton ?? 'Add'),
+          items: Object.entries(entries).map(([id, b]) => ({
+            id,
+            label:   b?.label || (fallback ? game.i18n.localize(fallback) : key),
+            formula: b?.formula ?? '',
+            img:     b?.img || ''
+          }))
+        };
+      })
+    };
+    const hasBonuses = bonuses.categories.some(c => c.items.length);
+
     /* The first slot with no name yet, so the strip can offer one field to
        name it in rather than two empty counters nobody asked for. */
     const freeIndex = customCounters.findIndex(c => !c.name);
@@ -483,7 +536,8 @@ export class A5eCharacterSheet extends ActorSheet {
       abilities, skills, resources, classes,
       savingThrows, maneuverDC, proficiencies,
       weapons, maneuvers, maneuverGroups, spells, spellGroups, slotRows,
-      features, feats, allFeatures, featuresBySource, customCounters, freeCounter, equipment, currency,
+      features, feats, allFeatures, featuresBySource, customCounters, freeCounter,
+      effectGroups, bonuses, hasBonuses, equipment, currency,
       fatiguePips, strifePips, exertionPips,
       fatigueDesc, strifeDesc, statusConditions,
       attunementItems, attuneCount, passivePerception, charInfo, bio,
@@ -1970,6 +2024,102 @@ export class A5eCharacterSheet extends ActorSheet {
         const body = btn.closest('.am-feat-item')?.querySelector('.am-feat-body');
         if (body) body.classList.toggle('am-hidden');
         btn.textContent = body?.classList.contains('am-hidden') ? '▸' : '▾';
+      })
+    );
+
+    /* ── Effects ────────────────────────────────────────────────────────
+       Everything here is a5e's own document API, so an effect toggled from
+       this sheet behaves exactly as one toggled from theirs. */
+    const effectFrom = (el2) => this.actor.effects.get(el2.dataset.id);
+
+    el.querySelectorAll('[data-action="effect-toggle"]').forEach(b =>
+      b.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const fx = effectFrom(b);
+        if (!fx) return;
+        /* a5e adds toggleActiveState, which knows about suppression; plain
+           Foundry only has the disabled flag. Prefer theirs, fall back. */
+        if (typeof fx.toggleActiveState === 'function') await fx.toggleActiveState();
+        else await fx.update({ disabled: !fx.disabled });
+      })
+    );
+
+    el.querySelectorAll('[data-action="effect-edit"]').forEach(b =>
+      b.addEventListener('click', (e) => { e.preventDefault(); effectFrom(b)?.sheet?.render(true); })
+    );
+
+    el.querySelectorAll('[data-action="effect-delete"]').forEach(b =>
+      b.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const fx = effectFrom(b);
+        if (!fx) return;
+        /* Deleting is asked for. deleteDialog is Foundry's own prompt, which
+           is the one a player already recognises from every other sheet. */
+        if (typeof fx.deleteDialog === 'function') await fx.deleteDialog();
+        else await fx.delete();
+      })
+    );
+
+    el.querySelector('[data-action="effect-add"]')?.addEventListener('click', async (e) => {
+      e.preventDefault();
+      /* The same document a5e's own add button makes — see createActiveEffect. */
+      await this.actor.createEmbeddedDocuments('ActiveEffect', [{
+        name:   game.i18n.localize('A5E.effects.new'),
+        img:    'icons/svg/aura.svg',
+        origin: this.actor.uuid
+      }]);
+    });
+
+    /* Filtering in the browser rather than through a re-render: an effect list
+       is short, and re-rendering would take the focus out of the field on
+       every keystroke. */
+    el.querySelector('[data-action="fx-search"]')?.addEventListener('input', (e) => {
+      const q = e.target.value.trim().toLowerCase();
+      el.querySelectorAll('.am-fx-row').forEach(row => {
+        const name = (row.dataset.name ?? '').toLowerCase();
+        row.classList.toggle('am-hidden', !!q && !name.includes(q));
+      });
+      /* A group whose every row is filtered out should go too, or the page is
+         left with headings standing over nothing. */
+      el.querySelectorAll('.am-fx-table').forEach(table => {
+        const rows = [...table.querySelectorAll('.am-fx-row')];
+        table.classList.toggle('am-hidden', rows.length > 0 &&
+          rows.every(r => r.classList.contains('am-hidden')));
+      });
+    });
+
+    /* ── Bonuses ────────────────────────────────────────────────────────
+       a5e's actor carries all four of these; this sheet only presses them. */
+    el.querySelectorAll('[data-action="bonus-add"]').forEach(b =>
+      b.addEventListener('click', (e) => { e.preventDefault(); this.actor.addBonus?.(b.dataset.type); })
+    );
+    el.querySelectorAll('[data-action="bonus-configure"]').forEach(b =>
+      b.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.actor.configureBonus?.(b.dataset.id, b.dataset.type);
+      })
+    );
+    el.querySelectorAll('[data-action="bonus-duplicate"]').forEach(b =>
+      b.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.actor.duplicateBonus?.(b.dataset.id, b.dataset.type);
+      })
+    );
+    el.querySelectorAll('[data-action="bonus-delete"]').forEach(b =>
+      b.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const ok = await foundry.applications.api.DialogV2.confirm({
+          window: { title: 'Delete bonus' },
+          content: `<p>Delete <strong>${ItemRepair.esc(b.dataset.label ?? 'this bonus')}</strong>?</p>`
+        }).catch(() => false);
+        if (ok) await this.actor.deleteBonus?.(b.dataset.id, b.dataset.type);
+      })
+    );
+
+    el.querySelectorAll('[data-action="bonus-dc"]').forEach(inp =>
+      inp.addEventListener('change', async (e) => {
+        const v = parseInt(e.target.value);
+        await this.actor.update({ [`system.bonuses.${e.target.dataset.key}`]: isNaN(v) ? 0 : v });
       })
     );
 
