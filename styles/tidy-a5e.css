@@ -277,7 +277,7 @@
    Only the name column is flexible. Everything to its right is fixed, so
    names of different lengths cannot push the numbers around. */
 .tidy5e-sheet.application.a5e-mancer-sheet .tidy-table {
-  --am-col:         5.5rem;   /* attack, damage, range, duration, save … */
+  --am-col:         7rem;     /* attack, damage, range, duration, save … */
   --am-col-uses:    4.5rem;   /* "3 / 5" plus its separator              */
   --am-col-narrow:  3.5rem;   /* quantity                                */
   --am-col-actions: 7rem;     /* star, chat, edit, delete                */
@@ -673,4 +673,31 @@
    removed when Tidy was found to rotate and mirror anything carrying it. */
 .tidy5e-sheet.application.a5e-mancer-sheet .tidy-table-row.equipped [data-action="item-equip"] i.highlighted {
   color: var(--t5e-color-palette-green-65);
+}
+
+/* ── Trackers ─────────────────────────────────────────────────────────────
+   a5e's four free-text counters, shown beside exertion because they are the
+   same kind of thing: something spent and regained in play. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker {
+  gap: var(--t5e-size-1);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-value {
+  width: 2.5rem;
+  text-align: center;
+  color: var(--t5e-color-text-default);
+}
+
+/* A figure that is also a button: it reads as the number it shows until the
+   pointer is over it, so the row stays a table rather than a toolbar. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-part-roll {
+  cursor: pointer;
+  color: inherit;
+  border-radius: var(--t5e-size-halfx);
+  padding-inline: var(--t5e-size-halfx);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-part-roll:hover {
+  color: var(--t5e-color-text-gold-emphasis);
+  background: rgba(255, 255, 255, 0.06);
 }

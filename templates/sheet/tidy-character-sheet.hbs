@@ -329,19 +329,31 @@
 
   {{!-- ── A5e resource strip: exertion, maneuver DC, passive perception ──── --}}
   <div class="am-a5e-strip flexrow">
-    <div class="am-a5e-stat am-a5e-exertion" data-tooltip="Exertion Pool">
+    {{!-- Exertion is spent and regained constantly, so it gets the two
+         buttons that spending asks for rather than only a field to retype. --}}
+    <div class="am-a5e-stat am-a5e-exertion" data-tooltip="Exertion pool">
       <span class="am-a5e-label font-label-medium color-text-gold">
         <i class="fa-solid fa-bolt"></i> Exertion
       </span>
+      <button type="button" class="button button-borderless button-icon-only"
+        data-action="exertion-step" data-delta="-1" data-max="{{resources.exertion.max}}"
+        aria-label="Spend exertion" data-tooltip="Spend one">
+        <i class="fa-solid fa-minus"></i>
+      </button>
       <div class="meter progress am-exertion-meter"
         style="--bar-percentage: {{resources.exertion.pct}}%">
         <div class="label">
           <input type="number" class="value uninput" id="am-exertion-current"
-            value="{{resources.exertion.current}}" min="0" aria-label="Current Exertion" />
+            value="{{resources.exertion.current}}" min="0" aria-label="Current exertion" />
           <div class="separator">/</div>
           <div class="max">{{resources.exertion.max}}</div>
         </div>
       </div>
+      <button type="button" class="button button-borderless button-icon-only"
+        data-action="exertion-step" data-delta="1" data-max="{{resources.exertion.max}}"
+        aria-label="Regain exertion" data-tooltip="Regain one">
+        <i class="fa-solid fa-plus"></i>
+      </button>
     </div>
 
     <div class="am-a5e-stat" data-tooltip="Maneuver DC">
@@ -353,6 +365,31 @@
       <span class="am-a5e-label font-label-medium color-text-gold">Passive Perception</span>
       <span class="am-a5e-value font-data-medium color-text-default">{{passivePerception}}</span>
     </div>
+
+    {{!-- a5e keeps four free-text trackers on its own sheet, for whatever a
+         character needs counting. Only the ones that have been given a name
+         appear: an unnamed slot is empty, not a thing to show. --}}
+    {{#each tidy.resources}}
+      <div class="am-a5e-stat am-tracker" data-tooltip="{{this.label}}">
+        <span class="am-a5e-label font-label-medium color-text-gold">{{this.label}}</span>
+        <button type="button" class="button button-borderless button-icon-only"
+          data-action="resource-step" data-resource="{{this.key}}" data-delta="-1"
+          data-max="{{this.max}}" aria-label="Spend one {{this.label}}">
+          <i class="fa-solid fa-minus"></i>
+        </button>
+        <input type="number" class="uninput am-tracker-value"
+          data-action="resource-value" data-resource="{{this.key}}"
+          value="{{this.value}}" min="0" aria-label="{{this.label}}" />
+        {{#unless this.hideMax}}
+          <span class="am-a5e-value color-text-lighter">/ {{this.max}}</span>
+        {{/unless}}
+        <button type="button" class="button button-borderless button-icon-only"
+          data-action="resource-step" data-resource="{{this.key}}" data-delta="1"
+          data-max="{{this.max}}" aria-label="Regain one {{this.label}}">
+          <i class="fa-solid fa-plus"></i>
+        </button>
+      </div>
+    {{/each}}
   </div>
 
   {{!-- ── Tab strip ──────────────────────────────────────────────────────── --}}

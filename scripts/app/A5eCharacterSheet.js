@@ -40,6 +40,7 @@ const SKILLS = [
   { key: 'performance',   label: 'Performance',     ability: 'CHA' },
   { key: 'persuasion',    label: 'Persuasion',      ability: 'CHA' },
   { key: 'religion',      label: 'Religion',        ability: 'INT' },
+  { key: 'science',       label: 'Science ✦',       ability: 'INT' },
   { key: 'sleightOfHand', label: 'Sleight of Hand', ability: 'DEX' },
   { key: 'stealth',       label: 'Stealth',         ability: 'DEX' },
   { key: 'survival',      label: 'Survival',        ability: 'WIS' }
@@ -176,7 +177,15 @@ export class A5eCharacterSheet extends ActorSheet {
     /* Skills — use A5e's computed bonus where available */
     const abilMap = Object.fromEntries(abilities.map(a => [a.abbr, a.mod]));
     const skills = SKILLS.map(({ key, label, ability }) => {
-      const d       = sys.skills?.[key] ?? {};
+      /* a5e stores skills under their ABBREVIATION — system.skills.acr, not
+         system.skills.acrobatics. Reading by the long name returned nothing
+         for every skill on the sheet, which is why no proficiency and no
+         expertise die ever showed: the bonus fell through to a hand
+         calculation and the rest came out empty.
+
+         A5E_SKILL_ABBR already held the mapping; it was only being used to
+         open the roll dialog. */
+      const d       = sys.skills?.[A5E_SKILL_ABBR[key] ?? key] ?? {};
       const abilMod = abilMap[ability] ?? 0;
       const profLvl = d.proficient ?? d.proficiency ?? 0;
       const mult    = PROF_MULTIPLIERS[Math.min(profLvl, 2)] ?? 0;
@@ -556,6 +565,27 @@ export class A5eCharacterSheet extends ActorSheet {
          counted on the actor — and carries its own max, which a feature can
          raise above three. Reading both means this cannot drift from what the
          system sheet shows; the local count is only a fallback. */
+      /* a5e's four free-text trackers — the row at the top of its own sheet
+         where a player writes whatever the character needs counting: rage
+         uses, charges, rations. Each has a label, a value, a max and a
+         recharge period. Only the ones given a label are shown; an unnamed
+         tracker is an empty slot, not a thing to display. */
+      resources: ['primary', 'secondary', 'tertiary', 'quaternary']
+        .map((key) => {
+          const r = sys.resources?.[key] ?? {};
+          const label = String(r.label ?? '').trim();
+          if (!label) return null;
+          const max = Number(r.max ?? 0) || 0;
+          return {
+            key, label,
+            value: Number(r.value ?? 0) || 0,
+            max,
+            hideMax: !!r.hideMax || max <= 0,
+            pct: max > 0 ? pct(Number(r.value ?? 0) || 0, max) : 0
+          };
+        })
+        .filter(Boolean),
+
       attunement: {
         current: sys.attributes?.attunement?.current ?? null,
         max: Number(sys.attributes?.attunement?.max ?? 3) || 3
@@ -2081,6 +2111,66 @@ export class A5eCharacterSheet extends ActorSheet {
        because we render its markup from Handlebars. Each one is written
        against Tidy's own classes so the animations and states it styles
        are the ones that actually appear. */
+
+    /* Rolling one half of an action. The item's icon still activates the
+       whole thing through a5e, dialog and all; these two are for when only
+       the attack or only the damage is wanted, which is most of what a
+       second click is ever for.
+
+       They roll the figure the row is showing rather than going back
+       through the system, because that figure is already the resolved one —
+       ability, proficiency and bonus worked out in #parseRollsFromAction. */
+    el.querySelectorAll('[data-action="roll-attack"]').forEach(b =>
+      b.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const bonus = String(b.dataset.bonus ?? '').trim();
+        const formula = bonus ? `1d20 ${bonus.startsWith('-') ? '- ' + bonus.slice(1) : '+ ' + bonus.replace(/^\+/, '')}` : '1d20';
+        await this.#roll(formula, `${b.dataset.label ?? 'Attack'} — to hit`);
+      })
+    );
+
+    el.querySelectorAll('[data-action="roll-damage"]').forEach(b =>
+      b.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const formula = String(b.dataset.formula ?? '').trim();
+        if (!formula) return;
+        await this.#roll(formula, `${b.dataset.label ?? 'Damage'} — damage`);
+      })
+    );
+
+    /* The trackers, and exertion, are counters: type a figure, or step it
+       with the buttons beside it. Stepping is what these are used for in
+       play, and a bare input made that a chore. */
+    const stepCounter = (path, delta) => async (e) => {
+      e.preventDefault();
+      const el2 = e.currentTarget;
+      const max = el2.dataset.max === '' ? null : Number(el2.dataset.max);
+      const now = Number(foundry.utils.getProperty(this.actor, path) ?? 0) || 0;
+      let next = now + delta;
+      if (next < 0) next = 0;
+      if (max !== null && Number.isFinite(max) && max > 0 && next > max) next = max;
+      if (next === now) return;
+      await this.actor.update({ [path]: next });
+    };
+
+    el.querySelectorAll('[data-action="resource-step"]').forEach(b =>
+      b.addEventListener('click', stepCounter(
+        `system.resources.${b.dataset.resource}.value`, Number(b.dataset.delta) || 0)));
+
+    el.querySelectorAll('[data-action="resource-value"]').forEach(inp =>
+      inp.addEventListener('change', async (e) => {
+        const v = parseInt(e.target.value);
+        if (isNaN(v)) return;
+        await this.actor.update({
+          [`system.resources.${e.target.dataset.resource}.value`]: Math.max(0, v)
+        });
+      }));
+
+    el.querySelectorAll('[data-action="exertion-step"]').forEach(b =>
+      b.addEventListener('click', stepCounter('system.attributes.exertion.current',
+        Number(b.dataset.delta) || 0)));
 
     /* ══ Inventory utility bar ═════════════════════════════════════════
        Search, filters, sort and add — a5e's UtilityBar, rebuilt against our

@@ -210,13 +210,33 @@
                     style="--tidy-table-column-width: var(--am-col)">
                     <span class="cell-text">{{this.activationLabel}}</span>
                   </div>
+                  {{!-- Each figure rolls only itself: the attack rolls to hit,
+                        the damage rolls damage. The icon at the front still
+                        does the whole thing through a5e, which is the common
+                        case; these are for when only one half is wanted. --}}
                   <div class="tidy-table-cell text-cell" data-tidy-sheet-part="table-cell"
                     style="--tidy-table-column-width: var(--am-col)">
-                    <span class="cell-text">{{this.atkBonus}}</span>
+                    {{#if this.atkBonus}}
+                      <button type="button" class="unbutton am-part-roll"
+                        data-action="roll-attack" data-bonus="{{this.atkBonus}}"
+                        data-label="{{this.name}}"
+                        data-tooltip="Roll to hit only">
+                        <span class="cell-text">{{this.atkBonus}}</span>
+                      </button>
+                    {{/if}}
                   </div>
                   <div class="tidy-table-cell text-cell" data-tidy-sheet-part="table-cell"
                     style="--tidy-table-column-width: var(--am-col)">
-                    <span class="cell-text">{{this.dmgFull}}</span>
+                    {{#if this.dmg}}
+                      <button type="button" class="unbutton am-part-roll"
+                        data-action="roll-damage" data-formula="{{this.dmg}}"
+                        data-label="{{this.name}}{{#if this.dmgType}} ({{this.dmgType}}){{/if}}"
+                        data-tooltip="Roll damage only">
+                        <span class="cell-text">{{this.dmgFull}}</span>
+                      </button>
+                    {{else}}
+                      <span class="cell-text">{{this.dmgFull}}</span>
+                    {{/if}}
                   </div>
                 </div>
               </div>
