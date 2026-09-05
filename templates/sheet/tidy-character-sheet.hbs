@@ -36,13 +36,12 @@
 
             <div class="sheet-header-actions flexrow"
               data-tidy-sheet-part="sheet-header-actions-container">
+              {{!-- One button, as a5e has. Its own dialog is where the rest
+                   type is chosen and hit dice are spent and rolled, so two
+                   buttons opening the same chooser would only be in the way. --}}
               <button type="button" class="button button-icon-only button-gold"
-                data-action="short-rest" aria-label="Short Rest" data-tooltip="Short Rest">
-                <i class="fas fa-utensils"></i>
-              </button>
-              <button type="button" class="button button-icon-only button-gold"
-                data-action="long-rest" aria-label="Long Rest" data-tooltip="Long Rest">
-                <i class="fas fa-campground"></i>
+                data-action="rest" aria-label="Rest" data-tooltip="Rest">
+                <i class="fas fa-campfire"></i>
               </button>
               <button type="button" class="button button-icon-only button-gold"
                 data-action="level-up" aria-label="Level Up" data-tooltip="Level Up">

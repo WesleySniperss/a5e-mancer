@@ -1980,12 +1980,18 @@ export class A5eCharacterSheet extends ActorSheet {
     );
 
     /* Short / Long rest */
-    el.querySelector('[data-action="short-rest"]')?.addEventListener('click', () =>
-      this.actor.shortRest?.() ?? ui.notifications.info('Short rest taken.')
-    );
-    el.querySelector('[data-action="long-rest"]')?.addEventListener('click', () =>
-      this.actor.longRest?.() ?? ui.notifications.info('Long rest taken.')
-    );
+    /* a5e has no shortRest or longRest. The method is triggerRest, and called
+       with no options it opens the system's own dialog — which is where the
+       rest type is chosen and hit dice are spent and rolled. The two buttons
+       here called methods that do not exist, so `?.()` returned undefined and
+       nothing happened beyond a notice claiming it had. */
+    el.querySelector('[data-action="rest"]')?.addEventListener('click', async () => {
+      if (typeof this.actor.triggerRest === 'function') {
+        await this.actor.triggerRest();
+        return;
+      }
+      ui.notifications.warn('This version of the a5e system has no rest dialog.');
+    });
 
     /* Level Up */
     el.querySelector('[data-action="level-up"]')?.addEventListener('click', () =>
