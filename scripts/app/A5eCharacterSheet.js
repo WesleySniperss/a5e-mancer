@@ -1569,7 +1569,20 @@ export class A5eCharacterSheet extends ActorSheet {
 
     /* HP inputs */
     this.#bindNumericInput(el, '#am-hp-current', v => ({ 'system.attributes.hp.value': v }));
-    this.#bindNumericInput(el, '#am-hp-max',     v => ({ 'system.attributes.hp.max': v }));
+    /* a5e DERIVES hp.max and never stores it: a character carries baseMax,
+       bonus and temp, and the actor computes max = baseMax + bonus, or
+       maxHP + CON + bonus when automation is on. Writing hp.max was rejected
+       by the data model, so the maximum could not be edited at all.
+
+       What is editable is baseMax, so the typed figure has the bonus taken
+       off before it is stored. With automation on the maximum also folds in
+       Constitution and hit dice, so the field will settle on the computed
+       value rather than the typed one — which is the truth, and visible,
+       rather than a silent no-op. */
+    this.#bindNumericInput(el, '#am-hp-max', v => ({
+      'system.attributes.hp.baseMax':
+        Math.max(0, v - (Number(this.actor.system?.attributes?.hp?.bonus ?? 0) || 0))
+    }));
     this.#bindNumericInput(el, '#am-hp-temp',    v => ({ 'system.attributes.hp.temp': v }));
 
     /* Exertion */
