@@ -33,6 +33,23 @@ export class PackFilter {
     return include ? packs : packs.filter(p => !this.isDnd5e(p));
   }
 
+  /**
+   * The same compendium entry is referred to by two different strings in this
+   * world. Foundry's canonical uuid is `Compendium.<pack>.Item.<id>`, and that
+   * is what a5e writes when it grants something or a document is dragged in.
+   * The dialogs here build the older short form, `Compendium.<pack>.<id>`, and
+   * write that as the source of anything they add.
+   *
+   * Both forms are live on real characters — 42 spells in this world carry the
+   * canonical one — so comparing the raw strings says two references to the
+   * same spell are different spells. In the management dialogs that reads as
+   * 'the player unticked it', and confirming would have offered to delete
+   * spells nobody touched. Compare through here instead.
+   */
+  static normalizeSource(uuid) {
+    return String(uuid ?? '').replace(/\.(?:Item|JournalEntry|Actor|Macro)\./, '.');
+  }
+
   /** Same, for any document type. */
   static packsOfType(type) {
     const packs = game.packs.filter(p => p.metadata.type === type);

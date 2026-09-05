@@ -2068,19 +2068,38 @@ export class A5eCharacterSheet extends ActorSheet {
     /* Manage maneuvers — the dialog derives slots, degree and tradition caps from
        the character's class tables. GMs get an unlock toggle inside it. */
     el.querySelector('[data-action="manage-maneuvers"]')?.addEventListener('click', () =>
-      new ManeuverDialog(this.actor).render(true)
+      new ManeuverDialog(this.actor, { manage: true }).render(true)
     );
 
     /* Manage spells. Spell level cap follows the caster's class level; a5e has no
        bundled spells-known-per-level table, so the count itself stays free-form. */
     el.querySelector('[data-action="manage-spells"]')?.addEventListener('click', () => {
-      const casterClass = this.actor.items.find(i =>
-        i.type === 'class' && SpellService.isSpellcaster(i.name)
-      );
+      const classes = this.actor.items.filter(i => i.type === 'class');
+      const lvlOf = (i) =>
+        i.system?.classLevels ?? i.system?.levels ?? i.system?.level ?? 1;
+
+      /* Which class's spell list to open on.
+
+         The module's own CLASS_SPELL_TABLES knows nine classes — the vanilla
+         ones. a5e itself knows seventeen spell lists, psion, psyknight,
+         wielder, witch, esper and the four elementalists among them. Asking
+         only the module meant every one of those characters fell through to
+         an empty class name, and an empty name means no filter at all: the
+         window opened on every spell in every compendium, untitled. Asking
+         the system first gives them their real list.
+
+         An unknown class still costs nothing. classSpellListKey returns ''
+         for one, and spellAllowsClass reads that as 'do not hide anything' —
+         so an Illrigger, which is on nobody's spell list, gets the same
+         unfiltered window it got before, now at least under its own name. */
+      const casterClass =
+           classes.find(i => SpellService.classSpellListKey(i.name))
+        ?? classes.find(i => SpellService.isSpellcaster(i.name))
+        ?? classes.slice().sort((a, b) => lvlOf(b) - lvlOf(a))[0];
+
       const casterLevel = casterClass
-        ? (casterClass.system?.classLevels ?? casterClass.system?.levels ?? casterClass.system?.level ?? 1)
-        : (this.actor.items.filter(i => i.type === 'class')
-             .reduce((n, i) => n + (i.system?.classLevels ?? i.system?.levels ?? i.system?.level ?? 1), 0) || 1);
+        ? lvlOf(casterClass)
+        : (classes.reduce((n, i) => n + lvlOf(i), 0) || 1);
       new SpellDialog(this.actor, {
         manage:           true,
         className:        casterClass?.name ?? '',

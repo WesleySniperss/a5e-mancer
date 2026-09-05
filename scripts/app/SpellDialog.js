@@ -1,6 +1,7 @@
 import { AM } from '../a5e-mancer.js';
 import { SpellService, getSpellSchools, getSecondarySchoolsForClass } from '../utils/spellService.js';
 import { ItemDescPanel } from '../utils/itemDescPanel.js';
+import { PackFilter } from '../utils/packFilter.js';
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -385,7 +386,8 @@ export class SpellDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     const known = this.actor.items.filter(i => i.type === 'spell');
     const sources = new Set(known
       .map(i => i._stats?.compendiumSource ?? i.flags?.core?.sourceId ?? '')
-      .filter(Boolean));
+      .filter(Boolean)
+      .map(u => PackFilter.normalizeSource(u)));
     const names = new Set(known.map(i => i.name.toLowerCase()));
 
     for (const [level, spells] of this._allSpells) {
@@ -401,11 +403,15 @@ export class SpellDialog extends HandlebarsApplicationMixin(ApplicationV2) {
      to match against, and taking it away because it is not on a list it
      never came from would be wrong. */
   #spellsToRemove(selected) {
+    const picked = new Set([...selected].map(u => PackFilter.normalizeSource(u)));
     return this.actor.items.filter((i) => {
       if (i.type !== 'spell') return false;
+      /* No source, no removal: without one there is no way to tell that the
+         card on screen is this item, and a hand-made spell would go on a name
+         collision. Most spells in play have none — they are left alone. */
       const source = i._stats?.compendiumSource ?? i.flags?.core?.sourceId ?? '';
       if (!source) return false;
-      return !selected.has(source);
+      return !picked.has(PackFilter.normalizeSource(source));
     });
   }
 

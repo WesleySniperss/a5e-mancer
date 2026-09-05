@@ -164,7 +164,10 @@
                     <i class="fa-solid fa-bolt"></i> {{this.exertion}}
                   </span>
                 {{/if}}
-                {{#if this.alreadyKnown}}
+                {{!-- `known`, not `alreadyKnown`: while managing, a known
+                     maneuver stays clickable so it can be taken off, but it
+                     should still say that the character has it. --}}
+                {{#if this.known}}
                   <span class="am-badge am-badge-success">
                     <i class="fa-solid fa-check"></i> {{localize 'am.maneuvers.known-badge'}}
                   </span>

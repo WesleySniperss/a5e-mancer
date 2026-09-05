@@ -381,7 +381,7 @@ export class ManeuverService {
     for (const item of actor.items) {
       if (!this.isManeuver(item)) continue;
       const src = item._stats?.compendiumSource ?? item.flags?.core?.sourceId ?? '';
-      if (src) keys.add(src);
+      if (src) keys.add(PackFilter.normalizeSource(src));
       keys.add(item.name.toLowerCase());
     }
     return keys;
@@ -390,7 +390,8 @@ export class ManeuverService {
   /** True when this maneuver is already on the actor (by source UUID or name). */
   static isKnown(knownKeys, maneuver) {
     if (!knownKeys?.size || !maneuver) return false;
-    return knownKeys.has(maneuver.uuid) || knownKeys.has((maneuver.name ?? '').toLowerCase());
+    return knownKeys.has(PackFilter.normalizeSource(maneuver.uuid))
+        || knownKeys.has((maneuver.name ?? '').toLowerCase());
   }
 
   /**

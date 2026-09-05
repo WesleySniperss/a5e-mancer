@@ -1,6 +1,7 @@
 import { AM } from '../a5e-mancer.js';
 import { ManeuverService, getTraditions } from '../utils/maneuverService.js';
 import { ItemDescPanel } from '../utils/itemDescPanel.js';
+import { PackFilter } from '../utils/packFilter.js';
 import { MM_SCHOOLS, MM_SCHOOL_LORE } from '../data/magicManeuvers.js';
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -31,11 +32,29 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     const ent = ManeuverService.getActorEntitlement(actor);
     this.entitlement = ent;
 
-    this.slotsAvailable    = options.slotsAvailable ?? ent?.remainingManeuvers ?? -1;
-    this.maxDegree         = options.maxDegree      ?? ent?.maxDegree ?? 5;
+    /* Managing from the sheet is not the same act as spending a level's picks.
+       The caps below describe what a level-up may GRANT; applied to management
+       they made the button useless. A character who had already spent every
+       pick got remainingManeuvers 0, which reads as 'none allowed', and the
+       ones they knew were filtered out of the list as already-known. The window
+       opened onto nothing: nothing to add, nothing to remove, no way out but
+       the X. That is what 'the manage buttons lead nowhere' was.
+
+       So management runs uncapped and starts from what the character actually
+       has, the way the spell dialog already does. The level-up path passes its
+       own numbers and is untouched. */
+    this.manage = !!actor && (options.manage ?? false);
+    this._seeded = false;
+
+    this.slotsAvailable    = options.slotsAvailable
+                             ?? (this.manage ? -1 : (ent?.remainingManeuvers ?? -1));
+    this.maxDegree         = options.maxDegree
+                             ?? (this.manage ? 5 : (ent?.maxDegree ?? 5));
     this.allowedTraditions = options.allowedTraditions
-                             ?? (ent?.allowedTraditions ? [...ent.allowedTraditions] : []);
-    this.traditionLimit    = options.traditionLimit  ?? ent?.traditions ?? 0;
+                             ?? ((this.manage || !ent?.allowedTraditions)
+                                   ? [] : [...ent.allowedTraditions]);
+    this.traditionLimit    = options.traditionLimit
+                             ?? (this.manage ? 0 : (ent?.traditions ?? 0));
     this.onConfirm         = options.onConfirm ?? null;
     // GMs can lift the caps for homebrew/corrections via the footer toggle.
     this._unlocked         = false;
@@ -92,6 +111,10 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         for (const maneuvers of degreeMap.values()) {
           for (const m of maneuvers) this._descMap.set(m.uuid, m);
         }
+      }
+      if (this.manage && !this._seeded) {
+        this.#seedFromActor();
+        this._seeded = true;
       }
     }
 
@@ -297,9 +320,14 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
             if (!m.name.toLowerCase().includes(q) &&
                 !m.description.toLowerCase().includes(q)) continue;
           }
+          const known = ManeuverService.isKnown(knownUuids, m);
           results.push({
             ...m,
-            alreadyKnown: ManeuverService.isKnown(knownUuids, m),
+            known,
+            /* While managing, a known maneuver must stay clickable — clicking
+               it off is how it gets removed. Outside management it is locked,
+               so a level-up cannot spend a pick on something already had. */
+            alreadyKnown: known && !this.manage,
             selected:     this._selectedUuids.has(m.uuid)
           });
         }
@@ -439,18 +467,71 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     return '';
   }
 
+  /**
+   * Tick everything the character already has, so management opens on their
+   * actual list rather than an empty sheet. Matching is by compendium source
+   * first and by name second — items granted before v12 carry no source id.
+   */
+  #seedFromActor() {
+    const keys = ManeuverService.getActorManeuverKeys(this.actor);
+    if (!keys.size) return;
+    for (const degreeMap of this._allManeuvers.values()) {
+      for (const maneuvers of degreeMap.values()) {
+        for (const m of maneuvers) {
+          if (ManeuverService.isKnown(keys, m)) this._selectedUuids.add(m.uuid);
+        }
+      }
+    }
+    for (const t of ManeuverService.getActorTraditions(this.actor)) {
+      this._selectedTraditions.add(t);
+    }
+  }
+
+  /**
+   * Maneuvers on the actor that have been ticked off during management.
+   * Only ones with a compendium source are offered for removal: without one
+   * there is no way to tell that the card on screen is the same item, and a
+   * hand-made or module-granted maneuver would be deleted on a name collision.
+   */
+  #maneuversToRemove(selected) {
+    const picked = new Set([...selected].map(u => PackFilter.normalizeSource(u)));
+    return this.actor.items.filter((i) => {
+      if (!ManeuverService.isManeuver(i)) return false;
+      const source = i._stats?.compendiumSource ?? i.flags?.core?.sourceId ?? '';
+      if (!source) return false;
+      return !picked.has(PackFilter.normalizeSource(source));
+    });
+  }
+
   async #confirm() {
-    const selectedUuids     = [...this._selectedUuids];
+    const selectedUuids      = [...this._selectedUuids];
     const selectedTraditions = [...this._selectedTraditions];
 
     if (this.onConfirm) {
       await this.onConfirm(selectedUuids, selectedTraditions);
-    } else {
-      // Direct apply mode
-      await ManeuverService.applyManeuversToActor(
-        this.actor, selectedUuids, selectedTraditions
-      );
+      this.close();
+      return;
     }
+
+    /* Removing is not undoable, so it is asked for. Adding is, and is not. */
+    const removing = this.manage
+      ? this.#maneuversToRemove(new Set(selectedUuids))
+      : [];
+
+    if (removing.length) {
+      const names = removing.map(i => i.name).join(', ');
+      const ok = await foundry.applications.api.DialogV2.confirm({
+        window: { title: game.i18n.localize('am.maneuvers.title-manage') },
+        content: `<p>Remove ${removing.length} maneuver(s) from ${this.actor.name}?</p>`
+               + `<p class="am-hint">${names}</p>`
+      }).catch(() => false);
+      if (!ok) return;
+      await this.actor.deleteEmbeddedDocuments('Item', removing.map(i => i.id));
+    }
+
+    await ManeuverService.applyManeuversToActor(
+      this.actor, selectedUuids, selectedTraditions
+    );
     this.close();
   }
 }
