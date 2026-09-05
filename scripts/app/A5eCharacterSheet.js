@@ -287,6 +287,73 @@ export class A5eCharacterSheet extends ActorSheet {
         : [];
       return { name: s.name ?? '', value: val, max, pips };
     });
+    /* ── Interactions ─────────────────────────────────────────────────────
+       a5e keeps basic actions, downtime and journey activities as items of
+       their own type, grouped by interactionType. The list of groups comes
+       from CONFIG so it follows a5e rather than a copy kept here. */
+    const interactionTypes = CONFIG?.A5E?.interactionTypes ?? {};
+    const interactionGroups = Object.entries(interactionTypes).map(([key, i18n]) => ({
+      key,
+      label: game.i18n.localize(i18n),
+      items: items
+        .filter(i => i.type === 'interaction' && (i.system?.interactionType ?? 'other') === key)
+        .map(i => this.#gear(i))
+    })).filter(g => g.items.length);
+
+    /* ── Settings ─────────────────────────────────────────────────────────
+       a5e's Settings tab, whose five sub-pages are flattened into sections
+       here. Every switch writes the same flag or field a5e writes, so this
+       sheet and its own agree about a character rather than each keeping its
+       own idea of one. The defaults match a5e's: 10 for a death save, 20 for
+       a critical, everything else off unless the flag says otherwise. */
+    const fl = actor.flags?.a5e ?? {};
+    const abilityOptions = ABILITIES.map(a => ({
+      key: a.key, label: a.abbr, selected: false
+    }));
+    const withSelected = (sel) => abilityOptions.map(o => ({ ...o, selected: o.key === sel }));
+
+    const settings = {
+      sheet: [
+        { path: 'flags.a5e.showFavoritesSection',          label: 'Show the Favorites section', on: fl.showFavoritesSection ?? true },
+        { path: 'flags.a5e.showManeuverTab',               label: 'Show the maneuver tab',      on: !!fl.showManeuverTab },
+        { path: 'flags.a5e.showSpellTab',                  label: 'Show the spell tab',         on: !!fl.showSpellTab },
+        { path: 'flags.a5e.showPassiveScores',             label: 'Show passive scores',        on: !!fl.showPassiveScores },
+        { path: 'flags.a5e.showXP',                        label: 'Show experience',            on: !!fl.showXP },
+        { path: 'flags.a5e.hideGenericResources',          label: 'Hide the generic resources', on: !!fl.hideGenericResources },
+        { path: 'flags.a5e.includeAbilityModifiersForSkills', label: 'Include ability modifiers for skills', on: !!fl.includeAbilityModifiersForSkills },
+        { path: 'flags.a5e.automatePrototypeTokenSize',    label: 'Keep the prototype token sized to the character', on: !!fl.automatePrototypeTokenSize }
+      ],
+      automation: [
+        { path: 'flags.a5e.automateHitDice',       label: 'Spend hit dice automatically',   on: !!fl.automateHitDice },
+        { path: 'flags.a5e.automateSpellResources', label: 'Spend spell resources automatically', on: !!fl.automateSpellResources },
+        { path: 'flags.a5e.automaticallyExecuteAvailableMacros', label: 'Run item macros automatically', on: !!fl.automaticallyExecuteAvailableMacros }
+      ],
+      inventory: [
+        { path: 'flags.a5e.trackInventoryWeight', label: 'Track the weight of what is carried', on: !!fl.trackInventoryWeight },
+        { path: 'flags.a5e.trackCurrencyWeight',  label: 'Count coins toward that weight',      on: !!fl.trackCurrencyWeight },
+        { path: 'flags.a5e.showWeightColumn',     label: 'Show the weight column',              on: !!fl.showWeightColumn },
+        { path: 'flags.a5e.doubleCarryCapacity',  label: 'Double carrying capacity',            on: !!fl.doubleCarryCapacity }
+      ],
+      rest: [
+        { path: 'system.attributes.exertion.recoverOnRest', label: 'Exertion returns on a rest', on: !!sys.attributes?.exertion?.recoverOnRest },
+        { path: 'flags.a5e.restoreSpellSlotsOnShortRest',   label: 'Spell slots return on a short rest',  on: !!fl.restoreSpellSlotsOnShortRest },
+        { path: 'flags.a5e.restoreSpellPointsOnShortRest',  label: 'Spell points return on a short rest', on: !!fl.restoreSpellPointsOnShortRest }
+      ],
+      rolls: [
+        { path: 'flags.a5e.halflingLuck',    label: 'Halfling luck',      on: !!fl.halflingLuck },
+        { path: 'flags.a5e.jackOfAllTrades', label: 'Jack of all trades', on: !!fl.jackOfAllTrades }
+      ],
+      numbers: [
+        { path: 'flags.a5e.deathSaveThreshold',        label: 'Death save threshold',   value: fl.deathSaveThreshold ?? 10 },
+        { path: 'flags.a5e.criticalHitThresholdWeapon', label: 'Critical on a weapon',  value: fl.criticalHitThresholdWeapon ?? 20 },
+        { path: 'flags.a5e.criticalHitThresholdSpell',  label: 'Critical on a spell',   value: fl.criticalHitThresholdSpell ?? 20 }
+      ],
+      choices: [
+        { path: 'system.attributes.spellcasting',   label: 'Spellcasting ability', options: withSelected(sys.attributes?.spellcasting) },
+        { path: 'flags.a5e.carryCapacityAbility',   label: 'Carrying capacity from', options: withSelected(fl.carryCapacityAbility ?? 'str') }
+      ]
+    };
+
     /* ── Active effects, as a5e's own Effects tab lists them ──────────────
        Grouped into what is running and what is not, with conditions left out:
        a5e's page skips them too, and the Traits sidebar already shows them as
@@ -537,7 +604,7 @@ export class A5eCharacterSheet extends ActorSheet {
       savingThrows, maneuverDC, proficiencies,
       weapons, maneuvers, maneuverGroups, spells, spellGroups, slotRows,
       features, feats, allFeatures, featuresBySource, customCounters, freeCounter,
-      effectGroups, bonuses, hasBonuses, equipment, currency,
+      effectGroups, bonuses, hasBonuses, interactionGroups, settings, equipment, currency,
       fatiguePips, strifePips, exertionPips,
       fatigueDesc, strifeDesc, statusConditions,
       attunementItems, attuneCount, passivePerception, charInfo, bio,
@@ -2026,6 +2093,29 @@ export class A5eCharacterSheet extends ActorSheet {
         btn.textContent = body?.classList.contains('am-hidden') ? '▸' : '▾';
       })
     );
+
+    /* ── Settings ───────────────────────────────────────────────────────
+       One handler for the lot, keyed by the path on the element. The paths
+       are a5e's own — flags.a5e.* and two system fields — so a switch thrown
+       here is the same switch its sheet throws. */
+    const writeSetting = async (path, value) => {
+      if (!path) return;
+      await this.actor.update({ [path]: value });
+    };
+
+    el.querySelectorAll('[data-action="setting-toggle"]').forEach(inp =>
+      inp.addEventListener('change', (e) =>
+        writeSetting(e.target.dataset.path, e.target.checked)));
+
+    el.querySelectorAll('[data-action="setting-number"]').forEach(inp =>
+      inp.addEventListener('change', (e) => {
+        const v = parseInt(e.target.value);
+        if (!isNaN(v)) writeSetting(e.target.dataset.path, v);
+      }));
+
+    el.querySelectorAll('[data-action="setting-choice"]').forEach(sel =>
+      sel.addEventListener('change', (e) =>
+        writeSetting(e.target.dataset.path, e.target.value)));
 
     /* ── Effects ────────────────────────────────────────────────────────
        Everything here is a5e's own document API, so an effect toggled from

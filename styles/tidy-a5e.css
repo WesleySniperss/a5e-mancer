@@ -830,3 +830,57 @@
 /* A category with no bonuses in it still shows its heading and its add button
    — that is where a bonus is made, so an empty one must stay reachable. */
 .tidy5e-sheet.application.a5e-mancer-sheet .am-bonus-table .tidy-table-header-row { min-height: var(--t5e-size-8x); }
+
+/* ── Settings, and room for ten tabs ───────────────────────────────────────
+   a5e keeps its settings on five sub-pages; they are short enough to read as
+   sections. */
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--t5e-size-2x);
+  padding: var(--t5e-size-2x) var(--t5e-size-3x);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-setting {
+  display: flex;
+  align-items: center;
+  gap: var(--t5e-size-2x);
+  cursor: pointer;
+}
+
+/* A value sits at the far end of its row so the numbers line up down the
+   column rather than trailing each label at a different place. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-setting-value {
+  justify-content: space-between;
+  gap: var(--t5e-size-4x);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-setting-number {
+  width: 3rem;
+  text-align: center;
+  color: var(--t5e-color-text-default);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-setting-select {
+  width: 6rem;
+}
+
+/* Ten tabs do not fit across 820px. Rather than shrink the text to where it
+   cannot be read, the strip scrolls; the scrollbar itself is hidden because a
+   visible one across the middle of the sheet reads as damage. Tidy own tabs
+   assume they always fit, so the flex defaults have to be undone by hand:
+   without min-width:0 the nav refuses to be narrower than its contents and
+   pushes the sheet wide instead of scrolling. */
+.tidy5e-sheet.application.a5e-mancer-sheet .actor-tabs {
+  overflow-x: auto;
+  min-width: 0;
+  scrollbar-width: none;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .actor-tabs::-webkit-scrollbar { display: none; }
+
+.tidy5e-sheet.application.a5e-mancer-sheet .actor-tabs .tab-option {
+  flex: none;
+  white-space: nowrap;
+}

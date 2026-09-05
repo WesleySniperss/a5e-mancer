@@ -471,8 +471,12 @@
            here is the same document its sheet would make. --}}
       <a class="tab-option item" role="tab" data-tab="effects"
         data-tab-id="effects" data-group="primary"><span class="tab-title">Effects</span></a>
-      <a class="tab-option item no-border-on-last-tab" role="tab" data-tab="bonuses"
+      <a class="tab-option item" role="tab" data-tab="bonuses"
         data-tab-id="bonuses" data-group="primary"><span class="tab-title">Bonuses</span></a>
+      <a class="tab-option item" role="tab" data-tab="interactions"
+        data-tab-id="interactions" data-group="primary"><span class="tab-title">Actions</span></a>
+      <a class="tab-option item no-border-on-last-tab" role="tab" data-tab="settings"
+        data-tab-id="settings" data-group="primary"><span class="tab-title">Settings</span></a>
     </nav>
   </div>
 </header>
@@ -1255,6 +1259,98 @@
           {{/if}}
         </section>
       {{/each}}
+    </div>
+
+    {{!-- ▸ ACTIONS (a5e calls them interactions) ────────────────────────
+         Basic actions, downtime and journey activities. They are items, so
+         they get the same row as everything else — which means the same
+         expander, and these are almost entirely text worth reading. The
+         groups come from CONFIG.A5E.interactionTypes, not a list here. --}}
+    <div class="tab tidy-tab interactions tidy-tab-contents"
+      data-tab="interactions" data-group="primary" data-tab-contents-for="interactions"
+      role="tabpanel">
+
+      {{#each interactionGroups}}
+        {{#> tidy-table key=this.key label=this.label count=this.items.length}}
+          {{#each items}}
+            {{> tidy-row}}
+          {{/each}}
+        {{/tidy-table}}
+      {{/each}}
+
+      {{#unless interactionGroups.length}}
+        <div class="empty-state-container empty-state-description">
+          <span class="color-text-lighter">No actions, downtime or journey activities.</span>
+        </div>
+      {{/unless}}
+    </div>
+
+    {{!-- ▸ SETTINGS ─────────────────────────────────────────────────────
+         a5e keeps these on five sub-pages; they are short enough to read as
+         sections here. Every switch writes the flag or field a5e writes, so
+         the two sheets agree about a character instead of each holding its
+         own idea of one. --}}
+    <div class="tab tidy-tab settings tidy-tab-contents"
+      data-tab="settings" data-group="primary" data-tab-contents-for="settings"
+      role="tabpanel">
+
+      {{#*inline "settingRows"}}
+        <section class="tidy-table am-settings-table" data-tidy-sheet-part="item-table">
+          <header class="tidy-table-header-row theme-dark"
+            data-tidy-sheet-part="table-header-row">
+            <div class="tidy-table-header-cell primary header-label-cell"
+              data-tidy-sheet-part="table-header-cell">
+              <h3>{{heading}}</h3>
+            </div>
+          </header>
+          <div class="item-table-body am-settings-body">
+            {{#each rows}}
+              <label class="am-setting">
+                <input type="checkbox" data-action="setting-toggle"
+                  data-path="{{this.path}}" {{#if this.on}}checked{{/if}} />
+                <span class="color-text-default">{{this.label}}</span>
+              </label>
+            {{/each}}
+          </div>
+        </section>
+      {{/inline}}
+
+      {{> settingRows heading="Sheet" rows=settings.sheet}}
+      {{> settingRows heading="Automation" rows=settings.automation}}
+      {{> settingRows heading="Inventory" rows=settings.inventory}}
+      {{> settingRows heading="Rest and recovery" rows=settings.rest}}
+      {{> settingRows heading="Rolls" rows=settings.rolls}}
+
+      <section class="tidy-table am-settings-table" data-tidy-sheet-part="item-table">
+        <header class="tidy-table-header-row theme-dark"
+          data-tidy-sheet-part="table-header-row">
+          <div class="tidy-table-header-cell primary header-label-cell"
+            data-tidy-sheet-part="table-header-cell">
+            <h3>Thresholds and abilities</h3>
+          </div>
+        </header>
+        <div class="item-table-body am-settings-body">
+          {{#each settings.numbers}}
+            <label class="am-setting am-setting-value">
+              <span class="color-text-default">{{this.label}}</span>
+              <input type="number" class="uninput am-setting-number"
+                data-action="setting-number" data-path="{{this.path}}"
+                value="{{this.value}}" aria-label="{{this.label}}" />
+            </label>
+          {{/each}}
+          {{#each settings.choices}}
+            <label class="am-setting am-setting-value">
+              <span class="color-text-default">{{this.label}}</span>
+              <select class="am-setting-select" data-action="setting-choice"
+                data-path="{{this.path}}" aria-label="{{this.label}}">
+                {{#each this.options}}
+                  <option value="{{this.key}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+                {{/each}}
+              </select>
+            </label>
+          {{/each}}
+        </div>
+      </section>
     </div>
 
   </div>
