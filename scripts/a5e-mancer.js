@@ -4,7 +4,7 @@ import { LevelUpDialog } from './app/LevelUpDialog.js';
 import { A5eCharacterSheet } from './app/A5eCharacterSheet.js';
 import { A5eNPCSheet } from './app/A5eNPCSheet.js';
 import { DocumentService, StatRoller, Beyond20Service, YourFlavorService, GrantDialogEnhancer, MagicManeuverPack } from './utils/index.js';
-import { registerMagicSchools } from './utils/maneuverService.js';
+import { registerMagicSchools, ManeuverService } from './utils/maneuverService.js';
 import { iconForItem } from './data/a5eIcons.js';
 import { installCompendiumFilterFix } from './utils/compendiumIndexFix.js';
 import { ConditionSource } from './utils/conditionSource.js';
@@ -220,6 +220,12 @@ Hooks.once('ready', () => {
   // as far as the rest of the code is concerned, which is what makes their
   // maneuvers behave identically to a fighter's.
   registerMagicSchools();
+  /* Let the installed books fill in the maneuver progressions before any
+     sheet or level-up asks for one. See ManeuverService.loadClassProgressions:
+     the tables are in the class descriptions, so hand-copying them was never
+     necessary and never covered enough classes. */
+  ManeuverService.loadClassProgressions().catch(err =>
+    AM.log(1, 'Class progressions could not be read from the compendia:', err));
   Beyond20Service.init();
   /* Teaches Your Flavor about a5e's chat cards, which it otherwise skips
      entirely - see yourFlavorService.js. Safe to install here even though Your
@@ -244,6 +250,13 @@ Hooks.once('ready', () => {
     /* Snapshot of the Your Flavor bridge, for a fault that only shows up
        intermittently — see YourFlavorService.diagnose(). */
     yfDiag: () => YourFlavorService.diagnose(),
+    /* Fill an actor's stub items back in from the compendium entries they came
+       from — see itemRepair.js.
+
+       AM.repairItems exists too, but AM is a module export and not a global:
+       typing it in the console answers "AM is not defined", so the macro and
+       console route its own comment promises only exists here. */
+    repairItems: (actor, options) => AM.repairItems(actor ?? game.user?.character, options),
   };
 });
 

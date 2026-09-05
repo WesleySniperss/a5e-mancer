@@ -433,7 +433,7 @@ export class SpellDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       const names = removing.map(i => i.name).join(', ');
       const ok = await foundry.applications.api.DialogV2.confirm({
         window: { title: game.i18n.localize('am.spells.title-manage') || 'Manage Spells' },
-        content: `<p>Remove ${removing.length} spell(s) from ${this.actor.name}?</p>`
+        content: `<p>Remove ${removing.length} spell(s) from ${foundry.utils?.escapeHTML?.(this.actor.name) ?? this.actor.name}?</p>`
                + `<p class="am-hint">${names}</p>`
       }).catch(() => false);
       if (!ok) return;

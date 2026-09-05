@@ -26,6 +26,18 @@ export class ItemRepair {
   /** Item types worth repairing — the ones that carry text a player reads. */
   static TYPES = ['spell', 'maneuver', 'object', 'feature'];
 
+  /**
+   * Item and actor names go into dialog HTML, and a name is not trusted text —
+   * it comes from a compendium, an import or whatever a player typed. Escaped
+   * so a name containing markup is read rather than run.
+   */
+  static esc(s) {
+    const str = String(s ?? '');
+    return foundry.utils?.escapeHTML?.(str)
+      ?? str.replace(/[&<>"']/g, c =>
+          ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
   /** Prose, once the markup and entities are stripped. */
   static hasText(html) {
     return String(html ?? '')
@@ -230,15 +242,15 @@ export class ItemRepair {
       const byType = rows.reduce((m, r) => (m[r.type] = (m[r.type] ?? 0) + 1, m), {});
       const summary = Object.entries(byType)
         .sort((a, b) => b[1] - a[1])
-        .map(([t, n]) => `<li>${n} ${t}${n === 1 ? '' : 's'}</li>`).join('');
-      const sample = rows.slice(0, 12).map(r => r.name).join(', ');
+        .map(([t, n]) => `<li>${n} ${this.esc(t)}${n === 1 ? '' : 's'}</li>`).join('');
+      const sample = rows.slice(0, 12).map(r => this.esc(r.name)).join(', ');
       const more   = rows.length > 12 ? `, and ${rows.length - 12} more` : '';
       const named  = rows.filter(r => r.by === 'name').length;
 
       const ok = await foundry.applications.api.DialogV2.confirm({
         window: { title: `${AM.NAME}: fill in missing item text` },
         content:
-            `<p>${updates.length} of ${actor.name}'s items have no description, and the`
+            `<p>${updates.length} of ${this.esc(actor.name)}'s items have no description, and the`
           + ` compendium entry they came from still does. Their description, and any other`
           + ` field left empty — a spell's level, components and casting time among them —`
           + ` would be filled in.</p>`

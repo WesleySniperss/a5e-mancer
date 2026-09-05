@@ -1629,7 +1629,7 @@ export class A5eCharacterSheet extends ActorSheet {
         if (!item) return;
         if (await foundry.applications.api.DialogV2.confirm({
           window: { title: 'Delete' },
-          content: `<p>Delete <b>${item.name}</b>?</p>`,
+          content: `<p>Delete <b>${foundry.utils?.escapeHTML?.(item.name) ?? item.name}</b>?</p>`,
         })) await item.delete();
       })
     );

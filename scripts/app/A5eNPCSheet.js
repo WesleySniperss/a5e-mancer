@@ -250,7 +250,7 @@ export class A5eNPCSheet extends ActorSheet {
         const item = this.actor.items.get(b.dataset.id);
         if (item && await foundry.applications.api.DialogV2.confirm({
           window: { title: 'Delete' },
-          content: `<p>Delete <b>${item.name}</b>?</p>`,
+          content: `<p>Delete <b>${foundry.utils?.escapeHTML?.(item.name) ?? item.name}</b>?</p>`,
         })) await item.delete();
       })
     );
