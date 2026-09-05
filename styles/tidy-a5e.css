@@ -701,3 +701,69 @@
   color: var(--t5e-color-text-gold-emphasis);
   background: rgba(255, 255, 255, 0.06);
 }
+
+/* ── Our own counters ──────────────────────────────────────────────────────
+   Two named counters kept in a flag, for what a5e has no field for. They sit
+   in the same strip as exertion and a5e own trackers because they are used the
+   same way, but they stack: a name to edit, the figure, and pips when a
+   maximum is set. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-counter {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--t5e-size-1);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-counter-name {
+  width: 6.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-counter-row {
+  display: flex;
+  align-items: center;
+  gap: var(--t5e-size-1);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-counter-value,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-counter-max {
+  width: 2.25rem;
+  text-align: center;
+  color: var(--t5e-color-text-default);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-counter-max {
+  color: var(--t5e-color-text-lighter);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-counter-pips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--t5e-size-1);
+  max-width: 8rem;
+}
+
+/* Small enough to sit under the figure without widening the strip, big enough
+   to hit. Unset pips keep their outline so the total is still readable. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-counter-pip {
+  width: 0.6rem;
+  height: 0.6rem;
+  padding: 0;
+  border: 1px solid var(--t5e-color-gold);
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-counter-pip.am-on {
+  background: var(--t5e-color-gold);
+}
+
+/* The unnamed slot is only an invitation, so it takes no more room than the
+   words in it until it becomes a real counter. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-counter-new .am-counter-name {
+  width: 5.5rem;
+  color: var(--t5e-color-text-lighter);
+  text-transform: none;
+  letter-spacing: normal;
+}

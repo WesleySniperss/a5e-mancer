@@ -287,6 +287,10 @@ export class A5eCharacterSheet extends ActorSheet {
         : [];
       return { name: s.name ?? '', value: val, max, pips };
     });
+    /* The first slot with no name yet, so the strip can offer one field to
+       name it in rather than two empty counters nobody asked for. */
+    const freeIndex = customCounters.findIndex(c => !c.name);
+    const freeCounter = { available: freeIndex !== -1, index: Math.max(0, freeIndex) };
     // All non-weapon objects go to equipment panel
     const equipment = items.filter(i => i.type === 'object' && i.system?.objectType !== 'weapon')
                             .map(i => this.#gear(i));
@@ -479,7 +483,7 @@ export class A5eCharacterSheet extends ActorSheet {
       abilities, skills, resources, classes,
       savingThrows, maneuverDC, proficiencies,
       weapons, maneuvers, maneuverGroups, spells, spellGroups, slotRows,
-      features, feats, allFeatures, featuresBySource, customCounters, equipment, currency,
+      features, feats, allFeatures, featuresBySource, customCounters, freeCounter, equipment, currency,
       fatiguePips, strifePips, exertionPips,
       fatigueDesc, strifeDesc, statusConditions,
       attunementItems, attuneCount, passivePerception, charInfo, bio,
@@ -1979,8 +1983,14 @@ export class A5eCharacterSheet extends ActorSheet {
       await this.actor.setFlag(MODULE_ID, 'customCounters', counters);
     };
 
+    /* Redrawn on rename because naming an empty slot is what turns the
+       placeholder field into a counter — without this it saves and nothing
+       visibly happens. */
     el.querySelectorAll('[data-action="counter-name"]').forEach(inp =>
-      inp.addEventListener('change', () => saveCounter(parseInt(inp.dataset.index)))
+      inp.addEventListener('change', async () => {
+        await saveCounter(parseInt(inp.dataset.index));
+        this.render(false);
+      })
     );
     el.querySelectorAll('[data-action="counter-val"]').forEach(inp =>
       inp.addEventListener('change', async () => {

@@ -390,6 +390,60 @@
         </button>
       </div>
     {{/each}}
+
+    {{!-- Our own two counters, kept in a flag rather than on the actor, for
+         things a5e has no field for. They have always been saved and stepped
+         correctly — counter-name, -val, -max, -inc, -dec and -pip all have
+         handlers — but no template ever drew them, so the whole feature was
+         unreachable. A counter appears once it is named; until then there is
+         only the slim field below to name it in. --}}
+    {{#each customCounters}}
+      {{#if this.name}}
+        <div class="am-a5e-stat am-counter" data-tooltip="{{this.name}}">
+          <input type="text" class="uninput am-counter-name font-label-medium color-text-gold"
+            data-action="counter-name" data-index="{{@index}}"
+            value="{{this.name}}" aria-label="Counter name" />
+          <div class="am-counter-row">
+            <button type="button" class="button button-borderless button-icon-only"
+              data-action="counter-dec" data-index="{{@index}}"
+              aria-label="Spend one {{this.name}}" data-tooltip="Spend one">
+              <i class="fa-solid fa-minus"></i>
+            </button>
+            <input type="number" class="uninput am-counter-value"
+              data-action="counter-val" data-index="{{@index}}"
+              value="{{this.value}}" min="0" aria-label="{{this.name}}" />
+            <span class="am-counter-sep color-text-lighter">/</span>
+            <input type="number" class="uninput am-counter-max"
+              data-action="counter-max" data-index="{{@index}}"
+              value="{{this.max}}" min="0" aria-label="{{this.name}} maximum" />
+            <button type="button" class="button button-borderless button-icon-only"
+              data-action="counter-inc" data-index="{{@index}}"
+              aria-label="Regain one {{this.name}}" data-tooltip="Regain one">
+              <i class="fa-solid fa-plus"></i>
+            </button>
+          </div>
+          {{#if this.pips.length}}
+            <div class="am-counter-pips">
+              {{#each this.pips}}
+                <button type="button"
+                  class="am-counter-pip{{#if this.on}} am-on{{/if}}"
+                  data-action="counter-pip" data-counter="{{@../index}}" data-i="{{this.i}}"
+                  aria-label="Set to {{this.i}}"></button>
+              {{/each}}
+            </div>
+          {{/if}}
+        </div>
+      {{/if}}
+    {{/each}}
+
+    {{#if freeCounter.available}}
+      <div class="am-a5e-stat am-counter am-counter-new">
+        <input type="text" class="uninput am-counter-name"
+          data-action="counter-name" data-index="{{freeCounter.index}}"
+          value="" placeholder="+ counter" aria-label="Name a new counter"
+          data-tooltip="Name it to start counting" />
+      </div>
+    {{/if}}
   </div>
 
   {{!-- ── Tab strip ──────────────────────────────────────────────────────── --}}
