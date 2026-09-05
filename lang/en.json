@@ -389,6 +389,7 @@
   "am.app.spells.open-picker": "Choose Spells…",
   "am.app.spells.your-spells": "Selected Spells:",
   "am.spells.title": "Choose Spells — {class}",
+  "am.spells.title-manage": "Manage Spells",
   "am.spells.cantrips": "Cantrips",
   "am.spells.spells": "Spells",
   "am.spells.level": "Spell Level",
