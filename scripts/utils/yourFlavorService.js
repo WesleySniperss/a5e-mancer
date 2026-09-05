@@ -206,6 +206,22 @@ export class YourFlavorService {
    * window, and Foundry re-rendering the log. Cheap to repeat - _styleMessage
    * skips anything already marked yf-processed - so this is idempotent.
    */
+  /** Your Flavor's own TTL for a preview draft: 5 * 60 * 1000 in your-flavor.js. */
+  static PREVIEW_TTL_MS = 5 * 60 * 1000;
+
+  /**
+   * Whether a preview card's draft config is certainly gone.
+   *
+   * Matched to Your Flavor's own timer rather than guessed, so the two cannot
+   * disagree. A message with no timestamp is treated as NOT expired — refusing
+   * to style it is the safe way to be wrong.
+   */
+  static _previewExpired(message) {
+    const stamp = Number(message?.timestamp);
+    if (!Number.isFinite(stamp) || stamp <= 0) return false;
+    return (Date.now() - stamp) > this.PREVIEW_TTL_MS;
+  }
+
   static _watchChatLog() {
     this._logHook = Hooks.on('renderChatLog', () => {
       /* After the render, not during: the messages are not in the document yet
@@ -261,9 +277,31 @@ export class YourFlavorService {
     if (element.classList.contains('yf-processed')) return false;
 
     /* Your Flavor's throwaway test messages carry an in-memory draft config
-     * only it holds. Styling them from here would use the saved config instead
-     * and show the wrong thing in its own preview. */
-    if (message?.flags?.[this.YF_ID]?.previewId) return false;
+     * only it holds. Styling one while that draft is live would use the saved
+     * config instead and show the wrong thing in its own preview.
+     *
+     * But the draft does not live long. Your Flavor keeps it in a Map and
+     * deletes it after five minutes:
+     *
+     *     window.setTimeout(() => this._previewConfigs.delete(previewId),
+     *                       5 * 60 * 1000);
+     *
+     * and its own renderer bails on any preview whose config has gone:
+     *
+     *     if (previewId && !previewConfig) return;
+     *
+     * So a preview card that reached the chat log was unstyleable FOREVER —
+     * Your Flavor refused it because the draft had expired, and this refused
+     * it because of the flag. On the reporter's world every unstyled message
+     * was one of these, 23 of 23. It only showed on their cloud host because
+     * Your Flavor has no sweep of its own: locally its hook caught everything
+     * else, so nothing revealed that the fallback was declining these.
+     *
+     * Past the same five minutes the draft is provably gone and no preview can
+     * be spoiled, so the card is adopted and painted with the saved config —
+     * which is what the reader expects to see. */
+    const previewId = message?.flags?.[this.YF_ID]?.previewId;
+    if (previewId && !this._previewExpired(message)) return false;
 
     const styles = this._styles;
     if (!styles) return false;
@@ -591,6 +629,17 @@ export class YourFlavorService {
       /* What actually landed on screen */
       'messages in DOM': rows.length,
       'messages unstyled': unstyled.length,
+      /* Preview cards that reached the log. Both modules used to refuse these
+         forever; anything still counted as live is inside the 5-minute draft
+         window and is left alone on purpose. */
+      'unstyled: dead previews': unstyled.filter(el => {
+        const m = game.messages.get(el.dataset?.messageId);
+        return m?.flags?.[M]?.previewId && this._previewExpired(m);
+      }).length,
+      'unstyled: live previews': unstyled.filter(el => {
+        const m = game.messages.get(el.dataset?.messageId);
+        return m?.flags?.[M]?.previewId && !this._previewExpired(m);
+      }).length,
     };
 
     console.table(report);
