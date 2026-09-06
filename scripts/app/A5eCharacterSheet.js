@@ -371,49 +371,6 @@ export class A5eCharacterSheet extends ActorSheet {
         .map(i => this.#gear(i))
     })).filter(g => g.items.length);
 
-    /* ── The lock ───────────────────────────────────────────────────────
-       a5e's own flag, so the two sheets share one lock rather than each
-       keeping its own. */
-    el.querySelector('[data-action="toggle-lock"]')?.addEventListener('click', async (e) => {
-      e.preventDefault();
-      const locked = this.actor.getFlag('a5e', 'sheetIsLocked') ?? true;
-      await this.actor.setFlag('a5e', 'sheetIsLocked', !locked);
-    });
-
-    /* ── Resources ──────────────────────────────────────────────────────
-       The figure is always writable; the label, the maximum and the rest of
-       the configuration only while unlocked, which is what the template
-       renders. Paths differ for class resources — see the context. */
-    el.querySelectorAll('[data-action="resource-value"]').forEach(inp =>
-      inp.addEventListener('change', async (e) => {
-        const v = parseInt(e.target.value);
-        if (isNaN(v)) return;
-        await this.actor.update({ [e.target.dataset.path]: Math.max(0, v) });
-      }));
-
-    el.querySelectorAll('[data-action="resource-step"]').forEach(b =>
-      b.addEventListener('click', async (e) => {
-        e.preventDefault();
-        const path  = b.dataset.path;
-        const delta = Number(b.dataset.delta) || 0;
-        const max   = b.dataset.max === '' ? null : Number(b.dataset.max);
-        const now   = Number(foundry.utils.getProperty(this.actor, path) ?? 0) || 0;
-        let next = now + delta;
-        if (next < 0) next = 0;
-        if (max !== null && Number.isFinite(max) && max > 0 && next > max) next = max;
-        if (next === now) return;
-        await this.actor.update({ [path]: next });
-      }));
-
-    el.querySelectorAll('[data-action="resource-field"]').forEach(inp =>
-      inp.addEventListener('change', async (e) => {
-        const t = e.target;
-        const value = t.type === 'checkbox' ? t.checked : t.value;
-        await this.actor.update({
-          [`system.resources.${t.dataset.resource}.${t.dataset.field}`]: value
-        });
-      }));
-
     /* ── Settings ─────────────────────────────────────────────────────────
        a5e's Settings tab, whose five sub-pages are flattened into sections
        here. Every switch writes the same flag or field a5e writes, so this
@@ -2208,6 +2165,49 @@ export class A5eCharacterSheet extends ActorSheet {
         btn.textContent = body?.classList.contains('am-hidden') ? '▸' : '▾';
       })
     );
+
+    /* ── The lock ───────────────────────────────────────────────────────
+       a5e's own flag, so the two sheets share one lock rather than each
+       keeping its own. */
+    el.querySelector('[data-action="toggle-lock"]')?.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const locked = this.actor.getFlag('a5e', 'sheetIsLocked') ?? true;
+      await this.actor.setFlag('a5e', 'sheetIsLocked', !locked);
+    });
+
+    /* ── Resources ──────────────────────────────────────────────────────
+       The figure is always writable; the label, the maximum and the rest of
+       the configuration only while unlocked, which is what the template
+       renders. Paths differ for class resources — see the context. */
+    el.querySelectorAll('[data-action="resource-value"]').forEach(inp =>
+      inp.addEventListener('change', async (e) => {
+        const v = parseInt(e.target.value);
+        if (isNaN(v)) return;
+        await this.actor.update({ [e.target.dataset.path]: Math.max(0, v) });
+      }));
+
+    el.querySelectorAll('[data-action="resource-step"]').forEach(b =>
+      b.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const path  = b.dataset.path;
+        const delta = Number(b.dataset.delta) || 0;
+        const max   = b.dataset.max === '' ? null : Number(b.dataset.max);
+        const now   = Number(foundry.utils.getProperty(this.actor, path) ?? 0) || 0;
+        let next = now + delta;
+        if (next < 0) next = 0;
+        if (max !== null && Number.isFinite(max) && max > 0 && next > max) next = max;
+        if (next === now) return;
+        await this.actor.update({ [path]: next });
+      }));
+
+    el.querySelectorAll('[data-action="resource-field"]').forEach(inp =>
+      inp.addEventListener('change', async (e) => {
+        const t = e.target;
+        const value = t.type === 'checkbox' ? t.checked : t.value;
+        await this.actor.update({
+          [`system.resources.${t.dataset.resource}.${t.dataset.field}`]: value
+        });
+      }));
 
     /* ── Settings ───────────────────────────────────────────────────────
        One handler for the lot, keyed by the path on the element. The paths
