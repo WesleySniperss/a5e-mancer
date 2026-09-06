@@ -1116,3 +1116,43 @@
 .tidy5e-sheet.application.a5e-mancer-sheet .abilities-container-inner {
   min-height: 7.625rem;
 }
+
+/* ── The strip stays on one line ───────────────────────────────────────────
+   Measured from the values Tidy actually sets — 13px uppercase labels with
+   0.04em tracking, 1rem between chips, 0.75rem padding — the strip came to
+   1054px against roughly 804px of room, so it wrapped. Gathering the passives
+   into one chip brings it to about 760px.
+
+   nowrap is the guarantee rather than the fix: that 760px is arithmetic from
+   an average character width, not a measurement of glyphs, so if it is out by
+   a little the strip should squeeze rather than silently become two rows
+   again. The exertion meter is the one thing given permission to shrink. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-a5e-strip {
+  flex-wrap: nowrap;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-a5e-strip > .am-a5e-stat {
+  flex: 0 0 auto;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-a5e-strip > .am-a5e-exertion {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* Three figures under one heading. The gap inside a pair is smaller than the
+   gap between pairs, so they read as three things and not six. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-passives {
+  gap: var(--t5e-size-2x);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-passive {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--t5e-size-halfx);
+  white-space: nowrap;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-passive-abbr {
+  letter-spacing: 0.04em;
+}

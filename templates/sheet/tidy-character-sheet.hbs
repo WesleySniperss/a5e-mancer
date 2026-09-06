@@ -404,16 +404,25 @@
       </div>
     {{/if}}
 
-    {{!-- The three passive scores. a5e prints a passive on every skill row;
-         these three are the ones read without asking for them, so they sit up
-         here where a5e own sheet keeps them. The number is the actor own
-         system.skills.<abbr>.passive, not a sum worked out again here. --}}
-    {{#each passives}}
-      <div class="am-a5e-stat" data-tooltip="Passive {{this.label}}">
-        <span class="am-a5e-label font-label-medium color-text-gold">Pass. {{this.label}}</span>
-        <span class="am-a5e-value font-data-medium color-text-default">{{this.value}}</span>
-      </div>
-    {{/each}}
+    {{!-- The three passive scores, in one chip rather than three.
+
+         Written out — PASS. PERCEPTION, PASS. INSIGHT, PASS. INVESTIGATION —
+         they took 490px of a strip that has about 804px, and the row as a
+         whole came to 1054px, so it broke onto a second line. Short and
+         gathered they take 228px and the strip fits on one.
+
+         The number is the actor own system.skills.<abbr>.passive, not a sum
+         worked out again here. Each carries its full name as a tooltip, so",
+         the short form costs nothing but a hover. --}}
+    <div class="am-a5e-stat am-passives">
+      <span class="am-a5e-label font-label-medium color-text-gold">Passive</span>
+      {{#each passives}}
+        <span class="am-passive" data-tooltip="Passive {{this.label}}">
+          <span class="am-passive-abbr font-label-medium color-text-lighter">{{this.abbr}}</span>
+          <span class="am-a5e-value font-data-medium color-text-default">{{this.value}}</span>
+        </span>
+      {{/each}}
+    </div>
 
   </div>
 

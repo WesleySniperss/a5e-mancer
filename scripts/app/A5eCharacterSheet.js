@@ -641,10 +641,16 @@ export class A5eCharacterSheet extends ActorSheet {
       return 10 + (s?.bonus ?? 0);
     };
 
+    /* Measured against the real values in Tidy's stylesheet — 13px uppercase
+       labels with 0.04em tracking, 16px between chips — the three passives
+       written out came to 490px of a strip that only has about 804px, and the
+       whole row came to 1054px. That is why it was breaking onto a second
+       line. Written short and gathered into one chip they take 228px, which
+       brings the strip to 760px. */
     const passives = [
-      { key: 'perception',    label: 'Perception',    value: passiveOf('perception') },
-      { key: 'insight',       label: 'Insight',       value: passiveOf('insight') },
-      { key: 'investigation', label: 'Investigation', value: passiveOf('investigation') }
+      { key: 'perception',    label: 'Perception',    abbr: 'PER', value: passiveOf('perception') },
+      { key: 'insight',       label: 'Insight',       abbr: 'INS', value: passiveOf('insight') },
+      { key: 'investigation', label: 'Investigation', abbr: 'INV', value: passiveOf('investigation') }
     ];
     /* Still handed out under its old name: other parts of the sheet ask. */
     const passivePerception = passives[0].value;
