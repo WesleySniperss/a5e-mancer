@@ -180,16 +180,29 @@
                 </button>
               </div>
 
+              {{!-- An ability score describes the character rather than tracking
+                   them, so it is behind the lock like everything else of that
+                   kind. Locked it reads as the number it is; unlocked it can be
+                   typed into, and the cog opens a5e own ability dialog for save
+                   proficiency, expertise dice and bonuses. --}}
               <div class="ability-score-container">
                 <label class="ability-score" data-tooltip="{{this.label}} Score"
                   data-tidy-sheet-part="ability-score">
                   <input class="font-title-small color-text-default am-ability-score uninput"
                     type="number" data-ability="{{this.key}}"
-                    data-path="system.abilities.{{this.key}}.value" value="{{this.value}}" />
+                    data-path="system.abilities.{{this.key}}.value" value="{{this.value}}"
+                    {{#unless @root.unlocked}}disabled{{/unless}} />
                   {{#if this.saveProf}}
                     <span class="ability-proficiency-indicator"></span>
                   {{/if}}
                 </label>
+                {{#if @root.unlocked}}
+                  <button type="button" class="button button-borderless button-icon-only am-stat-config"
+                    data-action="ability-config" data-ability="{{this.key}}"
+                    data-tooltip="Configure {{this.label}}" aria-label="Configure {{this.label}}">
+                    <i class="fa-solid fa-cog"></i>
+                  </button>
+                {{/if}}
               </div>
 
               <div class="ability-save-container">
@@ -200,6 +213,9 @@
                   data-tidy-sheet-part="ability-save-roller">
                   <span class="modifier font-label-medium color-text-lightest">{{this.saveSign}}</span>
                   <span class="value save font-data-medium color-text-default">{{this.saveAbs}}</span>
+                  {{#if this.saveExpDie}}
+                    <span class="am-save-exp font-label-medium color-text-gold">{{this.saveExpDie}}</span>
+                  {{/if}}
                   <span class="icon"><i class="fas fa-shield-heart"></i></span>
                 </button>
               </div>
@@ -373,6 +389,15 @@
       <span class="am-a5e-label font-label-medium color-text-gold">Maneuver DC</span>
       <span class="am-a5e-value font-data-medium color-text-default">{{maneuverDC}}</span>
     </div>
+
+    {{!-- The companion figure. Every chip in this strip is the same shape, so
+         one more sits level with the rest rather than nudging them. --}}
+    {{#if spellDC}}
+      <div class="am-a5e-stat" data-tooltip="Spell Save DC">
+        <span class="am-a5e-label font-label-medium color-text-gold">Spell DC</span>
+        <span class="am-a5e-value font-data-medium color-text-default">{{spellDC}}</span>
+      </div>
+    {{/if}}
 
     {{!-- The three passive scores. a5e prints a passive on every skill row;
          these three are the ones read without asking for them, so they sit up
@@ -629,6 +654,18 @@
                   <span class="color-text-lightest font-label-medium">{{this.bonusSign}}</span>
                   <span class="font-data-medium">{{this.bonusAbs}}</span>
                 </span>
+
+                {{!-- Unlocked, every skill gets the cog a5e own sheet gives it:
+                     proficiency, expertise dice and bonuses, in a5e own dialog
+                     rather than a second one of ours that would write the same
+                     fields slightly differently. --}}
+                {{#if @root.unlocked}}
+                  <button type="button" class="button button-borderless button-icon-only am-stat-config"
+                    data-action="skill-config" data-skill-key="{{this.abbrKey}}"
+                    data-tooltip="Configure {{this.label}}" aria-label="Configure {{this.label}}">
+                    <i class="fa-solid fa-cog"></i>
+                  </button>
+                {{/if}}
 
 
               </li>

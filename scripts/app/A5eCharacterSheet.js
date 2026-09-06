@@ -164,9 +164,23 @@ export class A5eCharacterSheet extends ActorSheet {
       const d        = sys.abilities?.[key] ?? {};
       const value    = d.value ?? 10;
       const mod      = Math.floor((value - 10) / 2);
-      const saveProf = !!(d.saveProficient ?? d.proficient);
-      const saveMod  = saveProf ? mod + profBonus : mod;
-      return { key, label, abbr, value, mod, modStr: sign(mod), saveMod, saveModStr: sign(saveMod), saveProf };
+      /* a5e keeps save proficiency at system.abilities.<key>.save.proficient,
+         and works the save modifier out itself at save.mod. Neither was being
+         read: saveProficient and proficient are not fields on an a5e ability,
+         so no save ever counted as proficient and every save came out equal
+         to its check. That is why the row looked like it was not there — it
+         was, showing the same six numbers again.
+
+         The sum is kept only for data with no computed mod on it. */
+      const saveData = d.save ?? {};
+      const saveProf = !!(saveData.proficient ?? d.saveProficient ?? d.proficient);
+      const saveMod  = Number.isFinite(saveData.mod)
+        ? saveData.mod
+        : (saveProf ? mod + profBonus : mod);
+      const saveExpDie = saveData.expertiseDice > 0
+        ? `+d${4 + (saveData.expertiseDice - 1) * 2}` : '';
+      return { key, label, abbr, value, mod, modStr: sign(mod), saveMod,
+               saveModStr: sign(saveMod), saveProf, saveExpDie };
     });
 
     /* Saving throws (for right sidebar) */
@@ -222,6 +236,10 @@ export class A5eCharacterSheet extends ActorSheet {
       // passive score in its own column, so both are precomputed here.
       return {
         key, label, ability, bonus, bonusStr: sign(bonus),
+        /* a5e's own key for this skill. configureSkill is given the
+           abbreviation — CONFIG.A5E.skills is keyed by it — while the rest
+           of this sheet works in long names. */
+        abbrKey: A5E_SKILL_ABBR[key] ?? key,
         bonusSign: bonus < 0 ? '-' : '+',
         bonusAbs: Math.abs(bonus),
         profLvl, profLabel,
@@ -598,6 +616,14 @@ export class A5eCharacterSheet extends ActorSheet {
     /* Currency */
     const currency = sys.currency ?? sys.wealth ?? { gp: 0, sp: 0, cp: 0, ep: 0, pp: 0 };
 
+    /* The spell save DC a5e keeps on the actor. A spellbook may carry its own,
+       which is what a spell rolls against; this is the actor-wide figure a5e
+       itself falls back to, and the companion to the maneuver DC already
+       shown. Hidden when there is none, so a character who casts nothing does
+       not carry an empty box. */
+    const spellDCRaw = sys.attributes?.spellDC;
+    const spellDC = Number.isFinite(spellDCRaw) && spellDCRaw > 0 ? spellDCRaw : null;
+
     /* ── Passive scores ───────────────────────────────────────────────────
        Perception, Insight and Investigation — the three read without a roll
        being asked for, which is why a5e keeps them where the eye lands.
@@ -706,7 +732,7 @@ export class A5eCharacterSheet extends ActorSheet {
       unlocked, actorResources, equipment, currency,
       fatiguePips, strifePips, exertionPips,
       fatigueDesc, strifeDesc, statusConditions,
-      attunementItems, attuneCount, passivePerception, passives, hasTrackers, charInfo, bio,
+      attunementItems, attuneCount, passivePerception, passives, hasTrackers, spellDC, charInfo, bio,
       hasWeapons:          weapons.length        > 0,
       hasManeuvers:        maneuvers.length      > 0,
       hasSpells:           spells.length         > 0,
@@ -2218,6 +2244,24 @@ export class A5eCharacterSheet extends ActorSheet {
         btn.textContent = body?.classList.contains('am-hidden') ? '▸' : '▾';
       })
     );
+
+    /* ── Configuring an ability or a skill ──────────────────────────────
+       These are a5e's own dialogs, reached through its own actor methods, so
+       the window that opens here is the window its sheet opens: proficiency,
+       expertise dice and bonuses, all written back where a5e reads them.
+       They only exist while unlocked, which is where the template puts
+       them. */
+    el.querySelectorAll('[data-action="ability-config"]').forEach(b =>
+      b.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.actor.configureAbilityScore?.({ abilityKey: b.dataset.ability });
+      }));
+
+    el.querySelectorAll('[data-action="skill-config"]').forEach(b =>
+      b.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.actor.configureSkill?.({ skillKey: b.dataset.skillKey });
+      }));
 
     /* ── The lock ───────────────────────────────────────────────────────
        a5e's own flag, so the two sheets share one lock rather than each
