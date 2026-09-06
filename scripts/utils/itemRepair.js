@@ -75,7 +75,7 @@ export class ItemRepair {
     for (const pack of PackFilter.itemPacks()) {
       let index;
       try {
-        index = await pack.getIndex({ fields: ['name', 'type', 'system.description'] });
+        index = await PackFilter.indexOf(pack, ['name', 'type', 'system.description']);
       } catch (err) {
         AM.log(2, `Could not index ${pack.collection}:`, err);
         continue;

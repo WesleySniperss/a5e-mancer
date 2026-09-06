@@ -198,9 +198,8 @@ export class ManeuverService {
       try {
         // flags is needed for the magic-maneuver check below — the index omits
         // it unless asked, so without it every one of them would slip through.
-        const index = await pack.getIndex({
-          fields: ['name', 'type', 'img', 'system', 'flags']
-        });
+        const index = await PackFilter.indexOf(pack,
+          ['name', 'type', 'img', 'system', 'flags']);
         for (const entry of index) {
           if (entry.type !== 'maneuver') continue;
           // Magic maneuvers are not filtered out: their school IS their tradition,
@@ -377,7 +376,7 @@ export class ManeuverService {
     for (const pack of PackFilter.packsOfType('Item')) {
       let index;
       try {
-        index = await pack.getIndex({ fields: ['name', 'type', 'system.description'] });
+        index = await PackFilter.indexOf(pack, ['name', 'type', 'system.description']);
       } catch (err) {
         AM.log(2, `Could not index ${pack.collection} for class tables:`, err);
         continue;

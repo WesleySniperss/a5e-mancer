@@ -50,6 +50,32 @@ export class PackFilter {
     return String(uuid ?? '').replace(/\.(?:Item|JournalEntry|Actor|Macro)\./, '.');
   }
 
+  /**
+   * A pack's index, with the fields asked for where that is possible.
+   *
+   * getIndex({fields}) asks Foundry to merge the extra fields into an index it
+   * has already built, and on a5e's packs that throws — 'Cannot add property
+   * price, object is not extensible'. The entries in a loaded index are not
+   * open to having a whole system object folded into them. One pack throwing
+   * took its whole catalogue out of the manage dialogs, which is why they
+   * opened empty.
+   *
+   * The index already loaded is the fallback, and it is not a poor one: this
+   * module enriches every pack index at ready (see compendiumIndexFix) with
+   * exactly the system fields these loaders read — tradition, degree,
+   * exertionCost, level, classes, schools, description. So a pack that cannot
+   * be re-indexed still yields its items.
+   */
+  static async indexOf(pack, fields) {
+    try {
+      return await pack.getIndex({ fields });
+    } catch (err) {
+      AM.log(2, `${pack?.collection}: the index would not take the extra fields, `
+             + `using the one already loaded — ${err.message}`);
+      return pack?.index ?? [];
+    }
+  }
+
   /** Same, for any document type. */
   static packsOfType(type) {
     const packs = game.packs.filter(p => p.metadata.type === type);

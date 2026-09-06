@@ -472,9 +472,8 @@ export class SpellService {
 
     for (const pack of packs) {
       try {
-        const index = await pack.getIndex({
-          fields: ['name', 'type', 'img', 'system']
-        });
+        const index = await PackFilter.indexOf(pack,
+          ['name', 'type', 'img', 'system']);
         for (const entry of index) {
           if (entry.type !== 'spell') continue;
 
