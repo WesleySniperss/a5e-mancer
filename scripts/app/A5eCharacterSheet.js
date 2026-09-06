@@ -345,7 +345,10 @@ export class A5eCharacterSheet extends ActorSheet {
           hideMax:  !!r.hideMax,
           per:      r.per ?? '',
           show,
-          pct: max > 0 ? pct(value, max) : 0,
+          /* pct01, not pct: the identical helper further down is a const, and
+             calling it from up here is a use before initialization — which
+             threw out of getData and stopped the sheet opening at all. */
+          pct: max > 0 ? pct01(value, max) : 0,
           /* Class resources are stored flat under classResources, as a bare
              number rather than an object with a value on it. */
           path: isClassResource
