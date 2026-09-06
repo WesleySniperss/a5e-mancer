@@ -1613,8 +1613,26 @@ export class A5eCharacterSheet extends ActorSheet {
       });
     });
 
-    /* Saving throw left-click → A5e roll dialog; right-click → instant roll */
+    /* Saving throw left-click → A5e roll dialog; right-click → instant roll.
+
+       Unlocked, a left click toggles save proficiency instead of rolling. That
+       is what a5e own sheet does — see handleSaveClick in AbilityScore.svelte —
+       and it is the only way it offers to set a save, which is why the saves
+       looked uneditable with the padlock open. The cog beside the score opens
+       the same field in a dialog; this is the quick way. */
     el.querySelectorAll('[data-action="saving-throw"]').forEach(b => {
+      b.addEventListener('click', async (e) => {
+        const locked = !this.actor.isOwner
+          || (this.actor.flags?.a5e?.sheetIsLocked ?? true);
+        if (locked) return;                         // locked: the roller below handles it
+        e.preventDefault();
+        e.stopPropagation();
+        const key = b.dataset.ability;
+        const now = this.actor.system?.abilities?.[key]?.save?.proficient ?? false;
+        await this.actor.update({
+          [`system.abilities.${key}.save.proficient`]: !now
+        });
+      }, true);                                     // capture, to pre-empt the roller
       b.addEventListener('contextmenu', async (e) => {
         e.preventDefault();
         e.stopPropagation();

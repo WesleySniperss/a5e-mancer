@@ -980,7 +980,8 @@
   font-weight: 600;
 }
 
-.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-a5e-value { font-size: var(--font-size-14, 0.875rem); }
+/* An earlier size for the tracker maximum lived here. It is set with the
+   current figure further down now, so that the two match. */
 
 /* Name, figure and buttons sit on one line inside the tile. */
 .tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-tracker > button,
@@ -1155,4 +1156,43 @@
 
 .tidy5e-sheet.application.a5e-mancer-sheet .am-passive-abbr {
   letter-spacing: 0.04em;
+}
+
+/* ── A bare input must borrow the sheet own font ───────────────────────────
+   An input does not inherit font-family: it falls back to the browser form
+   font. Neither this stylesheet nor Tidy set one, so every figure typed into a
+   bare field — a tracker current value, exertion, hit points — was drawn in a
+   different typeface from the figure beside it. That is what the counter was:
+   not two sizes but two fonts, the current value in the system UI face and the
+   maximum in the sheet own.
+
+   Fields carrying a font-* class already state their own; this is for the ones
+   that do not. */
+.tidy5e-sheet.application.a5e-mancer-sheet input.uninput,
+.tidy5e-sheet.application.a5e-mancer-sheet select {
+  font-family: inherit;
+}
+
+/* ── Concentration ─────────────────────────────────────────────────────────
+   The block had no rule of its own at all, so it was left to Foundry .flexcol
+   and .flexrow — and .flexrow gives every child flex: 1. The head icon, the
+   sign and the number were each taking a third of the width and drifting
+   apart, which is why the icon read as something loose on the sheet rather
+   than part of the concentration figure. */
+.tidy5e-sheet.application.a5e-mancer-sheet .concentration {
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: var(--t5e-size-halfx);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .concentration-bonus {
+  flex: 0 0 auto;
+  align-items: baseline;
+  justify-content: center;
+  gap: var(--t5e-size-halfx);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .concentration-bonus > * {
+  flex: 0 0 auto;
 }
