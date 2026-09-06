@@ -163,6 +163,25 @@
             <div class="ability {{this.key}}{{#if this.saveProf}} has-proficiency{{/if}}"
               data-tidy-sheet-part="ability-container">
 
+              {{!-- The save rides on top of the plate the way the score rides
+                   under it: both tuck into the modifier by the same amount, so
+                   an ability reads as one piece — save, modifier, score —
+                   rather than a plate with a loose line under it. --}}
+              <div class="ability-save-container">
+                <button type="button" class="button-borderless ability-save flexrow saving-throw"
+                  data-action="saving-throw" data-ability="{{this.key}}"
+                  data-label="{{this.label}}" data-mod="{{this.saveMod}}"
+                  data-tooltip="{{this.label}} Save"
+                  data-tidy-sheet-part="ability-save-roller">
+                  <span class="modifier font-label-medium color-text-lightest">{{this.saveSign}}</span>
+                  <span class="value save font-data-medium color-text-default">{{this.saveAbs}}</span>
+                  {{#if this.saveExpDie}}
+                    <span class="am-save-exp font-label-medium color-text-gold">{{this.saveExpDie}}</span>
+                  {{/if}}
+                  <span class="icon"><i class="fas fa-shield-heart"></i></span>
+                </button>
+              </div>
+
               <div class="ability-bonus-container{{#if this.saveProf}} proficient{{/if}}"
                 data-tidy-sheet-part="ability-mod-container">
                 <button type="button" class="button-borderless ability-roll-button"
@@ -205,20 +224,6 @@
                 {{/if}}
               </div>
 
-              <div class="ability-save-container">
-                <button type="button" class="button-borderless ability-save flexrow saving-throw"
-                  data-action="saving-throw" data-ability="{{this.key}}"
-                  data-label="{{this.label}}" data-mod="{{this.saveMod}}"
-                  data-tooltip="{{this.label}} Save"
-                  data-tidy-sheet-part="ability-save-roller">
-                  <span class="modifier font-label-medium color-text-lightest">{{this.saveSign}}</span>
-                  <span class="value save font-data-medium color-text-default">{{this.saveAbs}}</span>
-                  {{#if this.saveExpDie}}
-                    <span class="am-save-exp font-label-medium color-text-gold">{{this.saveExpDie}}</span>
-                  {{/if}}
-                  <span class="icon"><i class="fas fa-shield-heart"></i></span>
-                </button>
-              </div>
             </div>
           {{/each}}
 

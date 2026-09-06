@@ -780,7 +780,7 @@
 .tidy5e-sheet.application.a5e-mancer-sheet .am-fx-img {
   width: var(--t5e-size-6x);
   height: var(--t5e-size-6x);
-  border-radius: var(--t5e-radius-card, 3px);
+  border-radius: var(--radius-card, .1875rem);
   object-fit: cover;
   flex: none;
 }
@@ -952,7 +952,7 @@
   min-width: 7rem;
   padding: var(--t5e-size-1x) var(--t5e-size-2x);
   border: 1px solid var(--t5e-table-header-border-color);
-  border-radius: var(--t5e-radius-card, 3px);
+  border-radius: var(--radius-card, .1875rem);
 }
 
 .tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-a5e-label {
@@ -966,11 +966,11 @@
 .tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-tracker-value,
 .tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-value {
   width: 2.75rem;
-  font-size: var(--font-size-20, 1.25rem);
+  font-size: var(--font-size-18, 1.125rem);
   font-weight: 600;
 }
 
-.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-a5e-value { font-size: var(--font-size-16, 1rem); }
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-a5e-value { font-size: var(--font-size-14, 0.875rem); }
 
 /* Name, figure and buttons sit on one line inside the tile. */
 .tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-tracker > button,
@@ -997,7 +997,7 @@
   min-width: 7rem;
   padding: var(--t5e-size-1x) var(--t5e-size-2x);
   border: 1px solid var(--t5e-table-header-border-color);
-  border-radius: var(--t5e-radius-card, 3px);
+  border-radius: var(--radius-card, .1875rem);
   align-items: center;
 }
 
@@ -1034,3 +1034,50 @@
 
 /* The skill cog sits at the end of the row, out of the way of the number. */
 .tidy5e-sheet.application.a5e-mancer-sheet .skill .am-stat-config { margin-inline-start: auto; }
+
+/* ── The ability plate reads as one piece ──────────────────────────────────
+   Tidy tucks the score up into the modifier with a negative top margin, which
+   is what joins them. The save is given the mirror of that so it sits on the
+   plate from above instead of hanging under it as a separate line. It comes
+   first in the markup, so it needs to be lifted above its neighbour to paint
+   the way the score does. */
+.tidy5e-sheet.application.a5e-mancer-sheet .ability .ability-save-container {
+  margin-block-end: -0.75rem;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── The HP bar is a bar, not a row of boxes ───────────────────────────────
+   Heal and damage sit on top of the bar, absolutely placed. Any background of
+   their own reads as the bar being cut into pieces — which is what the
+   segments were. They are made transparent, and the icons given a shadow so
+   they stay legible against a full green bar. */
+.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals .hp-row .am-hp-buttons .button {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals .hp-row .am-hp-buttons .button:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* ── One size for a tracker figure ─────────────────────────────────────────
+   The current value is an input and the maximum a span, and they had been
+   given different sizes and weights — so a tracker read as two different
+   fonts stuck together, which is exactly what it looked like. They match
+   now; only the colour separates them. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-a5e-value,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-sep {
+  font-size: var(--font-size-18, 1.125rem);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-tracker-value,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-value,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-max {
+  line-height: 1;
+  padding: 0;
+}
