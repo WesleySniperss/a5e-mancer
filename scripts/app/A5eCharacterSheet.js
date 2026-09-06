@@ -1808,32 +1808,58 @@ export class A5eCharacterSheet extends ActorSheet {
       })
     );
 
-    /* Right-click any item row → A5e activation dialog (with adv/disadv modifiers) */
+    /* Right-click any item row → open the item.
+
+       It used to activate the item instead. For anything with no actions
+       defined, a5e's activate() falls back to posting the description, so a
+       right-click meant to look something up threw it into chat — while the
+       chat button beside it opened a window. The two had ended up the wrong
+       way round.
+
+       This is what a5e's own row does on a right-click: configureItem, which
+       is its way of opening the item's sheet. Using an item stays where it
+       was, on the icon and the use button. */
     el.querySelectorAll('.tidy-table-row-container[data-item-id]').forEach(row =>
-      row.addEventListener('contextmenu', async (e) => {
+      row.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         const item = this.actor.items.get(row.dataset.itemId);
         if (!item) return;
         try {
-          if (typeof item.activate === 'function') { await item.activate(); return; }
-          if (typeof item.use      === 'function') { await item.use();      return; }
+          if (typeof item.configureItem === 'function') { item.configureItem(); return; }
           item.sheet.render(true);
-        } catch(err) {
-          AM.log(2, 'contextmenu activate error:', err);
+        } catch (err) {
+          AM.log(2, 'Could not open the item on right-click:', err);
           item.sheet.render(true);
         }
       })
     );
 
-    /* Item chat */
+    /* Send an item's description to chat.
+
+       The three methods this used to try — toChat, toMessage, roll — are dnd5e
+       names. An a5e item has none of them, so every click fell through to the
+       last line and opened the item's sheet. The button said Send to Chat and
+       opened a window instead, which is half of why this and the right-click
+       looked swapped.
+
+       shareItemDescription is a5e's own, and is what its code calls when an
+       item with no actions is used. The old names stay as a fallback for an
+       imported dnd5e item. */
     el.querySelectorAll('[data-action="item-chat"]').forEach(b =>
-      b.addEventListener('click', () => {
+      b.addEventListener('click', async () => {
         const item = this.actor.items.get(b.dataset.id);
         if (!item) return;
-        if (typeof item.toChat   === 'function') { item.toChat();   return; }
-        if (typeof item.toMessage=== 'function') { item.toMessage();return; }
-        if (typeof item.roll     === 'function') { item.roll();     return; }
-        item.sheet.render(true);
+        try {
+          if (typeof item.shareItemDescription === 'function') {
+            await item.shareItemDescription(null, {});
+            return;
+          }
+          if (typeof item.toChat    === 'function') { await item.toChat();    return; }
+          if (typeof item.toMessage === 'function') { await item.toMessage(); return; }
+        } catch (err) {
+          AM.log(2, `Could not send ${item.name} to chat:`, err);
+        }
+        ui.notifications.warn(`${AM.NAME}: ${item.name} has no description to send.`);
       })
     );
 
