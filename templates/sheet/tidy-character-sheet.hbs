@@ -374,11 +374,30 @@
       <span class="am-a5e-value font-data-medium color-text-default">{{maneuverDC}}</span>
     </div>
 
-    <div class="am-a5e-stat" data-tooltip="Passive Perception">
-      <span class="am-a5e-label font-label-medium color-text-gold">Passive Perception</span>
-      <span class="am-a5e-value font-data-medium color-text-default">{{passivePerception}}</span>
-    </div>
+    {{!-- The three passive scores. a5e prints a passive on every skill row;
+         these three are the ones read without asking for them, so they sit up
+         here where a5e own sheet keeps them. The number is the actor own
+         system.skills.<abbr>.passive, not a sum worked out again here. --}}
+    {{#each passives}}
+      <div class="am-a5e-stat" data-tooltip="Passive {{this.label}}">
+        <span class="am-a5e-label font-label-medium color-text-gold">Pass. {{this.label}}</span>
+        <span class="am-a5e-value font-data-medium color-text-default">{{this.value}}</span>
+      </div>
+    {{/each}}
 
+  </div>
+
+  {{!-- ── Trackers ───────────────────────────────────────────────────────
+       A row of their own, under the stat strip rather than crammed into the
+       end of it. Squeezed in beside exertion and the passives they came out
+       at a few pixels a piece and could not be read, and a long name like
+       Channel Divinity pushed the whole strip into the tabs below it.
+
+       Everything countable is here together: a5e own four, whatever a class
+       grants, and our two — they are the same kind of thing and were in two
+       different places. --}}
+  {{#if hasTrackers}}
+    <div class="am-tracker-row">
     {{!-- Every resource a5e own core page would show: its four free-text
          trackers, and the ones a class or archetype grants, which arrive under
          their own slug. This sheet used to read only the four by name and
@@ -498,7 +517,8 @@
           data-tooltip="Name it to start counting" />
       </div>
     {{/if}}
-  </div>
+    </div>
+  {{/if}}
 
   {{!-- ── Tab strip ──────────────────────────────────────────────────────── --}}
   <div class="tabs-row">

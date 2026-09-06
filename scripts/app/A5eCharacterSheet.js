@@ -358,6 +358,7 @@ export class A5eCharacterSheet extends ActorSheet {
       })
       .filter(r => r.show);
 
+
     /* ── Interactions ─────────────────────────────────────────────────────
        a5e keeps basic actions, downtime and journey activities as items of
        their own type, grouped by interactionType. The list of groups comes
@@ -482,6 +483,11 @@ export class A5eCharacterSheet extends ActorSheet {
        name it in rather than two empty counters nobody asked for. */
     const freeIndex = customCounters.findIndex(c => !c.name);
     const freeCounter = { available: freeIndex !== -1, index: Math.max(0, freeIndex) };
+    /* The row is not drawn at all when it would be empty — an empty bar under
+       the stats is just a gap. Locked with nothing named, that is the case. */
+    const hasTrackers = !!(actorResources.length
+      || customCounters.some(c => c.name)
+      || (unlocked && freeCounter.available));
     // All non-weapon objects go to equipment panel
     const equipment = items.filter(i => i.type === 'object' && i.system?.objectType !== 'weapon')
                             .map(i => this.#gear(i));
@@ -592,9 +598,30 @@ export class A5eCharacterSheet extends ActorSheet {
     /* Currency */
     const currency = sys.currency ?? sys.wealth ?? { gp: 0, sp: 0, cp: 0, ep: 0, pp: 0 };
 
-    /* Passive perception */
-    const percSkill = skills.find(s => s.key === 'perception');
-    const passivePerception = 10 + (percSkill?.bonus ?? 0);
+    /* ── Passive scores ───────────────────────────────────────────────────
+       Perception, Insight and Investigation — the three read without a roll
+       being asked for, which is why a5e keeps them where the eye lands.
+
+       The actor works its own passives out and stores them on the skill, so
+       they are read rather than recomputed: any bonus, expertise die or
+       effect that a5e counts is already in the number. The 10 + bonus sum
+       that stood here agreed with it only when nothing unusual applied, and
+       is kept as a fallback for data that predates the field. */
+    const passiveOf = (longKey) => {
+      const abbr = A5E_SKILL_ABBR[longKey] ?? longKey;
+      const own  = sys.skills?.[abbr]?.passive;
+      if (Number.isFinite(own)) return own;
+      const s = skills.find(x => x.key === longKey);
+      return 10 + (s?.bonus ?? 0);
+    };
+
+    const passives = [
+      { key: 'perception',    label: 'Perception',    value: passiveOf('perception') },
+      { key: 'insight',       label: 'Insight',       value: passiveOf('insight') },
+      { key: 'investigation', label: 'Investigation', value: passiveOf('investigation') }
+    ];
+    /* Still handed out under its old name: other parts of the sheet ask. */
+    const passivePerception = passives[0].value;
 
     /* Character overview info */
     const totalLevel = classes.reduce((n, c) => n + c.level, 0) || 1;
@@ -679,7 +706,7 @@ export class A5eCharacterSheet extends ActorSheet {
       unlocked, actorResources, equipment, currency,
       fatiguePips, strifePips, exertionPips,
       fatigueDesc, strifeDesc, statusConditions,
-      attunementItems, attuneCount, passivePerception, charInfo, bio,
+      attunementItems, attuneCount, passivePerception, passives, hasTrackers, charInfo, bio,
       hasWeapons:          weapons.length        > 0,
       hasManeuvers:        maneuvers.length      > 0,
       hasSpells:           spells.length         > 0,

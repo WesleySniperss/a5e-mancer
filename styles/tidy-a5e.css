@@ -780,7 +780,7 @@
 .tidy5e-sheet.application.a5e-mancer-sheet .am-fx-img {
   width: var(--t5e-size-6x);
   height: var(--t5e-size-6x);
-  border-radius: var(--t5e-border-radius-standard, 3px);
+  border-radius: var(--t5e-radius-card, 3px);
   object-fit: cover;
   flex: none;
 }
@@ -925,4 +925,83 @@
    table, so it reads as a fact rather than a field. */
 .tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-class .am-a5e-label {
   opacity: 0.85;
+}
+
+/* ── The tracker row ───────────────────────────────────────────────────────
+   Trackers used to be crammed onto the end of the stat strip, where a long
+   name like Channel Divinity squeezed everything to a few pixels and pushed
+   the strip down into the tabs. They get a row of their own, and room to be
+   read: this is a thing counted mid-turn, not a figure to squint at. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--t5e-size-2x);
+  width: 100%;
+  padding: var(--t5e-size-2x) var(--t5e-size-3x);
+  border-block-start: 1px solid var(--t5e-table-header-border-color);
+}
+
+/* Each one is a tile, not a line of text: name over figure, so a long name
+   wraps above its own number instead of shoving the next tracker along. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-tracker {
+  flex: 0 1 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--t5e-size-1);
+  min-width: 7rem;
+  padding: var(--t5e-size-1x) var(--t5e-size-2x);
+  border: 1px solid var(--t5e-table-header-border-color);
+  border-radius: var(--t5e-radius-card, 3px);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-a5e-label {
+  max-width: 9rem;
+  text-align: center;
+  white-space: normal;
+  line-height: 1.15;
+}
+
+/* The figure is the part read at a glance, so it is the part made big. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-tracker-value,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-value {
+  width: 2.75rem;
+  font-size: var(--font-size-20, 1.25rem);
+  font-weight: 600;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-a5e-value { font-size: var(--font-size-16, 1rem); }
+
+/* Name, figure and buttons sit on one line inside the tile. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-tracker > button,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-row {
+  align-self: center;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-tracker {
+  display: grid;
+  grid-template-columns: auto auto auto auto auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  justify-items: center;
+  column-gap: var(--t5e-size-1);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-tracker > .am-a5e-label,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-tracker > .am-tracker-name {
+  grid-column: 1 / -1;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter {
+  flex: 0 1 auto;
+  min-width: 7rem;
+  padding: var(--t5e-size-1x) var(--t5e-size-2x);
+  border: 1px solid var(--t5e-table-header-border-color);
+  border-radius: var(--t5e-radius-card, 3px);
+  align-items: center;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-new {
+  border-style: dashed;
+  justify-content: center;
 }
