@@ -211,6 +211,16 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  /* The header is a flex child of a form with overflow:hidden, and with no
+     flex of its own it defaults to shrinkable. So whenever the header wanted
+     more room than was going, it was squeezed and the overflow clipped instead
+     of the body giving way — which is why the bottom row of the ability plates
+     was cut off. It was the saves before they moved above the modifier, and
+     the scores after. Same fault, different row.
+
+     The body already takes the leftover space, so the header only has to stop
+     surrendering its own. */
+  flex: 0 0 auto;
 }
 
 .tidy5e-sheet.application.a5e-mancer-sheet .tabs-row {
