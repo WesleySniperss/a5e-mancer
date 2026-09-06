@@ -1091,3 +1091,28 @@
   line-height: 1;
   padding: 0;
 }
+
+/* ── Room for the third tier of an ability plate ───────────────────────────
+   Tidy gives the abilities row overflow: auto hidden — horizontal scrolling,
+   and vertical CLIPPED — sized by a min-height of 6.625rem that assumes two
+   tiers: the modifier and the score under it. This sheet has three, since the
+   save sits on top, so the bottom tier was being cut straight off. That is the
+   crop, and it had nothing to do with the header: it is a rule of Tidy own,
+   doing exactly what it says.
+
+   Two changes, because either alone leaves a way to clip: the row is given the
+   height the third tier needs, and it is told to stop cutting what overflows
+   anyway. overflow-y cannot be set to visible on its own — a box with one axis
+   not visible forces the other to auto — so both go visible together. The
+   horizontal scroll it gives up is not missed: six abilities, an initiative
+   and an AC fit across 820px, which is the width this sheet opens at. */
+.tidy5e-sheet.application.a5e-mancer-sheet .abilities-container {
+  overflow: visible;
+  flex: 0 0 auto;
+}
+
+/* 6.625rem was modifier + score. The save adds its own 1.75rem, less the
+   0.75rem it tucks into the plate: 7.625rem. */
+.tidy5e-sheet.application.a5e-mancer-sheet .abilities-container-inner {
+  min-height: 7.625rem;
+}
