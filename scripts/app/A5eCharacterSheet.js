@@ -621,6 +621,24 @@ export class A5eCharacterSheet extends ActorSheet {
        itself falls back to, and the companion to the maneuver DC already
        shown. Hidden when there is none, so a character who casts nothing does
        not carry an empty box. */
+    /* What the Settings tab actually decides on this sheet.
+
+       These are a5e own flags and its sheet reads them to choose what to draw.
+       This one wrote them and then drew everything regardless, so the switches
+       looked dead. The rest of that tab — automation, crit thresholds, rest
+       recovery, the spellcasting ability — is read by a5e own code and always
+       worked; it simply has nothing to show here.
+
+       A tab is shown when its flag says so OR when the character has the
+       things in it. On the flag alone the maneuver and spell tabs would vanish
+       for anyone whose flag was never set, which is most characters: a5e sets
+       it when it grants the first spell or maneuver, not before. */
+    const showPassives = actor.flags?.a5e?.showPassiveScores ?? true;
+    const hasSpellItems    = items.some(i => i.type === 'spell');
+    const hasManeuverItems = items.some(i => i.type === 'maneuver');
+    const showMagicTab   = !!(actor.flags?.a5e?.showSpellTab)    || hasSpellItems;
+    const showMartialTab = !!(actor.flags?.a5e?.showManeuverTab) || hasManeuverItems;
+
     const spellDCRaw = sys.attributes?.spellDC;
     const spellDC = Number.isFinite(spellDCRaw) && spellDCRaw > 0 ? spellDCRaw : null;
 
@@ -738,7 +756,8 @@ export class A5eCharacterSheet extends ActorSheet {
       unlocked, actorResources, equipment, currency,
       fatiguePips, strifePips, exertionPips,
       fatigueDesc, strifeDesc, statusConditions,
-      attunementItems, attuneCount, passivePerception, passives, hasTrackers, spellDC, charInfo, bio,
+      attunementItems, attuneCount, passivePerception, passives, hasTrackers, spellDC,
+      showPassives, showMagicTab, showMartialTab, charInfo, bio,
       hasWeapons:          weapons.length        > 0,
       hasManeuvers:        maneuvers.length      > 0,
       hasSpells:           spells.length         > 0,

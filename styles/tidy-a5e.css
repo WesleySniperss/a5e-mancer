@@ -937,86 +937,6 @@
   opacity: 0.85;
 }
 
-/* ── The tracker row ───────────────────────────────────────────────────────
-   Trackers used to be crammed onto the end of the stat strip, where a long
-   name like Channel Divinity squeezed everything to a few pixels and pushed
-   the strip down into the tabs. They get a row of their own, and room to be
-   read: this is a thing counted mid-turn, not a figure to squint at. */
-.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: stretch;
-  gap: var(--t5e-size-2x);
-  width: 100%;
-  padding: var(--t5e-size-2x) var(--t5e-size-3x);
-  border-block-start: 1px solid var(--t5e-table-header-border-color);
-}
-
-/* Each one is a tile, not a line of text: name over figure, so a long name
-   wraps above its own number instead of shoving the next tracker along. */
-.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-tracker {
-  flex: 0 1 auto;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--t5e-size-1);
-  min-width: 7rem;
-  padding: var(--t5e-size-1x) var(--t5e-size-2x);
-  border: 1px solid var(--t5e-table-header-border-color);
-  border-radius: var(--radius-card, .1875rem);
-}
-
-.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-a5e-label {
-  max-width: 9rem;
-  text-align: center;
-  white-space: normal;
-  line-height: 1.15;
-}
-
-/* The figure is the part read at a glance, so it is the part made big. */
-.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-tracker-value,
-.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-value {
-  width: 2.75rem;
-  font-size: var(--font-size-18, 1.125rem);
-  font-weight: 600;
-}
-
-/* An earlier size for the tracker maximum lived here. It is set with the
-   current figure further down now, so that the two match. */
-
-/* Name, figure and buttons sit on one line inside the tile. */
-.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-tracker > button,
-.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-row {
-  align-self: center;
-}
-
-.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-tracker {
-  display: grid;
-  grid-template-columns: auto auto auto auto auto;
-  grid-template-rows: auto auto;
-  align-items: center;
-  justify-items: center;
-  column-gap: var(--t5e-size-1);
-}
-
-.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-tracker > .am-a5e-label,
-.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-tracker > .am-tracker-name {
-  grid-column: 1 / -1;
-}
-
-.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter {
-  flex: 0 1 auto;
-  min-width: 7rem;
-  padding: var(--t5e-size-1x) var(--t5e-size-2x);
-  border: 1px solid var(--t5e-table-header-border-color);
-  border-radius: var(--radius-card, .1875rem);
-  align-items: center;
-}
-
-.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-new {
-  border-style: dashed;
-  justify-content: center;
-}
-
 /* ── Behind the lock ───────────────────────────────────────────────────────
    An ability score and a skill describe a character rather than track them, so
    they only become editable when the padlock is open. The cog beside each one
@@ -1072,25 +992,6 @@
 
 .tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals .hp-row .am-hp-buttons .button:hover {
   background: rgba(0, 0, 0, 0.25);
-}
-
-/* ── One size for a tracker figure ─────────────────────────────────────────
-   The current value is an input and the maximum a span, and they had been
-   given different sizes and weights — so a tracker read as two different
-   fonts stuck together, which is exactly what it looked like. They match
-   now; only the colour separates them. */
-.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-a5e-value,
-.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-sep {
-  font-size: var(--font-size-18, 1.125rem);
-  font-weight: 600;
-  line-height: 1;
-}
-
-.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-tracker-value,
-.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-value,
-.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-max {
-  line-height: 1;
-  padding: 0;
 }
 
 /* ── Room for the third tier of an ability plate ───────────────────────────
@@ -1173,26 +1074,105 @@
   font-family: inherit;
 }
 
-/* ── Concentration ─────────────────────────────────────────────────────────
-   The block had no rule of its own at all, so it was left to Foundry .flexcol
-   and .flexrow — and .flexrow gives every child flex: 1. The head icon, the
-   sign and the number were each taking a third of the width and drifting
-   apart, which is why the icon read as something loose on the sheet rather
-   than part of the concentration figure. */
-.tidy5e-sheet.application.a5e-mancer-sheet .concentration {
+/* ── The tracker row ───────────────────────────────────────────────────────
+   One line, the same height as the stat strip above it. It began as a grid of
+   tall tiles with each name on its own row, which made a band deeper than the
+   two rows of numbers it sat under. A tracker is a figure to glance at, not a
+   card. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--t5e-size-4x);
+  width: 100%;
+  padding: var(--t5e-size-2x) var(--t5e-size-3x);
+  border-block-start: 1px solid var(--t5e-table-header-border-color);
+}
+
+/* Name, buttons and figure on one line, exactly as a stat chip is built. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-tracker,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--t5e-size-2x);
   flex: 0 0 auto;
+  min-width: 0;
+  padding: 0;
+  border: none;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-a5e-label,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-name {
+  white-space: nowrap;
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The figure is the part read at a glance, so it is a step up from the label
+   — but only a step: the row has to stay as shallow as the strip. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-tracker-value,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-value,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-a5e-value,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-sep {
+  font-size: var(--font-size-14, 0.875rem);
+  font-weight: 600;
+  line-height: 1;
+  padding: 0;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-tracker-value,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-value {
+  width: 2rem;
+  text-align: center;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-max,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-tracker-max {
+  width: 3rem;
+  text-align: center;
+  font-size: var(--font-size-14, 0.875rem);
+}
+
+/* Pips would double the height of the row, so they sit inline with it. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-pips {
+  max-width: none;
+  flex-wrap: nowrap;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-new .am-counter-name {
+  width: 5.5rem;
+}
+
+/* ── Concentration, held together ─────────────────────────────────────────
+   The markup no longer wears Foundry .flexcol or .flexrow, whose `> * {
+   flex: 1 }` was giving the head icon, the sign and the number a third of the
+   width each and drifting them apart. The layout is stated here instead, so
+   nothing has to out-specify a rule of Foundry own. */
+.tidy5e-sheet.application.a5e-mancer-sheet .concentration {
+  display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--t5e-size-halfx);
+  flex: 0 0 auto;
+  gap: 0;
 }
 
 .tidy5e-sheet.application.a5e-mancer-sheet .concentration-bonus {
-  flex: 0 0 auto;
+  display: flex;
+  flex-direction: row;
   align-items: baseline;
   justify-content: center;
   gap: var(--t5e-size-halfx);
+  flex: 0 0 auto;
 }
 
 .tidy5e-sheet.application.a5e-mancer-sheet .concentration-bonus > * {
   flex: 0 0 auto;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .concentration .concentration-roll-button {
+  flex: 0 0 auto;
+  line-height: 1;
 }

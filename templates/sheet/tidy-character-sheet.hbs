@@ -239,8 +239,14 @@
               </button>
             </div>
 
-            <div class="concentration flexcol">
-              <div class="flexrow concentration-bonus">
+            {{!-- No flexcol or flexrow here. Those are Foundry utilities and
+                 they carry `> * { flex: 1 }`, which was handing the icon, the
+                 sign and the number a third of the width each and pushing them
+                 apart — the head ended up looking like something loose on the
+                 sheet. Trying to out-specify a Foundry rule is a gamble; not
+                 wearing its class is not. The layout is ours in the stylesheet. --}}
+            <div class="concentration">
+              <div class="concentration-bonus">
                 <i class="fas fa-head-side-brain color-text-gold"></i>
                 <span class="modifier font-label-medium color-text-lightest">{{tidy.conc.sign}}</span>
                 <span class="value font-data-medium color-text-default">{{tidy.conc.value}}</span>
@@ -414,6 +420,7 @@
          The number is the actor own system.skills.<abbr>.passive, not a sum
          worked out again here. Each carries its full name as a tooltip, so",
          the short form costs nothing but a hover. --}}
+    {{#if showPassives}}
     <div class="am-a5e-stat am-passives">
       <span class="am-a5e-label font-label-medium color-text-gold">Passive</span>
       {{#each passives}}
@@ -423,6 +430,7 @@
         </span>
       {{/each}}
     </div>
+    {{/if}}
 
   </div>
 
@@ -567,12 +575,24 @@
       <i class="fa-solid fa-sidebar-flip"></i>
     </a>
     <nav class="tidy-tabs actor-tabs tabs" role="tablist" data-group="primary">
+      {{!-- The Settings tab writes a5e own flags, and a5e own sheet reads them
+           to decide which tabs it shows. This sheet was writing them and then
+           ignoring them, so every switch in there appeared to do nothing.
+
+           A tab is shown when the flag says so OR when the character actually
+           has the things in it. Reading the flag alone would hide the maneuver
+           and spell tabs from anyone whose flag was never set, which is most
+           characters — a5e only sets it when it grants the first one. --}}
       <a class="tab-option item active first-tab" role="tab" data-tab="favorites"
         data-tab-id="favorites" data-group="primary"><span class="tab-title">Favorites</span></a>
-      <a class="tab-option item" role="tab" data-tab="magic"
-        data-tab-id="magic" data-group="primary"><span class="tab-title">Magic</span></a>
-      <a class="tab-option item" role="tab" data-tab="martial"
-        data-tab-id="martial" data-group="primary"><span class="tab-title">Martial</span></a>
+      {{#if showMagicTab}}
+        <a class="tab-option item" role="tab" data-tab="magic"
+          data-tab-id="magic" data-group="primary"><span class="tab-title">Magic</span></a>
+      {{/if}}
+      {{#if showMartialTab}}
+        <a class="tab-option item" role="tab" data-tab="martial"
+          data-tab-id="martial" data-group="primary"><span class="tab-title">Martial</span></a>
+      {{/if}}
       <a class="tab-option item" role="tab" data-tab="inventory"
         data-tab-id="inventory" data-group="primary"><span class="tab-title">Inventory</span></a>
       <a class="tab-option item" role="tab" data-tab="features"
