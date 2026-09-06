@@ -287,6 +287,74 @@ export class A5eCharacterSheet extends ActorSheet {
         : [];
       return { name: s.name ?? '', value: val, max, pips };
     });
+    /* ── The lock ─────────────────────────────────────────────────────────
+       a5e's sheet opens locked and puts a padlock at the top; unlocking is
+       what reveals the edit, delete and configure controls, and what makes
+       the fields that describe a character — rather than track it — writable.
+
+       The state is a5e's own flag, not one of ours, so locking on their sheet
+       locks this one and the other way about. Someone who does not own the
+       character is locked out regardless, exactly as their code does it. */
+    const unlocked = actor.isOwner && !(actor.flags?.a5e?.sheetIsLocked ?? true);
+
+    /* ── Resources, the way a5e's core page builds them ───────────────────
+       Every key under system.resources, not the four named ones this sheet
+       used to read. a5e's prepareResources merges class and archetype
+       resources in beside them under their own slug, so reading only
+       primary..quaternary silently dropped every resource a class grants.
+
+       max is a formula, not a number — a StringField in the schema, so a max
+       of '@prof' or '2 + @abilities.con.mod' came out as 0 here and the
+       tracker showed as having none. It is resolved through a5e's own
+       getDeterministicBonus, the one utility they export.
+
+       What shows follows their rule: unlocked, every generic slot appears so
+       it can be named and given a maximum; locked, only the ones that have a
+       maximum or that hide it. That is how a tracker for anything at all gets
+       made — unlock, name a free slot, give it a max. */
+    const GENERIC_RESOURCES = ['primary', 'secondary', 'tertiary', 'quaternary'];
+    const rollData = actor.getRollData?.() ?? {};
+    const resolveMax = (formula) => {
+      const raw = formula ?? '';
+      if (raw === '' || raw === null) return 0;
+      const fn = game.a5e?.utils?.getDeterministicBonus;
+      if (typeof fn === 'function') {
+        const n = fn(String(raw), rollData);
+        return Number.isFinite(n) ? n : 0;
+      }
+      const n = Number(raw);
+      return Number.isFinite(n) ? n : 0;
+    };
+
+    const actorResources = Object.entries(sys.resources ?? {})
+      .filter(([key, r]) => key !== 'classResources' && r && typeof r === 'object')
+      .map(([key, r]) => {
+        const isClassResource = !GENERIC_RESOURCES.includes(key);
+        const max   = resolveMax(r.max);
+        const value = Number(r.value ?? 0) || 0;
+        const show  = unlocked
+          ? (!isClassResource || max !== 0 || !!r.hideMax)
+          : (!!r.hideMax || max !== 0);
+        return {
+          key,
+          isClassResource,
+          label:    r.label ?? '',
+          value,
+          max,
+          maxFormula: r.max ?? '',
+          hideMax:  !!r.hideMax,
+          per:      r.per ?? '',
+          show,
+          pct: max > 0 ? pct(value, max) : 0,
+          /* Class resources are stored flat under classResources, as a bare
+             number rather than an object with a value on it. */
+          path: isClassResource
+            ? `system.resources.classResources.${key}`
+            : `system.resources.${key}.value`
+        };
+      })
+      .filter(r => r.show);
+
     /* ── Interactions ─────────────────────────────────────────────────────
        a5e keeps basic actions, downtime and journey activities as items of
        their own type, grouped by interactionType. The list of groups comes
@@ -299,6 +367,49 @@ export class A5eCharacterSheet extends ActorSheet {
         .filter(i => i.type === 'interaction' && (i.system?.interactionType ?? 'other') === key)
         .map(i => this.#gear(i))
     })).filter(g => g.items.length);
+
+    /* ── The lock ───────────────────────────────────────────────────────
+       a5e's own flag, so the two sheets share one lock rather than each
+       keeping its own. */
+    el.querySelector('[data-action="toggle-lock"]')?.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const locked = this.actor.getFlag('a5e', 'sheetIsLocked') ?? true;
+      await this.actor.setFlag('a5e', 'sheetIsLocked', !locked);
+    });
+
+    /* ── Resources ──────────────────────────────────────────────────────
+       The figure is always writable; the label, the maximum and the rest of
+       the configuration only while unlocked, which is what the template
+       renders. Paths differ for class resources — see the context. */
+    el.querySelectorAll('[data-action="resource-value"]').forEach(inp =>
+      inp.addEventListener('change', async (e) => {
+        const v = parseInt(e.target.value);
+        if (isNaN(v)) return;
+        await this.actor.update({ [e.target.dataset.path]: Math.max(0, v) });
+      }));
+
+    el.querySelectorAll('[data-action="resource-step"]').forEach(b =>
+      b.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const path  = b.dataset.path;
+        const delta = Number(b.dataset.delta) || 0;
+        const max   = b.dataset.max === '' ? null : Number(b.dataset.max);
+        const now   = Number(foundry.utils.getProperty(this.actor, path) ?? 0) || 0;
+        let next = now + delta;
+        if (next < 0) next = 0;
+        if (max !== null && Number.isFinite(max) && max > 0 && next > max) next = max;
+        if (next === now) return;
+        await this.actor.update({ [path]: next });
+      }));
+
+    el.querySelectorAll('[data-action="resource-field"]').forEach(inp =>
+      inp.addEventListener('change', async (e) => {
+        const t = e.target;
+        const value = t.type === 'checkbox' ? t.checked : t.value;
+        await this.actor.update({
+          [`system.resources.${t.dataset.resource}.${t.dataset.field}`]: value
+        });
+      }));
 
     /* ── Settings ─────────────────────────────────────────────────────────
        a5e's Settings tab, whose five sub-pages are flattened into sections
@@ -604,7 +715,8 @@ export class A5eCharacterSheet extends ActorSheet {
       savingThrows, maneuverDC, proficiencies,
       weapons, maneuvers, maneuverGroups, spells, spellGroups, slotRows,
       features, feats, allFeatures, featuresBySource, customCounters, freeCounter,
-      effectGroups, bonuses, hasBonuses, interactionGroups, settings, equipment, currency,
+      effectGroups, bonuses, hasBonuses, interactionGroups, settings,
+      unlocked, actorResources, equipment, currency,
       fatiguePips, strifePips, exertionPips,
       fatigueDesc, strifeDesc, statusConditions,
       attunementItems, attuneCount, passivePerception, charInfo, bio,
@@ -2449,18 +2561,11 @@ export class A5eCharacterSheet extends ActorSheet {
       await this.actor.update({ [path]: next });
     };
 
-    el.querySelectorAll('[data-action="resource-step"]').forEach(b =>
-      b.addEventListener('click', stepCounter(
-        `system.resources.${b.dataset.resource}.value`, Number(b.dataset.delta) || 0)));
-
-    el.querySelectorAll('[data-action="resource-value"]').forEach(inp =>
-      inp.addEventListener('change', async (e) => {
-        const v = parseInt(e.target.value);
-        if (isNaN(v)) return;
-        await this.actor.update({
-          [`system.resources.${e.target.dataset.resource}.value`]: Math.max(0, v)
-        });
-      }));
+    /* The resource handlers that stood here read data-resource and always wrote
+       system.resources.<key>.value. They have moved up beside the lock, where
+       they read data-path instead — a class resource is stored flat under
+       classResources and has no .value to write to. Two sets of handlers were
+       binding to the same buttons for a moment; this is the older one. */
 
     el.querySelectorAll('[data-action="exertion-step"]').forEach(b =>
       b.addEventListener('click', stepCounter('system.attributes.exertion.current',

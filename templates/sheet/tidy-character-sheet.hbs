@@ -39,6 +39,19 @@
               {{!-- One button, as a5e has. Its own dialog is where the rest
                    type is chosen and hit dice are spent and rolled, so two
                    buttons opening the same chooser would only be in the way. --}}
+              {{!-- The padlock a5e puts at the top of its sheet. Locked is the
+                   resting state; unlocking is what reveals the edit, delete and
+                   configure controls and makes the describing fields writable.
+                   It reads and writes a5e own flag, so locking here locks there
+                   and the other way about. --}}
+              <button type="button"
+                class="button button-icon-only{{#if unlocked}} button-gold am-unlocked{{else}} button-borderless{{/if}}"
+                data-action="toggle-lock"
+                aria-label="{{#if unlocked}}Lock the sheet{{else}}Unlock the sheet{{/if}}"
+                aria-pressed="{{#if unlocked}}true{{else}}false{{/if}}"
+                data-tooltip="{{#if unlocked}}Unlocked — everything can be edited. Click to lock.{{else}}Locked. Click to edit everything.{{/if}}">
+                <i class="fa-solid {{#if unlocked}}fa-lock-open{{else}}fa-lock{{/if}}"></i>
+              </button>
               <button type="button" class="button button-icon-only button-gold"
                 data-action="rest" aria-label="Rest" data-tooltip="Rest">
                 <i class="fas fa-campfire"></i>
@@ -366,25 +379,66 @@
       <span class="am-a5e-value font-data-medium color-text-default">{{passivePerception}}</span>
     </div>
 
-    {{!-- a5e keeps four free-text trackers on its own sheet, for whatever a
-         character needs counting. Only the ones that have been given a name
-         appear: an unnamed slot is empty, not a thing to show. --}}
-    {{#each tidy.resources}}
-      <div class="am-a5e-stat am-tracker" data-tooltip="{{this.label}}">
-        <span class="am-a5e-label font-label-medium color-text-gold">{{this.label}}</span>
+    {{!-- Every resource a5e own core page would show: its four free-text
+         trackers, and the ones a class or archetype grants, which arrive under
+         their own slug. This sheet used to read only the four by name and
+         dropped every class resource without noticing.
+
+         Unlocked, an empty slot still appears so it can be named and given a
+         maximum — that is how a tracker for anything at all gets made. Locked,
+         only the ones that have a maximum, or that hide it, are shown. --}}
+    {{#each actorResources}}
+      <div class="am-a5e-stat am-tracker{{#if this.isClassResource}} am-tracker-class{{/if}}"
+        data-tooltip="{{#if this.label}}{{this.label}}{{else}}Unnamed tracker{{/if}}">
+        {{#if @root.unlocked}}
+          {{#if this.isClassResource}}
+            <span class="am-a5e-label font-label-medium color-text-gold">{{this.label}}</span>
+          {{else}}
+            <input type="text" class="uninput am-tracker-name font-label-medium color-text-gold"
+              data-action="resource-field" data-resource="{{this.key}}" data-field="label"
+              value="{{this.label}}" placeholder="Name it…" aria-label="Tracker name" />
+          {{/if}}
+        {{else}}
+          <span class="am-a5e-label font-label-medium color-text-gold">{{this.label}}</span>
+        {{/if}}
+
         <button type="button" class="button button-borderless button-icon-only"
-          data-action="resource-step" data-resource="{{this.key}}" data-delta="-1"
+          data-action="resource-step" data-path="{{this.path}}" data-delta="-1"
           data-max="{{this.max}}" aria-label="Spend one {{this.label}}">
           <i class="fa-solid fa-minus"></i>
         </button>
         <input type="number" class="uninput am-tracker-value"
-          data-action="resource-value" data-resource="{{this.key}}"
+          data-action="resource-value" data-path="{{this.path}}"
           value="{{this.value}}" min="0" aria-label="{{this.label}}" />
-        {{#unless this.hideMax}}
-          <span class="am-a5e-value color-text-lighter">/ {{this.max}}</span>
-        {{/unless}}
+
+        {{#if @root.unlocked}}
+          {{#if this.isClassResource}}
+            {{!-- A class resource has its maximum from the class table; there is
+                 nothing here to configure. --}}
+            {{#unless this.hideMax}}
+              <span class="am-a5e-value color-text-lighter">/ {{this.max}}</span>
+            {{/unless}}
+          {{else}}
+            {{!-- max is a formula, not a number, so it is a text field: @prof
+                 and the like are what a5e stores here. --}}
+            <span class="am-a5e-value color-text-lighter">/</span>
+            <input type="text" class="uninput am-tracker-max"
+              data-action="resource-field" data-resource="{{this.key}}" data-field="max"
+              value="{{this.maxFormula}}" placeholder="max" aria-label="{{this.label}} maximum" />
+            <label class="am-tracker-hidemax" data-tooltip="Hide the maximum">
+              <input type="checkbox" data-action="resource-field"
+                data-resource="{{this.key}}" data-field="hideMax"
+                {{#if this.hideMax}}checked{{/if}} aria-label="Hide the maximum" />
+            </label>
+          {{/if}}
+        {{else}}
+          {{#unless this.hideMax}}
+            <span class="am-a5e-value color-text-lighter">/ {{this.max}}</span>
+          {{/unless}}
+        {{/if}}
+
         <button type="button" class="button button-borderless button-icon-only"
-          data-action="resource-step" data-resource="{{this.key}}" data-delta="1"
+          data-action="resource-step" data-path="{{this.path}}" data-delta="1"
           data-max="{{this.max}}" aria-label="Regain one {{this.label}}">
           <i class="fa-solid fa-plus"></i>
         </button>

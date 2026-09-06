@@ -146,14 +146,22 @@
         data-action="item-chat" data-id="{{id}}" data-tooltip="Send to Chat">
         <i class="fa-solid fa-comment"></i>
       </button>
-      <button type="button" class="button button-borderless button-icon-only"
-        data-action="item-edit" data-id="{{id}}" data-tooltip="Edit">
-        <i class="fa-solid fa-pen"></i>
-      </button>
-      <button type="button" class="button button-borderless button-icon-only"
-        data-action="item-delete" data-id="{{id}}" data-tooltip="Delete">
-        <i class="fa-solid fa-trash"></i>
-      </button>
+      {{!-- Editing and deleting appear only when the sheet is unlocked, as on
+           a5e own. Starring and sending to chat stay: neither changes the
+           item, and both are things done constantly in play.
+
+           @root reaches past the row context, which is one item and knows
+           nothing about the sheet it is on. --}}
+      {{#if @root.unlocked}}
+        <button type="button" class="button button-borderless button-icon-only"
+          data-action="item-edit" data-id="{{id}}" data-tooltip="Edit">
+          <i class="fa-solid fa-pen"></i>
+        </button>
+        <button type="button" class="button button-borderless button-icon-only"
+          data-action="item-delete" data-id="{{id}}" data-tooltip="Delete">
+          <i class="fa-solid fa-trash"></i>
+        </button>
+      {{/if}}
     </div>
   </div>
 

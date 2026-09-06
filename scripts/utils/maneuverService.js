@@ -136,7 +136,16 @@ export const CLASS_MANEUVER_TABLES = {
 
 // The homebrew casters take their maneuvers from the schools, on the schools'
 // own progression. Same table shape, same code path, same everything.
-for (const cls of MM_CLASSES) CLASS_MANEUVER_TABLES[cls] = magicManeuverTable();
+//
+// Who they are is MM_CLASSES in magicManeuversData.js and nowhere else, so
+// editing that list is all it takes to change who gets them. Names are put
+// through the same normaliser MagicManeuvers.isEligibleClass uses, so an entry
+// written 'Psion' or 'Psy Knight' works as well as a bare lowercase one —
+// a list meant to be edited should not fail over a capital letter.
+export const mmKey = (name) => String(name ?? '').toLowerCase().replace(/[^a-z]/g, '');
+export const MM_KEYS = new Set(MM_CLASSES.map(mmKey));
+
+for (const cls of MM_KEYS) CLASS_MANEUVER_TABLES[cls] = magicManeuverTable();
 
 /**
  * Make the six schools first-class traditions.
@@ -380,7 +389,7 @@ export class ManeuverService {
            not the book's. None of them prints a maneuver column today, so this
            changes nothing now — it is here so a later printing that gave one to,
            say, the wizard could not quietly replace the magic school layer. */
-        if (MM_CLASSES.includes(key)) continue;
+        if (MM_KEYS.has(mmKey(key))) continue;
 
         const parsed = this.parseClassProgression(entry.system?.description);
         if (!parsed) continue;
@@ -415,7 +424,7 @@ export class ManeuverService {
     const key = className.toLowerCase();
     let table = CLASS_MANEUVER_TABLES[key];
 
-    if (classItem && !MM_CLASSES.includes(key)) {
+    if (classItem && !MM_KEYS.has(mmKey(key))) {
       const own = this.#progressionOf(classItem);
       if (own) {
         table = {

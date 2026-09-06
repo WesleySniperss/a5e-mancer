@@ -884,3 +884,45 @@
   flex: none;
   white-space: nowrap;
 }
+
+/* ── The lock, and the trackers it opens ───────────────────────────────────
+   a5e sheet opens locked. Unlocking reveals the edit and delete controls and
+   turns the trackers into something that can be named and given a maximum —
+   which is how a tracker for anything at all gets made. */
+
+/* Unlocked is a state worth noticing across the room, since it is the state in
+   which a stray click deletes something. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-unlocked {
+  box-shadow: 0 0 0 1px var(--t5e-color-gold);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-name {
+  width: 5.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-name::placeholder {
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--t5e-color-text-lightest);
+}
+
+/* A formula, not a number — @prof and the like live here — so it is sized for
+   a short expression rather than two digits. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-max {
+  width: 3.5rem;
+  text-align: center;
+  color: var(--t5e-color-text-lighter);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-hidemax {
+  display: flex;
+  align-items: center;
+}
+
+/* A class resource is not ours to configure: its maximum comes from the class
+   table, so it reads as a fact rather than a field. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-class .am-a5e-label {
+  opacity: 0.85;
+}
