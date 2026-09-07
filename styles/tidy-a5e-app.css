@@ -1,0 +1,245 @@
+/* ==========================================================================
+   The builder windows, in Tidy's clothes
+   ==========================================================================
+   The mancer's own windows — the builder, the level-up, and the spell and
+   maneuver pickers — were drawn before the character sheet was, in a palette of
+   their own: 99 distinct hardcoded colours across 973 rules and not one Tidy
+   token among them. Beside the sheet they read as a different application.
+
+   Rewriting those 973 rules was not the way, and neither was wearing Tidy's own
+   root classes — see the note under this one for why. Instead the palette is
+   declared here, and this file re-points the shared furniture at it: the window
+   itself, its header and footer, cards, list rows, buttons, fields, tags and
+   tables.
+
+   Everything is prefixed .a5e-mancer-app, a class added to those four windows
+   and to nothing else, so none of it can reach the character sheet or any other
+   application.
+
+   What this deliberately does NOT do is chase every screen. The per-screen
+   details in a5e-mancer.css — the class picker's cards, the NPC builder's
+   columns — keep their own colours until they are worth a pass of their own.
+   The shell and the common components are what make a window feel like it
+   belongs, and that is what is here.
+   ========================================================================== */
+
+/* ── Tidy's palette, declared here rather than inherited ──────────────────
+   Getting Tidy tokens the usual way means wearing .tidy5e-sheet.quadrone, and
+   that pulls in 1257 of its rules — 295 of which match plain markup like a
+   button or a table and would restyle the builder in ways I cannot preview.
+   Blind restyling has cost this project several releases already.
+
+   So the values are taken from its stylesheet and declared on our own class.
+   The windows get Tidy's palette and none of its layout. If Tidy re-tints in a
+   later version these will not follow on their own — the tradeoff is deliberate,
+   and tidy/README.md is where that is written down. */
+.a5e-mancer-app {
+  --t5e-component-card-default:  #282a30;
+  --t5e-component-card-darker:   #1a1b20;
+  --t5e-component-field-border:  #7a7a7a;
+  --t5e-component-pill-border:   #4b4a44;
+  --t5e-color-gold:              #73633f;
+  --t5e-color-text-default:      #fff;
+  --t5e-color-text-lighter:      #cfd2da;
+  --t5e-color-text-lightest:     #999;
+  --t5e-color-text-gold:         #c0ad81;
+  --t5e-color-text-gold-emphasis:#c0ad81;
+  --t5e-color-text-longform:     #e9ecf5;
+  --t5e-drop-shadow-card:        0 0 .5625rem 0 #000;
+  --t5e-font-family-default:     "Roboto Condensed", Roboto, Arial, sans-serif;
+  --t5e-font-family-title:       "Modesto Condensed", "Palatino Linotype", serif;
+  --t5e-size-1x: .25rem;
+  --t5e-size-2x: .5rem;
+  --t5e-size-3x: .75rem;
+}
+
+/* ── The window ──────────────────────────────────────────────────────────── */
+.a5e-mancer-app {
+  --am-surface: var(--t5e-component-card-default);
+  --am-surface-dark: var(--t5e-component-card-darker);
+  --am-line: var(--t5e-component-field-border);
+  --am-gold: var(--t5e-color-gold);
+  --am-text: var(--t5e-color-text-default);
+  --am-text-dim: var(--t5e-color-text-lighter);
+  --am-text-faint: var(--t5e-color-text-lightest);
+}
+
+.a5e-mancer-app .window-content {
+  background: var(--t5e-component-card-darker);
+  color: var(--t5e-color-text-default);
+  font-family: var(--t5e-font-family-default);
+}
+
+/* ── Header, nav, footer ─────────────────────────────────────────────────── */
+.a5e-mancer-app .am-app-header,
+.a5e-mancer-app .am-app-footer {
+  background: var(--t5e-component-card-default);
+  border-color: var(--am-line);
+  color: var(--t5e-color-text-default);
+}
+
+.a5e-mancer-app .am-app-header h1,
+.a5e-mancer-app .am-app-header h2,
+.a5e-mancer-app .am-app-title {
+  font-family: var(--t5e-font-family-title);
+  color: var(--t5e-color-text-gold-emphasis);
+}
+
+.a5e-mancer-app .am-app-nav {
+  background: var(--t5e-component-card-darker);
+  border-color: var(--am-line);
+}
+
+/* ── Anything that reads as a card ───────────────────────────────────────── */
+.a5e-mancer-app .am-card,
+.a5e-mancer-app .am-item,
+.a5e-mancer-app .am-maneuver-card,
+.a5e-mancer-app .am-spell-card,
+.a5e-mancer-app .am-feat-item,
+.a5e-mancer-app .am-grant-card {
+  background: var(--t5e-component-card-default);
+  border: 1px solid var(--am-line);
+  border-radius: var(--radius-card, .1875rem);
+  color: var(--t5e-color-text-default);
+  box-shadow: var(--t5e-drop-shadow-card);
+}
+
+/* Chosen, not merely hovered: Tidy marks a selection in gold, not in a colour
+   of its own, so a picked maneuver reads the same as a starred item does on
+   the sheet. */
+.a5e-mancer-app .am-selected,
+.a5e-mancer-app .am-maneuver-card.am-selected,
+.a5e-mancer-app .am-spell-card.am-selected {
+  border-color: var(--t5e-color-gold);
+  background: var(--t5e-component-card-default);
+  box-shadow: 0 0 0 1px var(--t5e-color-gold) inset;
+}
+
+.a5e-mancer-app .am-already-known {
+  opacity: 0.55;
+}
+
+/* ── Headings and section titles ─────────────────────────────────────────── */
+.a5e-mancer-app h1,
+.a5e-mancer-app h2,
+.a5e-mancer-app h3,
+.a5e-mancer-app h4 {
+  font-family: var(--t5e-font-family-title);
+  color: var(--t5e-color-text-gold-emphasis);
+}
+
+.a5e-mancer-app .am-hint,
+.a5e-mancer-app .am-subtle {
+  color: var(--t5e-color-text-lighter);
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+.a5e-mancer-app button:not(.unbutton):not(.header-control) {
+  font-family: var(--t5e-font-family-default);
+  color: var(--t5e-color-text-default);
+  background: var(--t5e-component-card-default);
+  border: 1px solid var(--am-line);
+  border-radius: var(--radius-card, .1875rem);
+}
+
+.a5e-mancer-app button:not(.unbutton):not(.header-control):hover:not(:disabled) {
+  border-color: var(--t5e-color-gold);
+  color: var(--t5e-color-text-gold-emphasis);
+}
+
+.a5e-mancer-app button:disabled {
+  opacity: 0.45;
+}
+
+/* The one that finishes the job carries the accent, as Tidy's primary does. */
+.a5e-mancer-app .am-confirm,
+.a5e-mancer-app .am-primary,
+.a5e-mancer-app .am-maneuver-confirm,
+.a5e-mancer-app .am-spell-confirm {
+  border-color: var(--t5e-color-gold);
+  color: var(--t5e-color-text-gold-emphasis);
+}
+
+/* ── Fields ──────────────────────────────────────────────────────────────── */
+.a5e-mancer-app input[type="text"],
+.a5e-mancer-app input[type="number"],
+.a5e-mancer-app input[type="search"],
+.a5e-mancer-app select,
+.a5e-mancer-app textarea {
+  font-family: inherit;
+  color: var(--t5e-color-text-default);
+  background: var(--t5e-component-card-darker);
+  border: 1px solid var(--am-line);
+  border-radius: var(--radius-card, .1875rem);
+}
+
+.a5e-mancer-app input:focus,
+.a5e-mancer-app select:focus,
+.a5e-mancer-app textarea:focus {
+  outline: none;
+  border-color: var(--t5e-color-gold);
+}
+
+/* ── Tags, pills and badges ──────────────────────────────────────────────── */
+.a5e-mancer-app .am-tag,
+.a5e-mancer-app .am-badge,
+.a5e-mancer-app .am-pill {
+  background: var(--t5e-component-card-darker);
+  border: 1px solid var(--t5e-component-pill-border);
+  border-radius: 1rem;
+  color: var(--t5e-color-text-lighter);
+}
+
+.a5e-mancer-app .am-badge-gold,
+.a5e-mancer-app .am-tag-gold {
+  border-color: var(--t5e-color-gold);
+  color: var(--t5e-color-text-gold-emphasis);
+}
+
+.a5e-mancer-app .am-badge-success {
+  border-color: var(--t5e-color-gold);
+  color: var(--t5e-color-text-gold);
+}
+
+/* ── Lists and tables ────────────────────────────────────────────────────── */
+.a5e-mancer-app table {
+  border-color: var(--am-line);
+  color: var(--t5e-color-text-default);
+}
+
+.a5e-mancer-app th {
+  font-family: var(--t5e-font-family-title);
+  color: var(--t5e-color-text-gold);
+  border-color: var(--am-line);
+  background: var(--t5e-component-card-default);
+}
+
+.a5e-mancer-app td {
+  border-color: var(--am-line);
+}
+
+/* Zebra striping in Tidy's manner: a shade of the card, not a colour apart. */
+.a5e-mancer-app tbody tr:nth-child(even) {
+  background: var(--t5e-component-card-darker);
+}
+
+/* ── Scroll areas ────────────────────────────────────────────────────────── */
+.a5e-mancer-app .am-scroll,
+.a5e-mancer-app .am-list-scroll {
+  scrollbar-color: var(--t5e-color-gold) transparent;
+}
+
+/* ── The description panel the pickers share ─────────────────────────────── */
+.a5e-mancer-app .am-sidebar-desc,
+.a5e-mancer-app .am-desc-panel {
+  background: var(--t5e-component-card-default);
+  border: 1px solid var(--am-line);
+  border-radius: var(--radius-card, .1875rem);
+  color: var(--t5e-color-text-longform);
+}
+
+/* ── Empty and loading states ────────────────────────────────────────────── */
+.a5e-mancer-app .am-empty-state,
+.a5e-mancer-app .am-loading-center {
+  color: var(--t5e-color-text-lighter);
+}

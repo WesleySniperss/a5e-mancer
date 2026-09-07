@@ -57,7 +57,7 @@ export class SpellDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: 'a5e-spell-dialog',
     tag: 'div',
-    classes: ['am-app', 'am-spell-dialog'],
+    classes: ['a5e-mancer-app', 'am-app', 'am-spell-dialog'],
     position: { width: 820, height: 620 },
     window: { icon: 'fa-solid fa-sparkles', resizable: true, minimizable: false }
   };

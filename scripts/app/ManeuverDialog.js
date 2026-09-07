@@ -80,7 +80,7 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: 'a5e-maneuver-dialog',
     tag: 'div',
-    classes: ['am-app', 'am-maneuver-dialog'],
+    classes: ['a5e-mancer-app', 'am-app', 'am-maneuver-dialog'],
     position: { width: 780, height: 600 },
     window: {
       icon: 'fa-solid fa-swords',

@@ -59,7 +59,7 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
       filterSpellSchool:       A5eMancer.filterSpellSchool,
       toggleSpell:             A5eMancer.toggleSpell
     },
-    classes: ['am-app'],
+    classes: ['a5e-mancer-app', 'am-app'],
     position: { height: 700, width: 1100, top: 60 },
     window: {
       icon: 'fa-solid fa-hat-wizard',

@@ -72,7 +72,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       luToggleFeatEligible:      LevelUpDialog.luToggleFeatEligible,
       luFeatPage:                LevelUpDialog.luFeatPage,
     },
-    classes: ['am-app', 'am-levelup-dialog'],
+    classes: ['a5e-mancer-app', 'am-app', 'am-levelup-dialog'],
     position: { width: 680, height: 760 },
     window: { icon: 'fa-solid fa-arrow-up', resizable: true, minimizable: false }
   };

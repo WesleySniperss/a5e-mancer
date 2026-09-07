@@ -53,3 +53,32 @@ the same reason as the rest: so nothing outside this module has to exist.
 
 The RPGAwesome icon font is embedded in the stylesheet as data URIs, so the
 `rpg-awesome/` folder does not need copying.
+
+## The builder windows use a copy of the palette
+
+`styles/tidy-a5e-app.css` styles the mancer's own windows — the builder, the
+level-up, and the spell and maneuver pickers — in Tidy's colours. It does **not**
+get those colours the usual way.
+
+Wearing `.tidy5e-sheet.quadrone` is what makes Tidy's `--t5e-*` tokens resolve
+inside an element, and the character sheet does exactly that. But it also brings
+1257 of Tidy's rules along, 295 of which match plain markup — a `button`, a
+`table`, an `input` — and would restyle those windows in ways that cannot be
+checked without opening every screen of the builder.
+
+So the token values are copied out of `quadrone.css` and declared on
+`.a5e-mancer-app` instead. The windows get the palette and none of the layout.
+
+**The cost:** when this directory is regenerated from a newer Tidy that has
+re-tinted anything, those copies do not follow. Re-extract them with:
+
+    node -e "const c=require('fs').readFileSync('tidy/quadrone.css','utf8'); \
+      for (const t of ['--t5e-component-card-default','--t5e-component-card-darker', \
+        '--t5e-component-field-border','--t5e-component-pill-border','--t5e-color-gold', \
+        '--t5e-color-text-default','--t5e-color-text-lighter','--t5e-color-text-lightest', \
+        '--t5e-color-text-gold','--t5e-color-text-gold-emphasis','--t5e-color-text-longform']) { \
+        const i=c.indexOf(t+':'); console.log(t, c.slice(i+t.length+1, c.indexOf(';',i)).trim()); }"
+
+and paste the values into the token block at the top of `tidy-a5e-app.css`.
+Values that come back as `var(--t5e-color-palette-…)` need one more pass to
+resolve the palette entry itself.
