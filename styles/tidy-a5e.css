@@ -448,10 +448,8 @@
 .tidy5e-sheet.application.a5e-mancer-sheet .inventory-footer .denomination i.currency.sp { background-image: url(../tidy/images/silver.webp); }
 .tidy5e-sheet.application.a5e-mancer-sheet .inventory-footer .denomination i.currency.cp { background-image: url(../tidy/images/copper.webp); }
 
-.tidy5e-sheet.application.a5e-mancer-sheet .inventory-footer .denomination input {
-  width: 3.5rem;
-  text-align: end;
-}
+/* The coin field is set once, further down with the rest of the coin row —
+   two rules for one element is how the last three of these went wrong. */
 
 /* ── Hit points ───────────────────────────────────────────────────────────
    Tidy pins every bare .button-icon-only in this row to the right edge with
@@ -1352,4 +1350,32 @@
 
 .tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals-container .actor-image {
   min-width: 0;
+}
+
+/* ── Coins sit together ────────────────────────────────────────────────────
+   The row no longer wears Foundry .flexrow, whose rule for direct children —
+   a flex of 1 on each — was stretching every denomination to an equal share of
+   the width and spreading them across the footer. The layout is stated here,
+   and each coin takes the width of its own icon and field. */
+.tidy5e-sheet.application.a5e-mancer-sheet .inventory-footer {
+  display: flex;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .inventory-footer .currency {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--t5e-size-3x);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .inventory-footer .denomination {
+  flex: 0 0 auto;
+}
+
+/* A coin field is three digits wide at most in practice; the numbers line up
+   down the row with tabular figures rather than shuffling as they change. */
+.tidy5e-sheet.application.a5e-mancer-sheet .inventory-footer .denomination input {
+  width: 3rem;
+  text-align: end;
+  font-variant-numeric: tabular-nums;
 }

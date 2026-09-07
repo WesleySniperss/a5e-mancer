@@ -70,9 +70,20 @@ export class PackFilter {
     try {
       return await pack.getIndex({ fields });
     } catch (err) {
-      AM.log(2, `${pack?.collection}: the index would not take the extra fields, `
-             + `using the one already loaded — ${err.message}`);
-      return pack?.index ?? [];
+      AM.log(2, `${pack?.collection}: the index would not take the extra fields `
+             + `— ${err.message}`);
+      /* Falling back to pack.index was not enough: that collection is only
+         filled once an index has actually been built, so when the very first
+         getIndex was the one that threw there was nothing in it and the pack
+         contributed no items at all — which is the manage dialogs still
+         opening empty. Asking for the plain index builds it without the merge
+         that fails, and only then is pack.index worth reading. */
+      try {
+        return await pack.getIndex();
+      } catch (err2) {
+        AM.log(2, `${pack?.collection}: the plain index failed too — ${err2.message}`);
+        return pack?.index ?? [];
+      }
     }
   }
 

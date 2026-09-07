@@ -650,6 +650,13 @@ export class A5eCharacterSheet extends ActorSheet {
     const spellDCRaw = sys.attributes?.spellDC;
     const spellDC = Number.isFinite(spellDCRaw) && spellDCRaw > 0 ? spellDCRaw : null;
 
+    /* A trait list is drawn when it holds something, or when the sheet is
+       unlocked — an empty one has to be reachable, or a character with no tool
+       proficiencies could never be given the first. */
+    const traitSections = Object.fromEntries(
+      ['senses', 'languages', 'weapons', 'armor', 'tools'].map((k) =>
+        [k, !!(proficiencies?.[k]?.length || unlocked)]));
+
     /* ── Passive scores ───────────────────────────────────────────────────
        Perception, Insight and Investigation — the three read without a roll
        being asked for, which is why a5e keeps them where the eye lands.
@@ -745,6 +752,10 @@ export class A5eCharacterSheet extends ActorSheet {
     };
     await enrichRows(
       weapons, maneuvers, spells, features, feats, allFeatures, equipment,
+      /* The Actions tab arrived after this list was written and was never
+         added to it, so basic actions, downtime and journey activities showed
+         their @UUID[…]{…} links as raw brackets while every other tab did not. */
+      interactionGroups.flatMap(g => g.items),
       inventory.groups.flatMap(g => g.items),
       inventory.groups.flatMap(g => g.items.flatMap(i => i.contents ?? []))
     );
@@ -765,7 +776,7 @@ export class A5eCharacterSheet extends ActorSheet {
       fatiguePips, strifePips, exertionPips,
       fatigueDesc, strifeDesc, statusConditions,
       attunementItems, attuneCount, passivePerception, passives, spellDC,
-      showPassives, showMagicTab, showMartialTab, charInfo, bio,
+      showPassives, showMagicTab, showMartialTab, traitSections, charInfo, bio,
       hasWeapons:          weapons.length        > 0,
       hasManeuvers:        maneuvers.length      > 0,
       hasSpells:           spells.length         > 0,
@@ -2360,6 +2371,26 @@ export class A5eCharacterSheet extends ActorSheet {
       b.addEventListener('click', (e) => {
         e.preventDefault();
         this.actor.configureAbilityScore?.({ abilityKey: b.dataset.ability });
+      }));
+
+    /* The trait lists in the sidebar. Every one of these is a dialog a5e
+       already has on the actor, so what opens is its own window writing its
+       own fields — no second editor of ours keeping a parallel idea of which
+       languages a character speaks. */
+    const TRAIT_DIALOGS = {
+      senses:    'configureSenses',
+      languages: 'configureLanguages',
+      weapons:   'configureWeaponProficiencies',
+      armor:     'configureArmorProficiencies',
+      tools:     'configureToolProficiencies'
+    };
+
+    el.querySelectorAll('[data-action="trait-config"]').forEach(b =>
+      b.addEventListener('click', (e) => {
+        e.preventDefault();
+        const method = TRAIT_DIALOGS[b.dataset.trait];
+        if (method && typeof this.actor[method] === 'function') this.actor[method]();
+        else AM.log(2, `No a5e dialog for the ${b.dataset.trait} traits`);
       }));
 
     el.querySelectorAll('[data-action="skill-config"]').forEach(b =>

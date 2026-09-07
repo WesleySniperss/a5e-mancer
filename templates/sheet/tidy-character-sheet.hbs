@@ -842,10 +842,17 @@
           </div>
 
           <div class="list traits">
-            {{#if proficiencies.senses.length}}
+            {{#if traitSections.senses}}
               <div class="list-entry">
                 <div class="list-label flexrow">
                   <h4 class="font-weight-label"><i class="fa-solid fa-eye"></i> Senses</h4>
+                  {{#if @root.unlocked}}
+                    <button type="button" class="button button-borderless button-icon-only am-stat-config"
+                      data-action="trait-config" data-trait="senses"
+                      data-tooltip="Configure Senses" aria-label="Configure Senses">
+                      <i class="fa-solid fa-cog"></i>
+                    </button>
+                  {{/if}}
                 </div>
                 <div class="list-content"><div class="list-values">
                   <ul class="pills">
@@ -859,10 +866,17 @@
               </div>
             {{/if}}
 
-            {{#if proficiencies.languages.length}}
+            {{#if traitSections.languages}}
               <div class="list-entry">
                 <div class="list-label flexrow">
                   <h4 class="font-weight-label"><i class="fa-solid fa-comments"></i> Languages</h4>
+                  {{#if @root.unlocked}}
+                    <button type="button" class="button button-borderless button-icon-only am-stat-config"
+                      data-action="trait-config" data-trait="languages"
+                      data-tooltip="Configure Languages" aria-label="Configure Languages">
+                      <i class="fa-solid fa-cog"></i>
+                    </button>
+                  {{/if}}
                 </div>
                 <div class="list-content"><div class="list-values">
                   <ul class="pills">
@@ -876,10 +890,17 @@
               </div>
             {{/if}}
 
-            {{#if proficiencies.weapons.length}}
+            {{#if traitSections.weapons}}
               <div class="list-entry">
                 <div class="list-label flexrow">
                   <h4 class="font-weight-label"><i class="fa-solid fa-sword"></i> Weapons</h4>
+                  {{#if @root.unlocked}}
+                    <button type="button" class="button button-borderless button-icon-only am-stat-config"
+                      data-action="trait-config" data-trait="weapons"
+                      data-tooltip="Configure Weapons" aria-label="Configure Weapons">
+                      <i class="fa-solid fa-cog"></i>
+                    </button>
+                  {{/if}}
                 </div>
                 <div class="list-content"><div class="list-values">
                   <ul class="pills">
@@ -893,10 +914,17 @@
               </div>
             {{/if}}
 
-            {{#if proficiencies.armor.length}}
+            {{#if traitSections.armor}}
               <div class="list-entry">
                 <div class="list-label flexrow">
                   <h4 class="font-weight-label"><i class="fa-solid fa-shield-halved"></i> Armor</h4>
+                  {{#if @root.unlocked}}
+                    <button type="button" class="button button-borderless button-icon-only am-stat-config"
+                      data-action="trait-config" data-trait="armor"
+                      data-tooltip="Configure Armor" aria-label="Configure Armor">
+                      <i class="fa-solid fa-cog"></i>
+                    </button>
+                  {{/if}}
                 </div>
                 <div class="list-content"><div class="list-values">
                   <ul class="pills">
@@ -910,10 +938,17 @@
               </div>
             {{/if}}
 
-            {{#if proficiencies.tools.length}}
+            {{#if traitSections.tools}}
               <div class="list-entry">
                 <div class="list-label flexrow">
                   <h4 class="font-weight-label"><i class="fa-solid fa-screwdriver-wrench"></i> Tools</h4>
+                  {{#if @root.unlocked}}
+                    <button type="button" class="button button-borderless button-icon-only am-stat-config"
+                      data-action="trait-config" data-trait="tools"
+                      data-tooltip="Configure Tools" aria-label="Configure Tools">
+                      <i class="fa-solid fa-cog"></i>
+                    </button>
+                  {{/if}}
                 </div>
                 <div class="list-content"><div class="list-values">
                   <ul class="pills">
@@ -1151,8 +1186,12 @@
         </div>
       {{/if}}
 
-      <div class="inventory-footer flexrow">
-        <div class="currency flexrow">
+      {{!-- No flexrow on either. Foundry gives .flexrow > * a flex of 1, so
+           every coin was stretched to an equal share of the row and they drifted
+           apart instead of sitting together. Same class, same trap as the
+           concentration block and the initiative column. --}}
+      <div class="inventory-footer">
+        <div class="currency">
           {{#each tidy.currencies}}
             <label class="denomination {{this.key}}" data-tooltip="{{this.label}}">
               <i class="currency {{this.key}}"></i>
