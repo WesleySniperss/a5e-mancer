@@ -53,22 +53,8 @@
 
 /* The exertion meter borrows Tidy's .meter bar wholesale; it only needs a
    width and its own fill colour, since the bar geometry is already Tidy's. */
-.tidy5e-sheet.application.a5e-mancer-sheet .am-exertion-meter {
-  min-width: 7rem;
-  --bar-color: var(--t5e-color-text-gold);
-}
 
-.tidy5e-sheet.application.a5e-mancer-sheet .am-exertion-meter .label {
-  display: flex;
-  align-items: center;
-  gap: var(--t5e-size-halfx);
-}
 
-.tidy5e-sheet.application.a5e-mancer-sheet .am-exertion-meter input.value {
-  width: 2.25rem;
-  text-align: end;
-  color: var(--t5e-color-text-default);
-}
 
 /* ── Expertise dice ───────────────────────────────────────────────────────
    A5e's answer to expertise: a die added to the roll rather than a doubled
@@ -1034,10 +1020,6 @@
   flex: 0 0 auto;
 }
 
-.tidy5e-sheet.application.a5e-mancer-sheet .am-a5e-strip > .am-a5e-exertion {
-  flex: 0 1 auto;
-  min-width: 0;
-}
 
 /* Three figures under one heading. The gap inside a pair is smaller than the
    gap between pairs, so they read as three things and not six. */
@@ -1243,4 +1225,19 @@
   justify-content: flex-start;
   gap: var(--t5e-size-halfx);
   flex: 0 0 auto;
+}
+
+/* ── Exertion is a tracker like the rest ───────────────────────────────────
+   It was a Tidy meter — a filled bar with the figures inside it — while every
+   other counted thing on this sheet was a plain number. One idea, two shapes.
+   It wears .am-tracker now, so the whole row is styled by the same rules and
+   there is nothing here but the bolt spacing and a maximum that lines up with
+   the ones beside it. The meter rules that used to sit at the top of this file
+   went with the markup. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-exertion .am-a5e-label i {
+  margin-inline-end: var(--t5e-size-halfx);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-exertion .am-a5e-value {
+  white-space: nowrap;
 }

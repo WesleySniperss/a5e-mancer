@@ -369,32 +369,11 @@
 
   {{!-- ── A5e resource strip: exertion, maneuver DC, passive perception ──── --}}
   <div class="am-a5e-strip flexrow">
-    {{!-- Exertion is spent and regained constantly, so it gets the two
-         buttons that spending asks for rather than only a field to retype. --}}
-    <div class="am-a5e-stat am-a5e-exertion" data-tooltip="Exertion pool">
-      <span class="am-a5e-label font-label-medium color-text-gold">
-        <i class="fa-solid fa-bolt"></i> Exertion
-      </span>
-      <button type="button" class="button button-borderless button-icon-only"
-        data-action="exertion-step" data-delta="-1" data-max="{{resources.exertion.max}}"
-        aria-label="Spend exertion" data-tooltip="Spend one">
-        <i class="fa-solid fa-minus"></i>
-      </button>
-      <div class="meter progress am-exertion-meter"
-        style="--bar-percentage: {{resources.exertion.pct}}%">
-        <div class="label">
-          <input type="number" class="value uninput" id="am-exertion-current"
-            value="{{resources.exertion.current}}" min="0" aria-label="Current exertion" />
-          <div class="separator">/</div>
-          <div class="max">{{resources.exertion.max}}</div>
-        </div>
-      </div>
-      <button type="button" class="button button-borderless button-icon-only"
-        data-action="exertion-step" data-delta="1" data-max="{{resources.exertion.max}}"
-        aria-label="Regain exertion" data-tooltip="Regain one">
-        <i class="fa-solid fa-plus"></i>
-      </button>
-    </div>
+    {{!-- Exertion used to sit here as a Tidy meter — a filled bar with the
+         figures inside it — while every other thing counted on this sheet was
+         a plain number. Two shapes for one idea. It has moved down to the
+         tracker row and wears the same chip as the rest, which also gives the
+         strip back the 90px the bar was taking. --}}
 
     <div class="am-a5e-stat" data-tooltip="Maneuver DC">
       <span class="am-a5e-label font-label-medium color-text-gold">Maneuver DC</span>
@@ -443,8 +422,30 @@
        Everything countable is here together: a5e own four, whatever a class
        grants, and our two — they are the same kind of thing and were in two
        different places. --}}
-  {{#if hasTrackers}}
-    <div class="am-tracker-row">
+  <div class="am-tracker-row">
+
+    {{!-- Exertion leads, because it is the one spent most. Same chip as every
+         other tracker: a name, a minus, the figure over its maximum, a plus.
+         The bolt is all that marks it out. --}}
+    <div class="am-a5e-stat am-tracker am-tracker-exertion" data-tooltip="Exertion pool">
+      <span class="am-a5e-label font-label-medium color-text-gold">
+        <i class="fa-solid fa-bolt"></i> Exertion
+      </span>
+      <button type="button" class="button button-borderless button-icon-only"
+        data-action="exertion-step" data-delta="-1" data-max="{{resources.exertion.max}}"
+        aria-label="Spend exertion" data-tooltip="Spend one">
+        <i class="fa-solid fa-minus"></i>
+      </button>
+      <input type="number" class="uninput am-tracker-value" id="am-exertion-current"
+        value="{{resources.exertion.current}}" min="0" aria-label="Current exertion" />
+      <span class="am-a5e-value color-text-lighter">/ {{resources.exertion.max}}</span>
+      <button type="button" class="button button-borderless button-icon-only"
+        data-action="exertion-step" data-delta="1" data-max="{{resources.exertion.max}}"
+        aria-label="Regain exertion" data-tooltip="Regain one">
+        <i class="fa-solid fa-plus"></i>
+      </button>
+    </div>
+
     {{!-- Every resource a5e own core page would show: its four free-text
          trackers, and the ones a class or archetype grants, which arrive under
          their own slug. This sheet used to read only the four by name and
@@ -564,8 +565,7 @@
           data-tooltip="Name it to start counting" />
       </div>
     {{/if}}
-    </div>
-  {{/if}}
+  </div>
 
   {{!-- ── Tab strip ──────────────────────────────────────────────────────── --}}
   <div class="tabs-row">

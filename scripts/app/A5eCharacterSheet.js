@@ -501,11 +501,9 @@ export class A5eCharacterSheet extends ActorSheet {
        name it in rather than two empty counters nobody asked for. */
     const freeIndex = customCounters.findIndex(c => !c.name);
     const freeCounter = { available: freeIndex !== -1, index: Math.max(0, freeIndex) };
-    /* The row is not drawn at all when it would be empty — an empty bar under
-       the stats is just a gap. Locked with nothing named, that is the case. */
-    const hasTrackers = !!(actorResources.length
-      || customCounters.some(c => c.name)
-      || (unlocked && freeCounter.available));
+    /* The tracker row used to be hidden when it held nothing. Exertion lives
+       on it now and every character has that, so there is nothing left to
+       guard and the flag is gone with the guard. */
     // All non-weapon objects go to equipment panel
     const equipment = items.filter(i => i.type === 'object' && i.system?.objectType !== 'weapon')
                             .map(i => this.#gear(i));
@@ -756,7 +754,7 @@ export class A5eCharacterSheet extends ActorSheet {
       unlocked, actorResources, equipment, currency,
       fatiguePips, strifePips, exertionPips,
       fatigueDesc, strifeDesc, statusConditions,
-      attunementItems, attuneCount, passivePerception, passives, hasTrackers, spellDC,
+      attunementItems, attuneCount, passivePerception, passives, spellDC,
       showPassives, showMagicTab, showMartialTab, charInfo, bio,
       hasWeapons:          weapons.length        > 0,
       hasManeuvers:        maneuvers.length      > 0,
