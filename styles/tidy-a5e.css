@@ -457,22 +457,7 @@
    but we have two, heal and damage, and they landed exactly on top of each
    other so only the upper one could be clicked. The wrapper takes the pinning
    and the buttons sit inside it normally. */
-.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals .hp-row .am-hp-buttons {
-  position: absolute;
-  inset-inline-end: var(--t5e-size-1x);
-  inset-block-start: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  align-items: center;
-  gap: var(--t5e-size-halfx);
-  z-index: 2;
-}
 
-.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals .hp-row .am-hp-buttons .button.button-icon-only.button-borderless {
-  position: static;
-  inset-inline-end: auto;
-  flex: 0 0 auto;
-}
 
 /* The inline editor that replaces the label. [hidden] has to be restated,
    because a display rule of our own would otherwise beat it. */
@@ -940,16 +925,7 @@
    their own reads as the bar being cut into pieces — which is what the
    segments were. They are made transparent, and the icons given a shadow so
    they stay legible against a full green bar. */
-.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals .hp-row .am-hp-buttons .button {
-  background: transparent;
-  border: none;
-  box-shadow: none;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
-}
 
-.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals .hp-row .am-hp-buttons .button:hover {
-  background: rgba(0, 0, 0, 0.25);
-}
 
 /* ── Room for the third tier of an ability plate ───────────────────────────
    Tidy gives the abilities row overflow: auto hidden — horizontal scrolling,
@@ -1386,22 +1362,8 @@
    stops — reads as a panel cut into the right of it. All of it off, on the
    wrapper and the buttons alike, with the icons given a shadow so they stay
    legible against a full green bar. */
-.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals .hp-row .am-hp-buttons,
-.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals .hp-row .am-hp-buttons .button,
-.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals .hp-row .am-hp-buttons .button.button-icon-only.button-borderless {
-  background: none;
-  border: none;
-  box-shadow: none;
-  outline: none;
-}
 
-.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals .hp-row .am-hp-buttons .button i {
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
-}
 
-.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals .hp-row .am-hp-buttons .button:hover {
-  background: rgba(0, 0, 0, 0.28);
-}
 
 /* The fill stops with a hard rule at its end; on a full bar that lands on the
    right edge and reads as an extra box. */
@@ -1447,4 +1409,32 @@
   flex: 1;
   min-width: 0;
   color: var(--t5e-color-text-default);
+}
+
+/* ── Heal and damage sit beside the bar, not on it ─────────────────────────
+   They were placed over the hit point bar with position: absolute, and a small
+   square kept appearing at its right end. I could not identify what painted it
+   — clearing the background on the wrapper and on both buttons did not remove
+   it, and nothing in Tidy meter CSS draws a box there — and I had already
+   guessed at it three times.
+
+   So they stop being an overlay. Beside the bar, in the flow, the way fatigue
+   and strife sit beside the hit dice bar in the row below. Whatever that square
+   was, nothing of ours is over the bar for it to come from. */
+.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals .hp-row {
+  display: flex;
+  align-items: center;
+  gap: var(--t5e-size-1x);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals .hp-row .meter.hit-points {
+  flex: 1;
+  min-width: 0;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals .hp-row .am-hp-buttons {
+  display: flex;
+  align-items: center;
+  gap: var(--t5e-size-halfx);
+  flex: 0 0 auto;
 }
