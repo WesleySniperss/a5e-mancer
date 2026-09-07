@@ -2310,16 +2310,34 @@ export class A5eCharacterSheet extends ActorSheet {
        collapse, 4rem to shrink, 20.5rem of everything else — and the widths
        are in rem against Foundry's own font size, as theirs are. */
     const applyAbilityLayout = () => {
-      const box = el.querySelector('.abilities-container');
-      if (!box) return;
-      const fontPx = Number(game.settings.get('core', 'fontSize')) || 16;
-      const widthRems = (this.position?.width ?? el.clientWidth ?? 0) / fontPx;
-      const n = 6;                                   // a5e has the same six
-      const collapsedRems = n * 3.5 + 20.5;
-      const smallerRems   = n * 4   + 20.5;
-      box.classList.toggle('abilities-size-compact', widthRems < collapsedRems);
-      box.classList.toggle('abilities-size-small',
-        widthRems >= collapsedRems && widthRems < smallerRems);
+      /* Nothing about a layout hint is worth failing a render over. This runs
+         from activateListeners, and a throw there aborts _render — which is
+         exactly what happened: game.settings.get('core', 'fontSize') is not a
+         registered setting in this Foundry, it threw, and the whole sheet
+         stopped rendering. Every change in that release looked as though it had
+         done nothing, because none of it was reached. */
+      try {
+        const box = el.querySelector('.abilities-container');
+        if (!box) return;
+
+        /* The root font size, read from the document rather than asked of a
+           setting that may not exist. It is also the truer number: it is what
+           the browser actually resolves a rem to, whatever set it. */
+        const fontPx =
+          parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+
+        const widthRems = (this.position?.width ?? el.clientWidth ?? 0) / fontPx;
+        if (!widthRems) return;
+
+        const n = 6;                                 // a5e has the same six
+        const collapsedRems = n * 3.5 + 20.5;
+        const smallerRems   = n * 4   + 20.5;
+        box.classList.toggle('abilities-size-compact', widthRems < collapsedRems);
+        box.classList.toggle('abilities-size-small',
+          widthRems >= collapsedRems && widthRems < smallerRems);
+      } catch (err) {
+        AM.log(2, 'Could not size the abilities row:', err);
+      }
     };
     applyAbilityLayout();
 
