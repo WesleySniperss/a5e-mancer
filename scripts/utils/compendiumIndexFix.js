@@ -1,4 +1,4 @@
-import { AM } from '../a5e-mancer.js';
+import { AM } from '../am.js';
 
 /**
  * Fixes the a5e system's compendium browser filters.

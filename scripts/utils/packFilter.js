@@ -1,4 +1,4 @@
-import { AM } from '../a5e-mancer.js';
+import { AM } from '../am.js';
 
 /**
  * Which compendiums the module reads content from.

@@ -1,4 +1,4 @@
-import { AM } from '../a5e-mancer.js';
+import { AM } from '../am.js';
 import {
   ActorCreationService, CharacterArtPicker, DOMManager,
   EquipmentService, FormValidation, SavedOptions, StatRoller,

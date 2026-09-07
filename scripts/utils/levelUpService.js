@@ -1,4 +1,4 @@
-import { AM } from '../a5e-mancer.js';
+import { AM } from '../am.js';
 import { PackFilter } from './packFilter.js';
 import { DocumentService } from './documentService.js';
 import { A5E_CLASS_DATA, classKey as classKeyOf, knackNameFor, knackLevelsFor } from '../data/a5eClassData.js';

@@ -1,4 +1,4 @@
-import { AM } from '../a5e-mancer.js';
+import { AM } from '../am.js';
 import { DocumentService } from './documentService.js';
 import { EquipmentService } from './equipmentService.js';
 import { ManeuverService } from './maneuverService.js';

@@ -1,4 +1,4 @@
-import { AM } from '../a5e-mancer.js';
+import { AM } from '../am.js';
 
 export class ProgressBar {
   static calculateAndUpdateProgress(form, _changedEl) {

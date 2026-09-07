@@ -1,4 +1,4 @@
-import { AM } from './a5e-mancer.js';
+import { AM } from './am.js';
 
 export function registerSettings() {
   AM.log(3, 'Registering settings');

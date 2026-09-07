@@ -1,4 +1,4 @@
-import { AM } from '../a5e-mancer.js';
+import { AM } from '../am.js';
 import { A5E_MULTICLASS, classKey } from '../data/a5eClassData.js';
 
 /**

@@ -1,4 +1,4 @@
-import { AM } from '../a5e-mancer.js';
+import { AM } from '../am.js';
 import { ItemDescPanel } from './itemDescPanel.js';
 import { applyItemIcon } from '../data/a5eIcons.js';
 

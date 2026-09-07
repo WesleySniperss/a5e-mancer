@@ -1,4 +1,4 @@
-import { AM } from '../a5e-mancer.js';
+import { AM } from '../am.js';
 
 /**
  * Floating "full description" popup, opened by right-clicking a maneuver or spell

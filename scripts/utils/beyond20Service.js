@@ -1,4 +1,4 @@
-import { AM } from '../a5e-mancer.js';
+import { AM } from '../am.js';
 
 /**
  * Bridge between the Beyond20 browser extension and the a5e system.

@@ -1,4 +1,4 @@
-import { AM } from '../a5e-mancer.js';
+import { AM } from '../am.js';
 import { CLASS_MANEUVER_TABLES } from './maneuverService.js';
 
 /**

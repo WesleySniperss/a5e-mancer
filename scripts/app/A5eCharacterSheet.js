@@ -1,4 +1,4 @@
-import { AM } from '../a5e-mancer.js';
+import { AM } from '../am.js';
 import { LevelUpDialog } from './LevelUpDialog.js';
 import { ManeuverDialog } from './ManeuverDialog.js';
 import { SpellDialog } from './SpellDialog.js';

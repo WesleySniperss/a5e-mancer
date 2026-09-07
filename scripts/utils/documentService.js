@@ -1,4 +1,4 @@
-import { AM } from '../a5e-mancer.js';
+import { AM } from '../am.js';
 import { PackFilter } from './packFilter.js';
 import { classKey } from '../data/a5eClassData.js';
 import { CLASS_DESCRIPTIONS, HERITAGE_DESCRIPTIONS } from '../data/a5eDescriptions.js';

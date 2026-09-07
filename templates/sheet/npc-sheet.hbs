@@ -1,299 +1,1654 @@
-{{!-- A5e Mancer NPC Sheet --}}
-<div class="am-npc-wrapper">
+{{!-- GENERATED — do not edit. Run: node tools/build-npc-sheet.js
+     Source: templates/sheet/tidy-character-sheet.hbs
 
-  {{!-- ══ HEADER ═══════════════════════════════════════ --}}
-  <header class="am-npc-header">
-    <img src="{{actor.img}}" data-edit="img" title="{{actor.name}}" alt=""
-      class="am-npc-portrait" />
+     A monster is a character with a challenge rating where the class levels
+     go, so this sheet IS that sheet: same header, same ability plates, same
+     vitals, same tables. What differs is named in the build script, and
+     nothing else may differ, which is why it is generated rather than kept
+     by hand. --}}
+{{!-- ═══════════════════════════════════════════════════════════════════════
+     A5e Mancer character sheet, dressed in the Quadrone layout of Tidy 5e
+     Sheets.
 
-    <div class="am-npc-identity">
-      <input class="am-npc-name" type="text" name="name" value="{{actor.name}}" />
-      <div class="am-npc-subtitle">
-        {{#if details.size}}<span class="am-npc-chip">{{details.size}}</span>{{/if}}
-        {{#if details.type}}<span class="am-npc-chip">{{details.type}}</span>{{/if}}
-        {{#if details.alignment}}<span class="am-npc-chip am-dim">{{details.alignment}}</span>{{/if}}
-      </div>
-      {{#if details.source}}
-        <div class="am-npc-source am-dim">{{details.source}}</div>
-      {{/if}}
-    </div>
+     The markup below mirrors Tidy's own CharacterSheet.svelte element for
+     element, so tidy/quadrone.css styles it without a single override. Where
+     a block is A5e-only (exertion, maneuver DC, fatigue and strife) it is
+     built from Tidy's own pieces — .meter, .card, .button — so it reads as
+     part of the same sheet rather than as an addition to it.
 
-    {{!-- CR + XP --}}
-    <div class="am-npc-cr-block">
-      <div class="am-npc-cr-val">CR {{cr}}</div>
-      <div class="am-npc-xp am-dim">{{details.xp}} XP</div>
-      <div class="am-npc-prof am-dim">Prof +{{profBonus}}</div>
-    </div>
-  </header>
+     Our own hooks ride along on Tidy's elements: every data-action, every
+     .am-* class and every data-path is the one activateListeners already
+     binds, so behaviour is unchanged by the redress. Do not rename them
+     without changing A5eCharacterSheet.js to match.
+     ═══════════════════════════════════════════════════════════════════════ --}}
 
-  {{!-- ══ COMBAT STATS ════════════════════════════════ --}}
-  <div class="am-npc-stats-bar">
+{{!-- FormApplication needs a form element to submit through: without one,
+     closing the sheet throws "no registered form element" and the name field
+     never saves. It sits inside .window-content, so it also has to carry the
+     column flex that Tidy puts on .window-content, or the header and body
+     stop being flex items and the tab strip collapses. See styles/tidy-a5e.css. --}}
+<form class="am-sheet-form" autocomplete="off">
 
-    {{!-- HP --}}
-    <div class="am-npc-hp-block">
-      <div class="am-npc-stat-label">HP</div>
-      <div class="am-npc-hp-row">
-        <input id="npc-hp-cur" type="number" class="am-npc-hp-big"
-          value="{{hp.value}}" min="0" />
-        <span class="am-slash">/</span>
-        <input id="npc-hp-max" type="number" class="am-npc-hp-sm"
-          value="{{hp.max}}" />
-      </div>
-      <div class="am-npc-bar-track">
-        <div class="am-npc-bar-fill" style="width:{{hp.pct}}%; background:{{hp.color}}"></div>
-      </div>
-      {{#if hp.formula}}
-        <div class="am-npc-hp-formula am-dim">({{hp.formula}})</div>
-      {{/if}}
-    </div>
+<header class="sheet-header flexcol">
+  <div class="sheet-header-content flexrow">
 
-    {{!-- AC --}}
-    <div class="am-npc-stat-block">
-      <div class="am-npc-stat-label">AC</div>
-      <input id="npc-ac" type="number" class="am-npc-stat-big" value="{{ac}}" />
-    </div>
+    <div class="actor-details-container flexcol">
 
-    {{!-- Speed --}}
-    <div class="am-npc-stat-block am-npc-stat-wide">
-      <div class="am-npc-stat-label">Speed</div>
-      <div class="am-npc-speed">{{speed}}</div>
-    </div>
+      {{!-- ── Name, rests, subtitle, level ─────────────────────────────── --}}
+      <div class="actor-context-row flexrow">
+        <div class="flexcol flex1">
 
-    {{!-- Abilities row --}}
-    <div class="am-npc-abilities">
-      {{#each abilities}}
-        <div class="am-npc-abl">
-          <div class="am-npc-abl-name">{{this.abbr}}</div>
-          <div class="am-npc-abl-score">{{this.val}}</div>
-          <button type="button" class="am-npc-abl-mod"
-            data-action="ability-check"
-            data-ability="{{this.key}}"
-            data-mod="{{this.modStr}}"
-            data-label="{{this.label}} Check"
-            title="Roll {{this.label}}">{{this.modStr}}</button>
-          <button type="button" class="am-npc-save"
-            data-action="saving-throw"
-            data-ability="{{this.key}}"
-            data-save="{{this.saveStr}}"
-            title="{{this.label}} Save">
-            <span class="am-save-dot {{#if this.saveProf}}am-save-prof{{/if}}">{{#if this.saveProf}}●{{else}}○{{/if}}</span>
-            {{this.saveStr}}
-          </button>
+          <div class="actor-details-name-row" data-tidy-sheet-part="name-header-row">
+            <input class="actor-name flex1 h1" type="text"
+              name="name" value="{{actor.name}}" data-tidy-sheet-part="actor-name" />
+
+            <div class="sheet-header-actions flexrow"
+              data-tidy-sheet-part="sheet-header-actions-container">
+              {{!-- One button, as a5e has. Its own dialog is where the rest
+                   type is chosen and hit dice are spent and rolled, so two
+                   buttons opening the same chooser would only be in the way. --}}
+              {{!-- The padlock a5e puts at the top of its sheet. Locked is the
+                   resting state; unlocking is what reveals the edit, delete and
+                   configure controls and makes the describing fields writable.
+                   It reads and writes a5e own flag, so locking here locks there
+                   and the other way about. --}}
+              <button type="button"
+                class="button button-icon-only{{#if unlocked}} button-gold am-unlocked{{else}} button-borderless{{/if}}"
+                data-action="toggle-lock"
+                aria-label="{{#if unlocked}}Lock the sheet{{else}}Unlock the sheet{{/if}}"
+                aria-pressed="{{#if unlocked}}true{{else}}false{{/if}}"
+                data-tooltip="{{#if unlocked}}Unlocked — everything can be edited. Click to lock.{{else}}Locked. Click to edit everything.{{/if}}">
+                <i class="fa-solid {{#if unlocked}}fa-lock-open{{else}}fa-lock{{/if}}"></i>
+              </button>
+              <button type="button" class="button button-icon-only button-gold"
+                data-action="rest" aria-label="Rest" data-tooltip="Rest">
+                <i class="fas fa-campfire"></i>
+              </button>
+            </div>
+          </div>
+
+          {{!-- Subtitle: speeds, senses, origin, classes --}}
+          <div class="actor-details-subtitle-row" data-tidy-sheet-part="actor-details-row">
+            <div class="actor-subtitle flexrow" data-tidy-sheet-part="subtitle-row">
+              {{#each tidy.speeds}}
+                <span class="speed main-speed">
+                  <span class="color-text-gold font-label-medium">{{this.label}}</span>
+                  <span class="color-text-default font-data-medium">{{this.value}}</span>
+                  <span class="color-text-lighter font-label-medium">{{this.units}}</span>
+                </span>
+                <div class="divider-dot"></div>
+              {{/each}}
+
+              {{#each tidy.senses}}
+                <span class="sense main-sense hide-under-600">
+                  <span class="color-text-gold font-label-medium">{{this.label}}</span>
+                  <span class="color-text-default font-data-medium">{{this.value}}</span>
+                  <span class="color-text-lighter font-label-medium">{{this.units}}</span>
+                </span>
+                <div class="hide-under-600 divider-dot"></div>
+              {{/each}}
+
+              {{!-- Where a character carries heritage, culture, background and
+                   classes, a monster carries what the book prints under its
+                   name: size, creature type, the tags a5e keeps as flags of
+                   their own, and the terrain it is found in. --}}
+              {{#if npc.subtitle}}
+                <span class="creature-type">
+                  <span class="font-label-medium color-text-gold">{{npc.subtitle}}</span>
+                </span>
+                <div class="divider-dot"></div>
+              {{/if}}
+
+              {{#each npc.terrain}}
+                <span class="alignment hide-under-700">
+                  <span class="font-label-medium color-text-gold">{{this}}</span>
+                </span>
+                <div class="hide-under-700 divider-dot"></div>
+              {{/each}}
+
+              {{#if npc.languages}}
+                <span class="species hide-under-600">
+                  <span class="font-label-medium color-text-gold">{{npc.languages}}</span>
+                </span>
+              {{/if}}
+            </div>
+          </div>
         </div>
+
+        {{!-- Inspiration badge + level block --}}
+        <div class="level-container flex0 flexrow">
+
+          {{!-- Challenge rating stands exactly where the character level
+               stands, in the same plate, with the same proficiency row under
+               it. The XP the rating is worth rides along in the tooltip. --}}
+          <div class="level-block">
+            <span class="level bonus font-data-xlarge color-text-default"
+              data-tooltip="Challenge {{npc.cr}} — {{npc.xp}} XP">{{npc.cr}}</span>
+            <div class="proficiency-bonus flexrow" data-tooltip="Proficiency Bonus">
+              <span class="label font-label-medium color-text-gold">PB</span>
+              <span class="modifier font-label-medium color-text-lightest">{{tidy.pb.sign}}</span>
+              <span class="value font-data-medium color-text-default">{{tidy.pb.value}}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {{!-- ── AC, ability plates, initiative, concentration ────────────── --}}
+      <div class="abilities-container">
+        <div class="abilities-container-inner flexrow">
+
+          <div class="ac-container flexcol">
+            <div class="shield" data-attribution="attributes.ac" data-tooltip-direction="DOWN">
+              <span class="ac-value color-text-default">{{resources.ac}}</span>
+              <span class="ac-label font-label-medium color-text-gold">AC</span>
+            </div>
+            <div class="ability-labels flexcol">
+              <span class="label font-label-medium color-text-gold">Score</span>
+              <span class="divider"></span>
+              <span class="label font-label-medium color-text-gold">Save</span>
+            </div>
+          </div>
+
+          {{#each tidy.abilities}}
+            <div class="ability {{this.key}}{{#if this.saveProf}} has-proficiency{{/if}}"
+              data-tidy-sheet-part="ability-container">
+
+
+              <div class="ability-bonus-container{{#if this.saveProf}} proficient{{/if}}"
+                data-tidy-sheet-part="ability-mod-container">
+                <button type="button" class="button-borderless ability-roll-button"
+                  data-action="ability-check" data-ability="{{this.key}}"
+                  data-label="{{this.label}}" data-mod="{{this.mod}}"
+                  data-tooltip="{{this.label}} Check"
+                  data-tidy-sheet-part="ability-roller">
+                  <span class="ability-abbr color-text-gold">{{this.abbr}}</span>
+                  <span class="ability-label-container">
+                    <span class="modifier font-label-xlarge color-text-lightest"
+                      data-tidy-sheet-part="ability-mod">{{this.modSign}}</span>
+                    <span class="value bonus font-data-xlarge color-text-default"
+                      data-tidy-sheet-part="ability-value">{{this.modAbs}}</span>
+                  </span>
+                </button>
+              </div>
+
+              {{!-- An ability score describes the character rather than tracking
+                   them, so it is behind the lock like everything else of that
+                   kind. Locked it reads as the number it is; unlocked it can be
+                   typed into, and the cog opens a5e own ability dialog for save
+                   proficiency, expertise dice and bonuses. --}}
+              <div class="ability-score-container">
+                <label class="ability-score" data-tooltip="{{this.label}} Score"
+                  data-tidy-sheet-part="ability-score">
+                  <input class="font-title-small color-text-default am-ability-score uninput"
+                    type="number" data-ability="{{this.key}}"
+                    data-path="system.abilities.{{this.key}}.value" value="{{this.value}}"
+                    {{#unless @root.unlocked}}disabled{{/unless}} />
+                  {{#if this.saveProf}}
+                    <span class="ability-proficiency-indicator"></span>
+                  {{/if}}
+                </label>
+                {{#if @root.unlocked}}
+                  <button type="button" class="button button-borderless button-icon-only am-stat-config"
+                    data-action="ability-config" data-ability="{{this.key}}"
+                    data-tooltip="Configure {{this.label}}" aria-label="Configure {{this.label}}">
+                    <i class="fa-solid fa-cog"></i>
+                  </button>
+                {{/if}}
+              </div>
+
+              {{!-- Back where Tidy puts it. It was moved above the modifier
+                   because the bottom row of the plate was being cut off — but
+                   that was the abilities row clipping its overflow, fixed in
+                   2.33.3, and not where the save sat. With the crop gone there
+                   is no reason to sit anywhere but where the design has it,
+                   and every reason not to: modifier, score, save is a
+                   composition Tidy tuned, and mine was three attempts of
+                   negative margins that never sat right. --}}
+              <div class="ability-save-container">
+                <button type="button" class="button-borderless ability-save flexrow saving-throw"
+                  data-action="saving-throw" data-ability="{{this.key}}"
+                  data-label="{{this.label}}" data-mod="{{this.saveMod}}"
+                  data-tooltip="{{this.label}} Save"
+                  data-tidy-sheet-part="ability-save-roller">
+                  <span class="modifier font-label-medium color-text-lightest">{{this.saveSign}}</span>
+                  <span class="value save font-data-medium color-text-default">{{this.saveAbs}}</span>
+                  {{#if this.saveExpDie}}
+                    <span class="am-save-exp font-label-medium color-text-gold">{{this.saveExpDie}}</span>
+                  {{/if}}
+                  <span class="icon"><i class="fas fa-shield-heart"></i></span>
+                </button>
+              </div>
+
+            </div>
+          {{/each}}
+
+          {{!-- No flexcol. Foundry gives .flexcol > * a flex of 1, which was
+               handing the initiative badge and concentration half the column
+               each — the badge has a fixed height of 3.75rem and does not
+               want flexing, so the two ran into one another. Same trap that
+               had the head icon floating loose; this is its parent. --}}
+          <div class="ability initiative">
+            <div class="initiative-score-container" data-tooltip="Initiative">
+              <button type="button" class="ability-roll-button button-borderless"
+                data-action="roll-initiative">
+                <span class="ability-abbr color-text-gold">INIT</span>
+                <span class="ability-label-container initiative-bonus">
+                  <span class="modifier color-text-lightest">{{tidy.init.sign}}</span><span
+                    class="bonus color-text-default">{{tidy.init.value}}</span>
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {{!-- Concentration used to live in this row, first under initiative
+               and then beside it. Three attempts, three overlaps — the last one
+               drew "Conc." on top of the Wisdom plate although the DOM had it
+               last in the row. Something in this container is beyond what I can
+               see from outside the browser, so it stops being a plate: it has
+               moved to the stat strip below, which is our own flex row and has
+               never put anything on top of anything.
+
+               It also belongs there by kind. It is a derived number you read,
+               like the maneuver and spell DCs standing next to it. --}}
+        </div>
+      </div>
+    </div>
+
+    {{!-- ── Portrait and vitals ──────────────────────────────────────────── --}}
+    <div class="actor-vitals-container">
+      <div class="actor-image {{tidy.portrait.shape}}" style="position: relative;">
+        <img src="{{actor.img}}" alt="{{actor.name}}" class="pointer" data-edit="img" />
+      </div>
+
+      <div class="actor-vitals theme-dark">
+        {{!-- Hit points.
+
+             Tidy shows a label reading "current / max" and swaps in an input
+             only while it is being edited; two live inputs sitting in the bar
+             is not a shape its stylesheet has any rule for, which is why this
+             row came out unreadable. Temp HP is a separate block that appears
+             ONLY when there is any — otherwise its blue band sits there
+             permanently and crowds out the numbers.
+
+             The heal and damage buttons are wrapped, because Tidy pins every
+             bare .button-icon-only in this row to the right edge with
+             position:absolute — two of them landed on top of each other and
+             only the last was clickable. The wrapper is pinned instead, and
+             the buttons sit inside it normally. --}}
+        <div class="hp-row flexrow">
+          <div class="meter progress hit-points" style="--bar-percentage: {{tidy.hp.pct}}%">
+            <button type="button" class="label pointer" data-action="hp-edit"
+              data-tooltip="Click to edit">
+              <div class="value">{{resources.hp.value}}</div>
+              <div class="separator">/</div>
+              <div class="max">{{resources.hp.max}}</div>
+            </button>
+
+            <div class="am-hp-edit" hidden>
+              <input type="text" class="hp-input uninput" id="am-hp-current"
+                value="{{resources.hp.value}}" aria-label="Current Hit Points" />
+              <span class="separator">/</span>
+              <input type="text" class="hp-input uninput" id="am-hp-max"
+                value="{{resources.hp.max}}" aria-label="Maximum Hit Points" />
+              <span class="separator">tmp</span>
+              <input type="text" class="hp-input uninput" id="am-hp-temp"
+                value="{{resources.hp.temp}}" aria-label="Temporary Hit Points" />
+            </div>
+          </div>
+
+          {{#if resources.hp.temp}}
+            <div class="temp-hp label pointer" data-action="hp-edit"
+              data-tooltip="Temporary hit points: {{resources.hp.temp}}">
+              <i class="fas fa-hand-holding-heart"></i>
+              <span class="am-temp-value">{{resources.hp.temp}}</span>
+            </div>
+          {{/if}}
+
+          <div class="am-hp-buttons">
+            <button type="button" class="button button-borderless button-icon-only"
+              data-action="heal-hp" aria-label="Heal" data-tooltip="Heal">
+              <i class="fas fa-plus"></i>
+            </button>
+            <button type="button" class="button button-borderless button-icon-only"
+              data-action="damage-hp" aria-label="Damage" data-tooltip="Damage">
+              <i class="fas fa-minus"></i>
+            </button>
+          </div>        </div>
+
+        <div class="actor-vitals-row">
+          <div class="hd-row-container">
+            {{!-- Hit dice are spent in a5e's rest dialog, so the meter leads
+                 there rather than being a number that cannot be touched.
+                 The tooltip carries the per-die breakdown, which a single
+                 total cannot show. --}}
+            <div class="hd-row" data-action="rest" role="button" tabindex="0"
+              data-tooltip="Hit dice{{#if tidy.hd.breakdown}} — {{tidy.hd.breakdown}}{{/if}}. Click to rest.">
+              <div class="meter progress hit-die" style="--bar-percentage: {{tidy.hd.pct}}%">
+                <span class="label">
+                  <div class="value" data-tooltip="Hit Dice Remaining">{{tidy.hd.value}}</div>
+                  <div class="separator">/</div>
+                  <div class="max" data-tooltip="Hit Dice Total">{{tidy.hd.max}}</div>
+                  <div class="hd-label" data-tooltip="Hit Dice">HD</div>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {{!-- A5e replaces exhaustion with two tracks. Same control Tidy uses
+                for exhaustion, once per track, so the row still reads as one. --}}
+          <div class="exhaustion{{#if resources.fatigue}} exhausted{{/if}}">
+            <button type="button" class="button button-borderless button-icon-only"
+              aria-label="Fatigue"
+              data-tooltip="{{#if fatigueDesc}}Fatigue — {{fatigueDesc}}{{else}}Fatigue{{/if}}"
+              data-action="cycle-fatigue">
+              <i class="fas fa-heart-pulse"></i>
+              <span class="value">{{resources.fatigue}}</span>
+            </button>
+          </div>
+
+          <div class="exhaustion am-strife{{#if resources.strife}} exhausted{{/if}}">
+            <button type="button" class="button button-borderless button-icon-only"
+              aria-label="Strife"
+              data-tooltip="{{#if strifeDesc}}Strife — {{strifeDesc}}{{else}}Strife{{/if}}"
+              data-action="cycle-strife">
+              <i class="fas fa-brain"></i>
+              <span class="value">{{resources.strife}}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {{!-- ── A5e resource strip: exertion, maneuver DC, passive perception ──── --}}
+  <div class="am-a5e-strip flexrow">
+    {{!-- Exertion used to sit here as a Tidy meter — a filled bar with the
+         figures inside it — while every other thing counted on this sheet was
+         a plain number. Two shapes for one idea. It has moved down to the
+         tracker row and wears the same chip as the rest, which also gives the
+         strip back the 90px the bar was taking. --}}
+
+    <div class="am-a5e-stat" data-tooltip="Maneuver DC">
+      <span class="am-a5e-label font-label-medium color-text-gold">Maneuver DC</span>
+      <span class="am-a5e-value font-data-medium color-text-default">{{maneuverDC}}</span>
+    </div>
+
+    {{!-- The companion figure. Every chip in this strip is the same shape, so
+         one more sits level with the rest rather than nudging them. --}}
+    <div class="am-a5e-stat" data-tooltip="Concentration — click to roll">
+      <button type="button" class="unbutton am-conc-button" data-action="concentration-check">
+        <span class="am-a5e-label font-label-medium color-text-gold">
+          <i class="fas fa-head-side-brain"></i> Conc.
+        </span>
+        <span class="am-a5e-value font-data-medium color-text-default">{{tidy.conc.sign}}{{tidy.conc.value}}</span>
+      </button>
+    </div>
+
+    {{#if spellDC}}
+      <div class="am-a5e-stat" data-tooltip="Spell Save DC">
+        <span class="am-a5e-label font-label-medium color-text-gold">Spell DC</span>
+        <span class="am-a5e-value font-data-medium color-text-default">{{spellDC}}</span>
+      </div>
+    {{/if}}
+
+    {{!-- The three passive scores, in one chip rather than three.
+
+         Written out — PASS. PERCEPTION, PASS. INSIGHT, PASS. INVESTIGATION —
+         they took 490px of a strip that has about 804px, and the row as a
+         whole came to 1054px, so it broke onto a second line. Short and
+         gathered they take 228px and the strip fits on one.
+
+         The number is the actor own system.skills.<abbr>.passive, not a sum
+         worked out again here. Each carries its full name as a tooltip, so",
+         the short form costs nothing but a hover. --}}
+    {{#if showPassives}}
+    <div class="am-a5e-stat am-passives">
+      <span class="am-a5e-label font-label-medium color-text-gold">Passive</span>
+      {{#each passives}}
+        <span class="am-passive" data-tooltip="Passive {{this.label}}">
+          <span class="am-passive-abbr font-label-medium color-text-lighter">{{this.abbr}}</span>
+          <span class="am-a5e-value font-data-medium color-text-default">{{this.value}}</span>
+        </span>
       {{/each}}
     </div>
+    {{/if}}
 
   </div>
 
-  {{!-- ══ TRAITS ROW ════════════════════════════════ --}}
-  {{#if (or dmgResist dmgImmune condImmune)}}
-    <div class="am-npc-traits-row">
-      {{#if dmgResist}}
-        <span class="am-trait-block"><b>Resistances:</b> {{dmgResist}}</span>
-      {{/if}}
-      {{#if dmgImmune}}
-        <span class="am-trait-block"><b>Immunities:</b> {{dmgImmune}}</span>
-      {{/if}}
-      {{#if condImmune}}
-        <span class="am-trait-block"><b>Cond. Immune:</b> {{condImmune}}</span>
-      {{/if}}
-    </div>
-  {{/if}}
-  {{#if senses}}
-    <div class="am-npc-senses-row am-dim">{{senses}}</div>
-  {{/if}}
+  {{!-- ── Trackers ───────────────────────────────────────────────────────
+       A row of their own, under the stat strip rather than crammed into the
+       end of it. Squeezed in beside exertion and the passives they came out
+       at a few pixels a piece and could not be read, and a long name like
+       Channel Divinity pushed the whole strip into the tabs below it.
 
-  {{!-- ══ LEGENDARY RESOURCES ════════════════════ --}}
-  {{#if legendaryActions}}
-    <div class="am-npc-leg-row">
-      <span class="am-leg-label">
-        <i class="fa-solid fa-crown"></i> Legendary Actions
+       Everything countable is here together: a5e own four, whatever a class
+       grants, and our two — they are the same kind of thing and were in two
+       different places. --}}
+  <div class="am-tracker-row">
+
+    {{!-- Exertion leads, because it is the one spent most. Same chip as every
+         other tracker: a name, a minus, the figure over its maximum, a plus.
+         The bolt is all that marks it out. --}}
+    <div class="am-a5e-stat am-tracker am-tracker-exertion" data-tooltip="Exertion pool">
+      <span class="am-a5e-label font-label-medium color-text-gold">
+        <i class="fa-solid fa-bolt"></i> Exertion
       </span>
-      <div class="am-leg-pips">
-        {{#each legendaryActions.pips}}
-          <span class="am-leg-pip {{#if this.on}}am-leg-pip-on{{/if}}"
-            data-action="leg-pip"
-            data-index="{{this.i}}"
-            data-current="{{../legendaryActions.value}}">◆</span>
-        {{/each}}
+      <button type="button" class="button button-borderless button-icon-only"
+        data-action="exertion-step" data-delta="-1" data-max="{{resources.exertion.max}}"
+        aria-label="Spend exertion" data-tooltip="Spend one">
+        <i class="fa-solid fa-minus"></i>
+      </button>
+      <div class="meter progress am-tracker-meter"
+        style="--bar-percentage: {{resources.exertion.pct}}%">
+        <div class="label">
+          <input type="number" class="value uninput am-tracker-value" id="am-exertion-current"
+            value="{{resources.exertion.current}}" min="0" aria-label="Current exertion" />
+          <span class="separator">/</span>
+          <span class="max">{{resources.exertion.max}}</span>
+        </div>
       </div>
-      <span class="am-dim" style="font-size:0.72rem">
-        {{legendaryActions.value}}/{{legendaryActions.max}}
-      </span>
+      <button type="button" class="button button-borderless button-icon-only"
+        data-action="exertion-step" data-delta="1" data-max="{{resources.exertion.max}}"
+        aria-label="Regain exertion" data-tooltip="Regain one">
+        <i class="fa-solid fa-plus"></i>
+      </button>
     </div>
-  {{/if}}
 
-  {{!-- ══ TABS ════════════════════════════════════ --}}
-  <nav class="am-npc-tabs tabs" data-group="npc-primary">
-    <a class="item active" data-tab="actions" data-group="npc-primary">
-      <i class="fa-solid fa-swords"></i> Actions
-    </a>
-    <a class="item" data-tab="features" data-group="npc-primary">
-      <i class="fa-solid fa-scroll"></i> Traits
-    </a>
-    {{#if hasLegendary}}
-      <a class="item" data-tab="legendary" data-group="npc-primary">
-        <i class="fa-solid fa-crown"></i> Legendary
-      </a>
-    {{/if}}
-    <a class="item" data-tab="bio" data-group="npc-primary">
-      <i class="fa-solid fa-book"></i> Info
-    </a>
-  </nav>
+    {{!-- Every resource a5e own core page would show: its four free-text
+         trackers, and the ones a class or archetype grants, which arrive under
+         their own slug. This sheet used to read only the four by name and
+         dropped every class resource without noticing.
 
-  <div class="am-npc-body tab-content">
+         Unlocked, an empty slot still appears so it can be named and given a
+         maximum — that is how a tracker for anything at all gets made. Locked,
+         only the ones that have a maximum, or that hide it, are shown. --}}
+    {{#each actorResources}}
+      <div class="am-a5e-stat am-tracker{{#if this.isClassResource}} am-tracker-class{{/if}}"
+        data-tooltip="{{#if this.label}}{{this.label}}{{else}}Unnamed tracker{{/if}}">
+        {{#if @root.unlocked}}
+          {{#if this.isClassResource}}
+            <span class="am-a5e-label font-label-medium color-text-gold">{{this.label}}</span>
+          {{else}}
+            <input type="text" class="uninput am-tracker-name font-label-medium color-text-gold"
+              data-action="resource-field" data-resource="{{this.key}}" data-field="label"
+              value="{{this.label}}" placeholder="Name it…" aria-label="Tracker name" />
+          {{/if}}
+        {{else}}
+          <span class="am-a5e-label font-label-medium color-text-gold">{{this.label}}</span>
+        {{/if}}
 
-    {{!-- ▸ ACTIONS ──────────────────────────────── --}}
-    <section class="tab active" data-tab="actions" data-group="npc-primary">
-      {{#if hasActions}}
-        {{!-- Group by activation type --}}
-        {{#each actionGroups}}
-          {{#if this.items.length}}
-            <div class="am-npc-act-group">
-              <div class="am-npc-act-head am-npc-head-{{this.type}}">
-                {{this.label}}
+        <button type="button" class="button button-borderless button-icon-only"
+          data-action="resource-step" data-path="{{this.path}}" data-delta="-1"
+          data-max="{{this.max}}" aria-label="Spend one {{this.label}}">
+          <i class="fa-solid fa-minus"></i>
+        </button>
+        {{!-- A bar when there is a maximum to fill, a bare figure when there
+             is not. A meter with nothing to be a fraction of would read as
+             empty however full it was. --}}
+        {{#if this.max}}
+          <div class="meter progress am-tracker-meter"
+            style="--bar-percentage: {{this.pct}}%">
+            <div class="label">
+              <input type="number" class="value uninput am-tracker-value"
+                data-action="resource-value" data-path="{{this.path}}"
+                value="{{this.value}}" min="0" aria-label="{{this.label}}" />
+              {{#unless this.hideMax}}
+                <span class="separator">/</span>
+                <span class="max">{{this.max}}</span>
+              {{/unless}}
+            </div>
+          </div>
+        {{else}}
+          <input type="number" class="uninput am-tracker-value"
+            data-action="resource-value" data-path="{{this.path}}"
+            value="{{this.value}}" min="0" aria-label="{{this.label}}" />
+        {{/if}}
+
+        {{#if @root.unlocked}}
+          {{#if this.isClassResource}}
+            {{!-- A class resource takes its maximum from the class table, so
+                 there is nothing here to configure and the bar already shows
+                 the figure. --}}
+          {{else}}
+            {{!-- max is a formula, not a number, so it is a text field: @prof
+                 and the like are what a5e stores here. --}}
+            <span class="am-a5e-value color-text-lighter">/</span>
+            <input type="text" class="uninput am-tracker-max"
+              data-action="resource-field" data-resource="{{this.key}}" data-field="max"
+              value="{{this.maxFormula}}" placeholder="max" aria-label="{{this.label}} maximum" />
+            <label class="am-tracker-hidemax" data-tooltip="Hide the maximum">
+              <input type="checkbox" data-action="resource-field"
+                data-resource="{{this.key}}" data-field="hideMax"
+                {{#if this.hideMax}}checked{{/if}} aria-label="Hide the maximum" />
+            </label>
+          {{/if}}
+        {{/if}}
+
+        <button type="button" class="button button-borderless button-icon-only"
+          data-action="resource-step" data-path="{{this.path}}" data-delta="1"
+          data-max="{{this.max}}" aria-label="Regain one {{this.label}}">
+          <i class="fa-solid fa-plus"></i>
+        </button>
+      </div>
+    {{/each}}
+
+    {{!-- Our own two counters, kept in a flag rather than on the actor, for
+         things a5e has no field for. They have always been saved and stepped
+         correctly — counter-name, -val, -max, -inc, -dec and -pip all have
+         handlers — but no template ever drew them, so the whole feature was
+         unreachable. A counter appears once it is named; until then there is
+         only the slim field below to name it in. --}}
+    {{#each customCounters}}
+      {{#if this.name}}
+        <div class="am-a5e-stat am-counter" data-tooltip="{{this.name}}">
+          <input type="text" class="uninput am-counter-name font-label-medium color-text-gold"
+            data-action="counter-name" data-index="{{@index}}"
+            value="{{this.name}}" aria-label="Counter name" />
+          <button type="button" class="button button-borderless button-icon-only"
+            data-action="counter-dec" data-index="{{@index}}"
+            aria-label="Spend one {{this.name}}" data-tooltip="Spend one">
+            <i class="fa-solid fa-minus"></i>
+          </button>
+
+          {{!-- The same bar the resources and exertion wear. The maximum stays
+               typeable, since a counter is ours and has no dialog behind it;
+               it just sits inside the bar instead of beside it.
+
+               The pips are gone. They said exactly what the bar says, and said
+               it in a row as wide as the maximum was high — a counter with a
+               max of twenty was twenty little circles. --}}
+          {{#if this.max}}
+            <div class="meter progress am-tracker-meter"
+              style="--bar-percentage: {{this.pct}}%">
+              <div class="label">
+                <input type="number" class="value uninput am-counter-value"
+                  data-action="counter-val" data-index="{{@index}}"
+                  value="{{this.value}}" min="0" aria-label="{{this.name}}" />
+                <span class="separator">/</span>
+                <input type="number" class="max uninput am-counter-max"
+                  data-action="counter-max" data-index="{{@index}}"
+                  value="{{this.max}}" min="0" aria-label="{{this.name}} maximum" />
               </div>
-              {{#each this.items}}
-                <div class="am-npc-action-row" data-item-id="{{this.id}}">
-                  <img src="{{this.img}}" class="am-ico" alt="" />
-                  <div class="am-npc-action-main">
-                    <span class="am-item-name">{{this.name}}</span>
-                    {{#if this.isAttack}}
-                      <span class="am-npc-atk">
-                        <i class="fa-solid fa-crosshairs"></i> {{this.atkBonus}}
-                        <span class="am-dim">hit</span>
-                      </span>
-                      <span class="am-npc-dmg">{{this.dmg}}</span>
-                      {{#if this.range}}
-                        <span class="am-npc-range am-dim">{{this.range}}</span>
-                      {{/if}}
-                    {{/if}}
-                  </div>
-                  <div class="am-npc-row-btns">
-                    <button type="button" data-action="item-use"
-                      data-id="{{this.id}}" class="am-use-btn">Roll</button>
-                    <a data-action="item-edit" data-id="{{this.id}}"
-                      class="am-npc-ctrl" title="Edit"><i class="fa-solid fa-pen"></i></a>
-                    <a data-action="item-delete" data-id="{{this.id}}"
-                      class="am-npc-ctrl am-npc-ctrl-del" title="Delete"><i class="fa-solid fa-trash"></i></a>
+            </div>
+          {{else}}
+            <input type="number" class="uninput am-counter-value"
+              data-action="counter-val" data-index="{{@index}}"
+              value="{{this.value}}" min="0" aria-label="{{this.name}}" />
+            <span class="am-counter-sep color-text-lighter">/</span>
+            <input type="number" class="uninput am-counter-max"
+              data-action="counter-max" data-index="{{@index}}"
+              value="{{this.max}}" min="0" aria-label="{{this.name}} maximum" />
+          {{/if}}
+
+          <button type="button" class="button button-borderless button-icon-only"
+            data-action="counter-inc" data-index="{{@index}}"
+            aria-label="Regain one {{this.name}}" data-tooltip="Regain one">
+            <i class="fa-solid fa-plus"></i>
+          </button>
+        </div>
+      {{/if}}
+    {{/each}}
+
+    {{#if freeCounter.available}}
+      <div class="am-a5e-stat am-counter am-counter-new">
+        <input type="text" class="uninput am-counter-name"
+          data-action="counter-name" data-index="{{freeCounter.index}}"
+          value="" placeholder="+ counter" aria-label="Name a new counter"
+          data-tooltip="Name it to start counting" />
+      </div>
+    {{/if}}
+  </div>
+
+  {{!-- ── Tab strip ──────────────────────────────────────────────────────── --}}
+  <div class="tabs-row">
+    <a class="sidebar-toggle button button-borderless" data-action="toggle-sidebar"
+      data-tooltip="Toggle Sidebar">
+      <i class="fa-solid fa-caret-left"></i>
+      <i class="fa-solid fa-sidebar-flip"></i>
+    </a>
+    <nav class="tidy-tabs actor-tabs tabs" role="tablist" data-group="primary">
+      {{!-- The Settings tab writes a5e own flags, and a5e own sheet reads them
+           to decide which tabs it shows. This sheet was writing them and then
+           ignoring them, so every switch in there appeared to do nothing.
+
+           A tab is shown when the flag says so OR when the character actually
+           has the things in it. Reading the flag alone would hide the maneuver
+           and spell tabs from anyone whose flag was never set, which is most
+           characters — a5e only sets it when it grants the first one. --}}
+      <a class="tab-option item active first-tab" role="tab" data-tab="statblock"
+        data-tab-id="statblock" data-group="primary"><span class="tab-title">Statblock</span></a>
+      <a class="tab-option item" role="tab" data-tab="favorites"
+        data-tab-id="favorites" data-group="primary"><span class="tab-title">Favorites</span></a>
+      {{#if showMagicTab}}
+        <a class="tab-option item" role="tab" data-tab="magic"
+          data-tab-id="magic" data-group="primary"><span class="tab-title">Magic</span></a>
+      {{/if}}
+      {{#if showMartialTab}}
+        <a class="tab-option item" role="tab" data-tab="martial"
+          data-tab-id="martial" data-group="primary"><span class="tab-title">Martial</span></a>
+      {{/if}}
+      <a class="tab-option item" role="tab" data-tab="inventory"
+        data-tab-id="inventory" data-group="primary"><span class="tab-title">Inventory</span></a>
+      <a class="tab-option item" role="tab" data-tab="features"
+        data-tab-id="features" data-group="primary"><span class="tab-title">Features</span></a>
+      <a class="tab-option item" role="tab" data-tab="notes"
+        data-tab-id="notes" data-group="primary"><span class="tab-title">Notes</span></a>
+      {{!-- Effects and Bonuses are two of the four tabs a5e own sheet has and
+           this one did not. Both are thin over a5e own API, so what is made
+           here is the same document its sheet would make. --}}
+      <a class="tab-option item" role="tab" data-tab="effects"
+        data-tab-id="effects" data-group="primary"><span class="tab-title">Effects</span></a>
+      <a class="tab-option item" role="tab" data-tab="bonuses"
+        data-tab-id="bonuses" data-group="primary"><span class="tab-title">Bonuses</span></a>
+      <a class="tab-option item" role="tab" data-tab="interactions"
+        data-tab-id="interactions" data-group="primary"><span class="tab-title">Actions</span></a>
+      <a class="tab-option item no-border-on-last-tab" role="tab" data-tab="settings"
+        data-tab-id="settings" data-group="primary"><span class="tab-title">Settings</span></a>
+    </nav>
+  </div>
+</header>
+
+<div class="sheet-body">
+  <div class="main-content">
+
+    {{!-- ══ SIDEBAR ══════════════════════════════════════════════════════════
+         Tidy's sidebar, with its two stock tabs. Skills is Tidy's SkillsCard
+         verbatim; Traits collects what A5e keeps that dnd5e does not — the
+         expertise dice live on the skill rows, and attunement, conditions and
+         proficiencies fill the Traits tab.
+         ═══════════════════════════════════════════════════════════════════ --}}
+    <div class="sidebar flexcol expanded" data-tidy-sheet-part="sidebar-container">
+
+      <div class="sidebar-header" data-tidy-sheet-part="sidebar-header">
+        <div class="flexrow">
+          <nav class="tidy-tabs sidebar-tab-strip button-group wrap tabs"
+            role="tablist">
+            <a class="tab-option button button-secondary button-toggle{{#if sidebarOnSkills}} active{{/if}}"
+              role="tab" data-sidebar-tab="skills">
+              <span class="tab-title">Skills</span>
+            </a>
+            <a class="tab-option button button-secondary button-toggle{{#if sidebarOnTraits}} active{{/if}}"
+              role="tab" data-sidebar-tab="traits">
+              <span class="tab-title">Traits</span>
+            </a>
+          </nav>
+        </div>
+      </div>
+
+      {{!-- ── Sidebar: skills ────────────────────────────────────────────── --}}
+      <div class="tidy-tab skills sidebar-tab-contents flexcol{{#if sidebarOnSkills}} active{{/if}}"
+        data-sidebar-tab="skills" data-tab-contents-for="skills"
+        role="tabpanel">
+        <div class="skills card">
+          <div class="use-ability-header flexrow">
+            <div class="button button-borderless skill-expand-button">
+              <i class="fa-solid fa-briefcase"></i>
+              <h3 class="font-label-medium">Skills</h3>
+              <span class="modifier-label color-text-lightest font-default-medium">
+                Modifier
+              </span>
+            </div>
+          </div>
+
+          <ul class="skill-list unlist use-ability-list" data-tidy-sheet-part="skills-list">
+            {{#each skills}}
+              <li class="skill-list-item" data-tidy-sheet-part="skill-container"
+                data-key="{{this.key}}">
+                <span class="button button-borderless button-icon-only proficiency"
+                  data-proficiency="{{this.profLvl}}" data-tooltip="{{this.profLabel}}">
+                  <i class="{{this.profIconClass}}"></i>
+                </span>
+
+                <span class="button button-borderless skill-ability font-label-medium color-text-gold-emphasis">
+                  {{this.ability}}
+                </span>
+
+                <button type="button" class="button button-borderless use-ability-roll-button"
+                  data-action="skill-check" data-skill="{{this.key}}"
+                  data-label="{{this.label}}" data-bonus="{{this.bonus}}"
+                  data-tidy-sheet-part="skill-roller">
+                  {{this.label}}
+                </button>
+
+                {{!-- Expertise dice are A5e's own; Tidy has no column for them,
+                      so they ride as a pill on the row using Tidy's tokens. --}}
+                {{#if this.expDie}}
+                  <span class="pill pill-medium am-exp-die" data-tooltip="Expertise Die">
+                    <span class="label font-label-medium">{{this.expDie}}</span>
+                  </span>
+                {{/if}}
+
+                <span class="modifier">
+                  <span class="color-text-lightest font-label-medium">{{this.bonusSign}}</span>
+                  <span class="font-data-medium">{{this.bonusAbs}}</span>
+                </span>
+
+                {{!-- Unlocked, every skill gets the cog a5e own sheet gives it:
+                     proficiency, expertise dice and bonuses, in a5e own dialog
+                     rather than a second one of ours that would write the same
+                     fields slightly differently. --}}
+                {{#if @root.unlocked}}
+                  <button type="button" class="button button-borderless button-icon-only am-stat-config"
+                    data-action="skill-config" data-skill-key="{{this.abbrKey}}"
+                    data-tooltip="Configure {{this.label}}" aria-label="Configure {{this.label}}">
+                    <i class="fa-solid fa-cog"></i>
+                  </button>
+                {{/if}}
+
+
+              </li>
+            {{/each}}
+          </ul>
+        </div>
+      </div>
+
+      {{!-- ── Sidebar: traits ────────────────────────────────────────────── --}}
+      <div class="tidy-tab traits sidebar-tab-contents flexcol{{#if sidebarOnTraits}} active{{/if}}"
+        data-sidebar-tab="traits" data-tab-contents-for="traits"
+        role="tabpanel">
+
+        {{#if hasAttunementItems}}
+          <section class="character-traits">
+            <div class="flexrow space-between character-traits-header">
+              <div class="character-traits-title">
+                <h3 class="font-title-small">Attunement</h3>
+              </div>
+              <span class="pill pill-medium">
+                <span class="label font-label-medium">
+                  {{#if tidy.attunement.current}}{{tidy.attunement.current}}{{else}}{{attuneCount}}{{/if}}
+                  / {{tidy.attunement.max}}
+                </span>
+              </span>
+            </div>
+            <div class="list traits">
+              <div class="list-entry">
+                <div class="list-content">
+                  <div class="list-values">
+                    <ul class="pills">
+                      {{#each attunementItems}}
+                        <li class="pill pill-medium trait-pill{{#unless this.attuned}} diminished{{/unless}}"
+                          data-tooltip="{{#if this.attuned}}Attuned{{else}}Not attuned{{/if}}">
+                          <a role="button" tabindex="0" class="button button-borderless"
+                            data-action="item-attune" data-id="{{this.id}}">
+                            <i class="{{#if this.attuned}}fa-solid fa-sun color-icon-theme-highlight highlighted{{else}}fa-regular fa-sun color-text-lightest{{/if}}"></i>
+                            <span class="label font-label-medium">{{this.name}}</span>
+                          </a>
+                        </li>
+                      {{/each}}
+                    </ul>
                   </div>
                 </div>
-                {{#if this.desc}}
-                  <div class="am-npc-action-desc am-dim">{{{this.desc}}}</div>
-                {{/if}}
-              {{/each}}
-            </div>
-          {{/if}}
-        {{/each}}
-      {{else}}
-        <div class="am-empty">
-          <p class="am-dim">No actions. Drag weapons or features here.</p>
-        </div>
-      {{/if}}
-    </section>
-
-    {{!-- ▸ TRAITS / FEATURES ─────────────────── --}}
-    <section class="tab" data-tab="features" data-group="npc-primary">
-      {{#if hasFeatures}}
-        {{#each features}}
-          <div class="npc-feat-item">
-            <div class="npc-feat-head">
-              <button type="button" class="npc-feat-toggle">▸</button>
-              <span class="am-item-name">{{this.name}}</span>
-              {{#if this.recharge}}
-                <span class="am-npc-recharge">(Recharge {{this.recharge}})</span>
-              {{/if}}
-              <a data-action="item-edit" data-id="{{this.id}}" class="am-npc-ctrl"><i class="fa-solid fa-pen"></i></a>
-              <a data-action="item-delete" data-id="{{this.id}}" class="am-npc-ctrl am-npc-ctrl-del"><i class="fa-solid fa-trash"></i></a>
-            </div>
-            <div class="npc-feat-body am-hidden">{{{this.desc}}}</div>
-          </div>
-        {{/each}}
-      {{else}}
-        <div class="am-empty"><p class="am-dim">No traits yet.</p></div>
-      {{/if}}
-    </section>
-
-    {{!-- ▸ LEGENDARY ──────────────────────────── --}}
-    {{#if hasLegendary}}
-      <section class="tab" data-tab="legendary" data-group="npc-primary">
-        {{#each legendaries}}
-          <div class="npc-feat-item">
-            <div class="npc-feat-head">
-              <button type="button" class="npc-feat-toggle">▸</button>
-              <span class="am-item-name">{{this.name}}</span>
-              <a data-action="item-edit" data-id="{{this.id}}" class="am-npc-ctrl"><i class="fa-solid fa-pen"></i></a>
-              <a data-action="item-delete" data-id="{{this.id}}" class="am-npc-ctrl am-npc-ctrl-del"><i class="fa-solid fa-trash"></i></a>
-            </div>
-            <div class="npc-feat-body am-hidden">{{{this.desc}}}</div>
-          </div>
-        {{/each}}
-        {{#if hasLair}}
-          <div class="am-npc-act-head am-npc-head-lair">Lair Actions</div>
-          {{#each lairActions}}
-            <div class="npc-feat-item">
-              <div class="npc-feat-head">
-                <button type="button" class="npc-feat-toggle">▸</button>
-                <span class="am-item-name">{{this.name}}</span>
               </div>
-              <div class="npc-feat-body am-hidden">{{{this.desc}}}</div>
             </div>
-          {{/each}}
+          </section>
         {{/if}}
-      </section>
-    {{/if}}
 
-    {{!-- ▸ INFO ──────────────────────────────── --}}
-    <section class="tab" data-tab="bio" data-group="npc-primary">
-      <div class="am-npc-info-grid">
-        <div class="am-npc-info-row">
-          <label>Type</label>
-          <input type="text" class="form-input"
-            name="system.details.type.value" value="{{details.type}}" />
+        {{#if statusConditions.length}}
+          <section class="tidy-table conditions" data-tidy-sheet-part="item-table"
+            data-tidy-section-key="conditions">
+            <header class="tidy-table-header-row theme-dark"
+              data-tidy-sheet-part="table-header-row">
+              <div class="tidy-table-header-cell primary header-label-cell"
+                data-tidy-sheet-part="table-header-cell">
+                <h3>Conditions</h3>
+              </div>
+            </header>
+            <div class="item-table-body">
+              <ul class="conditions-list">
+                {{!-- The whole tile is the toggle: left click switches the
+                     condition, right click shows its description in the panel
+                     below. The handlers read data-id, data-label and
+                     data-description - they were named data-condition here,
+                     so the toggle bailed out on its first line and the
+                     description had nothing to show. --}}
+                {{#each statusConditions}}
+                  <li class="condition{{#if this.active}} active{{/if}}"
+                    data-condition-id="{{this.id}}">
+                    <button type="button"
+                      class="condition-toggle-label effect-toggle unbutton"
+                      data-action="toggle-condition"
+                      data-id="{{this.id}}" data-label="{{this.label}}"
+                      data-description="{{this.description}}"
+                      data-tooltip="{{this.label}} — right-click for the description, 1-9 to set rounds"
+                      aria-pressed="{{#if this.active}}true{{else}}false{{/if}}">
+                      <img class="am-condition-icon" src="{{this.icon}}" alt="" />
+                      <span class="am-cond-name">{{this.label}}</span>
+                      {{#if this.duration}}
+                        <span class="am-cond-duration"
+                          style="color:{{this.durationColor}}">{{this.duration}}</span>
+                      {{/if}}
+                    </button>
+                  </li>
+                {{/each}}
+              </ul>
+              <div class="am-cs-cond-desc-panel" style="display:none"></div>
+            </div>
+          </section>
+        {{/if}}
+
+        <section class="character-traits">
+          <div class="flexrow space-between character-traits-header">
+            <div class="character-traits-title">
+              <h3 class="font-title-small">Traits</h3>
+            </div>
+          </div>
+
+          <div class="list traits">
+            {{#if traitSections.senses}}
+              <div class="list-entry">
+                <div class="list-label flexrow">
+                  <h4 class="font-weight-label"><i class="fa-solid fa-eye"></i> Senses</h4>
+                  {{#if @root.unlocked}}
+                    <button type="button" class="button button-borderless button-icon-only am-stat-config"
+                      data-action="trait-config" data-trait="senses"
+                      data-tooltip="Configure Senses" aria-label="Configure Senses">
+                      <i class="fa-solid fa-cog"></i>
+                    </button>
+                  {{/if}}
+                </div>
+                <div class="list-content"><div class="list-values">
+                  <ul class="pills">
+                    {{#each proficiencies.senses}}
+                      <li class="pill pill-medium trait-pill">
+                        <span class="label font-label-medium">{{this}}</span>
+                      </li>
+                    {{/each}}
+                  </ul>
+                </div></div>
+              </div>
+            {{/if}}
+
+            {{#if traitSections.languages}}
+              <div class="list-entry">
+                <div class="list-label flexrow">
+                  <h4 class="font-weight-label"><i class="fa-solid fa-comments"></i> Languages</h4>
+                  {{#if @root.unlocked}}
+                    <button type="button" class="button button-borderless button-icon-only am-stat-config"
+                      data-action="trait-config" data-trait="languages"
+                      data-tooltip="Configure Languages" aria-label="Configure Languages">
+                      <i class="fa-solid fa-cog"></i>
+                    </button>
+                  {{/if}}
+                </div>
+                <div class="list-content"><div class="list-values">
+                  <ul class="pills">
+                    {{#each proficiencies.languages}}
+                      <li class="pill pill-medium trait-pill">
+                        <span class="label font-label-medium">{{this}}</span>
+                      </li>
+                    {{/each}}
+                  </ul>
+                </div></div>
+              </div>
+            {{/if}}
+
+            {{#if traitSections.weapons}}
+              <div class="list-entry">
+                <div class="list-label flexrow">
+                  <h4 class="font-weight-label"><i class="fa-solid fa-sword"></i> Weapons</h4>
+                  {{#if @root.unlocked}}
+                    <button type="button" class="button button-borderless button-icon-only am-stat-config"
+                      data-action="trait-config" data-trait="weapons"
+                      data-tooltip="Configure Weapons" aria-label="Configure Weapons">
+                      <i class="fa-solid fa-cog"></i>
+                    </button>
+                  {{/if}}
+                </div>
+                <div class="list-content"><div class="list-values">
+                  <ul class="pills">
+                    {{#each proficiencies.weapons}}
+                      <li class="pill pill-medium trait-pill">
+                        <span class="label font-label-medium">{{this}}</span>
+                      </li>
+                    {{/each}}
+                  </ul>
+                </div></div>
+              </div>
+            {{/if}}
+
+            {{#if traitSections.armor}}
+              <div class="list-entry">
+                <div class="list-label flexrow">
+                  <h4 class="font-weight-label"><i class="fa-solid fa-shield-halved"></i> Armor</h4>
+                  {{#if @root.unlocked}}
+                    <button type="button" class="button button-borderless button-icon-only am-stat-config"
+                      data-action="trait-config" data-trait="armor"
+                      data-tooltip="Configure Armor" aria-label="Configure Armor">
+                      <i class="fa-solid fa-cog"></i>
+                    </button>
+                  {{/if}}
+                </div>
+                <div class="list-content"><div class="list-values">
+                  <ul class="pills">
+                    {{#each proficiencies.armor}}
+                      <li class="pill pill-medium trait-pill">
+                        <span class="label font-label-medium">{{this}}</span>
+                      </li>
+                    {{/each}}
+                  </ul>
+                </div></div>
+              </div>
+            {{/if}}
+
+            {{#if traitSections.tools}}
+              <div class="list-entry">
+                <div class="list-label flexrow">
+                  <h4 class="font-weight-label"><i class="fa-solid fa-screwdriver-wrench"></i> Tools</h4>
+                  {{#if @root.unlocked}}
+                    <button type="button" class="button button-borderless button-icon-only am-stat-config"
+                      data-action="trait-config" data-trait="tools"
+                      data-tooltip="Configure Tools" aria-label="Configure Tools">
+                      <i class="fa-solid fa-cog"></i>
+                    </button>
+                  {{/if}}
+                </div>
+                <div class="list-content"><div class="list-values">
+                  <ul class="pills">
+                    {{#each proficiencies.tools}}
+                      <li class="pill pill-medium trait-pill">
+                        <span class="label font-label-medium">{{this}}</span>
+                      </li>
+                    {{/each}}
+                  </ul>
+                </div></div>
+              </div>
+            {{/if}}
+          </div>
+        </section>
+      </div>
+    </div>
+
+    {{!-- ══ TAB CONTENTS ════════════════════════════════════════════════════
+         Each panel carries Tidy's .tidy-tab + .tidy-tab-contents alongside
+         Foundry's .tab, so v1 Tabs drives them and Tidy styles them.
+         ═══════════════════════════════════════════════════════════════════ --}}
+
+    {{!-- ▸ FAVORITES ──────────────────────────────────────────────────────
+         Only what the player starred, and nothing else. The star sits on every
+         item row and on every skill row; this tab is where the two meet.
+
+         It used to also carry an "All Actions" table that gathered every
+         weapon, maneuver and feature with an action on it. That duplicated the
+         Martial tab, listed maneuvers in two places at once, and filled the tab
+         with things nobody had chosen. Removed.
+         ────────────────────────────────────────────────────────────────── --}}
+    {{!-- ══ STATBLOCK ════════════════════════════════════════════════════════
+         Everything the monster can do, grouped as the book groups it. The
+         grouping key is each action’s own activation type, which is where a5e
+         records it — measured across its monster pack: 8426 actions, 1076
+         special, 504 bonus actions, 455 legendary, 356 reactions. An item may
+         hold several actions and a monster’s often does, so each is a row of
+         its own under the heading it belongs to.
+         ═══════════════════════════════════════════════════════════════════ --}}
+    <div class="tab tidy-tab statblock tidy-tab-contents active"
+      data-tab="statblock" data-group="primary" data-tab-contents-for="statblock"
+      role="tabpanel">
+
+      {{#each statblock}}
+        {{#> tidy-table key=this.key label=(localize this.label) count=this.entries.length
+                        c1=true col1="Cost" c2=true col2="Recharge"}}
+          {{#each this.entries}}
+            {{> tidy-row subtitle=this.subName useAction="statblock-use"
+                         actionId=this.actionId
+                         c1=true cell1=this.cost c2=true cell2=this.recharge}}
+          {{/each}}
+        {{/tidy-table}}
+      {{/each}}
+
+      {{#unless statblock.length}}
+        <div class="empty-state-container empty-state-description">
+          <p>Nothing to do yet. Drop features, weapons, spells or maneuvers
+             onto the sheet and they will be grouped here.</p>
         </div>
-        <div class="am-npc-info-row">
-          <label>Size</label>
-          <input type="text" class="form-input"
-            name="system.traits.size" value="{{details.size}}" />
+      {{/unless}}
+    </div>
+
+    <div class="tab tidy-tab favorites tidy-tab-contents"
+      data-tab="favorites" data-group="primary" data-tab-contents-for="favorites"
+      role="tabpanel">
+
+      {{#if favorites.length}}
+        {{#> tidy-table key="favorites" label="Favorites" count=favorites.length
+                        c1=true col1="Attack" c2=true col2="Damage"}}
+          {{#each favorites}}
+            {{> tidy-row starred=true subtitle=this.activationLabel
+                         c1=true cell1=this.atkBonus c2=true cell2=this.dmgFull}}
+          {{/each}}
+        {{/tidy-table}}
+      {{/if}}
+
+      {{#unless hasFavorites}}
+        <div class="empty-state-container empty-state-description">
+          <span class="color-text-lighter">
+            Nothing starred yet. The star on any item or skill keeps it here.
+          </span>
         </div>
-        <div class="am-npc-info-row">
-          <label>Alignment</label>
-          <input type="text" class="form-input"
-            name="system.details.alignment" value="{{details.alignment}}" />
-        </div>
-        <div class="am-npc-info-row">
-          <label>Languages</label>
-          <input type="text" class="form-input"
-            name="system.traits.languages" value="{{details.language}}" />
-        </div>
-        <div class="am-npc-info-row">
-          <label>Source</label>
-          <input type="text" class="form-input"
-            name="system.details.source" value="{{details.source}}" />
-        </div>
+      {{/unless}}
+    </div>
+
+    {{!-- ▸ MAGIC ────────────────────────────────────────────────────────── --}}
+    <div class="tab tidy-tab magic tidy-tab-contents"
+      data-tab="magic" data-group="primary" data-tab-contents-for="magic"
+      role="tabpanel">
+
+      <div class="tab-action-bar flexrow">
+        <button type="button" class="button button-secondary" data-action="manage-spells">
+          <i class="fa-solid fa-book-sparkles"></i> Manage Spells
+        </button>
       </div>
 
-      {{!-- Conditions / active effects --}}
-      {{#if hasConditions}}
-        <div class="am-npc-conditions">
-          <div class="am-npc-cond-label">Active Conditions</div>
-          <div class="am-npc-cond-row">
-            {{#each activeEffects}}
-              <div class="am-npc-condition" title="{{this.label}}">
-                <img src="{{this.icon}}" alt="{{this.label}}" />
-                <span>{{this.label}}</span>
+      {{#if slotRows.length}}
+        <div class="spell-slots-row flexrow">
+          {{#each slotRows}}
+            <div class="spell-slot-group card">
+              <span class="label font-label-medium color-text-gold">Level {{this.level}}</span>
+              <div class="spell-slot-tracker flexrow">
+                <button type="button"
+                  class="spell-slot-tracker-button button button-borderless button-icon-only flexshrink"
+                  data-action="slot-dec" data-level="{{this.level}}"
+                  aria-label="Spend a slot">
+                  <i class="fa-solid fa-hexagon-minus"></i>
+                </button>
+                <span class="value{{#unless this.value}} color-text-lightest{{/unless}}">{{this.value}}</span>
+                <span class="separator color-text-lightest">/</span>
+                <span class="max color-text-lighter">{{this.max}}</span>
+                <button type="button"
+                  class="spell-slot-tracker-button button button-borderless button-icon-only flexshrink"
+                  data-action="slot-inc" data-level="{{this.level}}"
+                  aria-label="Recover a slot">
+                  <i class="fa-solid fa-hexagon-plus"></i>
+                </button>
+              </div>
+            </div>
+          {{/each}}
+        </div>
+      {{/if}}
+
+      {{#if hasSpells}}
+        {{#each spellGroups}}
+          {{#> tidy-table key=@key label=@key count=this.length items=this
+                          c1=true col1="Cast Time" c2=true col2="Range"
+                          c3=true col3="Duration" c4=true col4="Save"}}
+            {{#each items}}
+              {{> tidy-row subtitle=this.schoolLabel
+                           c1=true cell1=this.castTime c2=true cell2=this.range
+                           c3=true cell3=this.duration c4=true cell4=this.saveDC}}
+            {{/each}}
+          {{/tidy-table}}
+        {{/each}}
+      {{else}}
+        <div class="empty-state-container empty-state-description">
+          <span class="color-text-lighter">No spells known.</span>
+        </div>
+      {{/if}}
+    </div>
+
+    {{!-- ▸ MARTIAL ──────────────────────────────────────────────────────── --}}
+    <div class="tab tidy-tab martial tidy-tab-contents"
+      data-tab="martial" data-group="primary" data-tab-contents-for="martial"
+      role="tabpanel">
+
+      <div class="tab-action-bar flexrow">
+        <button type="button" class="button button-secondary" data-action="manage-maneuvers">
+          <i class="fa-solid fa-hand-fist"></i> Manage Maneuvers
+        </button>
+      </div>
+
+      {{!-- Weapons are objects and belong to Inventory, which groups them
+           under their own heading. They reach the first tab the way
+           everything else does — by being starred. Martial is maneuvers,
+           grouped by tradition, and nothing else. --}}
+
+      {{#if hasManeuvers}}
+        {{#each maneuverGroups}}
+          {{#> tidy-table key=@key label=@key count=this.length items=this c1=true col1="Degree" c2=true col2="Exertion" c3=true col3="Damage"}}
+            {{#each items}}
+              {{> tidy-row subtitle=this.activation c1=true cell1=this.degree c2=true cell2=this.exertion c3=true cell3=this.dmgFull}}
+            {{/each}}
+          {{/tidy-table}}
+        {{/each}}
+      {{/if}}
+
+      {{#unless hasManeuvers}}
+        <div class="empty-state-container empty-state-description">
+          <span class="color-text-lighter">No maneuvers known.</span>
+        </div>
+      {{/unless}}
+    </div>
+
+    {{!-- ▸ INVENTORY ────────────────────────────────────────────────────
+         Grouped and column-gated exactly as a5e does it — see #inventory in
+         A5eCharacterSheet. The group headings, their order, which columns
+         appear and what counts as carried all come from the system, not from
+         choices made here. --}}
+    <div class="tab tidy-tab inventory tidy-tab-contents"
+      data-tab="inventory" data-group="primary" data-tab-contents-for="inventory"
+      role="tabpanel">
+
+      {{!-- Utility bar, from a5e own: search, description toggle, sort,
+           filters and add. The filters read and write a5e own flag, so this
+           sheet and the system sheet always agree on what is filtered out. --}}
+      <div class="am-utility-bar flexrow">
+        <input type="search" class="am-inv-search" data-action="inv-search"
+          value="{{inventory.search}}" placeholder="Search…"
+          aria-label="Search inventory" />
+
+        <button type="button"
+          class="button button-borderless button-icon-only{{#if inventory.searchDesc}} am-on{{/if}}"
+          data-action="inv-search-desc" data-tooltip="Search descriptions too"
+          aria-label="Search descriptions too">
+          <i class="fa-solid fa-info-circle"></i>
+        </button>
+
+        <button type="button" class="button button-borderless button-icon-only"
+          data-action="inv-sort" data-dir="asc" data-tooltip="Sort A to Z"
+          aria-label="Sort A to Z"><i class="fa-solid fa-arrow-down-a-z"></i></button>
+        <button type="button" class="button button-borderless button-icon-only"
+          data-action="inv-sort" data-dir="desc" data-tooltip="Sort Z to A"
+          aria-label="Sort Z to A"><i class="fa-solid fa-arrow-down-z-a"></i></button>
+
+        {{#if inventory.filterSections.length}}
+          <button type="button"
+            class="button button-borderless button-icon-only{{#if inventory.filtersActive}} am-on{{/if}}"
+            data-action="inv-filters" data-tooltip="Filters" aria-label="Filters">
+            <i class="fa-solid fa-filter"></i>
+          </button>
+        {{/if}}
+
+        <select class="am-inv-add" data-action="inv-add" aria-label="Add an object">
+          <option value="">+ Add…</option>
+          {{#each inventory.objectTypes}}
+            <option value="{{this.key}}">{{this.label}}</option>
+          {{/each}}
+        </select>
+      </div>
+
+      {{#if inventory.filterSections.length}}
+        <div class="am-filter-panel" hidden>
+          {{#each inventory.filterSections}}
+            <div class="am-filter-section">
+              <h4 class="font-label-medium color-text-gold">{{this.label}}</h4>
+              <ul class="pills">
+                {{#each this.filters}}
+                  <li class="pill pill-medium trait-pill am-filter-{{this.state}}">
+                    <a role="button" tabindex="0" class="button button-borderless"
+                      data-action="inv-filter" data-filter="{{this.key}}"
+                      data-tooltip="Click to include, again to exclude, again to clear">
+                      <span class="label font-label-medium">{{this.label}}</span>
+                    </a>
+                  </li>
+                {{/each}}
+              </ul>
+            </div>
+          {{/each}}
+          {{#if inventory.filtersActive}}
+            <button type="button" class="button button-secondary am-filter-clear"
+              data-action="inv-filters-clear">Clear filters</button>
+          {{/if}}
+        </div>
+      {{/if}}
+
+      {{#each inventory.groups}}
+        {{#> tidy-table key=this.key label=this.label count=this.items.length
+                        items=this.items
+                        showUses=@root.inventory.showUses
+                        showQty=@root.inventory.showQty
+                        c1=@root.inventory.showWeight col1="Weight"}}
+          {{#each items}}
+            {{> tidy-row isEquippable=true
+                         showUses=@root.inventory.showUses
+                         showQty=@root.inventory.showQty
+                         c1=@root.inventory.showWeight cell1=this.weight}}
+          {{/each}}
+        {{/tidy-table}}
+      {{/each}}
+
+      {{#if inventory.isEmpty}}
+        <div class="empty-state-container empty-state-description">
+          <span class="color-text-lighter">Nothing carried.</span>
+        </div>
+      {{/if}}
+
+      {{!-- No flexrow on either. Foundry gives .flexrow > * a flex of 1, so
+           every coin was stretched to an equal share of the row and they drifted
+           apart instead of sitting together. Same class, same trap as the
+           concentration block and the initiative column. --}}
+      <div class="inventory-footer">
+        <div class="currency">
+          {{#each tidy.currencies}}
+            <label class="denomination {{this.key}}" data-tooltip="{{this.label}}">
+              <i class="currency {{this.key}}"></i>
+              <input type="number" class="uninput" data-action="currency-edit"
+                data-denom="{{this.key}}" value="{{this.value}}" min="0"
+                aria-label="{{this.label}}" />
+            </label>
+          {{/each}}
+        </div>
+        <div class="am-carried" data-tooltip="Carried weight">
+          <span class="am-a5e-label font-label-medium color-text-gold">Carried</span>
+          <span class="am-a5e-value font-data-medium color-text-default">{{inventory.carried}}</span>
+        </div>
+      </div>
+    </div>
+
+    {{!-- ▸ FEATURES ─────────────────────────────────────────────────────── --}}
+    <div class="tab tidy-tab features tidy-tab-contents"
+      data-tab="features" data-group="primary" data-tab-contents-for="features"
+      role="tabpanel">
+
+      <div class="tab-action-bar flexrow">
+        <input type="search" id="am-feature-search" class="am-feature-filter"
+          placeholder="Search features…" aria-label="Search features" />
+        <button type="button" class="button button-secondary" data-action="open-feat-picker">
+          <i class="fa-solid fa-plus"></i> Add Feat
+        </button>
+      </div>
+
+      {{#each featuresBySource}}
+        {{#> tidy-table key=this.source label=this.source count=this.items.length c1=true col1="Activation"}}
+          {{#each this.items}}
+            {{> tidy-row subtitle=this.shortDesc c1=true cell1=this.activation}}
+          {{/each}}
+        {{/tidy-table}}
+      {{/each}}
+
+      {{#unless featuresBySource.length}}
+        <div class="empty-state-container empty-state-description">
+          <span class="color-text-lighter">No features yet.</span>
+        </div>
+      {{/unless}}
+    </div>
+
+    {{!-- ▸ NOTES ────────────────────────────────────────────────────────── --}}
+    <div class="tab tidy-tab notes tidy-tab-contents"
+      data-tab="notes" data-group="primary" data-tab-contents-for="notes"
+      role="tabpanel">
+
+      {{!-- Heritage, culture, background and destiny write-ups used to be
+           repeated here. They are items, and Features already lists them,
+           so this tab held a second copy of a tab that was already open.
+
+           What is left is what the character creation asked the player to
+           roll or write, and which lives nowhere else: the backstory, the
+           destiny answers and the lore-table results. --}}
+
+      {{!-- What a5e itself stores about the character: the appearance fields
+           and the three written pages. These are where anything typed on a5e
+           own sheet lives, and this tab was not reading them at all. --}}
+      {{#if @root.unlocked}}
+        <section class="am-bio-card am-detail-fields">
+          {{#each details.fields}}
+            <label class="am-detail-field">
+              <span class="font-label-medium color-text-gold">{{this.label}}</span>
+              <input type="text" class="uninput" data-action="detail-field"
+                data-key="{{this.key}}" value="{{this.value}}" aria-label="{{this.label}}" />
+            </label>
+          {{/each}}
+        </section>
+      {{else if details.hasFields}}
+        <section class="am-bio-card am-detail-fields">
+          {{#each details.fields}}
+            {{#if this.value}}
+              <div class="am-detail-field">
+                <span class="font-label-medium color-text-gold">{{this.label}}</span>
+                <span class="color-text-default">{{this.value}}</span>
+              </div>
+            {{/if}}
+          {{/each}}
+        </section>
+      {{/if}}
+
+      {{#if details.bio}}
+        <section class="am-bio-card">
+          <h3 class="font-title-small">Backstory</h3>
+          <div class="am-origin-desc">{{{details.bio}}}</div>
+        </section>
+      {{/if}}
+
+      {{#if details.notes}}
+        <section class="am-bio-card">
+          <h3 class="font-title-small">Notes</h3>
+          <div class="am-origin-desc">{{{details.notes}}}</div>
+        </section>
+      {{/if}}
+
+      {{#if details.privateNotes}}
+        <section class="am-bio-card">
+          <h3 class="font-title-small">Private Notes <i class="fa-solid fa-user-secret"></i></h3>
+          <div class="am-origin-desc">{{{details.privateNotes}}}</div>
+        </section>
+      {{/if}}
+
+      {{#if bio.backstory}}
+        <section class="card am-bio-card">
+          <h3 class="font-title-small">Backstory</h3>
+          <div class="am-origin-desc">{{{bio.backstory}}}</div>
+        </section>
+      {{/if}}
+
+      {{!-- The other three the builder asks for in the player own words. They
+           were collected at creation and then shown nowhere at all. --}}
+      {{#if bio.traits}}
+        <section class="card am-bio-card">
+          <h3 class="font-title-small">Personality Traits</h3>
+          <div class="am-origin-desc">{{{bio.traits}}}</div>
+        </section>
+      {{/if}}
+
+      {{#if bio.connections}}
+        <section class="card am-bio-card">
+          <h3 class="font-title-small">Connections</h3>
+          <div class="am-origin-desc">{{{bio.connections}}}</div>
+        </section>
+      {{/if}}
+
+      {{#if bio.mementos}}
+        <section class="card am-bio-card">
+          <h3 class="font-title-small">Mementos</h3>
+          <div class="am-origin-desc">{{{bio.mementos}}}</div>
+        </section>
+      {{/if}}
+
+      {{#if bio.hasDestiny}}
+        <section class="card am-bio-card">
+          <h3 class="font-title-small">Destiny</h3>
+          <div class="list traits">
+            {{#if bio.motivation}}
+              <div class="list-entry">
+                <div class="list-label flexrow"><h4 class="font-weight-label">Motivation</h4></div>
+                <div class="list-content am-origin-desc">{{{bio.motivation}}}</div>
+              </div>
+            {{/if}}
+            {{#if bio.goals}}
+              <div class="list-entry">
+                <div class="list-label flexrow"><h4 class="font-weight-label">Goals</h4></div>
+                <div class="list-content am-origin-desc">{{{bio.goals}}}</div>
+              </div>
+            {{/if}}
+            {{#if bio.connection}}
+              <div class="list-entry">
+                <div class="list-label flexrow"><h4 class="font-weight-label">Connection</h4></div>
+                <div class="list-content am-origin-desc">{{{bio.connection}}}</div>
+              </div>
+            {{/if}}
+            {{#if bio.fulfillment}}
+              <div class="list-entry">
+                <div class="list-label flexrow"><h4 class="font-weight-label">Fulfillment</h4></div>
+                <div class="list-content am-origin-desc">{{{bio.fulfillment}}}</div>
+              </div>
+            {{/if}}
+          </div>
+          {{#if bio.lore.length}}
+            <ul class="pills">
+              {{#each bio.lore}}
+                <li class="pill pill-medium trait-pill">
+                  <span class="label font-label-medium">{{this.text}}</span>
+                </li>
+              {{/each}}
+            </ul>
+          {{/if}}
+        </section>
+      {{/if}}
+    </div>
+
+    {{!-- ▸ EFFECTS ──────────────────────────────────────────────────────
+         a5e groups these into what is running and what is not, and leaves
+         conditions out — they are tiles in the Traits sidebar already. The
+         hourglass marks an effect with a duration. --}}
+    <div class="tab tidy-tab effects tidy-tab-contents"
+      data-tab="effects" data-group="primary" data-tab-contents-for="effects"
+      role="tabpanel">
+
+      <div class="am-utility-bar flexrow">
+        <input type="search" class="am-fx-search" data-action="fx-search"
+          placeholder="Search effects…" aria-label="Search effects" />
+        <button type="button" class="button button-secondary" data-action="effect-add">
+          <i class="fa-solid fa-plus"></i> New Effect
+        </button>
+      </div>
+
+      {{#each effectGroups}}
+        <section class="tidy-table am-fx-table" data-tidy-sheet-part="item-table"
+          data-tidy-section-key="effects-{{this.key}}">
+          <header class="tidy-table-header-row theme-dark"
+            data-tidy-sheet-part="table-header-row">
+            <div class="tidy-table-header-cell primary header-label-cell"
+              data-tidy-sheet-part="table-header-cell">
+              <h3>{{this.label}}</h3>
+            </div>
+            <div class="tidy-table-header-cell text-cell"
+              style="--tidy-table-column-width: var(--am-col-actions)">
+              <span class="color-text-lighter">{{this.items.length}}</span>
+            </div>
+          </header>
+          <div class="item-table-body">
+            {{#each this.items}}
+              <div class="tidy-table-row-container am-fx-row" data-effect-id="{{this.id}}"
+                data-name="{{this.name}}">
+                <div class="tidy-table-row" data-tidy-sheet-part="table-row">
+                  <div class="tidy-table-cell primary">
+                    <img class="am-fx-img" src="{{this.img}}" alt="" />
+                    <span class="cell-text">{{this.name}}</span>
+                    {{#if this.temporary}}
+                      <i class="fa-solid fa-hourglass-half color-text-lighter am-fx-temp"
+                        data-tooltip="Temporary{{#if this.duration}} — {{this.duration}}{{/if}}"></i>
+                    {{/if}}
+                  </div>
+                  <div class="tidy-table-cell text-cell am-fx-buttons"
+                    style="--tidy-table-column-width: var(--am-col-actions)">
+                    <button type="button" class="button button-borderless button-icon-only"
+                      data-action="effect-toggle" data-id="{{this.id}}"
+                      data-tooltip="{{#if this.suppressed}}Suppressed — switch on{{else}}Switch off{{/if}}"
+                      aria-label="Toggle {{this.name}}">
+                      <i class="fa-solid {{#if this.suppressed}}fa-toggle-off{{else}}fa-toggle-on{{/if}}"></i>
+                    </button>
+                    <button type="button" class="button button-borderless button-icon-only"
+                      data-action="effect-edit" data-id="{{this.id}}"
+                      data-tooltip="Edit" aria-label="Edit {{this.name}}">
+                      <i class="fa-solid fa-pen-to-square"></i>
+                    </button>
+                    <button type="button" class="button button-borderless button-icon-only"
+                      data-action="effect-delete" data-id="{{this.id}}"
+                      data-tooltip="Delete" aria-label="Delete {{this.name}}">
+                      <i class="fa-solid fa-trash"></i>
+                    </button>
+                  </div>
+                </div>
               </div>
             {{/each}}
           </div>
+        </section>
+      {{/each}}
+
+      {{#unless effectGroups.length}}
+        <div class="empty-state-container empty-state-description">
+          <span class="color-text-lighter">No active effects. Conditions are in the Traits sidebar.</span>
         </div>
-      {{/if}}
+      {{/unless}}
+    </div>
 
-      {{!-- Rest --}}
-      <div class="am-rest-row" style="margin-top:0.7rem">
-        <button type="button" data-action="short-rest" class="am-rest-btn">⏱ Short Rest</button>
-        <button type="button" data-action="long-rest"  class="am-rest-btn">🌙 Long Rest</button>
-      </div>
-    </section>
+    {{!-- ▸ BONUSES ──────────────────────────────────────────────────────
+         The categories come from CONFIG.A5E.bonusTypes, not a list of ours,
+         so one a5e adds later shows up here on its own. Every button calls
+         a5e own actor method. --}}
+    <div class="tab tidy-tab bonuses tidy-tab-contents"
+      data-tab="bonuses" data-group="primary" data-tab-contents-for="bonuses"
+      role="tabpanel">
 
-  </div>{{!-- .am-npc-body --}}
+      <section class="tidy-table" data-tidy-sheet-part="item-table"
+        data-tidy-section-key="global-bonuses">
+        <header class="tidy-table-header-row theme-dark"
+          data-tidy-sheet-part="table-header-row">
+          <div class="tidy-table-header-cell primary header-label-cell"
+            data-tidy-sheet-part="table-header-cell">
+            <h3>Global Bonuses</h3>
+          </div>
+        </header>
+        <div class="item-table-body am-bonus-globals">
+          <label class="am-bonus-global">
+            <span class="font-label-medium color-text-gold">Maneuver DC</span>
+            <input type="number" class="uninput am-bonus-dc" data-action="bonus-dc"
+              data-key="maneuverDC" value="{{bonuses.maneuverDC}}" aria-label="Maneuver DC bonus" />
+          </label>
+          <label class="am-bonus-global">
+            <span class="font-label-medium color-text-gold">Spell DC</span>
+            <input type="number" class="uninput am-bonus-dc" data-action="bonus-dc"
+              data-key="spellDC" value="{{bonuses.spellDC}}" aria-label="Spell DC bonus" />
+          </label>
+        </div>
+      </section>
+
+      {{#each bonuses.categories}}
+        <section class="tidy-table am-bonus-table" data-tidy-sheet-part="item-table"
+          data-tidy-section-key="bonus-{{this.key}}">
+          <header class="tidy-table-header-row theme-dark"
+            data-tidy-sheet-part="table-header-row">
+            <div class="tidy-table-header-cell primary header-label-cell"
+              data-tidy-sheet-part="table-header-cell">
+              <h3>{{this.label}}</h3>
+            </div>
+            <div class="tidy-table-header-cell text-cell"
+              style="--tidy-table-column-width: var(--am-col-narrow)">
+              <button type="button" class="button button-borderless button-icon-only"
+                data-action="bonus-add" data-type="{{this.key}}"
+                data-tooltip="{{this.addLabel}}" aria-label="{{this.addLabel}}">
+                <i class="fa-solid fa-plus"></i>
+              </button>
+            </div>
+          </header>
+          {{#if this.items.length}}
+            <div class="item-table-body">
+              {{#each this.items}}
+                <div class="tidy-table-row-container">
+                  <div class="tidy-table-row" data-tidy-sheet-part="table-row">
+                    <div class="tidy-table-cell primary">
+                      {{#if this.img}}<img class="am-fx-img" src="{{this.img}}" alt="" />{{/if}}
+                      <span class="cell-text">{{this.label}}</span>
+                    </div>
+                    <div class="tidy-table-cell text-cell"
+                      style="--tidy-table-column-width: var(--am-col)">
+                      <span class="cell-text color-text-lighter">{{this.formula}}</span>
+                    </div>
+                    <div class="tidy-table-cell text-cell am-fx-buttons"
+                      style="--tidy-table-column-width: var(--am-col-actions)">
+                      <button type="button" class="button button-borderless button-icon-only"
+                        data-action="bonus-configure" data-id="{{this.id}}" data-type="{{../key}}"
+                        data-tooltip="Configure" aria-label="Configure {{this.label}}">
+                        <i class="fa-solid fa-cog"></i>
+                      </button>
+                      <button type="button" class="button button-borderless button-icon-only"
+                        data-action="bonus-duplicate" data-id="{{this.id}}" data-type="{{../key}}"
+                        data-tooltip="Duplicate" aria-label="Duplicate {{this.label}}">
+                        <i class="fa-solid fa-clone"></i>
+                      </button>
+                      <button type="button" class="button button-borderless button-icon-only"
+                        data-action="bonus-delete" data-id="{{this.id}}" data-type="{{../key}}"
+                        data-label="{{this.label}}"
+                        data-tooltip="Delete" aria-label="Delete {{this.label}}">
+                        <i class="fa-solid fa-trash"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              {{/each}}
+            </div>
+          {{/if}}
+        </section>
+      {{/each}}
+    </div>
+
+    {{!-- ▸ ACTIONS (a5e calls them interactions) ────────────────────────
+         Basic actions, downtime and journey activities. They are items, so
+         they get the same row as everything else — which means the same
+         expander, and these are almost entirely text worth reading. The
+         groups come from CONFIG.A5E.interactionTypes, not a list here. --}}
+    <div class="tab tidy-tab interactions tidy-tab-contents"
+      data-tab="interactions" data-group="primary" data-tab-contents-for="interactions"
+      role="tabpanel">
+
+      {{#each interactionGroups}}
+        {{#> tidy-table key=this.key label=this.label count=this.items.length}}
+          {{#each items}}
+            {{> tidy-row}}
+          {{/each}}
+        {{/tidy-table}}
+      {{/each}}
+
+      {{#unless interactionGroups.length}}
+        <div class="empty-state-container empty-state-description">
+          <span class="color-text-lighter">No actions, downtime or journey activities.</span>
+        </div>
+      {{/unless}}
+    </div>
+
+    {{!-- ▸ SETTINGS ─────────────────────────────────────────────────────
+         a5e keeps these on five sub-pages; they are short enough to read as
+         sections here. Every switch writes the flag or field a5e writes, so
+         the two sheets agree about a character instead of each holding its
+         own idea of one. --}}
+    <div class="tab tidy-tab settings tidy-tab-contents"
+      data-tab="settings" data-group="primary" data-tab-contents-for="settings"
+      role="tabpanel">
+
+      {{#*inline "settingRows"}}
+        <section class="tidy-table am-settings-table" data-tidy-sheet-part="item-table">
+          <header class="tidy-table-header-row theme-dark"
+            data-tidy-sheet-part="table-header-row">
+            <div class="tidy-table-header-cell primary header-label-cell"
+              data-tidy-sheet-part="table-header-cell">
+              <h3>{{heading}}</h3>
+            </div>
+          </header>
+          <div class="item-table-body am-settings-body">
+            {{#each rows}}
+              <label class="am-setting">
+                <input type="checkbox" data-action="setting-toggle"
+                  data-path="{{this.path}}" {{#if this.on}}checked{{/if}} />
+                <span class="color-text-default">{{this.label}}</span>
+              </label>
+            {{/each}}
+          </div>
+        </section>
+      {{/inline}}
+
+      {{> settingRows heading="Sheet" rows=settings.sheet}}
+      {{> settingRows heading="Automation" rows=settings.automation}}
+      {{> settingRows heading="Inventory" rows=settings.inventory}}
+      {{> settingRows heading="Rest and recovery" rows=settings.rest}}
+      {{> settingRows heading="Rolls" rows=settings.rolls}}
+
+      <section class="tidy-table am-settings-table" data-tidy-sheet-part="item-table">
+        <header class="tidy-table-header-row theme-dark"
+          data-tidy-sheet-part="table-header-row">
+          <div class="tidy-table-header-cell primary header-label-cell"
+            data-tidy-sheet-part="table-header-cell">
+            <h3>Thresholds and abilities</h3>
+          </div>
+        </header>
+        <div class="item-table-body am-settings-body">
+          {{#each settings.numbers}}
+            <label class="am-setting am-setting-value">
+              <span class="color-text-default">{{this.label}}</span>
+              <input type="number" class="uninput am-setting-number"
+                data-action="setting-number" data-path="{{this.path}}"
+                value="{{this.value}}" aria-label="{{this.label}}" />
+            </label>
+          {{/each}}
+          {{#each settings.choices}}
+            <label class="am-setting am-setting-value">
+              <span class="color-text-default">{{this.label}}</span>
+              <select class="am-setting-select" data-action="setting-choice"
+                data-path="{{this.path}}" aria-label="{{this.label}}">
+                {{#each this.options}}
+                  <option value="{{this.key}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+                {{/each}}
+              </select>
+            </label>
+          {{/each}}
+        </div>
+      </section>
+    </div>
+
+  </div>
 </div>
+</form>

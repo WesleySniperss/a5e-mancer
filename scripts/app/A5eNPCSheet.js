@@ -1,319 +1,243 @@
-import { AM } from '../a5e-mancer.js';
+import { AM } from '../am.js';
+import { A5eCharacterSheet } from './A5eCharacterSheet.js';
 
 const MODULE_ID = 'a5e-mancer';
 
-const ABILITIES = [
-  { key: 'str', abbr: 'STR', label: 'Strength' },
-  { key: 'dex', abbr: 'DEX', label: 'Dexterity' },
-  { key: 'con', abbr: 'CON', label: 'Constitution' },
-  { key: 'int', abbr: 'INT', label: 'Intelligence' },
-  { key: 'wis', abbr: 'WIS', label: 'Wisdom' },
-  { key: 'cha', abbr: 'CHA', label: 'Charisma' }
-];
-
-const CR_TO_PROF = {
-  0: 2, 0.125: 2, 0.25: 2, 0.5: 2,
-  1: 2, 2: 2, 3: 2, 4: 2,
-  5: 3, 6: 3, 7: 3, 8: 3,
-  9: 4, 10: 4, 11: 4, 12: 4,
-  13: 5, 14: 5, 15: 5, 16: 5,
-  17: 6, 18: 6, 19: 6, 20: 6,
-  21: 7, 22: 7, 23: 7, 24: 7,
-  25: 8, 26: 8, 27: 8, 28: 8,
-  29: 9, 30: 9
-};
-
-function sign(n) { return n >= 0 ? `+${n}` : `${n}`; }
-
-export class A5eNPCSheet extends ActorSheet {
+/**
+ * The NPC sheet, in the same clothes as the character sheet.
+ *
+ * The old one was a statblock reader of its own: three hundred lines that
+ * guessed at a5e's data paths with a chain of `??` fallbacks, most of which
+ * a5e has never used. It read system.traits.dr, system.details.type,
+ * system.attributes.legact — none of which exist. What it showed was whatever
+ * the last fallback in each chain happened to return.
+ *
+ * This one does what a5e itself does. a5e has a single ActorSheet for both
+ * kinds of actor and adapts it, and when the character sheet here was fed a
+ * real monster out of a5e's pack — an Adult Red Dragon, 21 items — it built
+ * its context and rendered without a single failure: six abilities, twenty-one
+ * skills, fifteen features, six maneuvers, an inventory. There was never a
+ * second sheet's worth of work here. So this is that sheet, subclassed, with
+ * the parts a monster does not have replaced by the parts it does.
+ *
+ * What changes: the subtitle, which carries creature type, size, terrain and
+ * challenge rating where a character carries classes and level; and the first
+ * tab, which is the statblock — every action the monster has, grouped the way
+ * the book groups them.
+ */
+export class A5eNPCSheet extends A5eCharacterSheet {
 
   static get defaultOptions() {
     return foundry.utils.mergeObject(super.defaultOptions, {
-      classes: ['a5e-mancer-npc-sheet', 'sheet', 'actor'],
+      /* Same Tidy classes as the character sheet, with `npc` in place of
+         `character`. Tidy scopes a handful of its own rules to
+         :where(.quadrone.actor):where(.npc) — the vitals block chiefly — so the
+         class earns its place rather than just naming the thing. */
+      classes: ['tidy5e-sheet', 'application', 'sheet', 'actor', 'npc',
+                'quadrone', 'themed', 'theme-dark',
+                'a5e-mancer-sheet', 'a5e-mancer-npc-sheet'],
       template: `modules/${MODULE_ID}/templates/sheet/npc-sheet.hbs`,
-      width: 640,
-      height: 600,
-      resizable: true,
-      tabs: [{ navSelector: '.am-npc-tabs', contentSelector: '.am-npc-body', initial: 'actions' }],
-      dragDrop: [{ dragSelector: '.am-item-row', dropSelector: '.am-npc-body' }]
+      /* A monster needs less width than a character: no class resources, no
+         spell-slot ladder in the strip. */
+      width: 760,
+      height: 820,
+      tabs: [{ navSelector: '.actor-tabs', contentSelector: '.main-content',
+               initial: 'statblock' }],
+      dragDrop: [{ dragSelector: '.tidy-table-row-container[data-item-id]',
+                   dropSelector: '.main-content' }]
     });
   }
+
+  /* ── Context ──────────────────────────────────────── */
 
   async getData() {
+    const data  = await super.getData();
     const actor = this.actor;
-    const sys   = actor.system;
-    const items = actor.items.contents;
+    const sys   = actor.system ?? {};
 
-    /* CR and proficiency */
-    const cr      = sys.details?.cr ?? sys.details?.challengeRating ?? 0;
-    const crStr   = cr === 0.125 ? '1/8' : cr === 0.25 ? '1/4' : cr === 0.5 ? '1/2' : String(cr);
-    const profBonus = sys.attributes?.prof ?? CR_TO_PROF[cr] ?? 2;
+    data.npc       = this.#npcHeader(sys);
+    data.statblock = this.#statblock();
+    return data;
+  }
 
-    /* Abilities */
-    const abilities = ABILITIES.map(({ key, abbr, label }) => {
-      const d   = sys.abilities?.[key] ?? {};
-      const val = d.value ?? 10;
-      const mod = Math.floor((val - 10) / 2);
-      const save = d.save ?? mod;
-      const saveProf = !!(d.saveProficient ?? d.proficient);
-      return { key, abbr, label, val, mod, modStr: sign(mod), save, saveStr: sign(save), saveProf };
-    });
+  /**
+   * What stands where a character's class and level stand.
+   *
+   * Every path here was read off a5e's own monster pack rather than guessed:
+   * details.creatureTypes is an array, details.cr a number, traits.size a
+   * lowercase key, and the languages a monster speaks live under
+   * proficiencies.languages, not under traits.
+   */
+  #npcHeader(sys) {
+    const det = sys.details ?? {};
+    const cr  = Number(det.cr ?? 0);
 
-    /* HP */
-    const hp    = sys.attributes?.hp ?? {};
-    const hpPct = hp.max ? Math.round(Math.min(Math.max((hp.value ?? 0) / hp.max, 0), 1) * 100) : 0;
-    const hpColor = hpPct < 25 ? '#e05040' : hpPct < 50 ? '#e09020' : '#4a9a4a';
+    const types = (Array.isArray(det.creatureTypes) ? det.creatureTypes : [])
+      .map(t => this.#label('creatureTypes', t));
+    const terrain = (Array.isArray(det.terrain) ? det.terrain : [])
+      .map(t => this.#label('terrainTypes', t));
 
-    /* Speed strings */
-    const movement = sys.attributes?.movement ?? {};
-    const speeds = [];
-    const speedMap = {
-      walk: '', swim: 'swim', fly: 'fly', burrow: 'burrow', climb: 'climb'
+    /* The tags a5e keeps as flags of their own rather than as a creature type. */
+    const tags = [];
+    if (det.elite)   tags.push(game.i18n.localize('am.npc.elite'));
+    if (det.isSwarm) tags.push(game.i18n.localize('am.npc.swarm'));
+    if (det.isSquad) tags.push(game.i18n.localize('am.npc.squad'));
+
+    return {
+      cr:       A5eNPCSheet.crLabel(cr),
+      crRaw:    cr,
+      xp:       det.xp?.value ?? det.xp ?? A5eNPCSheet.crToXP(cr),
+      size:     this.#label('actorSizes', sys.traits?.size ?? ''),
+      types,
+      typeLine: types.join(', '),
+      terrain,
+      tags,
+      /* One line under the name, the way the book prints it:
+         "Huge dragon, elite · mountains". */
+      subtitle: [
+        [this.#label('actorSizes', sys.traits?.size ?? ''), types.join(' ')]
+          .filter(Boolean).join(' '),
+        tags.join(', ')
+      ].filter(Boolean).join(', '),
+      languages: (sys.proficiencies?.languages ?? [])
+        .map(l => this.#label('languages', l)).join(', ')
     };
-    for (const [type, label] of Object.entries(speedMap)) {
-      const val = movement[type]?.distance ?? movement[type];
-      if (val) speeds.push(label ? `${label} ${val} ft` : `${val} ft`);
-    }
+  }
 
-    /* Senses */
-    const senses = sys.attributes?.senses ?? sys.senses ?? {};
-    const senseList = [];
-    for (const [k, v] of Object.entries(senses)) {
-      if (v && typeof v === 'object' && v.distance) senseList.push(`${k} ${v.distance} ft`);
-      else if (typeof v === 'number' && v > 0) senseList.push(`${k} ${v} ft`);
-    }
-    const pp = 10 + Math.floor(((sys.abilities?.wis?.value ?? 10) - 10) / 2);
-    senseList.push(`passive Perception ${pp}`);
-
-    /* Resistances/immunities */
-    const dmgResist  = this.#joinTraits(sys.traits?.damageResistances ?? sys.traits?.dr ?? []);
-    const dmgImmune  = this.#joinTraits(sys.traits?.damageImmunities  ?? sys.traits?.di ?? []);
-    const condImmune = this.#joinTraits(sys.traits?.conditionImmunities ?? sys.traits?.ci ?? []);
-
-    /* Items grouped */
-    // A5e stores action data in system.actions (object), not system.actionType
-    const isActionItem = (i) =>
-      i.type === 'weapon' || i.type === 'maneuver' ||
-      (i.type === 'feature' && (i.system?.actionType || Object.keys(i.system?.actions ?? {}).length > 0));
-
-    const actions    = items.filter(isActionItem).map(i => this.#action(i, profBonus, abilities));
-    const features   = items.filter(i => i.type === 'feature' && !isActionItem(i)).map(i => this.#feature(i));
-    const legendaries = items.filter(i => i.type === 'feature' && (i.name.toLowerCase().includes('legendary') || i.system?.legendary)).map(i => this.#feature(i));
-    const lairActions = items.filter(i => i.type === 'feature' && i.name.toLowerCase().includes('lair')).map(i => this.#feature(i));
-
-    /* Legendary / lair resources */
-    const legendaryActions = sys.resources?.legact ?? sys.attributes?.legact ?? null;
-    const legendaryResist  = sys.resources?.legres ?? sys.attributes?.legres ?? null;
-
-    /* Conditions */
-    const activeEffects = actor.effects.filter(e => !e.disabled).map(e => ({
-      id: e.id, label: e.name ?? e.label, icon: e.icon
-    }));
-
-    /* NPC details */
-    const details = {
-      type:      sys.details?.type?.value ?? sys.details?.creatureType ?? sys.details?.type ?? '',
-      size:      sys.traits?.size ?? sys.details?.size ?? '',
-      alignment: sys.details?.alignment ?? '',
-      cr:        crStr,
-      xp:        sys.details?.xp?.value ?? sys.details?.xp ?? this.#crToXP(cr),
-      language:  this.#joinTraits(sys.traits?.languages?.value ?? sys.traits?.languages ?? sys.details?.languages ?? []),
-      source:    sys.details?.source ?? ''
-    };
-
-    /* Group actions by type for template */
-    const actionGroups = [
-      { type: 'action',    label: 'Actions',         items: actions.filter(a => a.activation === 'action') },
-      { type: 'bonus',     label: 'Bonus Actions',   items: actions.filter(a => a.activation === 'bonus') },
-      { type: 'reaction',  label: 'Reactions',       items: actions.filter(a => a.activation === 'reaction') },
-      { type: 'legendary', label: 'Legendary Actions', items: actions.filter(a => a.activation === 'legendary') },
-      { type: 'lair',      label: 'Lair Actions',    items: actions.filter(a => a.activation === 'lair') }
+  /**
+   * The statblock: every action the monster can take, grouped as the book
+   * groups them.
+   *
+   * The grouping key is the action's own activation type, which is where a5e
+   * actually records it — measured across the monster pack, 8426 actions,
+   * 504 bonus actions, 356 reactions, 455 legendary. The old sheet looked for
+   * the word "legendary" in the item's NAME, which found the ones that say so
+   * and missed the 455 that simply are.
+   *
+   * An item can hold several actions, and a monster's often does — a bite that
+   * is an action and a recharge breath that is not. Each action is listed
+   * under its own heading, under the item's name, so the sheet says what the
+   * book says.
+   */
+  #statblock() {
+    const GROUPS = [
+      { key: 'action',          label: 'am.npc.actions',           icon: 'fa-hand-fist' },
+      { key: 'bonusAction',     label: 'am.npc.bonus-actions',     icon: 'fa-bolt' },
+      { key: 'reaction',        label: 'am.npc.reactions',         icon: 'fa-reply' },
+      { key: 'legendaryAction', label: 'am.npc.legendary-actions', icon: 'fa-crown' },
+      { key: 'special',         label: 'am.npc.special',           icon: 'fa-star' },
+      { key: 'passive',         label: 'am.npc.traits',            icon: 'fa-scroll' }
     ];
+    const bucket = new Map(GROUPS.map(g => [g.key, []]));
 
-    /* Legendary action pips */
-    const legActRaw = sys.resources?.legact ?? sys.attributes?.legact ?? null;
-    const legendaryActionsData = legActRaw ? {
-      value: legActRaw.value ?? legActRaw.current ?? 0,
-      max:   legActRaw.max ?? 3,
-      pips:  Array.from({ length: legActRaw.max ?? 3 }, (_, i) => ({
-        i, on: i < (legActRaw.value ?? legActRaw.current ?? 0)
-      }))
-    } : null;
+    for (const item of this.actor.items) {
+      if (!['feature', 'object', 'maneuver', 'spell'].includes(item.type)) continue;
 
+      const actions = Object.entries(item.system?.actions ?? {});
+
+      /* No action at all is a trait: the monster simply has it. 2353 of the
+         items in a5e's pack are these, and the old sheet filed most of them
+         under Actions. */
+      if (!actions.length) {
+        if (item.type === 'feature') bucket.get('passive').push(this.#entry(item));
+        continue;
+      }
+
+      for (const [actionId, action] of actions) {
+        const type = action?.activation?.type || '';
+        /* 'minute', 'hour', 'none' and blank are not statblock headings. They
+           are things the monster does outside a round, which the book prints
+           among its traits. */
+        const key = bucket.has(type) ? type
+                  : (type === 'special' ? 'special' : 'passive');
+        bucket.get(key).push(this.#entry(item, actionId, action));
+      }
+    }
+
+    return GROUPS
+      .map(g => ({ ...g, entries: bucket.get(g.key) }))
+      .filter(g => g.entries.length);
+  }
+
+  /** One statblock line. Carries what the row template and the roll handlers need. */
+  #entry(item, actionId = null, action = null) {
+    const uses = action?.uses ?? item.system?.uses ?? null;
+    const recharge = action?.uses?.recharge ?? item.system?.uses?.recharge ?? null;
     return {
-      actor, system: sys,
-      isOwner: actor.isOwner, isGM: game.user.isGM,
-      abilities, cr: crStr, profBonus,
-      hp: { value: hp.value ?? 0, max: hp.max ?? 0, temp: hp.temp ?? 0, formula: hp.formula ?? '', pct: hpPct, color: hpColor },
-      ac:    sys.attributes?.ac?.value ?? sys.attributes?.ac ?? 10,
-      speed: speeds.join(', ') || '30 ft',
-      senses: senseList.join(', '),
-      dmgResist, dmgImmune, condImmune,
-      actions, features, legendaries, lairActions,
-      legendaryActions: legendaryActionsData, legendaryResist, actionGroups,
-      activeEffects, details,
-      hasActions:    actions.length > 0,
-      hasFeatures:   features.length > 0,
-      hasLegendary:  legendaries.length > 0,
-      hasLair:       lairActions.length > 0,
-      hasConditions: activeEffects.length > 0
+      id:        item.id,
+      uuid:      item.uuid,
+      actionId,
+      name:      action?.name || item.name,
+      itemName:  item.name,
+      /* Named separately only when the action is not simply the item. */
+      subName:   action?.name && action.name !== item.name ? item.name : '',
+      img:       item.img,
+      type:      item.type,
+      cost:      action?.activation?.cost ?? null,
+      trigger:   action?.activation?.reactionTrigger ?? '',
+      recharge:  recharge?.formula ? `${recharge.formula}` : '',
+      uses:      (uses && (uses.max || uses.value)) ? uses : null,
+      description: item.system?.description ?? ''
     };
   }
 
-  /* ── Item builders ──────────────────────────────── */
-  #action(item, profBonus, abilities) {
-    const sys     = item.system;
-    const actions = sys.actions ? Object.values(sys.actions) : [];
-    const first   = actions[0] ?? {};
-
-    // Attack bonus
-    const atkType  = first.attack?.type ?? '';
-    const isSpell  = atkType.includes('spell') || atkType.includes('magic');
-    const atkAbil  = first.attack?.ability ?? (isSpell ? 'int' : 'str');
-    const abilMod  = abilities.find(a => a.key === atkAbil)?.mod ?? 0;
-    const atkBonus = (first.attackBonus ?? 0) + abilMod + profBonus;
-
-    // Damage
-    const dmgParts = (first.damage ?? [])
-      .map(d => d.formula ? `${d.formula}${d.type ? ` ${d.type}` : ''}` : '')
-      .filter(Boolean);
-
-    // Range
-    const range = first.range?.value
-      ? `${first.range.value}${first.range.long ? `/${first.range.long}` : ''} ft`
-      : (first.reach ? `${first.reach} ft` : '');
-
-    // Activation — A5e stores this in actions[id].activation.type or system.activation.type
-    const actType = (first.activation?.type ?? sys.activation?.type ?? sys.actionType ?? 'action').toLowerCase();
-    const activation = actType.includes('bonus') ? 'bonus'
-      : actType.includes('reaction') ? 'reaction'
-      : actType.includes('legendary') ? 'legendary'
-      : actType.includes('lair') ? 'lair'
-      : 'action';
-
-    return {
-      id: item.id, name: item.name, img: item.img,
-      isAttack: !!first.attack || item.type === 'weapon',
-      atkBonus: sign(atkBonus),
-      dmg: dmgParts.join(' + ') || '—',
-      range, activation,
-      desc: sys?.description?.value ?? sys?.description ?? ''
-    };
+  /** A CONFIG.A5E label, falling back to the key itself made readable. */
+  #label(group, key) {
+    if (!key) return '';
+    const raw = CONFIG.A5E?.[group]?.[key];
+    if (raw) return game.i18n.localize(raw);
+    return String(key).replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
   }
 
-  #feature(item) {
-    return {
-      id: item.id, name: item.name, img: item.img,
-      desc: item.system?.description?.value ?? item.system?.description ?? '',
-      recharge: item.system?.recharge?.value ?? null
-    };
+  /* ── Static helpers ───────────────────────────────── */
+
+  /** "1/8", "1/4", "1/2" and otherwise the number, as the book prints it. */
+  static crLabel(cr) {
+    if (cr === 0.125) return '1/8';
+    if (cr === 0.25)  return '1/4';
+    if (cr === 0.5)   return '1/2';
+    return String(cr ?? 0);
   }
 
-  /* ── Listeners ──────────────────────────────────── */
-  activateListeners(html) {
-    super.activateListeners(html);
+  /** The standard XP-by-CR table, for monsters whose XP was never written down. */
+  static crToXP(cr) {
+    const TABLE = {
+      0: 10, 0.125: 25, 0.25: 50, 0.5: 100,
+      1: 200, 2: 450, 3: 700, 4: 1100, 5: 1800, 6: 2300, 7: 2900, 8: 3900,
+      9: 5000, 10: 5900, 11: 7200, 12: 8400, 13: 10000, 14: 11500, 15: 13000,
+      16: 15000, 17: 18000, 18: 20000, 19: 22000, 20: 25000, 21: 33000,
+      22: 41000, 23: 50000, 24: 62000, 25: 75000, 26: 90000, 27: 105000,
+      28: 120000, 29: 135000, 30: 155000
+    };
+    return TABLE[cr] ?? 0;
+  }
+
+  /* ── Listeners ────────────────────────────────────── */
+
+  activateListeners(el) {
+    super.activateListeners(el);
     if (!this.isEditable) return;
-    const el = html?.jquery ? html[0] : html;
 
-    /* Ability rolls */
-    el.querySelectorAll('[data-action="ability-check"]').forEach(b =>
-      b.addEventListener('click', () => {
-        try { this.actor.rollAbilityCheck?.(b.dataset.ability); }
-        catch { this.#roll(`1d20${b.dataset.mod}`, b.dataset.label); }
+    /* A statblock line rolls the action it names, not the item's first one —
+       a monster whose bite and breath live on one feature must be able to use
+       either. a5e's own activate() takes the action id, so it is handed over
+       rather than reimplemented. */
+    el.querySelectorAll('[data-action="statblock-use"]').forEach(btn =>
+      btn.addEventListener('click', async (event) => {
+        event.preventDefault();
+        const item = this.actor.items.get(btn.dataset.id);
+        if (!item) return;
+        const actionId = btn.dataset.actionId || null;
+        try {
+          if (actionId && typeof item.activate === 'function') await item.activate(actionId);
+          else if (typeof item.activate === 'function')         await item.activate();
+          else if (typeof item.use === 'function')              await item.use();
+          else await item.share?.();
+        } catch (err) {
+          AM.log(2, `Could not use ${item.name}:`, err);
+          ui.notifications.warn(err.message);
+        }
       })
     );
-
-    /* Save rolls */
-    el.querySelectorAll('[data-action="saving-throw"]').forEach(b =>
-      b.addEventListener('click', () => {
-        try { this.actor.rollSavingThrow?.(b.dataset.ability); }
-        catch { this.#roll(`1d20${b.dataset.save}`, `${b.dataset.ability.toUpperCase()} Save`); }
-      })
-    );
-
-    /* Item use */
-    el.querySelectorAll('[data-action="item-use"]').forEach(b =>
-      b.addEventListener('click', () => {
-        const item = this.actor.items.get(b.dataset.id);
-        item?.use?.() ?? item?.roll?.();
-      })
-    );
-
-    /* Item edit */
-    el.querySelectorAll('[data-action="item-edit"]').forEach(b =>
-      b.addEventListener('click', () => this.actor.items.get(b.dataset.id)?.sheet.render(true))
-    );
-
-    /* Item delete */
-    el.querySelectorAll('[data-action="item-delete"]').forEach(b =>
-      b.addEventListener('click', async () => {
-        const item = this.actor.items.get(b.dataset.id);
-        if (item && await foundry.applications.api.DialogV2.confirm({
-          window: { title: 'Delete' },
-          content: `<p>Delete <b>${foundry.utils?.escapeHTML?.(item.name) ?? item.name}</b>?</p>`,
-        })) await item.delete();
-      })
-    );
-
-    /* HP */
-    el.querySelector('#npc-hp-cur')?.addEventListener('change', async e => {
-      const v = parseInt(e.target.value);
-      if (!isNaN(v)) await this.actor.update({ 'system.attributes.hp.value': v });
-    });
-    el.querySelector('#npc-hp-max')?.addEventListener('change', async e => {
-      const v = parseInt(e.target.value);
-      if (!isNaN(v)) await this.actor.update({ 'system.attributes.hp.max': v });
-    });
-    el.querySelector('#npc-hp-temp')?.addEventListener('change', async e => {
-      await this.actor.update({ 'system.attributes.hp.temp': parseInt(e.target.value) || 0 });
-    });
-
-    /* AC */
-    el.querySelector('#npc-ac')?.addEventListener('change', async e => {
-      await this.actor.update({ 'system.attributes.ac.value': parseInt(e.target.value) });
-    });
-
-    /* Feature collapse */
-    el.querySelectorAll('.npc-feat-toggle').forEach(btn =>
-      btn.addEventListener('click', () => {
-        const body = btn.closest('.npc-feat-item')?.querySelector('.npc-feat-body');
-        body?.classList.toggle('am-hidden');
-        btn.textContent = body?.classList.contains('am-hidden') ? '▸' : '▾';
-      })
-    );
-
-    /* Legendary action counter */
-    el.querySelectorAll('[data-action="leg-pip"]').forEach(pip =>
-      pip.addEventListener('click', async () => {
-        const cur  = parseInt(pip.dataset.current);
-        const idx  = parseInt(pip.dataset.index);
-        const next = idx + 1 === cur ? idx : idx + 1;
-        await this.actor.update({ 'system.resources.legact.value': next })
-          .catch(() => this.actor.update({ 'system.attributes.legact.value': next }));
-      })
-    );
-
-    /* Short/Long rest */
-    el.querySelector('[data-action="short-rest"]')?.addEventListener('click', () => this.actor.shortRest?.());
-    el.querySelector('[data-action="long-rest"]')?.addEventListener('click',  () => this.actor.longRest?.());
-  }
-
-  /* ── Private ────────────────────────────────────── */
-  #joinTraits(val) {
-    if (!val) return '';
-    if (Array.isArray(val)) return val.join(', ');
-    if (typeof val === 'object' && val.value) return Array.isArray(val.value) ? val.value.join(', ') : val.value;
-    return String(val);
-  }
-
-  #crToXP(cr) {
-    const table = { 0:10, 0.125:25, 0.25:50, 0.5:100, 1:200, 2:450, 3:700, 4:1100, 5:1800, 6:2300, 7:2900, 8:3900, 9:5000, 10:5900, 11:7200, 12:8400, 13:10000, 14:11500, 15:13000, 16:15000, 17:18000, 18:20000, 19:22000, 20:25000, 21:33000, 22:41000, 23:50000, 24:62000, 25:75000, 26:90000, 27:105000, 28:120000, 29:135000, 30:155000 };
-    return table[cr] ?? 0;
-  }
-
-  async #roll(formula, label) {
-    const roll = new Roll(formula, this.actor.getRollData?.() ?? {});
-    await roll.evaluate();
-    roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: this.actor }), flavor: label });
   }
 }

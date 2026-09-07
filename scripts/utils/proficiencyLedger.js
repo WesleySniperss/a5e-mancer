@@ -1,4 +1,4 @@
-import { AM } from '../a5e-mancer.js';
+import { AM } from '../am.js';
 
 /**
  * What a character already has, so the same proficiency is never offered twice.

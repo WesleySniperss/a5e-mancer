@@ -21,14 +21,7 @@
     ]
   },
   "esmodules": [
-    "scripts/app/A5eCharacterSheet.js",
-    "scripts/app/A5eNPCSheet.js",
-    "scripts/app/A5eMancer.js",
-    "scripts/app/LevelUpDialog.js",
-    "scripts/app/ManeuverDialog.js",
-    "scripts/app/SpellDialog.js",
     "scripts/a5e-mancer.js",
-    "scripts/settings.js",
     "scripts/canvas-pointer-guard.js"
   ],
   "styles": [

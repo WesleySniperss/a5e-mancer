@@ -82,3 +82,35 @@ re-tinted anything, those copies do not follow. Re-extract them with:
 and paste the values into the token block at the top of `tidy-a5e-app.css`.
 Values that come back as `var(--t5e-color-palette-…)` need one more pass to
 resolve the palette entry itself.
+
+## The NPC sheet is generated
+
+`templates/sheet/npc-sheet.hbs` is not written by hand. It is built from
+`templates/sheet/tidy-character-sheet.hbs`:
+
+```
+node tools/build-npc-sheet.js
+```
+
+**Run it after any change to the character template.**
+
+a5e has one `ActorSheet` for both kinds of actor and adapts it, and a monster
+out of its own pack renders through the character sheet here without a single
+failure — an Adult Red Dragon, 21 items, six abilities, twenty-one skills,
+fifteen features, six maneuvers, an inventory. A monster is a character with a
+challenge rating where the class levels go.
+
+So the NPC sheet is not a second design. Keeping it by hand would mean 1600
+lines that begin identical and drift apart with every fix to one of them, and
+matching the character sheet one to one is the whole point of the work. What
+differs is named in the build script and nothing else may differ.
+
+What differs: the level-up button and the inspiration badge (a monster has
+neither); the subtitle, which carries size, creature type, tags and terrain
+where a character carries heritage, culture, background and classes; the level
+plate, which shows the challenge rating; and a Statblock tab, first, listing
+every action the monster has, grouped by the action's own activation type.
+
+Every substitution must match exactly once. If the character template moves
+under the script it fails and writes nothing, rather than producing a
+half-transformed sheet.

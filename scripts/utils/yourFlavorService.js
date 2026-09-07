@@ -1,4 +1,4 @@
-import { AM } from '../a5e-mancer.js';
+import { AM } from '../am.js';
 
 /**
  * Bridge between the Your Flavor chat-styling module and Foundry's chat log.

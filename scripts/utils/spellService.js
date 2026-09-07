@@ -1,4 +1,4 @@
-import { AM } from '../a5e-mancer.js';
+import { AM } from '../am.js';
 import { PackFilter } from './packFilter.js';
 import { iconForItem, applyItemIcon } from '../data/a5eIcons.js';
 import { castOnlyEffects } from './effectTiming.js';

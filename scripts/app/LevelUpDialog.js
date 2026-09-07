@@ -1,4 +1,4 @@
-import { AM } from '../a5e-mancer.js';
+import { AM } from '../am.js';
 import { LevelUpService } from '../utils/levelUpService.js';
 import { DocumentService } from '../utils/documentService.js';
 import { ManeuverService, CLASS_MANEUVER_TABLES, getTraditions } from '../utils/maneuverService.js';

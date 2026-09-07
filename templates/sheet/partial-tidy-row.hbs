@@ -30,7 +30,13 @@
 
     <div class="highlight"></div>
 
-    <a class="tidy-table-row-use-button" data-action="item-use" data-id="{{id}}"
+    {{!-- The NPC statblock lists an item’s actions separately — a bite and a
+          breath weapon can live on one feature — so it passes useAction and
+          the id of the action to fire. Everything else leaves both unset and
+          gets the plain item-use it always had. --}}
+    <a class="tidy-table-row-use-button"
+      data-action="{{#if useAction}}{{useAction}}{{else}}item-use{{/if}}"
+      data-id="{{id}}"{{#if actionId}} data-action-id="{{actionId}}"{{/if}}
       aria-label="Use {{name}}"
       data-tooltip="Use — right-click to skip the dialog">
       <img class="item-image" src="{{img}}" alt="{{name}}" />

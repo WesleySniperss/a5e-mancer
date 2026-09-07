@@ -1,0 +1,209 @@
+/*
+ * Builds templates/sheet/npc-sheet.hbs out of tidy-character-sheet.hbs.
+ *
+ * WHY THIS IS GENERATED. a5e has one ActorSheet for both kinds of actor and
+ * adapts it, and a monster out of its own pack renders through the character
+ * sheet here without a single failure — six abilities, twenty-one skills,
+ * fifteen features, six maneuvers, an inventory. A monster is a character with
+ * a challenge rating where the class levels go.
+ *
+ * So the NPC sheet is not a second design. Writing it by hand would mean 1600
+ * lines that start identical and drift apart with every fix to one of them,
+ * and "the design must match one to one" is the whole point of this work.
+ * Generating it means the two cannot drift: everything not named below is the
+ * character sheet, exactly.
+ *
+ * Run it after changing the character template:
+ *   node tools/build-npc-sheet.js
+ *
+ * Every substitution must match exactly once. If the character template moves
+ * under it, the build fails loudly and writes nothing rather than producing a
+ * half-transformed sheet.
+ */
+const fs = require('fs');
+const path = require('path');
+
+const ROOT = path.resolve(__dirname, '..');
+const SRC  = path.join(ROOT, 'templates/sheet/tidy-character-sheet.hbs');
+const OUT  = path.join(ROOT, 'templates/sheet/npc-sheet.hbs');
+
+let text = fs.readFileSync(SRC, 'utf8');
+const eol = text.includes('\r\n') ? '\r\n' : '\n';
+let failures = 0;
+
+function swap(what, from, to) {
+  const n = text.split(from).length - 1;
+  if (n !== 1) { console.error(`FAIL ${what}: ${n} matches, need exactly 1`); failures++; return; }
+  text = text.replace(from, to);
+}
+const L = (...lines) => lines.join(eol);
+
+/* ── The banner says what this file is ────────────────────────────────────── */
+swap('banner',
+  '{{!-- ═══════════════════════════════════════════════════════════════════════',
+  L('{{!-- GENERATED — do not edit. Run: node tools/build-npc-sheet.js',
+    '     Source: templates/sheet/tidy-character-sheet.hbs',
+    '',
+    '     A monster is a character with a challenge rating where the class levels',
+    '     go, so this sheet IS that sheet: same header, same ability plates, same',
+    '     vitals, same tables. What differs is named in the build script, and',
+    '     nothing else may differ, which is why it is generated rather than kept',
+    '     by hand. --}}',
+    '{{!-- ═══════════════════════════════════════════════════════════════════════'));
+
+/* ── A monster does not gain levels ───────────────────────────────────────── */
+swap('level-up button', L(
+  '              <button type="button" class="button button-icon-only button-gold"',
+  '                data-action="level-up" aria-label="Level Up" data-tooltip="Level Up">',
+  '                <i class="fas fa-arrow-up-right-dots"></i>',
+  '              </button>',
+  ''), '');
+
+/* ── …nor is it inspired ──────────────────────────────────────────────────── */
+swap('inspiration badge', L(
+  '          <div class="inspiration-badge theme-dark single"',
+  '            data-tidy-sheet-part="inspiration-tracker-container">',
+  '            <button type="button"',
+  '              class="inspiration button button-borderless button-icon-only single{{#if resources.inspiration}} inspired{{/if}}"',
+  '              aria-label="Inspiration" data-tooltip="Inspiration"',
+  '              data-action="toggle-inspiration"',
+  '              data-tidy-sheet-part="inspiration-tracker-toggle"></button>',
+  '          </div>',
+  ''), '');
+
+/* ── Origin and classes become creature type, tags and terrain ────────────── */
+swap('subtitle origin block', L(
+  '              {{#if charInfo.heritage}}',
+  '                <span class="species">',
+  '                  <span class="font-label-medium color-text-gold">{{charInfo.heritage}}</span>',
+  '                </span>',
+  '                <div class="divider-dot"></div>',
+  '              {{/if}}',
+  '',
+  '              {{#if charInfo.culture}}',
+  '                <span class="creature-type hide-under-600">',
+  '                  <span class="font-label-medium color-text-gold">{{charInfo.culture}}</span>',
+  '                </span>',
+  '                <div class="hide-under-600 divider-dot"></div>',
+  '              {{/if}}',
+  '',
+  '              {{#if charInfo.background}}',
+  '                <span class="alignment hide-under-700">',
+  '                  <span class="font-label-medium color-text-gold">{{charInfo.background}}</span>',
+  '                </span>',
+  '                <div class="hide-under-700 divider-dot"></div>',
+  '              {{/if}}',
+  '',
+  '              {{#each tidy.classLine}}',
+  '                <span class="class">',
+  '                  <span class="color-text-gold font-label-medium">{{this.name}}</span>',
+  '                  <span class="color-text-default font-data-medium">{{this.levels}}</span>',
+  '                  {{#if this.dc}}',
+  '                    <span class="color-text-lighter font-label-medium dc">{{this.ability}} DC</span>',
+  '                    <span class="color-text-default font-data-medium">{{this.dc}}</span>',
+  '                  {{/if}}',
+  '                </span>',
+  '                {{#unless @last}}<div class="divider-dot"></div>{{/unless}}',
+  '              {{/each}}'
+), L(
+  '              {{!-- Where a character carries heritage, culture, background and',
+  '                   classes, a monster carries what the book prints under its',
+  '                   name: size, creature type, the tags a5e keeps as flags of',
+  '                   their own, and the terrain it is found in. --}}',
+  '              {{#if npc.subtitle}}',
+  '                <span class="creature-type">',
+  '                  <span class="font-label-medium color-text-gold">{{npc.subtitle}}</span>',
+  '                </span>',
+  '                <div class="divider-dot"></div>',
+  '              {{/if}}',
+  '',
+  '              {{#each npc.terrain}}',
+  '                <span class="alignment hide-under-700">',
+  '                  <span class="font-label-medium color-text-gold">{{this}}</span>',
+  '                </span>',
+  '                <div class="hide-under-700 divider-dot"></div>',
+  '              {{/each}}',
+  '',
+  '              {{#if npc.languages}}',
+  '                <span class="species hide-under-600">',
+  '                  <span class="font-label-medium color-text-gold">{{npc.languages}}</span>',
+  '                </span>',
+  '              {{/if}}'
+));
+
+/* ── The level block becomes the challenge rating ─────────────────────────── */
+swap('level block', L(
+  '          <div class="level-block">',
+  '            <span class="level bonus font-data-xlarge color-text-default"',
+  '              data-tooltip="Level">{{charInfo.totalLevel}}</span>'
+), L(
+  '          {{!-- Challenge rating stands exactly where the character level',
+  '               stands, in the same plate, with the same proficiency row under',
+  '               it. The XP the rating is worth rides along in the tooltip. --}}',
+  '          <div class="level-block">',
+  '            <span class="level bonus font-data-xlarge color-text-default"',
+  '              data-tooltip="Challenge {{npc.cr}} — {{npc.xp}} XP">{{npc.cr}}</span>'
+));
+
+/* ── A statblock tab, first, in place of Favorites ────────────────────────── */
+swap('tab strip', L(
+  '      <a class="tab-option item active first-tab" role="tab" data-tab="favorites"',
+  '        data-tab-id="favorites" data-group="primary"><span class="tab-title">Favorites</span></a>'
+), L(
+  '      <a class="tab-option item active first-tab" role="tab" data-tab="statblock"',
+  '        data-tab-id="statblock" data-group="primary"><span class="tab-title">Statblock</span></a>',
+  '      <a class="tab-option item" role="tab" data-tab="favorites"',
+  '        data-tab-id="favorites" data-group="primary"><span class="tab-title">Favorites</span></a>'
+));
+
+/* ── …and its panel, ahead of the favorites panel, which is no longer first ─ */
+swap('statblock panel', L(
+  '    <div class="tab tidy-tab favorites tidy-tab-contents active"',
+  '      data-tab="favorites" data-group="primary" data-tab-contents-for="favorites"',
+  '      role="tabpanel">'
+), L(
+  '    {{!-- ══ STATBLOCK ════════════════════════════════════════════════════════',
+  '         Everything the monster can do, grouped as the book groups it. The',
+  '         grouping key is each action’s own activation type, which is where a5e',
+  '         records it — measured across its monster pack: 8426 actions, 1076',
+  '         special, 504 bonus actions, 455 legendary, 356 reactions. An item may',
+  '         hold several actions and a monster’s often does, so each is a row of',
+  '         its own under the heading it belongs to.',
+  '         ═══════════════════════════════════════════════════════════════════ --}}',
+  '    <div class="tab tidy-tab statblock tidy-tab-contents active"',
+  '      data-tab="statblock" data-group="primary" data-tab-contents-for="statblock"',
+  '      role="tabpanel">',
+  '',
+  '      {{#each statblock}}',
+  '        {{#> tidy-table key=this.key label=(localize this.label) count=this.entries.length',
+  '                        c1=true col1="Cost" c2=true col2="Recharge"}}',
+  '          {{#each this.entries}}',
+  '            {{> tidy-row subtitle=this.subName useAction="statblock-use"',
+  '                         actionId=this.actionId',
+  '                         c1=true cell1=this.cost c2=true cell2=this.recharge}}',
+  '          {{/each}}',
+  '        {{/tidy-table}}',
+  '      {{/each}}',
+  '',
+  '      {{#unless statblock.length}}',
+  '        <div class="empty-state-container empty-state-description">',
+  '          <p>Nothing to do yet. Drop features, weapons, spells or maneuvers',
+  '             onto the sheet and they will be grouped here.</p>',
+  '        </div>',
+  '      {{/unless}}',
+  '    </div>',
+  '',
+  '    <div class="tab tidy-tab favorites tidy-tab-contents"',
+  '      data-tab="favorites" data-group="primary" data-tab-contents-for="favorites"',
+  '      role="tabpanel">'
+));
+
+if (failures) {
+  console.error(`\n${failures} substitution(s) failed — npc-sheet.hbs NOT written.`);
+  console.error('The character template has moved under this script; re-anchor it.');
+  process.exit(1);
+}
+
+fs.writeFileSync(OUT, text);
+console.log(`npc-sheet.hbs built from tidy-character-sheet.hbs `
+          + `(${text.split(eol).length} lines)`);

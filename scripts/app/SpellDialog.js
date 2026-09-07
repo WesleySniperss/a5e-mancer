@@ -1,4 +1,4 @@
-import { AM } from '../a5e-mancer.js';
+import { AM } from '../am.js';
 import { SpellService, getSpellSchools, getSecondarySchoolsForClass } from '../utils/spellService.js';
 import { ItemDescPanel } from '../utils/itemDescPanel.js';
 import { PackFilter } from '../utils/packFilter.js';

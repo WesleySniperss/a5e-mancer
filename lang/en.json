@@ -494,5 +494,14 @@
   "am.asi.feat-sort-name": "Name",
   "am.asi.feat-sort-source": "Source",
   "am.asi.feat-sort-gate": "Prerequisite",
-  "am.asi.feat-sort-fit": "Fit"
+  "am.asi.feat-sort-fit": "Fit",
+  "am.npc.actions": "Actions",
+  "am.npc.bonus-actions": "Bonus Actions",
+  "am.npc.reactions": "Reactions",
+  "am.npc.legendary-actions": "Legendary Actions",
+  "am.npc.special": "Special",
+  "am.npc.traits": "Traits",
+  "am.npc.elite": "elite",
+  "am.npc.swarm": "swarm",
+  "am.npc.squad": "squad"
 }
