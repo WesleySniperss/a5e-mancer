@@ -1015,9 +1015,6 @@
 
 /* 6.625rem was modifier + score. The save adds its own 1.75rem, less the
    0.75rem it tucks into the plate: 7.625rem. */
-.tidy5e-sheet.application.a5e-mancer-sheet .abilities-container-inner {
-  min-height: 7.625rem;
-}
 
 /* ── The strip stays on one line ───────────────────────────────────────────
    Measured from the values Tidy actually sets — 13px uppercase labels with
@@ -1177,45 +1174,6 @@
   line-height: 1;
 }
 
-/* ── The banner covers the header, not a fixed 300px ───────────────────────
-   Tidy paints the character art as a :before on the sheet root, 18.75rem tall
-   from the very top. Everything below that line sits on bare background — and
-   once the tracker row was added the header grew past it, so the counters came
-   out on black while the rest of the header stayed on the picture.
-
-   A fixed height cannot follow a header that changes size, so ours is drawn on
-   the header itself with inset: 0. Whatever the header ends up being, the art
-   covers exactly that and stops at its edge.
-
-   :not(.theme-parchment) is carried so this counts four classes against
-   Tidy own three and wins outright rather than on load order. */
-.tidy5e-sheet.application.a5e-mancer-sheet:not(.theme-parchment):before {
-  content: none;
-}
-
-.tidy5e-sheet.application.a5e-mancer-sheet .sheet-header {
-  /* No isolation here on purpose. An isolated stacking context would leave the
-     luminosity blend nothing to mix with but the header's own transparent
-     background, and the art would come out flat — different from Tidy's, which
-     blends against the sheet behind it. relative is all the pseudo needs. */
-  position: relative;
-}
-
-.tidy5e-sheet.application.a5e-mancer-sheet .sheet-header:before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background-image: var(--t5e-sheet-header-bg, var(--t5e-background-image));
-  background-position: top;
-  background-repeat: no-repeat;
-  background-size: cover;
-  filter: grayscale();
-  mix-blend-mode: luminosity;
-  opacity: 0.4;
-  pointer-events: none;
-}
-
 /* ── A third off the header ────────────────────────────────────────────────
    On a small screen it was taking half the sheet. The three things that
    actually fill it are the portrait, the ability plates and the padding on the
@@ -1236,13 +1194,20 @@
 }
 
 /* Plates: Tidy sizes them by width and the height follows from the aspect
-   ratio on the modifier, so narrowing the plate shortens the row too. */
-.tidy5e-sheet.application.a5e-mancer-sheet .ability {
-  max-width: 3.25rem;
-}
+   ratio on the modifier, so narrowing the plate shortens the row too.
+   The rule that stood here matched .ability with no qualifier, which caught
+   the initiative column as well — that column is not one of the six plates and
+   holds a fixed 3.75rem badge with concentration under it, so narrowing it was
+   half of why the two ran together. It is scoped further down instead. */
 
+/* The one height for this row. Three rules were setting it at one point — 7.625,
+   5.5 and 6.25 — with only the last taking effect; that is the sort of pile-up
+   that makes a stylesheet impossible to reason about, so there is one now.
+
+   6.25rem is what the initiative column needs: its badge is a fixed 3.75rem and
+   concentration sits under it. Cut to 5.5rem the two ran into each other. */
 .tidy5e-sheet.application.a5e-mancer-sheet .abilities-container-inner {
-  min-height: 5.5rem;
+  min-height: 6.25rem;
   margin-block-start: var(--t5e-size-1x);
 }
 
@@ -1250,4 +1215,32 @@
 .tidy5e-sheet.application.a5e-mancer-sheet .am-a5e-strip,
 .tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row {
   padding-block: var(--t5e-size-1x);
+}
+
+/* ── The banner stays Tidy own ─────────────────────────────────────────────
+   Replacing it here was a mistake worth recording. Tidy draws the art as a
+   :before on the sheet ROOT, and a copy drawn on .sheet-header instead is
+   painted behind that header own background — which is
+   linear-gradient(#0000, #000000a6), opaque at the bottom. The art was there
+   and covered up, which is why the top of the sheet went flat.
+
+   Tidy strip is 18.75rem from the top of the sheet, and the header now stands
+   at roughly 13rem, so it reaches well past the tracker row on its own. The
+   counters fell off the picture because the header had grown, not because the
+   strip was in the wrong place; shrinking the header was the whole fix. */
+
+/* ── Room for the initiative column ────────────────────────────────────────
+   .initiative-score-container is a fixed 3.75rem, and concentration sits under
+   it — together more than the 5.5rem the row was cut to, so the two ran into
+   each other. The row gets that height back, and the narrowing is kept off the
+   initiative column, which was never one of the six plates being shrunk. */
+.tidy5e-sheet.application.a5e-mancer-sheet .ability:not(.initiative) {
+  max-width: 3.25rem;
+}
+
+
+.tidy5e-sheet.application.a5e-mancer-sheet .ability.initiative {
+  justify-content: flex-start;
+  gap: var(--t5e-size-halfx);
+  flex: 0 0 auto;
 }
