@@ -300,10 +300,13 @@ export class A5eCharacterSheet extends ActorSheet {
       const s   = savedCounters[i] ?? {};
       const val = s.value ?? 0;
       const max = s.max   ?? 0;
-      const pips = max > 0
-        ? Array.from({ length: Math.min(max, 20) }, (_, j) => ({ i: j, on: j < val }))
-        : [];
-      return { name: s.name ?? '', value: val, max, pips };
+      /* The pips are gone from the sheet — the bar says the same thing in the
+         width of a bar rather than in a row of circles as long as the maximum
+         is high. What the bar needs instead is the percentage. */
+      return {
+        name: s.name ?? '', value: val, max,
+        pct: max > 0 ? pct01(val, max) : 0
+      };
     });
     /* ── The lock ─────────────────────────────────────────────────────────
        a5e's sheet opens locked and puts a padlock at the top; unlocking is
@@ -2517,16 +2520,8 @@ export class A5eCharacterSheet extends ActorSheet {
         if (inp && cur > 0) { inp.value = cur - 1; await saveCounter(idx); this.render(false); }
       })
     );
-    el.querySelectorAll('[data-action="counter-pip"]').forEach(pip =>
-      pip.addEventListener('click', async () => {
-        const ctr = parseInt(pip.dataset.counter);
-        const i   = parseInt(pip.dataset.i);
-        const valInp = el.querySelector(`[data-action="counter-val"][data-index="${ctr}"]`);
-        const cur = parseInt(valInp?.value) || 0;
-        const next = i + 1 === cur ? i : i + 1;
-        if (valInp) { valInp.value = next; await saveCounter(ctr); this.render(false); }
-      })
-    );
+    /* The pip row is gone from the sheet — the bar replaced it — so the
+       handler that set a counter by clicking one went with it. */
 
     /* Feature/feat search */
     el.querySelector('#am-feature-search')?.addEventListener('input', (e) => {

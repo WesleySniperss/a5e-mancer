@@ -732,28 +732,10 @@
   color: var(--t5e-color-text-lighter);
 }
 
-.tidy5e-sheet.application.a5e-mancer-sheet .am-counter-pips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--t5e-size-1);
-  max-width: 8rem;
-}
 
 /* Small enough to sit under the figure without widening the strip, big enough
    to hit. Unset pips keep their outline so the total is still readable. */
-.tidy5e-sheet.application.a5e-mancer-sheet .am-counter-pip {
-  width: 0.6rem;
-  height: 0.6rem;
-  padding: 0;
-  border: 1px solid var(--t5e-color-gold);
-  border-radius: 50%;
-  background: transparent;
-  cursor: pointer;
-}
 
-.tidy5e-sheet.application.a5e-mancer-sheet .am-counter-pip.am-on {
-  background: var(--t5e-color-gold);
-}
 
 /* The unnamed slot is only an invitation, so it takes no more room than the
    words in it until it becomes a real counter. */
@@ -1115,10 +1097,6 @@
 }
 
 /* Pips would double the height of the row, so they sit inline with it. */
-.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-pips {
-  max-width: none;
-  flex-wrap: nowrap;
-}
 
 .tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-new .am-counter-name {
   width: 5.5rem;
@@ -1240,4 +1218,68 @@
 
 .tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-exertion .am-a5e-value {
   white-space: nowrap;
+}
+
+/* ── One bar for everything counted ────────────────────────────────────────
+   Exertion always had Tidy meter and it was the right idea — it was only odd
+   because nothing else had one. Now every tracker wears it: the resources a5e
+   grants, the ones a class grants, and our own counters.
+
+   Narrower than the old exertion bar, which was 7rem. At 4.5rem a bar still
+   reads as a proportion, and four of them fit across the row with room over. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-meter {
+  min-width: 4.5rem;
+  --meter-height: 1.25rem;
+  --bar-color: var(--t5e-color-text-gold);
+  flex: 0 0 auto;
+}
+
+/* The figures sit inside the bar. Tabular numerals so a 3 and an 8 take the
+   same width and the fraction stops shuffling as it is spent — that jitter is
+   most of what made the numbers look untidy. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-meter .label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.125rem;
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-13, 0.8125rem);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-meter .label input {
+  width: 1.5rem;
+  padding: 0;
+  text-align: end;
+  color: var(--t5e-color-text-default);
+  font: inherit;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-meter .label .max {
+  width: 1.5rem;
+  padding: 0;
+  text-align: start;
+  color: var(--t5e-color-text-lighter);
+  font: inherit;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-meter .label .separator {
+  color: var(--t5e-color-text-lightest);
+}
+
+/* Tighter than before: the gaps were doing more work than the content. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row {
+  gap: var(--t5e-size-3x);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-tracker,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter {
+  gap: var(--t5e-size-1);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-a5e-label,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-name {
+  max-width: 7rem;
 }

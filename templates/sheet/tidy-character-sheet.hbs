@@ -436,9 +436,15 @@
         aria-label="Spend exertion" data-tooltip="Spend one">
         <i class="fa-solid fa-minus"></i>
       </button>
-      <input type="number" class="uninput am-tracker-value" id="am-exertion-current"
-        value="{{resources.exertion.current}}" min="0" aria-label="Current exertion" />
-      <span class="am-a5e-value color-text-lighter">/ {{resources.exertion.max}}</span>
+      <div class="meter progress am-tracker-meter"
+        style="--bar-percentage: {{resources.exertion.pct}}%">
+        <div class="label">
+          <input type="number" class="value uninput am-tracker-value" id="am-exertion-current"
+            value="{{resources.exertion.current}}" min="0" aria-label="Current exertion" />
+          <span class="separator">/</span>
+          <span class="max">{{resources.exertion.max}}</span>
+        </div>
+      </div>
       <button type="button" class="button button-borderless button-icon-only"
         data-action="exertion-step" data-delta="1" data-max="{{resources.exertion.max}}"
         aria-label="Regain exertion" data-tooltip="Regain one">
@@ -474,17 +480,33 @@
           data-max="{{this.max}}" aria-label="Spend one {{this.label}}">
           <i class="fa-solid fa-minus"></i>
         </button>
-        <input type="number" class="uninput am-tracker-value"
-          data-action="resource-value" data-path="{{this.path}}"
-          value="{{this.value}}" min="0" aria-label="{{this.label}}" />
+        {{!-- A bar when there is a maximum to fill, a bare figure when there
+             is not. A meter with nothing to be a fraction of would read as
+             empty however full it was. --}}
+        {{#if this.max}}
+          <div class="meter progress am-tracker-meter"
+            style="--bar-percentage: {{this.pct}}%">
+            <div class="label">
+              <input type="number" class="value uninput am-tracker-value"
+                data-action="resource-value" data-path="{{this.path}}"
+                value="{{this.value}}" min="0" aria-label="{{this.label}}" />
+              {{#unless this.hideMax}}
+                <span class="separator">/</span>
+                <span class="max">{{this.max}}</span>
+              {{/unless}}
+            </div>
+          </div>
+        {{else}}
+          <input type="number" class="uninput am-tracker-value"
+            data-action="resource-value" data-path="{{this.path}}"
+            value="{{this.value}}" min="0" aria-label="{{this.label}}" />
+        {{/if}}
 
         {{#if @root.unlocked}}
           {{#if this.isClassResource}}
-            {{!-- A class resource has its maximum from the class table; there is
-                 nothing here to configure. --}}
-            {{#unless this.hideMax}}
-              <span class="am-a5e-value color-text-lighter">/ {{this.max}}</span>
-            {{/unless}}
+            {{!-- A class resource takes its maximum from the class table, so
+                 there is nothing here to configure and the bar already shows
+                 the figure. --}}
           {{else}}
             {{!-- max is a formula, not a number, so it is a text field: @prof
                  and the like are what a5e stores here. --}}
@@ -498,10 +520,6 @@
                 {{#if this.hideMax}}checked{{/if}} aria-label="Hide the maximum" />
             </label>
           {{/if}}
-        {{else}}
-          {{#unless this.hideMax}}
-            <span class="am-a5e-value color-text-lighter">/ {{this.max}}</span>
-          {{/unless}}
         {{/if}}
 
         <button type="button" class="button button-borderless button-icon-only"
@@ -524,12 +542,33 @@
           <input type="text" class="uninput am-counter-name font-label-medium color-text-gold"
             data-action="counter-name" data-index="{{@index}}"
             value="{{this.name}}" aria-label="Counter name" />
-          <div class="am-counter-row">
-            <button type="button" class="button button-borderless button-icon-only"
-              data-action="counter-dec" data-index="{{@index}}"
-              aria-label="Spend one {{this.name}}" data-tooltip="Spend one">
-              <i class="fa-solid fa-minus"></i>
-            </button>
+          <button type="button" class="button button-borderless button-icon-only"
+            data-action="counter-dec" data-index="{{@index}}"
+            aria-label="Spend one {{this.name}}" data-tooltip="Spend one">
+            <i class="fa-solid fa-minus"></i>
+          </button>
+
+          {{!-- The same bar the resources and exertion wear. The maximum stays
+               typeable, since a counter is ours and has no dialog behind it;
+               it just sits inside the bar instead of beside it.
+
+               The pips are gone. They said exactly what the bar says, and said
+               it in a row as wide as the maximum was high — a counter with a
+               max of twenty was twenty little circles. --}}
+          {{#if this.max}}
+            <div class="meter progress am-tracker-meter"
+              style="--bar-percentage: {{this.pct}}%">
+              <div class="label">
+                <input type="number" class="value uninput am-counter-value"
+                  data-action="counter-val" data-index="{{@index}}"
+                  value="{{this.value}}" min="0" aria-label="{{this.name}}" />
+                <span class="separator">/</span>
+                <input type="number" class="max uninput am-counter-max"
+                  data-action="counter-max" data-index="{{@index}}"
+                  value="{{this.max}}" min="0" aria-label="{{this.name}} maximum" />
+              </div>
+            </div>
+          {{else}}
             <input type="number" class="uninput am-counter-value"
               data-action="counter-val" data-index="{{@index}}"
               value="{{this.value}}" min="0" aria-label="{{this.name}}" />
@@ -537,22 +576,13 @@
             <input type="number" class="uninput am-counter-max"
               data-action="counter-max" data-index="{{@index}}"
               value="{{this.max}}" min="0" aria-label="{{this.name}} maximum" />
-            <button type="button" class="button button-borderless button-icon-only"
-              data-action="counter-inc" data-index="{{@index}}"
-              aria-label="Regain one {{this.name}}" data-tooltip="Regain one">
-              <i class="fa-solid fa-plus"></i>
-            </button>
-          </div>
-          {{#if this.pips.length}}
-            <div class="am-counter-pips">
-              {{#each this.pips}}
-                <button type="button"
-                  class="am-counter-pip{{#if this.on}} am-on{{/if}}"
-                  data-action="counter-pip" data-counter="{{@../index}}" data-i="{{this.i}}"
-                  aria-label="Set to {{this.i}}"></button>
-              {{/each}}
-            </div>
           {{/if}}
+
+          <button type="button" class="button button-borderless button-icon-only"
+            data-action="counter-inc" data-index="{{@index}}"
+            aria-label="Regain one {{this.name}}" data-tooltip="Regain one">
+            <i class="fa-solid fa-plus"></i>
+          </button>
         </div>
       {{/if}}
     {{/each}}
