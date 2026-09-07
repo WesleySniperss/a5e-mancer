@@ -70,6 +70,9 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       luSetAsiMode:              LevelUpDialog.luSetAsiMode,
       luSelectFeat:              LevelUpDialog.luSelectFeat,
       luToggleFeatEligible:      LevelUpDialog.luToggleFeatEligible,
+      luToggleFeatMyClass:       LevelUpDialog.luToggleFeatMyClass,
+      luToggleFeatUngated:       LevelUpDialog.luToggleFeatUngated,
+      luFeatSort:                LevelUpDialog.luFeatSort,
       luFeatPage:                LevelUpDialog.luFeatPage,
     },
     classes: ['a5e-mancer-app', 'am-app', 'am-levelup-dialog'],
@@ -655,6 +658,10 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     this._featUuid          = null;
     this._featSearch        = '';
     this._featOnlyEligible  = false;
+    this._featSort          = 'name';
+    this._featSortDir       = 'asc';
+    this._featMyClassOnly   = false;
+    this._featUngatedOnly   = false;
     this._archetypeSkipped  = false;
     AM.levelUpGrants        = null;
   }
@@ -1158,7 +1165,11 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
       const feats = await FeatService.optionsFor(this.actor, {
         search:       this._featSearch ?? '',
-        onlyEligible: !!this._featOnlyEligible
+        onlyEligible: !!this._featOnlyEligible,
+        sort:         this._featSort ?? 'name',
+        dir:          this._featSortDir ?? 'asc',
+        onlyMyClass:  !!this._featMyClassOnly,
+        onlyUngated:  !!this._featUngatedOnly
       });
 
       const PAGE = 40;
@@ -1168,6 +1179,14 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
       context.featSearch       = this._featSearch ?? '';
       context.featOnlyEligible = !!this._featOnlyEligible;
+      context.featMyClassOnly  = !!this._featMyClassOnly;
+      context.featUngatedOnly  = !!this._featUngatedOnly;
+      context.featSortDir      = this._featSortDir ?? 'asc';
+      /* Built here rather than in the template so the labels and the active
+         mark come from one place — FeatService owns what the orders are. */
+      context.featSorts = Object.entries(FeatService.SORTS).map(([key, s]) => ({
+        key, label: s.label, active: (this._featSort ?? 'name') === key
+      }));
       context.featTotal        = feats.length;
       context.featPage         = page + 1;
       context.featPages        = pages;
@@ -1338,6 +1357,39 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!dialog) return;
     dialog._featOnlyEligible = !dialog._featOnlyEligible;
     dialog._featPage = 0;               // the list just changed length
+    dialog.render(false);
+  }
+
+  static luToggleFeatMyClass() {
+    const dialog = AM.levelUpDialog;
+    if (!dialog) return;
+    dialog._featMyClassOnly = !dialog._featMyClassOnly;
+    dialog._featPage = 0;
+    dialog.render(false);
+  }
+
+  static luToggleFeatUngated() {
+    const dialog = AM.levelUpDialog;
+    if (!dialog) return;
+    dialog._featUngatedOnly = !dialog._featUngatedOnly;
+    dialog._featPage = 0;
+    dialog.render(false);
+  }
+
+  /* Clicking the order already in force reverses it, the way the maneuver
+     picker’s sort buttons behave. */
+  static luFeatSort(_event, btn) {
+    const dialog = AM.levelUpDialog;
+    if (!dialog) return;
+    const key = btn.dataset.sort;
+    if (!key) return;
+    if (dialog._featSort === key) {
+      dialog._featSortDir = dialog._featSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      dialog._featSort    = key;
+      dialog._featSortDir = 'asc';
+    }
+    dialog._featPage = 0;
     dialog.render(false);
   }
 

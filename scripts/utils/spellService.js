@@ -470,7 +470,7 @@ export class SpellService {
 
     /* Same note the maneuver loader keeps: an empty window should be able to
        say what it read rather than leaving it to be worked out from outside. */
-    const report = { packs: 0, read: 0, failed: [], spells: 0, filteredBy: '' };
+    const report = { packs: 0, read: 0, failed: [], spells: 0, filteredBy: '', unclassed: 0 };
     this.lastLoadReport = report;
 
     const packs = PackFilter.itemPacks();
@@ -480,9 +480,13 @@ export class SpellService {
     for (const pack of packs) {
       try {
         const index = await PackFilter.indexOf(pack,
-          ['name', 'type', 'img', 'system']);
+          ['name', 'type', 'img', 'system'], { types: ['spell'] });
         for (const entry of index) {
           if (entry.type !== 'spell') continue;
+          /* No class list at all means the index arrived without its system
+             data, and with it the class filter that makes this window usable.
+             Counted so an unfiltered window can say so. */
+          if (entry.system?.classes === undefined) report.unclassed++;
 
           const level  = parseInt(entry.system?.level ?? entry.system?.spellLevel ?? 0);
           if (level > maxLevel) continue;
@@ -534,7 +538,9 @@ export class SpellService {
 
     for (const list of byLevel.values()) report.spells += list.length;
     report.read = report.packs - report.failed.length;
-    AM.log(3, `Spells: ${report.spells} from ${report.read} of ${report.packs} packs`
+    AM.log(report.unclassed ? 2 : 3,
+           `Spells: ${report.spells} from ${report.read} of ${report.packs} packs`
+            + (report.unclassed ? `; ${report.unclassed} arrived with no class list` : '')
             + (report.filteredBy ? `, filtered to ${report.filteredBy}` : ', unfiltered')
             + (report.failed.length ? `; failed: ${report.failed.join(' | ')}` : ''));
 

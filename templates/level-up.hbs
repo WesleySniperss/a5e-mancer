@@ -521,6 +521,34 @@
             data-action="luToggleFeatEligible">
             <i class="fa-solid fa-filter"></i> {{localize 'am.asi.feat-eligible-only'}}
           </button>
+          <button type="button"
+            class="am-filter-pill {{#if featMyClassOnly}}am-pill-active{{/if}}"
+            data-action="luToggleFeatMyClass"
+            data-tooltip="{{localize 'am.asi.feat-my-class-hint'}}">
+            <i class="fa-solid fa-shield-halved"></i> {{localize 'am.asi.feat-my-class'}}
+          </button>
+          <button type="button"
+            class="am-filter-pill {{#if featUngatedOnly}}am-pill-active{{/if}}"
+            data-action="luToggleFeatUngated"
+            data-tooltip="{{localize 'am.asi.feat-ungated-hint'}}">
+            <i class="fa-solid fa-door-open"></i> {{localize 'am.asi.feat-ungated'}}
+          </button>
+        </div>
+
+        {{!-- Six hundred feats in one alphabetical column is a list you
+              scroll, not one you use. These are the orders the service knows;
+              clicking the one in force reverses it. --}}
+        <div class="am-feat-sorts">
+          <span class="am-hint">{{localize 'am.app.sort-label'}}:</span>
+          {{#each featSorts}}
+            <button type="button" class="am-sort-btn {{#if this.active}}am-active{{/if}}"
+              data-action="luFeatSort" data-sort="{{this.key}}">
+              {{localize this.label}}
+              {{#if this.active}}
+                <i class="fa-solid {{#if (eq ../featSortDir 'asc')}}fa-arrow-up{{else}}fa-arrow-down{{/if}}"></i>
+              {{/if}}
+            </button>
+          {{/each}}
         </div>
 
         {{#if featChosen}}

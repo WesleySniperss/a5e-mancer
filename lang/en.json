@@ -486,5 +486,13 @@
   "am.sheet.damage-title": "Damage how much?",
   "am.sheet.apply": "Apply",
   "am.grants.choose-n": "Choose {n}:",
-  "am.app.lore.not-found": "That table could not be found — reselect the destiny or background and try again."
+  "am.app.lore.not-found": "That table could not be found — reselect the destiny or background and try again.",
+  "am.asi.feat-my-class": "For my class",
+  "am.asi.feat-my-class-hint": "Feats gated on a class you have levels in, plus every feat that is gated on no class at all.",
+  "am.asi.feat-ungated": "No prerequisite",
+  "am.asi.feat-ungated-hint": "Only feats that ask nothing of you.",
+  "am.asi.feat-sort-name": "Name",
+  "am.asi.feat-sort-source": "Source",
+  "am.asi.feat-sort-gate": "Prerequisite",
+  "am.asi.feat-sort-fit": "Fit"
 }

@@ -26,23 +26,33 @@ export class FeatService {
     const seen = new Set();
     for (const pack of PackFilter.itemPacks()) {
       try {
-        const index = await pack.getIndex({
-          fields: ['name', 'type', 'img', 'system.featureType', 'system.prerequisite',
-                   'system.classes', 'system.source']
-        });
+        /* Through PackFilter, not pack.getIndex directly. Asking Foundry to
+           fold system fields into an index it has already built throws on
+           a5e’s packs, and this catch swallowed that and skipped the pack —
+           every pack, so the picker offered no feats at all. PackFilter now
+           checks that the index it hands back really carries the system data,
+           and reads the documents when it does not. Measured against the real
+           packs: 0 feats before, 625 after. */
+        const index = await PackFilter.indexOf(pack,
+          ['name', 'type', 'img', 'system'], { types: ['feature'] });
         for (const entry of index) {
           if (!this.isFeat(entry)) continue;
           const uuid = entry.uuid ?? `Compendium.${pack.collection}.Item.${entry._id}`;
           const key  = entry.name.toLowerCase();
           if (seen.has(key)) continue;              // same feat in two packs
           seen.add(key);
+          const prerequisite = entry.system?.prerequisite ?? '';
           out.push({
             uuid,
             name:         entry.name,
             img:          entry.img,
-            prerequisite: entry.system?.prerequisite ?? '',
+            prerequisite,
             source:       entry.system?.source ?? '',
-            packLabel:    pack.metadata?.label ?? ''
+            packLabel:    pack.metadata?.label ?? '',
+            /* The axes the picker sorts on, worked out once here rather than
+               on every keystroke. */
+            classes:      this.classesInPrerequisite(prerequisite),
+            gated:        !!prerequisite.trim()
           });
         }
       } catch (err) {
@@ -52,12 +62,75 @@ export class FeatService {
 
     out.sort((a, b) => a.name.localeCompare(b.name));
     this.#cache = out;
-    AM.log(3, `Loaded ${out.length} feat(s)`);
+    AM.log(out.length ? 3 : 2, `Loaded ${out.length} feat(s)`);
     return out;
   }
 
   /** Drop the cache so a newly installed module's feats show up. */
   static invalidate() { this.#cache = null; }
+
+  /**
+   * Which classes a prerequisite names — "3 levels in marshal, 3 levels in
+   * rogue" → ['marshal', 'rogue'].
+   *
+   * a5e records system.featClasses on almost none of its feats; the class gate
+   * lives in the prerequisite text, which is why "feats for my class" could
+   * never be offered as an ordering. Read out of the text, it can be. The keys
+   * are CONFIG.A5E.classes keys, so they line up with what the character has.
+   */
+  static classesInPrerequisite(prereq) {
+    if (!prereq) return [];
+    const keys = new Map(
+      Object.keys(CONFIG.A5E?.classes ?? {}).map(k => [k.toLowerCase(), k])
+    );
+    const found = [];
+    const re = /\blevels?\s+in\s+([a-z]+(?:\s+[a-z]+)?)/gi;
+    let m;
+    while ((m = re.exec(prereq))) {
+      const two = m[1].toLowerCase().replace(/\s+/g, '');
+      const one = m[1].toLowerCase().split(/\s+/)[0];
+      const key = keys.get(two) ?? keys.get(one);
+      if (key && !found.includes(key)) found.push(key);
+    }
+    return found;
+  }
+
+  /** The class keys a character actually has levels in. */
+  static actorClassKeys(actor) {
+    const keys = new Map(
+      Object.keys(CONFIG.A5E?.classes ?? {}).map(k => [k.toLowerCase(), k])
+    );
+    const out = [];
+    for (const item of (actor?.items ?? [])) {
+      if (item.type !== 'class') continue;
+      const name = (item.name ?? '').toLowerCase();
+      const key = keys.get(name.replace(/\s+/g, '')) ?? keys.get(name);
+      if (key && !out.includes(key)) out.push(key);
+    }
+    return out;
+  }
+
+  /**
+   * How the picker may be ordered.
+   *
+   * Alphabetical was the only order there was, and for six hundred entries
+   * that is a list you scroll rather than one you use.
+   */
+  static SORTS = {
+    name:   { label: 'am.asi.feat-sort-name',   cmp: (a, b) => a.name.localeCompare(b.name) },
+    source: { label: 'am.asi.feat-sort-source',
+              cmp: (a, b) => (a.source || '~').localeCompare(b.source || '~')
+                          || a.name.localeCompare(b.name) },
+    gate:   { label: 'am.asi.feat-sort-gate',
+              /* Ungated first: those are the ones anybody may take. */
+              cmp: (a, b) => (a.gated ? 1 : 0) - (b.gated ? 1 : 0)
+                          || a.name.localeCompare(b.name) },
+    fit:    { label: 'am.asi.feat-sort-fit',
+              /* Eligible first, then the ones this character’s own classes gate. */
+              cmp: (a, b) => (b.met ? 1 : 0) - (a.met ? 1 : 0)
+                          || (b.forMyClass ? 1 : 0) - (a.forMyClass ? 1 : 0)
+                          || a.name.localeCompare(b.name) }
+  };
 
   /**
    * A feat is `feature` + `featureType: 'feat'`.
@@ -196,27 +269,42 @@ export class FeatService {
   }
 
   /** Feats as a UI model, each carrying its prerequisite verdict. */
-  static async optionsFor(actor, { search = '', onlyEligible = false } = {}) {
+  static async optionsFor(actor, {
+    search = '', onlyEligible = false, sort = 'name', dir = 'asc',
+    onlyMyClass = false, onlyUngated = false
+  } = {}) {
     const all = await this.loadAll();
     const q = search.trim().toLowerCase();
+    const mine = this.actorClassKeys(actor);
 
-    const rows = all
+    let rows = all
       .filter(f => !q || f.name.toLowerCase().includes(q)
                       || f.prerequisite.toLowerCase().includes(q))
       .map(f => {
         const pre = this.checkPrerequisite(actor, f);
         return {
           ...f,
-          met:     pre.met,
-          unknown: pre.unknown,
-          preText: pre.text,
-          why:     (pre.failures ?? []).join(', ')
+          met:        pre.met,
+          unknown:    pre.unknown,
+          preText:    pre.text,
+          why:        (pre.failures ?? []).join(', '),
+          /* Gated on a class this character has — the difference between a
+             feat that is merely restricted and one restricted TO them. */
+          forMyClass: f.classes.length > 0 && f.classes.some(c => mine.includes(c))
         };
       });
 
     // "Only ones I qualify for" keeps the unknown ones: they are unjudged, not
     // failed, and dropping them would hide perfectly legal picks.
-    return onlyEligible ? rows.filter(f => f.met) : rows;
+    if (onlyEligible) rows = rows.filter(f => f.met);
+    /* A feat nobody gates is open to this character too, so it stays. */
+    if (onlyMyClass)  rows = rows.filter(f => f.forMyClass || !f.classes.length);
+    if (onlyUngated)  rows = rows.filter(f => !f.gated);
+
+    const cmp = (this.SORTS[sort] ?? this.SORTS.name).cmp;
+    rows.sort(cmp);
+    if (dir === 'desc') rows.reverse();
+    return rows;
   }
 
   /**

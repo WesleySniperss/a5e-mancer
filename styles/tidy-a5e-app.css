@@ -243,3 +243,35 @@
 .a5e-mancer-app .am-loading-center {
   color: var(--t5e-color-text-lighter);
 }
+
+/* ── The feat picker's sort row ───────────────────────────────────────────
+   Six hundred feats in one alphabetical column is a list you scroll rather
+   than one you use, so the picker gained orders and two more filters. The row
+   sits under the search box and wraps rather than pushing the list down. */
+.a5e-mancer-app .am-feat-sorts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--t5e-size-1x);
+  margin-block: var(--t5e-size-1x) var(--t5e-size-2x);
+}
+
+.a5e-mancer-app .am-feat-sorts .am-hint {
+  margin-inline-end: var(--t5e-size-1x);
+}
+
+.a5e-mancer-app .am-sort-btn {
+  padding: 0.1rem 0.4rem;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.a5e-mancer-app .am-sort-btn.am-active {
+  border-color: var(--t5e-color-gold);
+  color: var(--t5e-color-text-gold-emphasis);
+}
+
+.a5e-mancer-app .am-feat-controls {
+  flex-wrap: wrap;
+}

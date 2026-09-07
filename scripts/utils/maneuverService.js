@@ -195,7 +195,7 @@ export class ManeuverService {
 
     /* A record of what happened, so an empty window can say why it is empty
        rather than leaving it to be guessed at from outside. */
-    const report = { packs: 0, read: 0, failed: [], maneuvers: 0 };
+    const report = { packs: 0, read: 0, failed: [], maneuvers: 0, untraditioned: 0 };
     this.lastLoadReport = report;
 
     const packs = PackFilter.itemPacks();
@@ -205,7 +205,7 @@ export class ManeuverService {
         // flags is needed for the magic-maneuver check below — the index omits
         // it unless asked, so without it every one of them would slip through.
         const index = await PackFilter.indexOf(pack,
-          ['name', 'type', 'img', 'system', 'flags']);
+          ['name', 'type', 'img', 'system', 'flags'], { types: ['maneuver'] });
         for (const entry of index) {
           if (entry.type !== 'maneuver') continue;
           // Magic maneuvers are not filtered out: their school IS their tradition,
@@ -215,6 +215,11 @@ export class ManeuverService {
 
           // tradition is a camelCase key in the data
           const tradition = entry.system?.tradition ?? entry.system?.combatTradition ?? '';
+          /* A maneuver with no tradition is all but always an index that came
+             back without its system data, not a maneuver the book left blank.
+             Counting them is what turns a silently useless window into one that
+             can say why every filter in it does nothing. */
+          if (!tradition) report.untraditioned++;
           const degree = parseInt(
             entry.system?.degree ?? entry.system?.maneuverDegree ?? 1
           ) || 1;
@@ -258,7 +263,9 @@ export class ManeuverService {
     for (const degrees of byTradition.values())
       for (const list of degrees.values()) report.maneuvers += list.length;
     report.read = report.packs - report.failed.length;
-    AM.log(3, `Maneuvers: ${report.maneuvers} from ${report.read} of ${report.packs} packs`
+    AM.log(report.untraditioned ? 2 : 3,
+           `Maneuvers: ${report.maneuvers} from ${report.read} of ${report.packs} packs`
+            + (report.untraditioned ? `; ${report.untraditioned} arrived with no tradition` : '')
             + (report.failed.length ? `; failed: ${report.failed.join(' | ')}` : ''));
 
     return byTradition;
@@ -389,7 +396,8 @@ export class ManeuverService {
     for (const pack of PackFilter.packsOfType('Item')) {
       let index;
       try {
-        index = await PackFilter.indexOf(pack, ['name', 'type', 'system.description']);
+        index = await PackFilter.indexOf(pack, ['name', 'type', 'system.description'],
+                                         { types: ['class'] });
       } catch (err) {
         AM.log(2, `Could not index ${pack.collection} for class tables:`, err);
         continue;
