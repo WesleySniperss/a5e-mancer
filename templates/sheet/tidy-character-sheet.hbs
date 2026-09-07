@@ -163,24 +163,6 @@
             <div class="ability {{this.key}}{{#if this.saveProf}} has-proficiency{{/if}}"
               data-tidy-sheet-part="ability-container">
 
-              {{!-- The save rides on top of the plate the way the score rides
-                   under it: both tuck into the modifier by the same amount, so
-                   an ability reads as one piece — save, modifier, score —
-                   rather than a plate with a loose line under it. --}}
-              <div class="ability-save-container">
-                <button type="button" class="button-borderless ability-save flexrow saving-throw"
-                  data-action="saving-throw" data-ability="{{this.key}}"
-                  data-label="{{this.label}}" data-mod="{{this.saveMod}}"
-                  data-tooltip="{{this.label}} Save"
-                  data-tidy-sheet-part="ability-save-roller">
-                  <span class="modifier font-label-medium color-text-lightest">{{this.saveSign}}</span>
-                  <span class="value save font-data-medium color-text-default">{{this.saveAbs}}</span>
-                  {{#if this.saveExpDie}}
-                    <span class="am-save-exp font-label-medium color-text-gold">{{this.saveExpDie}}</span>
-                  {{/if}}
-                  <span class="icon"><i class="fas fa-shield-heart"></i></span>
-                </button>
-              </div>
 
               <div class="ability-bonus-container{{#if this.saveProf}} proficient{{/if}}"
                 data-tidy-sheet-part="ability-mod-container">
@@ -224,6 +206,29 @@
                 {{/if}}
               </div>
 
+              {{!-- Back where Tidy puts it. It was moved above the modifier
+                   because the bottom row of the plate was being cut off — but
+                   that was the abilities row clipping its overflow, fixed in
+                   2.33.3, and not where the save sat. With the crop gone there
+                   is no reason to sit anywhere but where the design has it,
+                   and every reason not to: modifier, score, save is a
+                   composition Tidy tuned, and mine was three attempts of
+                   negative margins that never sat right. --}}
+              <div class="ability-save-container">
+                <button type="button" class="button-borderless ability-save flexrow saving-throw"
+                  data-action="saving-throw" data-ability="{{this.key}}"
+                  data-label="{{this.label}}" data-mod="{{this.saveMod}}"
+                  data-tooltip="{{this.label}} Save"
+                  data-tidy-sheet-part="ability-save-roller">
+                  <span class="modifier font-label-medium color-text-lightest">{{this.saveSign}}</span>
+                  <span class="value save font-data-medium color-text-default">{{this.saveAbs}}</span>
+                  {{#if this.saveExpDie}}
+                    <span class="am-save-exp font-label-medium color-text-gold">{{this.saveExpDie}}</span>
+                  {{/if}}
+                  <span class="icon"><i class="fas fa-shield-heart"></i></span>
+                </button>
+              </div>
+
             </div>
           {{/each}}
 
@@ -245,27 +250,16 @@
             </div>
           </div>
 
-          {{!-- Concentration stands beside initiative rather than under it.
+          {{!-- Concentration used to live in this row, first under initiative
+               and then beside it. Three attempts, three overlaps — the last one
+               drew "Conc." on top of the Wisdom plate although the DOM had it
+               last in the row. Something in this container is beyond what I can
+               see from outside the browser, so it stops being a plate: it has
+               moved to the stat strip below, which is our own flex row and has
+               never put anything on top of anything.
 
-               Two goes at making them share a column both failed — first the
-               Foundry flex utility handed each of them half its height, and
-               once that was off they still ran together. Rather than keep
-               fighting a cascade I cannot see from here, they are separate
-               columns now: two boxes side by side cannot overlap, whatever any
-               rule says about either. --}}
-          <div class="ability concentration-column">
-            <div class="concentration">
-              <div class="concentration-bonus">
-                <i class="fas fa-head-side-brain color-text-gold"></i>
-                <span class="modifier font-label-medium color-text-lightest">{{tidy.conc.sign}}</span>
-                <span class="value font-data-medium color-text-default">{{tidy.conc.value}}</span>
-              </div>
-              <button type="button" class="unbutton concentration-roll-button"
-                data-action="concentration-check">
-                <span class="label font-label-medium color-text-gold">Conc.</span>
-              </button>
-            </div>
-          </div>
+               It also belongs there by kind. It is a derived number you read,
+               like the maneuver and spell DCs standing next to it. --}}
         </div>
       </div>
     </div>
@@ -391,6 +385,15 @@
 
     {{!-- The companion figure. Every chip in this strip is the same shape, so
          one more sits level with the rest rather than nudging them. --}}
+    <div class="am-a5e-stat" data-tooltip="Concentration — click to roll">
+      <button type="button" class="unbutton am-conc-button" data-action="concentration-check">
+        <span class="am-a5e-label font-label-medium color-text-gold">
+          <i class="fas fa-head-side-brain"></i> Conc.
+        </span>
+        <span class="am-a5e-value font-data-medium color-text-default">{{tidy.conc.sign}}{{tidy.conc.value}}</span>
+      </button>
+    </div>
+
     {{#if spellDC}}
       <div class="am-a5e-stat" data-tooltip="Spell Save DC">
         <span class="am-a5e-label font-label-medium color-text-gold">Spell DC</span>

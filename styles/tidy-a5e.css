@@ -51,10 +51,6 @@
   color: var(--t5e-color-text-default);
 }
 
-/* The exertion meter borrows Tidy's .meter bar wholesale; it only needs a
-   width and its own fill colour, since the bar geometry is already Tidy's. */
-
-
 
 /* ── Expertise dice ───────────────────────────────────────────────────────
    A5e's answer to expertise: a die added to the roll rather than a doubled
@@ -940,11 +936,6 @@
    plate from above instead of hanging under it as a separate line. It comes
    first in the markup, so it needs to be lifted above its neighbour to paint
    the way the score does. */
-.tidy5e-sheet.application.a5e-mancer-sheet .ability .ability-save-container {
-  margin-block-end: -0.75rem;
-  position: relative;
-  z-index: 1;
-}
 
 /* ── The HP bar is a bar, not a row of boxes ───────────────────────────────
    Heal and damage sit on top of the bar, absolutely placed. Any background of
@@ -1107,32 +1098,9 @@
    flex: 1 }` was giving the head icon, the sign and the number a third of the
    width each and drifting them apart. The layout is stated here instead, so
    nothing has to out-specify a rule of Foundry own. */
-.tidy5e-sheet.application.a5e-mancer-sheet .concentration {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  gap: 0;
-}
 
-.tidy5e-sheet.application.a5e-mancer-sheet .concentration-bonus {
-  display: flex;
-  flex-direction: row;
-  align-items: baseline;
-  justify-content: center;
-  gap: var(--t5e-size-halfx);
-  flex: 0 0 auto;
-}
 
-.tidy5e-sheet.application.a5e-mancer-sheet .concentration-bonus > * {
-  flex: 0 0 auto;
-}
 
-.tidy5e-sheet.application.a5e-mancer-sheet .concentration .concentration-roll-button {
-  flex: 0 0 auto;
-  line-height: 1;
-}
 
 /* ── A third off the header ────────────────────────────────────────────────
    On a small screen it was taking half the sheet. The three things that
@@ -1145,9 +1113,6 @@
 
 /* Portrait: 11.25rem wide, and the image inside has a 10rem floor that would
    otherwise hold the whole column open. Both come down together. */
-.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals-container {
-  --vitals-width: 7.5rem;
-}
 
 
 /* Plates: Tidy sizes them by width and the height follows from the aspect
@@ -1163,10 +1128,6 @@
 
    6.25rem is what the initiative column needs: its badge is a fixed 3.75rem and
    concentration sits under it. Cut to 5.5rem the two ran into each other. */
-.tidy5e-sheet.application.a5e-mancer-sheet .abilities-container-inner {
-  min-height: 6.25rem;
-  margin-block-start: var(--t5e-size-1x);
-}
 
 /* The two rows under the plates: half the padding they had. */
 .tidy5e-sheet.application.a5e-mancer-sheet .am-a5e-strip,
@@ -1191,9 +1152,6 @@
    it — together more than the 5.5rem the row was cut to, so the two ran into
    each other. The row gets that height back, and the narrowing is kept off the
    initiative column, which was never one of the six plates being shrunk. */
-.tidy5e-sheet.application.a5e-mancer-sheet .abilities-container:not(.abilities-size-compact):not(.abilities-size-small) .ability:not(.initiative) {
-  max-width: 3.25rem;
-}
 
 
 .tidy5e-sheet.application.a5e-mancer-sheet .ability.initiative {
@@ -1317,22 +1275,11 @@
    It had a floor of 7.5rem, so as the sheet narrowed every other part gave way
    and the portrait did not — which is why it looked like it was growing. It
    still cannot vanish, but it is no longer the last thing standing. */
-.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals-container .actor-image {
-  min-width: 4rem;
-}
 
 /* ── Concentration stands beside initiative ────────────────────────────────
    Two goes at making them share a column failed. Rather than keep fighting a
    cascade I cannot see from here, they are separate columns: two boxes side by
    side cannot overlap, whatever any rule says about either of them. */
-.tidy5e-sheet.application.a5e-mancer-sheet .ability.concentration-column {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  max-width: 3.5rem;
-  flex: 0 0 auto;
-}
 
 /* ── The bar and its name are the same height ──────────────────────────────
    Centring a row only works if the things in it agree on how tall they are. A
@@ -1363,4 +1310,46 @@
   --meter-height: 1.5rem;
   display: flex;
   align-items: center;
+}
+
+/* ── Concentration, in the strip ───────────────────────────────────────────
+   It sat in the abilities row three different ways and overlapped the plates
+   every time — the last of them stretching sideways as the sheet grew, which
+   is the tell: its column was being given flex: 1 by something I could not see
+   from outside the browser.
+
+   Here it cannot. Every chip in this strip is flex: 0 0 auto and the strip is
+   nowrap, so it takes the width of its own text and no more. It reads as what
+   it is, too: a derived number, next to the two DCs. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-conc-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--t5e-size-2x);
+  flex: 0 0 auto;
+  width: auto;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-conc-button:hover .am-a5e-value {
+  color: var(--t5e-color-text-gold-emphasis);
+}
+
+/* ── The portrait shrinks with the sheet ───────────────────────────────────
+   Tidy gives the vitals column a max-width and leaves it at that. As a flex
+   item with nothing telling it to give way, it held its full width while every
+   other part of the header narrowed — so the avatar did not grow, it was
+   simply the only thing that never shrank, which reads as growing.
+
+   Allowed to shrink now, with a floor low enough to matter and min-width: 0 so
+   the flex algorithm is actually free to do it. */
+.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals-container {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals-container .actor-image {
+  min-width: 0;
 }
