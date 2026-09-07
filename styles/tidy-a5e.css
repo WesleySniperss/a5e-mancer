@@ -1320,3 +1320,47 @@
 .tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals-container .actor-image {
   min-width: 4rem;
 }
+
+/* ── Concentration stands beside initiative ────────────────────────────────
+   Two goes at making them share a column failed. Rather than keep fighting a
+   cascade I cannot see from here, they are separate columns: two boxes side by
+   side cannot overlap, whatever any rule says about either of them. */
+.tidy5e-sheet.application.a5e-mancer-sheet .ability.concentration-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  max-width: 3.5rem;
+  flex: 0 0 auto;
+}
+
+/* ── The bar and its name are the same height ──────────────────────────────
+   Centring a row only works if the things in it agree on how tall they are. A
+   label carries its own line box and a meter is a fixed box, so they are both
+   given the bar height and told to sit in the middle of it. Stated as a height
+   rather than an alignment, because alignment was what failed. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-tracker,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter {
+  align-items: center;
+  min-height: 1.5rem;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-a5e-label,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-name,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-tracker-meter {
+  height: 1.5rem;
+  align-self: center;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-a5e-label,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-name {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-tracker-meter {
+  --meter-height: 1.5rem;
+  display: flex;
+  align-items: center;
+}
