@@ -188,6 +188,21 @@
         {{#unless activeTradition}}
           <p class="am-hint">{{localize 'am.maneuvers.select-tradition-hint'}}</p>
         {{/unless}}
+
+        {{!-- What the compendium read actually did. An empty list with no
+             explanation is impossible to diagnose from a screenshot. --}}
+        {{#if loadReport}}
+          <p class="am-hint">
+            {{loadReport.maneuvers}} maneuvers read from
+            {{loadReport.read}} of {{loadReport.packs}} compendia.
+          </p>
+          {{#if loadReport.failed.length}}
+            <p class="am-hint">Could not read:</p>
+            <ul class="am-hint">
+              {{#each loadReport.failed}}<li>{{this}}</li>{{/each}}
+            </ul>
+          {{/if}}
+        {{/if}}
       </div>
     {{/if}}
 

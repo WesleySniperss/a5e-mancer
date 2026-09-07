@@ -116,6 +116,7 @@ export class SpellDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       cantripsLimited:       this.cantripsToChoose > 0,
       spellsLimited:         this.spellsToChoose > 0,
       manage:                this.manage,
+      loadReport:            SpellService.lastLoadReport ?? null,
       maxSpellLevel:         this.maxSpellLevel,
       selectedCantrips:      this._selectedCantrips.size,
       selectedSpells:        this._selectedSpells.size,

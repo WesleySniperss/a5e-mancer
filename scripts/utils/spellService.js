@@ -468,7 +468,14 @@ export class SpellService {
     const byLevel = new Map();
     for (let i = 0; i <= 9; i++) byLevel.set(i, []);
 
+    /* Same note the maneuver loader keeps: an empty window should be able to
+       say what it read rather than leaving it to be worked out from outside. */
+    const report = { packs: 0, read: 0, failed: [], spells: 0, filteredBy: '' };
+    this.lastLoadReport = report;
+
     const packs = PackFilter.itemPacks();
+    report.packs = packs.length;
+    report.filteredBy = filterClass || '';
 
     for (const pack of packs) {
       try {
@@ -515,6 +522,7 @@ export class SpellService {
           });
         }
       } catch (err) {
+        report.failed.push(`${pack.collection}: ${err.message}`);
         AM.log(2, `Error loading spells from ${pack.collection}:`, err);
       }
     }
@@ -523,6 +531,12 @@ export class SpellService {
     for (const [level, spells] of byLevel) {
       byLevel.set(level, spells.sort((a, b) => a.name.localeCompare(b.name)));
     }
+
+    for (const list of byLevel.values()) report.spells += list.length;
+    report.read = report.packs - report.failed.length;
+    AM.log(3, `Spells: ${report.spells} from ${report.read} of ${report.packs} packs`
+            + (report.filteredBy ? `, filtered to ${report.filteredBy}` : ', unfiltered')
+            + (report.failed.length ? `; failed: ${report.failed.join(' | ')}` : ''));
 
     return byLevel;
   }

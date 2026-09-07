@@ -193,7 +193,13 @@ export class ManeuverService {
       byTradition.set(key, new Map());
     }
 
+    /* A record of what happened, so an empty window can say why it is empty
+       rather than leaving it to be guessed at from outside. */
+    const report = { packs: 0, read: 0, failed: [], maneuvers: 0 };
+    this.lastLoadReport = report;
+
     const packs = PackFilter.itemPacks();
+    report.packs = packs.length;
     for (const pack of packs) {
       try {
         // flags is needed for the magic-maneuver check below — the index omits
@@ -237,6 +243,7 @@ export class ManeuverService {
           tradMap.get(degree).push(maneuver);
         }
       } catch (err) {
+        report.failed.push(`${pack.collection}: ${err.message}`);
         AM.log(2, `Error loading maneuvers from ${pack.collection}:`, err);
       }
     }
@@ -247,6 +254,12 @@ export class ManeuverService {
         tradMap.set(deg, maneuvers.sort((a, b) => a.name.localeCompare(b.name)));
       }
     }
+
+    for (const degrees of byTradition.values())
+      for (const list of degrees.values()) report.maneuvers += list.length;
+    report.read = report.packs - report.failed.length;
+    AM.log(3, `Maneuvers: ${report.maneuvers} from ${report.read} of ${report.packs} packs`
+            + (report.failed.length ? `; failed: ${report.failed.join(' | ')}` : ''));
 
     return byTradition;
   }

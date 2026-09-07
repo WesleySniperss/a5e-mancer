@@ -186,6 +186,11 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       unlocked:          this._unlocked,
       degrees:           [1, 2, 3, 4, 5].filter(d => d <= this.maxDegree),
       loading:           this._loading,
+      /* When the list comes back empty the window used to say only 'none
+         found', which is true and useless. This says what was actually read,
+         so the reason is on screen instead of in a console the sheet makes
+         awkward to reach. */
+      loadReport:        ManeuverService.lastLoadReport ?? null,
       freeManage:        slots === -1
     };
   }
