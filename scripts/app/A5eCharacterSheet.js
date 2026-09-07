@@ -150,6 +150,13 @@ export class A5eCharacterSheet extends ActorSheet {
     return buttons;
   }
 
+  /** Nothing should keep observing an element that has been torn down. */
+  async close(options) {
+    this._abilityLayoutObserver?.disconnect();
+    this._abilityLayoutObserver = null;
+    return super.close(options);
+  }
+
   /* ── Data ─────────────────────────────────────────── */
   async getData() {
     const actor  = this.actor;
@@ -2288,6 +2295,42 @@ export class A5eCharacterSheet extends ActorSheet {
         btn.textContent = body?.classList.contains('am-hidden') ? '▸' : '▾';
       })
     );
+
+    /* ── Making the header responsive, the way Tidy makes it responsive ──
+
+       Tidy's abilities row has three layouts, and its own Svelte component
+       chooses between them from the sheet's width — AbilitiesContainer.svelte.
+       We render the markup but not that component, so the class was never
+       applied and the row never adapted: widen the sheet and the space simply
+       sat there, narrow it and everything held its size while the portrait,
+       which has a floor, took up proportionally more.
+
+       This is their arithmetic, not an approximation of it. The thresholds are
+       the numbers CharacterSheet.svelte passes in — 3.5rem per ability to
+       collapse, 4rem to shrink, 20.5rem of everything else — and the widths
+       are in rem against Foundry's own font size, as theirs are. */
+    const applyAbilityLayout = () => {
+      const box = el.querySelector('.abilities-container');
+      if (!box) return;
+      const fontPx = Number(game.settings.get('core', 'fontSize')) || 16;
+      const widthRems = (this.position?.width ?? el.clientWidth ?? 0) / fontPx;
+      const n = 6;                                   // a5e has the same six
+      const collapsedRems = n * 3.5 + 20.5;
+      const smallerRems   = n * 4   + 20.5;
+      box.classList.toggle('abilities-size-compact', widthRems < collapsedRems);
+      box.classList.toggle('abilities-size-small',
+        widthRems >= collapsedRems && widthRems < smallerRems);
+    };
+    applyAbilityLayout();
+
+    /* Watching the element rather than only the resize handle: the sheet is
+       also resized by Foundry restoring a saved position, and by the user
+       changing the interface font, neither of which is a drag. */
+    this._abilityLayoutObserver?.disconnect();
+    if (typeof ResizeObserver === 'function') {
+      this._abilityLayoutObserver = new ResizeObserver(() => applyAbilityLayout());
+      this._abilityLayoutObserver.observe(el);
+    }
 
     /* ── Configuring an ability or a skill ──────────────────────────────
        These are a5e's own dialogs, reached through its own actor methods, so

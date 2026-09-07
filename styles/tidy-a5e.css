@@ -1149,9 +1149,6 @@
   --vitals-width: 7.5rem;
 }
 
-.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals-container .actor-image {
-  min-width: 7.5rem;
-}
 
 /* Plates: Tidy sizes them by width and the height follows from the aspect
    ratio on the modifier, so narrowing the plate shortens the row too.
@@ -1194,7 +1191,7 @@
    it — together more than the 5.5rem the row was cut to, so the two ran into
    each other. The row gets that height back, and the narrowing is kept off the
    initiative column, which was never one of the six plates being shrunk. */
-.tidy5e-sheet.application.a5e-mancer-sheet .ability:not(.initiative) {
+.tidy5e-sheet.application.a5e-mancer-sheet .abilities-container:not(.abilities-size-compact):not(.abilities-size-small) .ability:not(.initiative) {
   max-width: 3.25rem;
 }
 
@@ -1282,4 +1279,44 @@
 .tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-a5e-label,
 .tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-name {
   max-width: 7rem;
+}
+
+/* ── The initiative column ─────────────────────────────────────────────────
+   Its markup no longer wears Foundry .flexcol, so the layout is stated here.
+   The badge is a fixed 3.75rem and concentration sits under it; left to
+   .flexcol > * { flex: 1 } they were given half the column each and the badge,
+   which will not flex, ran into the text below it. */
+.tidy5e-sheet.application.a5e-mancer-sheet .ability.initiative {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--t5e-size-halfx);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .ability.initiative > * {
+  flex: 0 0 auto;
+}
+
+/* ── The bar sits level with its name ──────────────────────────────────────
+   A label is text on a baseline and a meter is a box; centring the row is not
+   enough on its own, because the label brings its own line-height with it. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-a5e-label,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-name {
+  line-height: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-tracker,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter {
+  align-items: center;
+}
+
+/* ── The portrait shrinks with everything else ─────────────────────────────
+   It had a floor of 7.5rem, so as the sheet narrowed every other part gave way
+   and the portrait did not — which is why it looked like it was growing. It
+   still cannot vanish, but it is no longer the last thing standing. */
+.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals-container .actor-image {
+  min-width: 4rem;
 }

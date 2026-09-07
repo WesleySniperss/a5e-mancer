@@ -227,7 +227,12 @@
             </div>
           {{/each}}
 
-          <div class="ability initiative flexcol">
+          {{!-- No flexcol. Foundry gives .flexcol > * a flex of 1, which was
+               handing the initiative badge and concentration half the column
+               each — the badge has a fixed height of 3.75rem and does not
+               want flexing, so the two ran into one another. Same trap that
+               had the head icon floating loose; this is its parent. --}}
+          <div class="ability initiative">
             <div class="initiative-score-container" data-tooltip="Initiative">
               <button type="button" class="ability-roll-button button-borderless"
                 data-action="roll-initiative">
