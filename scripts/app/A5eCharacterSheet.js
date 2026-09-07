@@ -714,6 +714,35 @@ export class A5eCharacterSheet extends ActorSheet {
     /* Biography written by the creation wizard. Kept as a flag because a5e's
        details schema has no field for backstory, connections, mementos or the
        destiny table results — see ActorCreationService#applyBiography. */
+    /* a5e keeps the character's own writing at system.details — the appearance
+       fields, the backstory, the notes and the GM-only notes. This sheet was
+       reading a flag of the mancer's instead, which only ever holds what the
+       builder put there at creation. Anything typed on a5e's sheet since was
+       simply not being read, which is why the tab looked empty of everything
+       written by hand.
+
+       Both are shown now: a5e's fields first, because they are the character's,
+       and the mancer's creation write-ups after. */
+    const det = sys.details ?? {};
+    const details = {
+      fields: [
+        { key: 'age',       label: 'Age',        value: det.age       ?? '' },
+        { key: 'gender',    label: 'Gender',     value: det.gender    ?? '' },
+        { key: 'height',    label: 'Height',     value: det.height    ?? '' },
+        { key: 'weight',    label: 'Weight',     value: det.weight    ?? '' },
+        { key: 'eyeColor',  label: 'Eyes',       value: det.eyeColor  ?? '' },
+        { key: 'hairColor', label: 'Hair',       value: det.hairColor ?? '' },
+        { key: 'skinColor', label: 'Skin',       value: det.skinColor ?? '' }
+      ],
+      bio:   det.bio   ?? '',
+      notes: det.notes ?? '',
+      /* Private notes are the GM's. A player owning the sheet must not see
+         them, so they are not put in the context at all rather than hidden
+         with a class. */
+      privateNotes: game.user.isGM ? (det.privateNotes ?? '') : ''
+    };
+    details.hasFields = details.fields.some(f => f.value);
+
     const bioFlag = actor.getFlag(MODULE_ID, 'biography') ?? {};
     const bio = {
       backstory:   bioFlag.backstory   ?? '',
@@ -760,6 +789,16 @@ export class A5eCharacterSheet extends ActorSheet {
       inventory.groups.flatMap(g => g.items.flatMap(i => i.contents ?? []))
     );
 
+    /* The written pages carry @UUID links, inline rolls and tables, and none of
+       it renders until enrichHTML has run over it. */
+    details.bio          = await enrichDesc(details.bio, actor);
+    details.notes        = await enrichDesc(details.notes, actor);
+    details.privateNotes = await enrichDesc(details.privateNotes, actor);
+    for (const k of ['backstory', 'traits', 'connections', 'mementos',
+                     'motivation', 'goals', 'connection', 'fulfillment']) {
+      bio[k] = await enrichDesc(bio[k], actor);
+    }
+
     return {
       actor, system: sys, isOwner: actor.isOwner, isGM: game.user.isGM,
       tidy,
@@ -776,7 +815,7 @@ export class A5eCharacterSheet extends ActorSheet {
       fatiguePips, strifePips, exertionPips,
       fatigueDesc, strifeDesc, statusConditions,
       attunementItems, attuneCount, passivePerception, passives, spellDC,
-      showPassives, showMagicTab, showMartialTab, traitSections, charInfo, bio,
+      showPassives, showMagicTab, showMartialTab, traitSections, charInfo, bio, details,
       hasWeapons:          weapons.length        > 0,
       hasManeuvers:        maneuvers.length      > 0,
       hasSpells:           spells.length         > 0,
@@ -1852,13 +1891,30 @@ export class A5eCharacterSheet extends ActorSheet {
     }
 
     /* Star / favorite toggle */
+    /* a5e keeps a favourite on the item, at system.favorite, and its own sheet
+       reads it there. This wrote only a flag of the module, so a star put on
+       here never showed on a5e own sheet and one put on there was read but
+       could not be taken off. It writes the item field now.
+
+       The old flag is still read when the sheet is built, so stars set before
+       this are not lost; unstarring clears both. */
     el.querySelectorAll('[data-action="item-star"]').forEach(b =>
       b.addEventListener('click', async (e) => {
         e.stopPropagation();
-        const id  = b.dataset.id;
-        const cur = new Set(this.actor.getFlag(MODULE_ID, 'favorites') ?? []);
-        if (cur.has(id)) cur.delete(id); else cur.add(id);
-        await this.actor.setFlag(MODULE_ID, 'favorites', [...cur]);
+        const id   = b.dataset.id;
+        const item = this.actor.items.get(id);
+        if (!item) return;
+
+        const legacy = new Set(this.actor.getFlag(MODULE_ID, 'favorites') ?? []);
+        const starred = !!item.system?.favorite || legacy.has(id);
+
+        await item.update({ 'system.favorite': !starred }).catch(err =>
+          AM.log(2, `Could not star ${item.name}:`, err));
+
+        if (legacy.has(id) === starred && legacy.size) {
+          legacy.delete(id);
+          await this.actor.setFlag(MODULE_ID, 'favorites', [...legacy]);
+        }
       })
     );
 
@@ -2371,6 +2427,14 @@ export class A5eCharacterSheet extends ActorSheet {
       b.addEventListener('click', (e) => {
         e.preventDefault();
         this.actor.configureAbilityScore?.({ abilityKey: b.dataset.ability });
+      }));
+
+    /* The appearance fields, written straight to a5e's own paths. */
+    el.querySelectorAll('[data-action="detail-field"]').forEach(inp =>
+      inp.addEventListener('change', async (e) => {
+        await this.actor.update({
+          [`system.details.${e.target.dataset.key}`]: e.target.value
+        });
       }));
 
     /* The trait lists in the sidebar. Every one of these is a dialog a5e

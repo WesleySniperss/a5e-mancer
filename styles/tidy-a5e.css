@@ -1379,3 +1379,72 @@
   text-align: end;
   font-variant-numeric: tabular-nums;
 }
+
+/* ── Nothing sits on the hit point bar but its numbers ─────────────────────
+   Heal and damage are placed over the bar, and anything they carry of their
+   own — a background, a border, the bar-end rule Tidy draws where the fill
+   stops — reads as a panel cut into the right of it. All of it off, on the
+   wrapper and the buttons alike, with the icons given a shadow so they stay
+   legible against a full green bar. */
+.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals .hp-row .am-hp-buttons,
+.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals .hp-row .am-hp-buttons .button,
+.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals .hp-row .am-hp-buttons .button.button-icon-only.button-borderless {
+  background: none;
+  border: none;
+  box-shadow: none;
+  outline: none;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals .hp-row .am-hp-buttons .button i {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals .hp-row .am-hp-buttons .button:hover {
+  background: rgba(0, 0, 0, 0.28);
+}
+
+/* The fill stops with a hard rule at its end; on a full bar that lands on the
+   right edge and reads as an extra box. */
+.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals .hit-points {
+  --bar-end-border-width: 0;
+}
+
+/* ── The initiative badge sits square ──────────────────────────────────────
+   Its frame is a background image drawn at the top of a fixed-height box. If
+   the button inside is any taller than the box, the art and the number stop
+   agreeing on where the middle is. */
+.tidy5e-sheet.application.a5e-mancer-sheet .initiative-score-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-position: center;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .initiative-score-container .ability-roll-button {
+  width: 100%;
+  padding-block: 0;
+  justify-content: center;
+}
+
+/* ── The appearance fields in Notes ────────────────────────────────────────
+   Age, gender, height and the rest. Short answers, so they sit as a wrapping
+   grid rather than a column of full-width inputs. Behind the padlock like
+   everything else that describes a character. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-detail-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--t5e-size-2x) var(--t5e-size-3x);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-detail-field {
+  display: flex;
+  align-items: baseline;
+  gap: var(--t5e-size-2x);
+  min-width: 0;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-detail-field input {
+  flex: 1;
+  min-width: 0;
+  color: var(--t5e-color-text-default);
+}

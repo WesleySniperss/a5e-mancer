@@ -1249,6 +1249,53 @@
            roll or write, and which lives nowhere else: the backstory, the
            destiny answers and the lore-table results. --}}
 
+      {{!-- What a5e itself stores about the character: the appearance fields
+           and the three written pages. These are where anything typed on a5e
+           own sheet lives, and this tab was not reading them at all. --}}
+      {{#if @root.unlocked}}
+        <section class="am-bio-card am-detail-fields">
+          {{#each details.fields}}
+            <label class="am-detail-field">
+              <span class="font-label-medium color-text-gold">{{this.label}}</span>
+              <input type="text" class="uninput" data-action="detail-field"
+                data-key="{{this.key}}" value="{{this.value}}" aria-label="{{this.label}}" />
+            </label>
+          {{/each}}
+        </section>
+      {{else if details.hasFields}}
+        <section class="am-bio-card am-detail-fields">
+          {{#each details.fields}}
+            {{#if this.value}}
+              <div class="am-detail-field">
+                <span class="font-label-medium color-text-gold">{{this.label}}</span>
+                <span class="color-text-default">{{this.value}}</span>
+              </div>
+            {{/if}}
+          {{/each}}
+        </section>
+      {{/if}}
+
+      {{#if details.bio}}
+        <section class="am-bio-card">
+          <h3 class="font-title-small">Backstory</h3>
+          <div class="am-origin-desc">{{{details.bio}}}</div>
+        </section>
+      {{/if}}
+
+      {{#if details.notes}}
+        <section class="am-bio-card">
+          <h3 class="font-title-small">Notes</h3>
+          <div class="am-origin-desc">{{{details.notes}}}</div>
+        </section>
+      {{/if}}
+
+      {{#if details.privateNotes}}
+        <section class="am-bio-card">
+          <h3 class="font-title-small">Private Notes <i class="fa-solid fa-user-secret"></i></h3>
+          <div class="am-origin-desc">{{{details.privateNotes}}}</div>
+        </section>
+      {{/if}}
+
       {{#if bio.backstory}}
         <section class="card am-bio-card">
           <h3 class="font-title-small">Backstory</h3>
@@ -1286,25 +1333,25 @@
             {{#if bio.motivation}}
               <div class="list-entry">
                 <div class="list-label flexrow"><h4 class="font-weight-label">Motivation</h4></div>
-                <div class="list-content">{{bio.motivation}}</div>
+                <div class="list-content am-origin-desc">{{{bio.motivation}}}</div>
               </div>
             {{/if}}
             {{#if bio.goals}}
               <div class="list-entry">
                 <div class="list-label flexrow"><h4 class="font-weight-label">Goals</h4></div>
-                <div class="list-content">{{bio.goals}}</div>
+                <div class="list-content am-origin-desc">{{{bio.goals}}}</div>
               </div>
             {{/if}}
             {{#if bio.connection}}
               <div class="list-entry">
                 <div class="list-label flexrow"><h4 class="font-weight-label">Connection</h4></div>
-                <div class="list-content">{{bio.connection}}</div>
+                <div class="list-content am-origin-desc">{{{bio.connection}}}</div>
               </div>
             {{/if}}
             {{#if bio.fulfillment}}
               <div class="list-entry">
                 <div class="list-label flexrow"><h4 class="font-weight-label">Fulfillment</h4></div>
-                <div class="list-content">{{bio.fulfillment}}</div>
+                <div class="list-content am-origin-desc">{{{bio.fulfillment}}}</div>
               </div>
             {{/if}}
           </div>
