@@ -1259,15 +1259,20 @@
    to min-height 6.625rem with align-items: stretch, so the column is 6.625rem
    tall. .initiative-score-container is height 3.75rem with margin-block-start
    .3125rem — 4.0625rem — and the column gap is .125rem. 2.4375rem is left, and
-   the chip is 2.25rem. It is also 3.25rem wide, the badge width, so the column
-   is no wider than it was.
+   the chip is 2.25rem.
+
+   Width is 100%, not a figure. Tidy gives the column width: 3rem with
+   overflow: hidden — so a chip stated as 3.25rem, the badge width, is quietly
+   clipped by an eighth of a rem on each side rather than overflowing where it
+   could be seen. 100% also follows the column through Tidy’s compact and
+   small layouts, where the badge itself is told to fill the width.
 
    Nothing here flexes. That was the fault every previous time: .flexcol on the
    column, or flex: 1 on the chip, handed the badge half the height it needed
    and it drew over whatever was beneath. */
 .tidy5e-sheet.application.a5e-mancer-sheet .am-conc-chip {
   flex: 0 0 auto;
-  width: 3.25rem;
+  width: 100%;
   height: 2.25rem;
   display: flex;
   flex-direction: column;
