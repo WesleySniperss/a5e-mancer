@@ -59,7 +59,10 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
       filterSpellSchool:       A5eMancer.filterSpellSchool,
       toggleSpell:             A5eMancer.toggleSpell
     },
-    classes: ['a5e-mancer-app', 'am-app'],
+    /* am-builder is what carries the two-column layout. It used to be on am-app,
+       which all four of these windows wear — and only this one has the parts
+       that grid lays out. See the note in a5e-mancer.css. */
+    classes: ['a5e-mancer-app', 'am-app', 'am-builder'],
     position: { height: 700, width: 1100, top: 60 },
     window: {
       icon: 'fa-solid fa-hat-wizard',

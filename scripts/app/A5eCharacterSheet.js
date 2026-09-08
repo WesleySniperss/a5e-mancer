@@ -567,6 +567,13 @@ export class A5eCharacterSheet extends ActorSheet {
       return { level: l, value, max, pips };
     }).filter(Boolean);
 
+    /* The same figures again, keyed as the spell groups are keyed, so a level
+       heading can carry its own slots. The row of trackers stays where it is;
+       this is only so that "Level 3" says how many third-level slots are left
+       without the eye going anywhere. */
+    const spellSlots = Object.fromEntries(
+      slotRows.map(r => [`Level ${r.level}`, { value: r.value, max: r.max }]));
+
     /* Fatigue/Strife pip arrays */
     const fatiguePips  = Array.from({ length: 6 }, (_, i) => ({ i, active: i < resources.fatigue }));
     const strifePips   = Array.from({ length: 6 }, (_, i) => ({ i, active: i < resources.strife  }));
@@ -863,7 +870,7 @@ export class A5eCharacterSheet extends ActorSheet {
       sidebarOnTraits: sidebarTab === 'traits',
       abilities, skills, resources, classes,
       savingThrows, maneuverDC, proficiencies,
-      weapons, maneuvers, maneuverGroups, spells, spellGroups, slotRows,
+      weapons, maneuvers, maneuverGroups, spells, spellGroups, slotRows, spellSlots,
       features, feats, allFeatures, featuresBySource, customCounters, freeCounter,
       effectGroups, bonuses, hasBonuses, interactionGroups, settings,
       unlocked, actorResources, equipment, currency,
@@ -3886,7 +3893,12 @@ export class A5eNPCSheet extends A5eCharacterSheet {
     const bucket = new Map(GROUPS.map(g => [g.key, []]));
 
     for (const item of this.actor.items) {
-      if (!['feature', 'object', 'maneuver', 'spell'].includes(item.type)) continue;
+      /* Maneuvers are not in the statblock. a5e's monsters carry a great many —
+         5892 across its pack, against 6132 features — and folded in among the
+         actions they bury the handful of things the creature actually does in a
+         round. They keep their own tab, which is where a monster's maneuvers
+         were always going to be looked for. */
+      if (!['feature', 'object', 'spell'].includes(item.type)) continue;
 
       const actions = Object.entries(item.system?.actions ?? {});
 

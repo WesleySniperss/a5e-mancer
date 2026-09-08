@@ -1141,6 +1141,7 @@
       {{#if hasSpells}}
         {{#each spellGroups}}
           {{#> tidy-table key=@key label=@key count=this.length items=this
+                          slots=(lookup @root.spellSlots @key)
                           c1=true col1="Cast Time" c2=true col2="Range"
                           c3=true col3="Duration" c4=true col4="Save"}}
             {{#each items}}

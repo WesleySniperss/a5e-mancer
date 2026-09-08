@@ -1619,3 +1619,38 @@
 .tidy5e-sheet.application.a5e-mancer-sheet .tabs-row > .tidy-tabs {
   padding-inline-start: 2.25rem;
 }
+/* ── Slots on the level heading ────────────────────────────────────────────
+   Beside the spell count, on the line already there. The row of slot trackers
+   above is where slots are SPENT; this is only so the heading says how many
+   are left, which is the question being asked when you are looking at the
+   spells of that level. Same height as the count chip beside it, so nothing
+   in the table grows. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-slot-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 1.25rem;
+  margin-inline-start: var(--t5e-size-1x);
+  padding-inline: var(--t5e-size-1x);
+  border: 0.0625rem solid var(--t5e-component-pill-border);
+  border-radius: 1rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-slot-left {
+  color: var(--t5e-color-text-gold-emphasis);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-slot-sep,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-slot-max {
+  color: var(--t5e-color-text-lightest);
+}
+
+/* Nothing left to spend: the chip says so rather than the eye counting. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-slot-chip:has(.am-slot-left:empty),
+.tidy5e-sheet.application.a5e-mancer-sheet .am-slot-chip.am-slot-none .am-slot-left {
+  color: var(--t5e-color-text-lightest);
+}
