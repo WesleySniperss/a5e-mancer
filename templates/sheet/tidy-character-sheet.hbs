@@ -134,6 +134,12 @@
           <div class="level-block">
             <span class="level bonus font-data-xlarge color-text-default"
               data-tooltip="Level">{{charInfo.totalLevel}}</span>
+            {{!-- a5e keeps experience and has a switch for showing it. This
+                 sheet wrote the switch and never read it. --}}
+            {{#if showXP}}
+              <span class="am-xp font-label-medium color-text-lightest"
+                data-tooltip="Experience">{{xp}} xp</span>
+            {{/if}}
             <div class="proficiency-bonus flexrow" data-tooltip="Proficiency Bonus">
               <span class="label font-label-medium color-text-gold">PB</span>
               <span class="modifier font-label-medium color-text-lightest">{{tidy.pb.sign}}</span>
@@ -627,8 +633,10 @@
            has the things in it. Reading the flag alone would hide the maneuver
            and spell tabs from anyone whose flag was never set, which is most
            characters — a5e only sets it when it grants the first one. --}}
-      <a class="tab-option item active first-tab" role="tab" data-tab="favorites"
-        data-tab-id="favorites" data-group="primary"><span class="tab-title">Favorites</span></a>
+      {{#if showFavorites}}
+        <a class="tab-option item active first-tab" role="tab" data-tab="favorites"
+          data-tab-id="favorites" data-group="primary"><span class="tab-title">Favorites</span></a>
+      {{/if}}
       {{#if showMagicTab}}
         <a class="tab-option item" role="tab" data-tab="magic"
           data-tab-id="magic" data-group="primary"><span class="tab-title">Magic</span></a>
@@ -1751,6 +1759,13 @@
               <h3>{{heading}}</h3>
             </div>
           </header>
+          {{!-- Who acts on these. Half of them are a5e’s own behaviour and
+               change nothing about how this sheet looks, which is a fair
+               thing to wonder about when a switch is ticked and the page
+               does not move. --}}
+          {{#if hint}}
+            <p class="am-settings-hint color-text-lightest">{{hint}}</p>
+          {{/if}}
           <div class="item-table-body am-settings-body">
             {{#each rows}}
               <label class="am-setting">
@@ -1763,9 +1778,12 @@
         </section>
       {{/inline}}
 
-      {{> settingRows heading="Sheet" rows=settings.sheet}}
-      {{> settingRows heading="Automation" rows=settings.automation}}
-      {{> settingRows heading="Inventory" rows=settings.inventory}}
+      {{> settingRows heading="Sheet" rows=settings.sheet
+                      hint="What this sheet draws."}}
+      {{> settingRows heading="Automation" rows=settings.automation
+                      hint="How a5e rolls and rests. These change its behaviour, not this page."}}
+      {{> settingRows heading="Inventory" rows=settings.inventory
+                      hint="Weight and carrying capacity, worked out by a5e."}}
       {{> settingRows heading="Rest and recovery" rows=settings.rest}}
       {{> settingRows heading="Rolls" rows=settings.rolls}}
 

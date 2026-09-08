@@ -161,8 +161,10 @@ swap('interactions tab', L(
 
 /* ── A statblock tab, first, in place of Favorites ────────────────────────── */
 swap('tab strip', L(
-  '      <a class="tab-option item active first-tab" role="tab" data-tab="favorites"',
-  '        data-tab-id="favorites" data-group="primary"><span class="tab-title">Favorites</span></a>'
+  '      {{#if showFavorites}}',
+  '        <a class="tab-option item active first-tab" role="tab" data-tab="favorites"',
+  '          data-tab-id="favorites" data-group="primary"><span class="tab-title">Favorites</span></a>',
+  '      {{/if}}'
 ), L(
   '      <a class="tab-option item active first-tab" role="tab" data-tab="statblock"',
   '        data-tab-id="statblock" data-group="primary"><span class="tab-title">Statblock</span></a>'

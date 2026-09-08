@@ -368,8 +368,14 @@ export class A5eCharacterSheet extends ActorSheet {
       return Number.isFinite(n) ? n : 0;
     };
 
+    /* a5e's four unnamed resource slots. Its own sheet has a switch for hiding
+       them; this sheet wrote that switch and never read it, so the row kept
+       them whatever the setting said. */
+    const hideGeneric = !!actor.flags?.a5e?.hideGenericResources;
+
     const actorResources = Object.entries(sys.resources ?? {})
       .filter(([key, r]) => key !== 'classResources' && r && typeof r === 'object')
+      .filter(([key]) => !(hideGeneric && GENERIC_RESOURCES.includes(key)))
       .map(([key, r]) => {
         const isClassResource = !GENERIC_RESOURCES.includes(key);
         const max   = resolveMax(r.max);
@@ -669,8 +675,26 @@ export class A5eCharacterSheet extends ActorSheet {
     const showPassives = actor.flags?.a5e?.showPassiveScores ?? true;
     const hasSpellItems    = items.some(i => i.type === 'spell');
     const hasManeuverItems = items.some(i => i.type === 'maneuver');
-    const showMagicTab   = !!(actor.flags?.a5e?.showSpellTab)    || hasSpellItems;
-    const showMartialTab = !!(actor.flags?.a5e?.showManeuverTab) || hasManeuverItems;
+    /* These were `flag || hasItems`, which lets the flag ADD a tab and never
+       take one away: anybody carrying a spell had the Magic tab whatever the
+       switch said, so unticking it did nothing and the switch was a lie.
+
+       The reason behind the || was real — a5e only writes these flags when it
+       grants a first spell or maneuver, so reading the flag alone would hide
+       both tabs from most characters. So the flag decides when it has been
+       SET, and the items decide when it has not. Unticking now hides the tab;
+       a character who never touched the setting still gets it. */
+    const setOr = (flag, fallback) => (flag === undefined || flag === null)
+      ? fallback : !!flag;
+    const showMagicTab   = setOr(actor.flags?.a5e?.showSpellTab,    hasSpellItems);
+    const showMartialTab = setOr(actor.flags?.a5e?.showManeuverTab, hasManeuverItems);
+
+    /* Three more that were written and never read. a5e reads them for its own
+       sheet; on this one they did nothing at all, which is exactly the
+       complaint. */
+    const showFavorites  = setOr(actor.flags?.a5e?.showFavoritesSection, true);
+    const showXP         = !!actor.flags?.a5e?.showXP;
+    const hideGenericRes = !!actor.flags?.a5e?.hideGenericResources;
 
     const spellDCRaw = sys.attributes?.spellDC;
     const spellDC = Number.isFinite(spellDCRaw) && spellDCRaw > 0 ? spellDCRaw : null;
@@ -874,6 +898,8 @@ export class A5eCharacterSheet extends ActorSheet {
       features, feats, allFeatures, featuresBySource, customCounters, freeCounter,
       effectGroups, bonuses, hasBonuses, interactionGroups, settings,
       unlocked, actorResources, equipment, currency,
+      showFavorites, showXP, hideGenericRes,
+      xp: sys.details?.xp?.value ?? sys.details?.xp ?? 0,
       fatiguePips, strifePips, exertionPips,
       fatigueDesc, strifeDesc, statusConditions,
       attunementItems, attuneCount, passivePerception, passives, spellDC,

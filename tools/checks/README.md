@@ -135,3 +135,22 @@ nothing and there is no error anywhere.
 
 All three pass for the padlock and for all 15 settings switches, which is worth
 recording: when those were reported dead, the fault was not in this code.
+
+## `settingsdo.mjs`
+
+Does each switch on the Settings tab actually **change** the sheet?
+
+`roundtrip.mjs` answers a different question, and answering it was not enough:
+`showSpellTab` and `showManeuverTab` round-tripped perfectly while doing
+nothing, because the sheet computed `flag || hasItems` — which lets a flag *add*
+a tab and never take one away. Ticking worked; unticking did not, so the switch
+was a lie for anyone who carried a spell.
+
+This flips each switch, renders the sheet both ways, and reports whether the
+HTML differs. A switch whose two renders are identical does nothing here.
+
+Note what it does NOT claim: seventeen of the twenty-five settings are a5e's
+own flags, read by the system rather than by this sheet — hit dice, spell
+resources, macros, carrying capacity, crit thresholds. Those change a5e's
+behaviour, not this page's appearance, and the Settings tab now says so under
+each heading.
