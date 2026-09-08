@@ -90,3 +90,25 @@ heights, two display types — the figures were never a typeface problem.
 Its own first version was wrong too, in a way worth keeping in mind: it parsed
 comments as declarations, so a comment containing `display: flex` was reported
 as the winning rule. A check that can be wrong quietly is worse than no check.
+
+## `tabsync.mjs` and `npcsync.mjs`
+
+What a5e holds with content, against what the sheet actually renders. Not
+"does it parse" — does the writing reach the screen.
+
+They need a dump of real actors beside them (`world-chars.json`, and a copy of
+a5e's monster pack), so they run from the scratch directory rather than here;
+they are kept for the method, which is the part worth repeating. What they found:
+
+- Our own builder writes `system.details.ideals/bonds/flaws/goals` at creation,
+  and the sheet read a flag of its own instead. Eleven characters carried them
+  and **nine saw none of it**.
+- `system.details.appearance` — a5e's Notes page has an editor for it; we had the
+  seven short fields and not the editor.
+- Damage immunities, resistances, vulnerabilities and condition immunities were
+  read by nothing at all. **373 of a5e's 982 creatures carry damage immunities
+  and 387 carry condition immunities.** On a statblock that is not a detail.
+
+Both of my first attempts at these checks reported failures that were the
+check's own fault — one stripped HTML tags to an empty string on one side and to
+a space on the other. Read a failure twice before believing it.

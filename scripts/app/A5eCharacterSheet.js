@@ -205,6 +205,15 @@ export class A5eCharacterSheet extends ActorSheet {
       if (typeof v === 'object') return Object.values(v).filter(Boolean);
       return [];
     };
+    /* A CONFIG.A5E label, falling back to the key made readable. The keys are
+       a5e's own ('fire', 'coldIron', 'charmed'), which read badly raw. */
+    const label = (group, key) => {
+      if (!key) return '';
+      const raw = CONFIG?.A5E?.[group]?.[key];
+      if (raw) return game.i18n.localize(raw);
+      return String(key).replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase());
+    };
+
     const proficiencies = {
       armor:     toArray(sys.proficiencies?.armor     ?? sys.traits?.armorProficiencies),
       weapons:   toArray(sys.proficiencies?.weapons   ?? sys.traits?.weaponProficiencies),
@@ -212,7 +221,17 @@ export class A5eCharacterSheet extends ActorSheet {
       languages: toArray(sys.proficiencies?.languages ?? sys.traits?.languages ?? sys.languages),
       senses:    toArray(sys.senses ? Object.entries(sys.senses)
         .filter(([,v]) => v && v !== 0)
-        .map(([k, v]) => `${k.charAt(0).toUpperCase() + k.slice(1)}: ${v} ft.`) : [])
+        .map(([k, v]) => `${k.charAt(0).toUpperCase() + k.slice(1)}: ${v} ft.`) : []),
+
+      /* What a creature shrugs off. Both schemas keep these at system.traits
+         as arrays of keys, and neither sheet here was reading any of them —
+         measured against a5e’s own monster pack, 373 of its 982 creatures
+         carry damage immunities and 387 carry condition immunities, and none
+         of it reached the screen. On a statblock that is not a detail. */
+      damageImmunities:      toArray(sys.traits?.damageImmunities).map(k => label('damageTypes', k)),
+      damageResistances:     toArray(sys.traits?.damageResistances).map(k => label('damageTypes', k)),
+      damageVulnerabilities: toArray(sys.traits?.damageVulnerabilities).map(k => label('damageTypes', k)),
+      conditionImmunities:   toArray(sys.traits?.conditionImmunities).map(k => label('conditions', k))
     };
 
     /* Skills — use A5e's computed bonus where available */
@@ -482,8 +501,12 @@ export class A5eCharacterSheet extends ActorSheet {
     const bonusTypes = CONFIG?.A5E?.bonusTypes ?? {};
     const bonusLabels = CONFIG?.A5E?.bonusLabels ?? {};
     const bonuses = {
-      maneuverDC: sys.bonuses?.maneuverDC ?? 0,
-      spellDC:    sys.bonuses?.spellDC ?? 0,
+      /* a5e stores these as formula STRINGS, not numbers, and an unset one is
+         '' rather than null — so ?? never fired and the field showed blank.
+         Blank is right for an empty bonus, but a tab of blank boxes under ten
+         empty headings is a tab that looks broken. */
+      maneuverDC: sys.bonuses?.maneuverDC ?? '',
+      spellDC:    sys.bonuses?.spellDC ?? '',
       categories: Object.entries(bonusTypes).map(([key, i18n]) => {
         const entries = sys.bonuses?.[key] ?? {};
         const fallback = bonusLabels[key]?.defaultName;
@@ -645,11 +668,21 @@ export class A5eCharacterSheet extends ActorSheet {
     const spellDCRaw = sys.attributes?.spellDC;
     const spellDC = Number.isFinite(spellDCRaw) && spellDCRaw > 0 ? spellDCRaw : null;
 
+    /* The figures those bonuses apply TO. a5e own page shows the bonus fields
+       alone, which reads well on a sheet that carries the DCs a tab away; here
+       they are repeated, because add to the spell DC means little without the
+       spell DC beside it. Attached here rather than where bonuses is built,
+       which is 160 lines above spellDC exists. */
+    bonuses.maneuverDCValue = maneuverDC;
+    bonuses.spellDCValue    = spellDC;
+
     /* A trait list is drawn when it holds something, or when the sheet is
        unlocked — an empty one has to be reachable, or a character with no tool
        proficiencies could never be given the first. */
     const traitSections = Object.fromEntries(
-      ['senses', 'languages', 'weapons', 'armor', 'tools'].map((k) =>
+      ['senses', 'languages', 'weapons', 'armor', 'tools',
+       'damageImmunities', 'damageResistances', 'damageVulnerabilities',
+       'conditionImmunities'].map((k) =>
         [k, !!(proficiencies?.[k]?.length || unlocked)]));
 
     /* ── Passive scores ───────────────────────────────────────────────────
@@ -731,12 +764,36 @@ export class A5eCharacterSheet extends ActorSheet {
       ],
       bio:   det.bio   ?? '',
       notes: det.notes ?? '',
+      /* a5e’s own Notes page has an Appearance editor beside the seven short
+         fields; this sheet had the fields and not the editor. */
+      appearance: det.appearance ?? '',
+      /* bonds, flaws, ideals and goals are in a5e’s character schema as HTML
+         fields, and THIS MODULE’S BUILDER WRITES THEM — see
+         ActorCreationService, which sets system.details.ideals/bonds/flaws/
+         goals at creation. The sheet then read a flag of its own instead, so
+         what the builder had just written was never shown again. Measured
+         against the world: eleven characters carry bonds, flaws and ideals,
+         and nine of them saw none of it.
+
+         a5e’s own sheet does not surface these four either, which is worth
+         being plain about: this is the one place here that shows more than
+         the original does. They are its fields and its data, and a character
+         built by this module has them. */
+      bonds:  det.bonds  ?? '',
+      flaws:  det.flaws  ?? '',
+      ideals: det.ideals ?? '',
+      goals:  det.goals  ?? '',
       /* Private notes are the GM's. A player owning the sheet must not see
          them, so they are not put in the context at all rather than hidden
          with a class. */
       privateNotes: game.user.isGM ? (det.privateNotes ?? '') : ''
     };
     details.hasFields = details.fields.some(f => f.value);
+    /* Only a character has these; the NPC schema has bio, notes and
+       privateNotes and nothing else of the kind. */
+    details.isCharacter = actor.type === 'character';
+    details.hasPersonality = !!(details.bonds || details.flaws
+                              || details.ideals || details.goals);
 
     const bioFlag = actor.getFlag(MODULE_ID, 'biography') ?? {};
     const bio = {
@@ -789,6 +846,9 @@ export class A5eCharacterSheet extends ActorSheet {
     details.bio          = await enrichDesc(details.bio, actor);
     details.notes        = await enrichDesc(details.notes, actor);
     details.privateNotes = await enrichDesc(details.privateNotes, actor);
+    for (const k of ['appearance', 'bonds', 'flaws', 'ideals', 'goals']) {
+      details[k] = await enrichDesc(details[k], actor);
+    }
     for (const k of ['backstory', 'traits', 'connections', 'mementos',
                      'motivation', 'goals', 'connection', 'fulfillment']) {
       bio[k] = await enrichDesc(bio[k], actor);
@@ -2432,6 +2492,20 @@ export class A5eCharacterSheet extends ActorSheet {
         });
       }));
 
+    /* Appearance, ideals, bonds, flaws and goals are HTMLFields on a5e’s
+       character, so what goes in has to be markup rather than the raw lines
+       typed into a textarea — otherwise the paragraph breaks are lost the
+       moment a5e’s own editor opens the same field. The path is given whole
+       on the element, because these are not all under one prefix. */
+    el.querySelectorAll('[data-action="detail-html"]').forEach(inp =>
+      inp.addEventListener('change', async (e) => {
+        const raw = String(e.target.value ?? '').trim();
+        const html = raw
+          ? raw.split(/\n{2,}/).map(p => `<p>${p.trim().split(/\n/).join('<br>')}</p>`).join('')
+          : '';
+        await this.actor.update({ [e.target.dataset.path]: html });
+      }));
+
     /* The trait lists in the sidebar. Every one of these is a dialog a5e
        already has on the actor, so what opens is its own window writing its
        own fields — no second editor of ours keeping a parallel idea of which
@@ -2441,7 +2515,13 @@ export class A5eCharacterSheet extends ActorSheet {
       languages: 'configureLanguages',
       weapons:   'configureWeaponProficiencies',
       armor:     'configureArmorProficiencies',
-      tools:     'configureToolProficiencies'
+      tools:     'configureToolProficiencies',
+      /* a5e names these exactly so on the actor — its own sheet opens the
+         same four windows. */
+      damageImmunities:      'configureDamageImmunities',
+      damageResistances:     'configureDamageResistances',
+      damageVulnerabilities: 'configureDamageVulnerabilities',
+      conditionImmunities:   'configureConditionImmunities'
     };
 
     el.querySelectorAll('[data-action="trait-config"]').forEach(b =>
@@ -2649,10 +2729,16 @@ export class A5eCharacterSheet extends ActorSheet {
       })
     );
 
+    /* system.bonuses.maneuverDC and .spellDC are StringFields in a5e — they
+       hold a FORMULA, which is why "@prof + 1" is a legal entry. This was
+       parsing the field to an integer and writing a number, so a formula typed
+       here became 0 and a5e read a number where its own sheet writes a string.
+       Written as typed now, trimmed, which is what its own field does. */
     el.querySelectorAll('[data-action="bonus-dc"]').forEach(inp =>
       inp.addEventListener('change', async (e) => {
-        const v = parseInt(e.target.value);
-        await this.actor.update({ [`system.bonuses.${e.target.dataset.key}`]: isNaN(v) ? 0 : v });
+        await this.actor.update({
+          [`system.bonuses.${e.target.dataset.key}`]: String(e.target.value ?? '').trim()
+        });
       })
     );
 

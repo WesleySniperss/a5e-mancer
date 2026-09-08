@@ -1543,3 +1543,23 @@
   gap: var(--t5e-size-halfx);
   flex: 0 0 auto;
 }
+
+/* ── Ideals, bonds, flaws and goals ────────────────────────────────────────
+   Four short pieces of writing, so they sit as a wrapping grid rather than
+   four full-width blocks down the page. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-personality {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--t5e-size-2x) var(--t5e-size-3x);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-personality-part h4 {
+  margin: 0 0 var(--t5e-size-1x);
+}
+
+/* The DC a bonus applies to, beside the field that adjusts it. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-bonus-current {
+  min-width: 2ch;
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}

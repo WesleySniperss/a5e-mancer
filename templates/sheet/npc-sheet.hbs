@@ -859,6 +859,103 @@
               </div>
             {{/if}}
 
+            {{!-- What a creature shrugs off. Both schemas keep these at
+                 system.traits and neither sheet here read any of them; on a
+                 statblock they are not a detail. The cogs open a5e’s own
+                 four dialogs. --}}
+            {{#if traitSections.damageImmunities}}
+              <div class="list-entry">
+                <div class="list-label flexrow">
+                  <h4 class="font-weight-label"><i class="fa-solid fa-shield-halved"></i> Damage Immunities</h4>
+                  {{#if @root.unlocked}}
+                    <button type="button" class="button button-borderless button-icon-only am-stat-config"
+                      data-action="trait-config" data-trait="damageImmunities"
+                      data-tooltip="Configure Damage Immunities" aria-label="Configure Damage Immunities">
+                      <i class="fa-solid fa-cog"></i>
+                    </button>
+                  {{/if}}
+                </div>
+                <div class="list-content"><div class="list-values">
+                  <ul class="pills">
+                    {{#each proficiencies.damageImmunities}}
+                      <li class="pill pill-medium trait-pill">
+                        <span class="label font-label-medium">{{this}}</span>
+                      </li>
+                    {{/each}}
+                  </ul>
+                </div></div>
+              </div>
+            {{/if}}
+            {{#if traitSections.damageResistances}}
+              <div class="list-entry">
+                <div class="list-label flexrow">
+                  <h4 class="font-weight-label"><i class="fa-solid fa-shield"></i> Damage Resistances</h4>
+                  {{#if @root.unlocked}}
+                    <button type="button" class="button button-borderless button-icon-only am-stat-config"
+                      data-action="trait-config" data-trait="damageResistances"
+                      data-tooltip="Configure Damage Resistances" aria-label="Configure Damage Resistances">
+                      <i class="fa-solid fa-cog"></i>
+                    </button>
+                  {{/if}}
+                </div>
+                <div class="list-content"><div class="list-values">
+                  <ul class="pills">
+                    {{#each proficiencies.damageResistances}}
+                      <li class="pill pill-medium trait-pill">
+                        <span class="label font-label-medium">{{this}}</span>
+                      </li>
+                    {{/each}}
+                  </ul>
+                </div></div>
+              </div>
+            {{/if}}
+            {{#if traitSections.damageVulnerabilities}}
+              <div class="list-entry">
+                <div class="list-label flexrow">
+                  <h4 class="font-weight-label"><i class="fa-solid fa-heart-crack"></i> Damage Vulnerabilities</h4>
+                  {{#if @root.unlocked}}
+                    <button type="button" class="button button-borderless button-icon-only am-stat-config"
+                      data-action="trait-config" data-trait="damageVulnerabilities"
+                      data-tooltip="Configure Damage Vulnerabilities" aria-label="Configure Damage Vulnerabilities">
+                      <i class="fa-solid fa-cog"></i>
+                    </button>
+                  {{/if}}
+                </div>
+                <div class="list-content"><div class="list-values">
+                  <ul class="pills">
+                    {{#each proficiencies.damageVulnerabilities}}
+                      <li class="pill pill-medium trait-pill">
+                        <span class="label font-label-medium">{{this}}</span>
+                      </li>
+                    {{/each}}
+                  </ul>
+                </div></div>
+              </div>
+            {{/if}}
+            {{#if traitSections.conditionImmunities}}
+              <div class="list-entry">
+                <div class="list-label flexrow">
+                  <h4 class="font-weight-label"><i class="fa-solid fa-face-smile-relaxed"></i> Condition Immunities</h4>
+                  {{#if @root.unlocked}}
+                    <button type="button" class="button button-borderless button-icon-only am-stat-config"
+                      data-action="trait-config" data-trait="conditionImmunities"
+                      data-tooltip="Configure Condition Immunities" aria-label="Configure Condition Immunities">
+                      <i class="fa-solid fa-cog"></i>
+                    </button>
+                  {{/if}}
+                </div>
+                <div class="list-content"><div class="list-values">
+                  <ul class="pills">
+                    {{#each proficiencies.conditionImmunities}}
+                      <li class="pill pill-medium trait-pill">
+                        <span class="label font-label-medium">{{this}}</span>
+                      </li>
+                    {{/each}}
+                  </ul>
+                </div></div>
+              </div>
+            {{/if}}
+
             {{#if traitSections.languages}}
               <div class="list-entry">
                 <div class="list-label flexrow">
@@ -1299,6 +1396,22 @@
         </section>
       {{/if}}
 
+      {{!-- Appearance. a5e’s own Notes page puts an editor here beside the
+           seven short fields; this sheet had the fields and not the editor. --}}
+      {{#if details.appearance}}
+        <section class="am-bio-card">
+          <h3 class="font-title-small">Appearance</h3>
+          <div class="am-origin-desc">{{{details.appearance}}}</div>
+        </section>
+      {{else if @root.unlocked}}
+        <section class="am-bio-card">
+          <h3 class="font-title-small">Appearance</h3>
+          <textarea class="am-bio-input" data-action="detail-html"
+            data-path="system.details.appearance"
+            placeholder="What they look like"></textarea>
+        </section>
+      {{/if}}
+
       {{#if details.bio}}
         <section class="am-bio-card">
           <h3 class="font-title-small">Backstory</h3>
@@ -1311,6 +1424,55 @@
           <h3 class="font-title-small">Notes</h3>
           <div class="am-origin-desc">{{{details.notes}}}</div>
         </section>
+      {{/if}}
+
+      {{!-- Bonds, flaws, ideals and goals. They are a5e’s own character
+           fields and THIS module’s builder writes them at creation, but
+           neither sheet read them back — eleven characters in this world
+           carry them and nine saw none of it. a5e’s sheet does not show
+           these four; this is the one place here that shows more than the
+           original, and it does it because the data is already there. --}}
+      {{#if details.isCharacter}}
+        {{#if details.hasPersonality}}
+          <section class="am-bio-card am-personality">
+            {{#if details.ideals}}
+              <div class="am-personality-part">
+                <h4 class="font-label-medium color-text-gold">Ideals</h4>
+                <div class="am-origin-desc">{{{details.ideals}}}</div>
+              </div>
+            {{/if}}
+            {{#if details.bonds}}
+              <div class="am-personality-part">
+                <h4 class="font-label-medium color-text-gold">Bonds</h4>
+                <div class="am-origin-desc">{{{details.bonds}}}</div>
+              </div>
+            {{/if}}
+            {{#if details.flaws}}
+              <div class="am-personality-part">
+                <h4 class="font-label-medium color-text-gold">Flaws</h4>
+                <div class="am-origin-desc">{{{details.flaws}}}</div>
+              </div>
+            {{/if}}
+            {{#if details.goals}}
+              <div class="am-personality-part">
+                <h4 class="font-label-medium color-text-gold">Goals</h4>
+                <div class="am-origin-desc">{{{details.goals}}}</div>
+              </div>
+            {{/if}}
+          </section>
+        {{else if @root.unlocked}}
+          <section class="am-bio-card am-personality">
+            <h3 class="font-title-small">Ideals, Bonds, Flaws, Goals</h3>
+            <textarea class="am-bio-input" data-action="detail-html"
+              data-path="system.details.ideals" placeholder="Ideals"></textarea>
+            <textarea class="am-bio-input" data-action="detail-html"
+              data-path="system.details.bonds" placeholder="Bonds"></textarea>
+            <textarea class="am-bio-input" data-action="detail-html"
+              data-path="system.details.flaws" placeholder="Flaws"></textarea>
+            <textarea class="am-bio-input" data-action="detail-html"
+              data-path="system.details.goals" placeholder="Goals"></textarea>
+          </section>
+        {{/if}}
       {{/if}}
 
       {{#if details.privateNotes}}
@@ -1486,15 +1648,25 @@
           </div>
         </header>
         <div class="item-table-body am-bonus-globals">
+          {{!-- The DC each bonus applies to, beside the bonus. a5e’s own page
+               shows the fields alone, which reads well on a sheet that carries
+               the DCs a tab away; here the tab was two blank boxes under ten
+               empty headings and looked broken. --}}
           <label class="am-bonus-global">
             <span class="font-label-medium color-text-gold">Maneuver DC</span>
-            <input type="number" class="uninput am-bonus-dc" data-action="bonus-dc"
-              data-key="maneuverDC" value="{{bonuses.maneuverDC}}" aria-label="Maneuver DC bonus" />
+            <span class="am-bonus-current font-data-medium color-text-default"
+              data-tooltip="The current Maneuver DC">{{bonuses.maneuverDCValue}}</span>
+            <input type="text" class="uninput am-bonus-dc" data-action="bonus-dc"
+              data-key="maneuverDC" value="{{bonuses.maneuverDC}}"
+              placeholder="+0" aria-label="Maneuver DC bonus" />
           </label>
           <label class="am-bonus-global">
             <span class="font-label-medium color-text-gold">Spell DC</span>
-            <input type="number" class="uninput am-bonus-dc" data-action="bonus-dc"
-              data-key="spellDC" value="{{bonuses.spellDC}}" aria-label="Spell DC bonus" />
+            <span class="am-bonus-current font-data-medium color-text-default"
+              data-tooltip="The current Spell save DC">{{#if bonuses.spellDCValue}}{{bonuses.spellDCValue}}{{else}}—{{/if}}</span>
+            <input type="text" class="uninput am-bonus-dc" data-action="bonus-dc"
+              data-key="spellDC" value="{{bonuses.spellDC}}"
+              placeholder="+0" aria-label="Spell DC bonus" />
           </label>
         </div>
       </section>
