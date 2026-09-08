@@ -1190,7 +1190,12 @@
   padding: 0;
   border: 0;
   border-radius: 0;
+  /* Both, deliberately. `background` is a shorthand and Tidy sets the
+     background-color LONGHAND on input[type=number] and on the spans; leaving
+     it to shorthand-beats-longhand is the kind of reasoning that has been
+     wrong here twice. Stated outright, there is nothing to resolve. */
   background: none;
+  background-color: transparent;
   box-shadow: none;
   /* Tidy sizes .uninput to its content; a field that resizes as you type is a
      field that moves the slash beside it. */
@@ -1200,10 +1205,30 @@
   font-family: inherit;
   font-size: var(--font-size-13, 0.8125rem);
   font-weight: 600;
-  line-height: 1.25rem;
   font-variant-numeric: tabular-nums;
   appearance: textfield;
   -moz-appearance: textfield;
+
+  /* The last three, and the ones that were actually tilting the figures.
+     Resolved against both stylesheets rather than guessed:
+
+       input      display: flex,        height: 1.75rem  (--t5e-field-size-default)
+       .max       display: inline-block, height: 1.375rem
+       .separator display: inline-block, height: 1.375rem
+
+     Tidy styles a number input as a flex box a whole field tall, which is
+     taller than the 1.25rem bar it sits inside, while its neighbours are
+     inline-blocks resting on a baseline. Three boxes of two heights and two
+     display types: the current value centres in 1.75rem and the maximum sits
+     on a baseline in 1.375rem, so the two digits are drawn at different
+     heights. That is the crookedness — it was never the type.
+
+     One box for all three: the height of the bar, centred by flex, so each
+     digit has the same middle. */
+  display: inline-flex;
+  align-items: center;
+  height: 1.25rem;
+  line-height: 1;
 }
 
 /* The spinner is what was reserving the space. */
@@ -1221,18 +1246,21 @@
 .tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row :is(.am-tracker-value, .am-counter-value),
 .tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-meter .label input {
   text-align: end;
+  justify-content: flex-end;
   color: var(--t5e-color-text-default);
 }
 
 .tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row :is(.am-tracker-max, .am-counter-max),
 .tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-meter .label .max {
   text-align: start;
+  justify-content: flex-start;
   color: var(--t5e-color-text-lighter);
 }
 
 .tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row :is(.am-counter-sep, .am-a5e-value),
 .tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-meter .label .separator {
   text-align: center;
+  justify-content: center;
   color: var(--t5e-color-text-lightest);
 }
 

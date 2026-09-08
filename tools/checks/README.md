@@ -72,3 +72,21 @@ document.
 
 Nothing else here would find that. It parses, it runs, and it shows up only as a
 session that gets slower the longer it goes on.
+
+## `cascade.mjs`
+
+Which declarations actually win for an element, across quadrone.css and every
+stylesheet `module.json` declares, in load order, by specificity.
+
+    node tools/checks/cascade.mjs value|max|sep|label
+
+I twice "fixed" the counter figures by writing rules and reasoning about what
+they would override, and both times the reasoning was wrong. Resolving the
+cascade instead found it in one run: Tidy styles a number input as a **flex box
+1.75rem tall** while its neighbours are inline-blocks 1.375rem tall, so the
+current value and the maximum were drawn at different heights. Three boxes, two
+heights, two display types — the figures were never a typeface problem.
+
+Its own first version was wrong too, in a way worth keeping in mind: it parsed
+comments as declarations, so a comment containing `display: flex` was reported
+as the winning rule. A check that can be wrong quietly is worse than no check.

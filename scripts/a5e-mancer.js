@@ -167,8 +167,89 @@ Hooks.once('ready', () => {
        typing it in the console answers "AM is not defined", so the macro and
        console route its own comment promises only exists here. */
     repairItems: (actor, options) => AM.repairItems(actor ?? game.user?.character, options),
+
+    /* Why is that window empty, or covered?
+
+       Asked four times and diagnosed wrongly three, because the two things
+       that would answer it cannot be seen from outside the browser: what the
+       compendium read actually returned, and what element is on top of the
+       window. Foundry takes right-click, which makes DevTools awkward to
+       reach mid-game, so this reports both into chat instead.
+
+       game.modules.get("a5e-mancer").api.diagnose()   — or the macro. */
+    diagnose: () => _diagnose()
   };
 });
+
+/**
+ * What the pickers read, and what is standing on top of them.
+ *
+ * The second half is the point. "Covered by something invisible" is not a
+ * thing a stylesheet can be read for — the covering element may belong to
+ * another module, or to Foundry, or be a leftover of a window that closed
+ * badly. document.elementFromPoint at the middle of the window names it
+ * outright.
+ */
+async function _diagnose() {
+  const lines = [];
+  const say = (s) => lines.push(s);
+
+  say(`<b>A5e Mancer ${game.modules.get(AM.ID)?.version ?? ""}</b>`);
+
+  /* What the loaders last saw. */
+  const { ManeuverService } = await import("./utils/maneuverService.js");
+  const { SpellService }    = await import("./utils/spellService.js");
+  for (const [name, svc] of [["Maneuvers", ManeuverService], ["Spells", SpellService]]) {
+    const r = svc.lastLoadReport;
+    if (!r) { say(`${name}: not loaded yet — open the picker once, then run this again.`); continue; }
+    say(`${name}: <b>${r.maneuvers ?? r.spells ?? 0}</b> from ${r.read}/${r.packs} packs`
+      + (r.filteredBy ? `, filtered to ${r.filteredBy}` : "")
+      + (r.untraditioned ? ` — <b>${r.untraditioned} with no tradition</b>` : "")
+      + (r.unclassed ? ` — <b>${r.unclassed} with no class list</b>` : "")
+      + (r.failed?.length ? `<br>&nbsp;&nbsp;could not read: ${r.failed.join("; ")}` : ""));
+  }
+
+  /* Every window of ours that is open, its size, and what is on top of it. */
+  const ours = [...document.querySelectorAll(".a5e-mancer-app, .a5e-mancer-sheet")];
+  if (!ours.length) say("No mancer window is open — open the one that misbehaves, then run this again.");
+  for (const el of ours) {
+    const r = el.getBoundingClientRect();
+    const z = getComputedStyle(el).zIndex;
+    say(`<hr><b>${el.id || el.className.split(" ")[0]}</b> — ${Math.round(r.width)}×${Math.round(r.height)}, z-index ${z}`);
+    if (r.width < 2 || r.height < 2) { say("&nbsp;&nbsp;the window itself has no size."); continue; }
+
+    /* The content area, which is what actually goes blank. */
+    const body = el.querySelector(".window-content");
+    if (body) {
+      const b = body.getBoundingClientRect();
+      say(`&nbsp;&nbsp;content ${Math.round(b.width)}×${Math.round(b.height)}`
+        + (b.height < 8 ? " — <b>collapsed</b>" : ""));
+    }
+
+    /* Cards present but unseen is a different fault from no cards. */
+    const cards = el.querySelectorAll(".am-maneuver-card, .am-spell-card, .am-card, .tidy-table-row-container");
+    let visible = 0;
+    for (const c of cards) { const cr = c.getBoundingClientRect(); if (cr.width > 1 && cr.height > 1) visible++; }
+    if (cards.length) say(`&nbsp;&nbsp;${cards.length} cards in the DOM, <b>${visible}</b> with a size`);
+
+    /* And the answer to "covered by something invisible". */
+    const x = r.left + r.width / 2, y = r.top + r.height / 2;
+    const top = document.elementFromPoint(x, y);
+    if (!top) { say("&nbsp;&nbsp;nothing is at the centre of this window."); continue; }
+    if (el.contains(top)) {
+      say(`&nbsp;&nbsp;centre belongs to this window (&lt;${top.tagName.toLowerCase()} class="${top.className}"&gt;) — not covered.`);
+    } else {
+      const owner = top.closest("[id]") ?? top;
+      say(`&nbsp;&nbsp;<b>COVERED BY</b> &lt;${top.tagName.toLowerCase()} class="${top.className}"&gt;`
+        + `<br>&nbsp;&nbsp;inside <b>#${owner.id || "(no id)"}</b>, z-index ${getComputedStyle(owner).zIndex}`);
+    }
+  }
+
+  const content = lines.join("<br>");
+  ChatMessage.create({ content, whisper: [game.user.id] });
+  AM.log(3, "diagnose:", content.replace(/<[^>]+>/g, " "));
+  return content;
+}
 
 /* ── Ready ──────────────────────────────────────────────── */
 Hooks.once('ready', async () => {

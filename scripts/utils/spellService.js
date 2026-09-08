@@ -326,7 +326,17 @@ export class SpellService {
       const hasSpellsAtOne = isFullCaster
         || casterType === 'halfCasterWithFirstLevel'
         || casterType === 'psion'
-        || casterType === 'wielder';
+        || casterType === 'wielder'
+        /* The artificer casts from 1st through spell inventions, and its own
+           table reads "Maximum Spell Level: 1st" at 1st level —
+           CLASS_SPELL_TABLES.artificer says maxLevel 1 for exactly that
+           reason. Leaving artificerA5e out of this list made the two
+           disagree, and the class that fell between them was Artificer
+           (Revised): its name misses the static table, so it took the dynamic
+           path, which then refused it. Checked across all 30 classes in a5e’s
+           pack — it was the only caster of the fifteen getting an empty spell
+           tab. */
+        || casterType === 'artificerA5e';
 
       // Half-casters (ranger, herald archetype variants) get spells at level 2+ — no level-1 picker
       if (requireSpellsAtFirst && !hasSpellsAtOne) return null;
