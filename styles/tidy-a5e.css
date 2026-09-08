@@ -1036,29 +1036,21 @@
   text-overflow: ellipsis;
 }
 
-/* The figure is the part read at a glance, so it is a step up from the label
-   — but only a step: the row has to stay as shallow as the strip. */
-.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-tracker-value,
-.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-value,
-.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-a5e-value,
-.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-sep {
-  font-size: var(--font-size-14, 0.875rem);
-  font-weight: 600;
-  line-height: 1;
-  padding: 0;
-}
+/* Size and weight for these are set with the rest of the fraction, above —
+   they were .875rem here and .8125rem inside a bar, which is two sizes for
+   one row. */
 
 .tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-tracker-value,
 .tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-value {
   width: 2rem;
-  text-align: center;
 }
 
+/* Width only. Alignment and size are set once, with the rest of the fraction,
+   further down — stating them twice is how this row ended up with two sizes
+   and two alignments for one number. */
 .tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-counter-max,
 .tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row .am-tracker-max {
   width: 3rem;
-  text-align: center;
-  font-size: var(--font-size-14, 0.875rem);
 }
 
 /* Pips would double the height of the row, so they sit inline with it. */
@@ -1163,39 +1155,90 @@
   flex: 0 0 auto;
 }
 
-/* The figures sit inside the bar. Tabular numerals so a 3 and an 8 take the
-   same width and the fraction stops shuffling as it is spent — that jitter is
-   most of what made the numbers look untidy. */
 .tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-meter .label {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.125rem;
   width: 100%;
-  font-variant-numeric: tabular-nums;
+}
+
+/* ── One figure, whatever element it happens to be ─────────────────────────
+   A fraction on this row is built three different ways depending on where it
+   came from: current and maximum as an input and a span for a class resource,
+   as two inputs for one of our counters, and as a number input beside a TEXT
+   input for a resource whose maximum is a formula. Six element kinds drawing
+   what reads as one number.
+
+   They did not agree on anything. Tidy’s .uninput carries a border, a filled
+   background, .25rem of padding and field-sizing: content; a span carries none
+   of that, so the digit inside the field sat a border and a padding away from
+   where its neighbour sat, and the field changed width as the figure changed.
+   input[type=number] also reserves room for spinner arrows, which pushes its
+   digit off the centre its box was aligned on. That is the whole of "the
+   numbers look crooked" — not a font, six boxes.
+
+   So every part of every fraction is stated here, once: no box of its own,
+   one face, one size, one line, and tabular figures so a 1 and a 0 occupy the
+   same width and the fraction stops shuffling as it is spent. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row :is(.am-tracker-value, .am-tracker-max,
+                                                     .am-counter-value, .am-counter-max,
+                                                     .am-counter-sep, .am-a5e-value),
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-meter .label :is(input, .max, .separator) {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  /* Tidy sizes .uninput to its content; a field that resizes as you type is a
+     field that moves the slash beside it. */
+  field-sizing: auto;
+  min-width: 0;
+  max-width: none;
+  font-family: inherit;
   font-size: var(--font-size-13, 0.8125rem);
   font-weight: 600;
-  line-height: 1;
+  line-height: 1.25rem;
+  font-variant-numeric: tabular-nums;
+  appearance: textfield;
+  -moz-appearance: textfield;
 }
 
+/* The spinner is what was reserving the space. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row input::-webkit-outer-spin-button,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row input::-webkit-inner-spin-button,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-meter .label input::-webkit-outer-spin-button,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-meter .label input::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+/* The slash is the axis: the current value ends at it and the maximum begins
+   at it, so the two digits stay the same distance from it however wide their
+   boxes are. Centring each box in turn was why they drifted apart. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row :is(.am-tracker-value, .am-counter-value),
 .tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-meter .label input {
-  width: 1.5rem;
-  padding: 0;
   text-align: end;
   color: var(--t5e-color-text-default);
-  font: inherit;
 }
 
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row :is(.am-tracker-max, .am-counter-max),
 .tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-meter .label .max {
-  width: 1.5rem;
-  padding: 0;
   text-align: start;
   color: var(--t5e-color-text-lighter);
-  font: inherit;
 }
 
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-row :is(.am-counter-sep, .am-a5e-value),
 .tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-meter .label .separator {
+  text-align: center;
   color: var(--t5e-color-text-lightest);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-meter .label input,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-meter .label .max {
+  width: 1.5rem;
 }
 
 /* Tighter than before: the gaps were doing more work than the content. */
