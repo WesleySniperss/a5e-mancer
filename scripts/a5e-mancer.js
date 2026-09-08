@@ -232,6 +232,23 @@ async function _diagnose() {
     for (const c of cards) { const cr = c.getBoundingClientRect(); if (cr.width > 1 && cr.height > 1) visible++; }
     if (cards.length) say(`&nbsp;&nbsp;${cards.length} cards in the DOM, <b>${visible}</b> with a size`);
 
+    /* The controls reported dead, each asked the only question that matters:
+       is the thing under your pointer actually this button? A listener cannot
+       be seen from script, but a button with something on top of it can. */
+    for (const [what, sel] of [['padlock', '[data-action="toggle-lock"]'],
+                               ['a settings switch', '[data-action="setting-toggle"]'],
+                               ['the AC badge', '.ac-container .shield']]) {
+      const btn = el.querySelector(sel);
+      if (!btn) { say(`&nbsp;&nbsp;${what}: not in this window`); continue; }
+      const b = btn.getBoundingClientRect();
+      if (b.width < 1 || b.height < 1) { say(`&nbsp;&nbsp;${what}: <b>has no size</b>`); continue; }
+      const over = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+      const mine = over && (btn === over || btn.contains(over) || over.contains(btn));
+      say(`&nbsp;&nbsp;${what}: ${Math.round(b.width)}×${Math.round(b.height)} — `
+        + (mine ? 'clickable'
+                : `<b>BLOCKED by</b> &lt;${over?.tagName.toLowerCase()} class="${over?.className}"&gt;`));
+    }
+
     /* And the answer to "covered by something invisible". */
     const x = r.left + r.width / 2, y = r.top + r.height / 2;
     const top = document.elementFromPoint(x, y);

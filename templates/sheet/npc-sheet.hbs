@@ -137,12 +137,19 @@
       <div class="abilities-container">
         <div class="abilities-container-inner flexrow">
 
-          <div class="ac-container flexcol">
+          {{!-- No flexcol, for the reason written beside the initiative
+               column: Foundry has `body.game .app .flexcol > * { flex: 1 }`,
+               and this sheet root carries `app`. The shield is a fixed badge
+               drawn as a background image and the legend under it is three
+               lines of text; given half the column each, the badge stretched
+               and its number slid off the art. The column states its own
+               layout in tidy-a5e.css. --}}
+          <div class="ac-container">
             <div class="shield" data-attribution="attributes.ac" data-tooltip-direction="DOWN">
               <span class="ac-value color-text-default">{{resources.ac}}</span>
               <span class="ac-label font-label-medium color-text-gold">AC</span>
             </div>
-            <div class="ability-labels flexcol">
+            <div class="ability-labels">
               <span class="label font-label-medium color-text-gold">Score</span>
               <span class="divider"></span>
               <span class="label font-label-medium color-text-gold">Save</span>

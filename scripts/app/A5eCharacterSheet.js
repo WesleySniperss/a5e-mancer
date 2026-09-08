@@ -1343,7 +1343,23 @@ export class A5eCharacterSheet extends ActorSheet {
       return id ? game.i18n.localize(id) : fallback;
     };
 
+    /* a5e marks a magic item by its RARITY, not by a flag of its own:
+       system.rarity is 'mundane' for the ordinary and one of common,
+       uncommon, rare, veryRare, legendary, artifact or varies for the rest.
+       Of the 2141 objects in its adventuring-gear pack 782 are mundane and
+       1359 are not, and nothing here read the field at all — so a Defender
+       Longsword sat on the sheet looking exactly like a torch.
+
+       Put here rather than in either item builder because all three of them
+       spread this, so one edit reaches weapons, gear and favourites alike. */
+    const rarity  = String(sys.rarity ?? '').trim();
+    const magical = !!rarity && rarity !== 'mundane';
+
     return {
+      rarity,
+      magical,
+      rarityLabel: rarity ? label('itemRarity', rarity, rarity) : '',
+
       equippedState: equipped,
       equipIcon: ['fa-tents', 'fa-person-carry-box', 'fa-shield-alt'][equipped] ?? 'fa-tents',
       equipLabel: label('equippedStates', equipped, ['Not carried', 'Carried', 'Equipped'][equipped] ?? 'Not carried'),

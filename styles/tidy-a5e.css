@@ -1563,3 +1563,45 @@
   text-align: end;
   font-variant-numeric: tabular-nums;
 }
+/* ── The AC badge and its legend ───────────────────────────────────────────
+   Both wore Foundry’s .flexcol, which inside an .app gives every child
+   `flex: 1`. The shield is a fixed badge drawn as a background image; handed
+   half the column it stretched, and the AC number no longer sat on the art.
+   The legend below it — Score, a rule, Save — spread the same way, which is
+   what made those two words drift out of line with the plates they label.
+
+   Tidy gives .ac-container its alignment and max-width but never a display,
+   because its own markup is Svelte and does not borrow Foundry utilities. So
+   the column is declared here, and nothing in it flexes. */
+.tidy5e-sheet.application.a5e-mancer-sheet .ac-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .ac-container > * {
+  flex: 0 0 auto;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .ability-labels {
+  display: flex;
+  flex-direction: column;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .ability-labels > * {
+  flex: 0 0 auto;
+}
+/* ── Magic items ───────────────────────────────────────────────────────────
+   a5e marks these by rarity, and the rarity carries real information, so the
+   one icon is tinted rather than repeated six ways. The scale is the familiar
+   one; mundane never reaches here, because the icon is not drawn for it. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-magical {
+  color: var(--t5e-color-text-gold-emphasis);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-rarity-common    { color: #9fb2c4; }
+.tidy5e-sheet.application.a5e-mancer-sheet .am-rarity-uncommon  { color: #6fb46f; }
+.tidy5e-sheet.application.a5e-mancer-sheet .am-rarity-rare      { color: #5b93d6; }
+.tidy5e-sheet.application.a5e-mancer-sheet .am-rarity-veryRare  { color: #a978d8; }
+.tidy5e-sheet.application.a5e-mancer-sheet .am-rarity-legendary { color: #d9a441; }
+.tidy5e-sheet.application.a5e-mancer-sheet .am-rarity-artifact  { color: #d2703a; }

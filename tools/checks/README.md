@@ -112,3 +112,26 @@ they are kept for the method, which is the part worth repeating. What they found
 Both of my first attempts at these checks reported failures that were the
 check's own fault — one stripped HTML tags to an empty string on one side and to
 a space on the other. Read a failure twice before believing it.
+
+## `truedom.mjs`, `roundtrip.mjs`, `singlebind.mjs`
+
+Three ways a control can be dead while everything parses.
+
+**`truedom.mjs`** runs `activateListeners` against a DOM built from the HTML the
+sheet actually rendered. Every earlier harness here answered *every*
+`querySelector` with a node; a browser answers `null` for anything not in the
+markup, and 49 of the selectors this sheet asks for match nothing on a real
+character. One of those used without `?.` throws and kills every listener bound
+after it — the padlock is bound at line 2544, a long way down that list.
+
+**`roundtrip.mjs`** writes what each handler writes, rebuilds the context, and
+checks the sheet reads it back. A switch that writes to a path nothing reads
+looks exactly like a switch that does nothing.
+
+**`singlebind.mjs`** finds handlers bound with `querySelector` — the singular —
+over markup that holds more than one of that element. `querySelector` returns
+the first match; if the control the player uses is the second, the click does
+nothing and there is no error anywhere.
+
+All three pass for the padlock and for all 15 settings switches, which is worth
+recording: when those were reported dead, the fault was not in this code.

@@ -63,6 +63,14 @@
           <i class="fa-solid fa-head-side-brain color-icon-theme-highlight highlighted item-state-indicator"
             data-tooltip="Concentration"></i>
         {{/if}}
+        {{!-- Magic. a5e says so through rarity, and the rarity is worth
+             naming in the tooltip because "legendary" and "common" are not
+             the same news about an item. --}}
+        {{#if magical}}
+          <i class="fa-solid fa-sparkles item-state-indicator am-magical am-rarity-{{rarity}}"
+            data-tooltip="{{#if rarityLabel}}{{rarityLabel}}{{else}}Magical{{/if}}"></i>
+        {{/if}}
+
         {{#if ritual}}
           <i class="fa-solid fa-hands-praying color-text-lightest item-state-indicator"
             data-tooltip="Ritual"></i>
@@ -285,6 +293,14 @@
                   <div class="tidy-table-cell primary item-label text-cell"
                     data-tidy-sheet-part="table-cell">
                     <span class="cell-text"><span class="cell-name">{{this.name}}</span></span>
+                    {{!-- Contents of a container are drawn by this block rather
+                         than by the row above, so they carried none of its state
+                         icons. A magic item does not stop being one for having
+                         been put in a bag. --}}
+                    {{#if this.magical}}
+                      <i class="fa-solid fa-sparkles item-state-indicator am-magical am-rarity-{{this.rarity}}"
+                        data-tooltip="{{#if this.rarityLabel}}{{this.rarityLabel}}{{else}}Magical{{/if}}"></i>
+                    {{/if}}
                   </div>
                   <div class="tidy-table-cell text-cell" data-tidy-sheet-part="table-cell"
                     style="--tidy-table-column-width: var(--am-col-narrow)">
