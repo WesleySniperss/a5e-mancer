@@ -314,7 +314,8 @@
 
             <div class="am-hp-edit" hidden>
               <input type="text" class="hp-input uninput" id="am-hp-current"
-                value="{{resources.hp.value}}" aria-label="Current Hit Points" />
+                value="{{resources.hp.value}}" aria-label="Current Hit Points"
+                data-tooltip="12 sets it, +4 heals, -7 takes damage" />
               <span class="separator">/</span>
               <input type="text" class="hp-input uninput" id="am-hp-max"
                 value="{{resources.hp.max}}" aria-label="Maximum Hit Points" />
@@ -332,16 +333,9 @@
             </div>
           {{/if}}
 
-          <div class="am-hp-buttons">
-            <button type="button" class="button button-borderless button-icon-only"
-              data-action="heal-hp" aria-label="Heal" data-tooltip="Heal">
-              <i class="fas fa-plus"></i>
-            </button>
-            <button type="button" class="button button-borderless button-icon-only"
-              data-action="damage-hp" aria-label="Damage" data-tooltip="Damage">
-              <i class="fas fa-minus"></i>
-            </button>
-          </div>        </div>
+          {{!-- The plus and minus buttons stood here, each opening a dialog to
+               ask for a number. The field does it instead: type +4 or -7. --}}
+        </div>
 
         <div class="actor-vitals-row">
           <div class="hd-row-container">

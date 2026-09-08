@@ -304,7 +304,8 @@
 
             <div class="am-hp-edit" hidden>
               <input type="text" class="hp-input uninput" id="am-hp-current"
-                value="{{resources.hp.value}}" aria-label="Current Hit Points" />
+                value="{{resources.hp.value}}" aria-label="Current Hit Points"
+                data-tooltip="12 sets it, +4 heals, -7 takes damage" />
               <span class="separator">/</span>
               <input type="text" class="hp-input uninput" id="am-hp-max"
                 value="{{resources.hp.max}}" aria-label="Maximum Hit Points" />
@@ -322,16 +323,9 @@
             </div>
           {{/if}}
 
-          <div class="am-hp-buttons">
-            <button type="button" class="button button-borderless button-icon-only"
-              data-action="heal-hp" aria-label="Heal" data-tooltip="Heal">
-              <i class="fas fa-plus"></i>
-            </button>
-            <button type="button" class="button button-borderless button-icon-only"
-              data-action="damage-hp" aria-label="Damage" data-tooltip="Damage">
-              <i class="fas fa-minus"></i>
-            </button>
-          </div>        </div>
+          {{!-- The plus and minus buttons stood here, each opening a dialog to
+               ask for a number. The field does it instead: type +4 or -7. --}}
+        </div>
 
         <div class="actor-vitals-row">
           <div class="hd-row-container">
@@ -625,8 +619,6 @@
            characters — a5e only sets it when it grants the first one. --}}
       <a class="tab-option item active first-tab" role="tab" data-tab="statblock"
         data-tab-id="statblock" data-group="primary"><span class="tab-title">Statblock</span></a>
-      <a class="tab-option item" role="tab" data-tab="favorites"
-        data-tab-id="favorites" data-group="primary"><span class="tab-title">Favorites</span></a>
       {{#if showMagicTab}}
         <a class="tab-option item" role="tab" data-tab="magic"
           data-tab-id="magic" data-group="primary"><span class="tab-title">Magic</span></a>
@@ -648,8 +640,6 @@
         data-tab-id="effects" data-group="primary"><span class="tab-title">Effects</span></a>
       <a class="tab-option item" role="tab" data-tab="bonuses"
         data-tab-id="bonuses" data-group="primary"><span class="tab-title">Bonuses</span></a>
-      <a class="tab-option item" role="tab" data-tab="interactions"
-        data-tab-id="interactions" data-group="primary"><span class="tab-title">Actions</span></a>
       <a class="tab-option item no-border-on-last-tab" role="tab" data-tab="settings"
         data-tab-id="settings" data-group="primary"><span class="tab-title">Settings</span></a>
     </nav>
@@ -1108,28 +1098,7 @@
       {{/unless}}
     </div>
 
-    <div class="tab tidy-tab favorites tidy-tab-contents"
-      data-tab="favorites" data-group="primary" data-tab-contents-for="favorites"
-      role="tabpanel">
-
-      {{#if favorites.length}}
-        {{#> tidy-table key="favorites" label="Favorites" count=favorites.length
-                        c1=true col1="Attack" c2=true col2="Damage"}}
-          {{#each favorites}}
-            {{> tidy-row starred=true subtitle=this.activationLabel
-                         c1=true cell1=this.atkBonus c2=true cell2=this.dmgFull}}
-          {{/each}}
-        {{/tidy-table}}
-      {{/if}}
-
-      {{#unless hasFavorites}}
-        <div class="empty-state-container empty-state-description">
-          <span class="color-text-lighter">
-            Nothing starred yet. The star on any item or skill keeps it here.
-          </span>
-        </div>
-      {{/unless}}
-    </div>
+    
 
     {{!-- ▸ MAGIC ────────────────────────────────────────────────────────── --}}
     <div class="tab tidy-tab magic tidy-tab-contents"
@@ -1742,24 +1711,7 @@
          they get the same row as everything else — which means the same
          expander, and these are almost entirely text worth reading. The
          groups come from CONFIG.A5E.interactionTypes, not a list here. --}}
-    <div class="tab tidy-tab interactions tidy-tab-contents"
-      data-tab="interactions" data-group="primary" data-tab-contents-for="interactions"
-      role="tabpanel">
-
-      {{#each interactionGroups}}
-        {{#> tidy-table key=this.key label=this.label count=this.items.length}}
-          {{#each items}}
-            {{> tidy-row}}
-          {{/each}}
-        {{/tidy-table}}
-      {{/each}}
-
-      {{#unless interactionGroups.length}}
-        <div class="empty-state-container empty-state-description">
-          <span class="color-text-lighter">No actions, downtime or journey activities.</span>
-        </div>
-      {{/unless}}
-    </div>
+    
 
     {{!-- ▸ SETTINGS ─────────────────────────────────────────────────────
          a5e keeps these on five sub-pages; they are short enough to read as

@@ -1605,3 +1605,17 @@
 .tidy5e-sheet.application.a5e-mancer-sheet .am-rarity-veryRare  { color: #a978d8; }
 .tidy5e-sheet.application.a5e-mancer-sheet .am-rarity-legendary { color: #d9a441; }
 .tidy5e-sheet.application.a5e-mancer-sheet .am-rarity-artifact  { color: #d2703a; }
+/* ── Room for the sidebar button ───────────────────────────────────────────
+   Tidy pins it to the left edge of the tab row:
+
+     .sidebar-toggle { position: absolute; inset-inline-start: 0; … }
+
+   Absolute means it is out of the flow, so the first tab starts at the same
+   x it does and is drawn underneath it. It has always been so on both sheets;
+   it only became obvious on the NPC one, whose first tab is wider.
+
+   The row reserves the button’s own footprint instead — .5rem + .6875rem of
+   padding, a -.5rem margin and the glyphs between them. */
+.tidy5e-sheet.application.a5e-mancer-sheet .tabs-row > .tidy-tabs {
+  padding-inline-start: 2.25rem;
+}

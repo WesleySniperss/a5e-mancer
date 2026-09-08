@@ -2096,7 +2096,46 @@ export class A5eCharacterSheet extends ActorSheet {
     );
 
     /* HP inputs */
-    this.#bindNumericInput(el, '#am-hp-current', v => ({ 'system.attributes.hp.value': v }));
+    /* Hit points are the one figure people change by an amount rather than to
+       a number: you take 7, you get 4 back. So the field reads a sign.
+
+         +4   heal 4
+         -7   take 7
+          12  set to 12
+
+       This replaces the two buttons that stood beside the bar, each of which
+       opened a dialog to ask for a number. Two clicks and a prompt to spend a
+       hit die’s worth of healing was too much ceremony for the commonest edit
+       on the sheet, and one of the two was reported as doing nothing at all.
+
+       The arithmetic is a5e’s, not ours: applyDamage and applyHealing are
+       methods on its actor, and they already know that temporary hit points
+       absorb damage first and that healing stops at the maximum. Doing it by
+       hand here would be a second opinion about the same rules. */
+    el.querySelector('#am-hp-current')?.addEventListener('change', async (e) => {
+      const raw = String(e.target.value ?? '').trim();
+      const rel = raw.match(/^([+-])\s*(\d+)$/);
+      try {
+        if (rel) {
+          const n = Number(rel[2]);
+          if (!n) return;
+          if (rel[1] === '+') {
+            if (typeof this.actor.applyHealing === 'function') await this.actor.applyHealing(n);
+            else await this.#hpFallback(n);
+          } else {
+            if (typeof this.actor.applyDamage === 'function') await this.actor.applyDamage(n);
+            else await this.#hpFallback(-n);
+          }
+          return;
+        }
+        const abs = parseInt(raw);
+        if (isNaN(abs)) return;
+        await this.actor.update({ 'system.attributes.hp.value': Math.max(0, abs) });
+      } catch (err) {
+        AM.log(1, 'Could not change hit points:', err);
+        ui.notifications.warn(err.message ?? 'The sheet could not change hit points.');
+      }
+    });
     /* a5e DERIVES hp.max and never stores it: a character carries baseMax,
        bonus and temp, and the actor computes max = baseMax + bonus, or
        maxHP + CON + bonus when automation is on. Writing hp.max was rejected
@@ -2141,30 +2180,6 @@ export class A5eCharacterSheet extends ActorSheet {
        first version of this sheet and never wired to anything, so pressing them
        did nothing at all. Damage goes through temporary hit points first, which
        is the part worth automating; healing never exceeds max. */
-    for (const [action, sign] of [['heal-hp', 1], ['damage-hp', -1]]) {
-      el.querySelector(`[data-action="${action}"]`)?.addEventListener('click', async () => {
-        const amount = await A5eCharacterSheet.#askAmount(
-          game.i18n.localize(sign > 0 ? 'am.sheet.heal-title' : 'am.sheet.damage-title'));
-        if (!amount) return;
-
-        const hp = this.actor.system?.attributes?.hp ?? {};
-        const max = Number(hp.max ?? 0);
-        let value = Number(hp.value ?? 0);
-        let temp  = Number(hp.temp ?? 0);
-
-        if (sign > 0) {
-          value = Math.min(max || value + amount, value + amount);
-        } else {
-          const fromTemp = Math.min(temp, amount);
-          temp  -= fromTemp;
-          value  = Math.max(0, value - (amount - fromTemp));
-        }
-        await this.actor.update({
-          'system.attributes.hp.value': value,
-          'system.attributes.hp.temp':  temp
-        });
-      });
-    }
 
     el.querySelector('[data-action="toggle-inspiration"]')?.addEventListener('click', async () => {
       const cur  = this.actor.system.attributes?.inspiration ?? this.actor.system.inspiration;
@@ -3601,6 +3616,30 @@ export class A5eCharacterSheet extends ActorSheet {
     roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: this.actor }), flavor: label });
   }
 
+  /**
+   * Hit points by hand, for a system that has no applyDamage/applyHealing.
+   * a5e has both, so this is a floor rather than a path anyone should take:
+   * it knows only that temporary hit points go first and that nothing goes
+   * below zero or above the maximum.
+   */
+  async #hpFallback(delta) {
+    const hp    = this.actor.system?.attributes?.hp ?? {};
+    const max   = Number(hp.max ?? hp.baseMax ?? 0) || 0;
+    let   value = Number(hp.value ?? 0) || 0;
+    let   temp  = Number(hp.temp ?? 0) || 0;
+
+    if (delta >= 0) {
+      value = max ? Math.min(max, value + delta) : value + delta;
+    } else {
+      const amount   = -delta;
+      const fromTemp = Math.min(temp, amount);
+      temp  -= fromTemp;
+      value  = Math.max(0, value - (amount - fromTemp));
+    }
+    await this.actor.update({ 'system.attributes.hp.value': value,
+                              'system.attributes.hp.temp':  temp });
+  }
+
   #bindNumericInput(el, selector, pathFn) {
     const inp = el.querySelector(selector);
     if (!inp) return;
@@ -3751,10 +3790,12 @@ export class A5eNPCSheet extends A5eCharacterSheet {
                 'quadrone', 'themed', 'theme-dark',
                 'a5e-mancer-sheet', 'a5e-mancer-npc-sheet'],
       template: `modules/${MODULE_ID}/templates/sheet/npc-sheet.hbs`,
-      /* A monster needs less width than a character: no class resources, no
-         spell-slot ladder in the strip. */
-      width: 760,
-      height: 820,
+      /* 760 was a guess that a monster needs less room than a character. It
+         does not: the tab strip carries the same tabs less two, and at 760 it
+         wrapped under the sidebar button. Same width as the character sheet,
+         and a little shorter, since a monster has no tracker row. */
+      width: 820,
+      height: 780,
       tabs: [{ navSelector: '.actor-tabs', contentSelector: '.main-content',
                initial: 'statblock' }],
       dragDrop: [{ dragSelector: '.tidy-table-row-container[data-item-id]',

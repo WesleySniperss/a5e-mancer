@@ -145,15 +145,27 @@ swap('level block', L(
   '              data-tooltip="Challenge {{npc.cr}} — {{npc.xp}} XP">{{npc.cr}}</span>'
 ));
 
+/* ── Tabs a monster does not use ──────────────────────────────────────────
+   Measured across a sample of a5e’s own monsters: the Actions tab
+   (interactions) had rows on NONE of them — interactions are a character’s
+   basic actions, and a monster carries its actions as features instead. And
+   Favorites is a player curating a shortlist; a monster’s shortlist IS its
+   statblock, which is the tab beside it.
+
+   Eleven tabs on a 760px window is also simply too many to read. */
+swap('interactions tab', L(
+  '      <a class="tab-option item" role="tab" data-tab="interactions"',
+  '        data-tab-id="interactions" data-group="primary"><span class="tab-title">Actions</span></a>',
+  ''
+), '');
+
 /* ── A statblock tab, first, in place of Favorites ────────────────────────── */
 swap('tab strip', L(
   '      <a class="tab-option item active first-tab" role="tab" data-tab="favorites"',
   '        data-tab-id="favorites" data-group="primary"><span class="tab-title">Favorites</span></a>'
 ), L(
   '      <a class="tab-option item active first-tab" role="tab" data-tab="statblock"',
-  '        data-tab-id="statblock" data-group="primary"><span class="tab-title">Statblock</span></a>',
-  '      <a class="tab-option item" role="tab" data-tab="favorites"',
-  '        data-tab-id="favorites" data-group="primary"><span class="tab-title">Favorites</span></a>'
+  '        data-tab-id="statblock" data-group="primary"><span class="tab-title">Statblock</span></a>'
 ));
 
 /* ── …and its panel, ahead of the favorites panel, which is no longer first ─ */
@@ -197,6 +209,41 @@ swap('statblock panel', L(
   '      data-tab="favorites" data-group="primary" data-tab-contents-for="favorites"',
   '      role="tabpanel">'
 ));
+
+/* ── A panel whose tab was dropped goes with it ───────────────────────────
+   Removing a tab above leaves its content in the file: rendered, in the DOM,
+   and unreachable, because nothing can activate it. Rather than anchor a
+   second substitution per tab — which would rot the moment a tab moves — the
+   rule is stated once: every panel whose data-tab-contents-for is not among
+   the data-tab-id values left in the strip is cut out.
+
+   The sidebar’s own two panels are addressed by data-sidebar-tab and are not
+   in the strip, so they are spared explicitly. */
+function dropOrphanPanels() {
+  const tabs = new Set([...text.matchAll(/data-tab-id="([a-z]+)"/g)].map(m => m[1]));
+  const sidebar = new Set(['skills', 'traits']);
+  const panels = [...new Set([...text.matchAll(/data-tab-contents-for="([a-z]+)"/g)]
+                    .map(m => m[1]))];
+  let cut = 0;
+  for (const id of panels) {
+    if (tabs.has(id) || sidebar.has(id)) continue;
+    const at = text.indexOf(`data-tab-contents-for="${id}"`);
+    if (at < 0) continue;
+    /* Back up to the <div that opens this panel, then forward to its close,
+       counting nesting so the panel leaves whole. */
+    const start = text.lastIndexOf('<div', at);
+    let depth = 0, i = start;
+    for (; i < text.length; i++) {
+      if (text.startsWith('<div', i)) depth++;
+      else if (text.startsWith('</div>', i)) { depth--; if (!depth) { i += 6; break; } }
+    }
+    if (depth !== 0) { console.error(`FAIL: the ${id} panel never closes`); failures++; continue; }
+    text = text.slice(0, start) + text.slice(i);
+    cut++;
+  }
+  if (cut) console.log(`  dropped ${cut} panel(s) whose tab is gone`);
+}
+dropOrphanPanels();
 
 if (failures) {
   console.error(`\n${failures} substitution(s) failed — npc-sheet.hbs NOT written.`);
