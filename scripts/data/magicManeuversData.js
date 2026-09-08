@@ -52,7 +52,7 @@ export const MM_PROGRESSION = [
 ];
 
 /**
- * The 26 maneuvers.
+ * The maneuvers.
  *
  *   degree      gates learning by level (1 from 3rd, 2 from 7th, 3 from 13th).
  *               Independent of cost — a 1st-degree maneuver may cost 3.
@@ -178,6 +178,11 @@ export const MAGIC_MANEUVERS = [
     trigger: 'onKill', activation: 'reaction', consumesState: false,
     flavor: `One death feeds the next blow.`,
     effect: `When your spell kills an enemy, the excess damage (beyond its current HP) carries to another enemy within 15 ft.` },
+
+  { id: 'ricochet', name: 'Ricochet', school: 'utrymannia', degree: 2, cost: 1,
+    trigger: 'savingThrow', activation: 'reaction', consumesState: false,
+    flavor: `It was not the spell that missed. It was the mark.`,
+    effect: `When the target succeeds on its saving throw against your spell, the spell does not end: it passes to the creature hostile to you nearest that target within 20 ft, which makes the same saving throw against it at the same DC. If two are equally near, you choose. The spell passes once — a success by the new target ends it, and a target may not be passed the same spell twice.` },
 
   { id: 'riposte', name: 'Riposte', school: 'utrymannia', degree: 2, cost: 4,
     trigger: 'shield', activation: 'reaction', consumesState: false,
