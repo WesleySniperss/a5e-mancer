@@ -225,8 +225,8 @@
           {{!-- No flexcol. Foundry gives .flexcol > * a flex of 1, which was
                handing the initiative badge and concentration half the column
                each — the badge has a fixed height of 3.75rem and does not
-               want flexing, so the two ran into one another. Same trap that
-               had the head icon floating loose; this is its parent. --}}
+               want flexing, so the two ran into one another. The column
+               states its own layout in tidy-a5e.css instead. --}}
           <div class="ability initiative">
             <div class="initiative-score-container" data-tooltip="Initiative">
               <button type="button" class="ability-roll-button button-borderless"
@@ -238,18 +238,29 @@
                 </span>
               </button>
             </div>
+
+            {{!-- Concentration, under initiative, where it was asked for.
+
+                 It sat here twice before and overlapped both times, so this
+                 time the room was measured rather than assumed: Tidy gives
+                 .abilities-container-inner a min-height of 6.625rem and
+                 stretches its children, and the badge above takes 4.0625rem
+                 of it (3.75 plus its .3125 top margin). With the column gap
+                 that leaves 2.4375rem, and the chip below is built to 2.25.
+                 It cannot grow into the badge because it is given a height,
+                 not a share. --}}
+            <button type="button" class="am-conc-chip"
+              data-action="concentration-check"
+              data-tooltip="Concentration — click to roll"
+              aria-label="Concentration">
+              <span class="am-conc-abbr color-text-gold">CONC</span>
+              <span class="am-conc-mod">
+                <span class="modifier color-text-lightest">{{tidy.conc.sign}}</span><span
+                  class="bonus color-text-default">{{tidy.conc.value}}</span>
+              </span>
+            </button>
           </div>
 
-          {{!-- Concentration used to live in this row, first under initiative
-               and then beside it. Three attempts, three overlaps — the last one
-               drew "Conc." on top of the Wisdom plate although the DOM had it
-               last in the row. Something in this container is beyond what I can
-               see from outside the browser, so it stops being a plate: it has
-               moved to the stat strip below, which is our own flex row and has
-               never put anything on top of anything.
-
-               It also belongs there by kind. It is a derived number you read,
-               like the maneuver and spell DCs standing next to it. --}}
         </div>
       </div>
     </div>
@@ -373,16 +384,6 @@
       <span class="am-a5e-value font-data-medium color-text-default">{{maneuverDC}}</span>
     </div>
 
-    {{!-- The companion figure. Every chip in this strip is the same shape, so
-         one more sits level with the rest rather than nudging them. --}}
-    <div class="am-a5e-stat" data-tooltip="Concentration — click to roll">
-      <button type="button" class="unbutton am-conc-button" data-action="concentration-check">
-        <span class="am-a5e-label font-label-medium color-text-gold">
-          <i class="fas fa-head-side-brain"></i> Conc.
-        </span>
-        <span class="am-a5e-value font-data-medium color-text-default">{{tidy.conc.sign}}{{tidy.conc.value}}</span>
-      </button>
-    </div>
 
     {{#if spellDC}}
       <div class="am-a5e-stat" data-tooltip="Spell Save DC">

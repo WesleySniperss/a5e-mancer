@@ -1250,10 +1250,63 @@
    and the portrait did not — which is why it looked like it was growing. It
    still cannot vanish, but it is no longer the last thing standing. */
 
-/* ── Concentration stands beside initiative ────────────────────────────────
-   Two goes at making them share a column failed. Rather than keep fighting a
-   cascade I cannot see from here, they are separate columns: two boxes side by
-   side cannot overlap, whatever any rule says about either of them. */
+/* ── Concentration sits under initiative ───────────────────────────────────
+   Where it belongs, and where two earlier attempts put it before it overlapped
+   the badge above. Both of those gave it a share of the column and hoped; this
+   one gives it a height that provably fits.
+
+   The room, measured rather than assumed: Tidy sets .abilities-container-inner
+   to min-height 6.625rem with align-items: stretch, so the column is 6.625rem
+   tall. .initiative-score-container is height 3.75rem with margin-block-start
+   .3125rem — 4.0625rem — and the column gap is .125rem. 2.4375rem is left, and
+   the chip is 2.25rem. It is also 3.25rem wide, the badge width, so the column
+   is no wider than it was.
+
+   Nothing here flexes. That was the fault every previous time: .flexcol on the
+   column, or flex: 1 on the chip, handed the badge half the height it needed
+   and it drew over whatever was beneath. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-conc-chip {
+  flex: 0 0 auto;
+  width: 3.25rem;
+  height: 2.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 0;
+  background: var(--t5e-component-card-darker, #1a1b20);
+  border: 0.0625rem solid var(--t5e-component-pill-border, #4b4a44);
+  border-radius: var(--t5e-size-1x, 0.25rem);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-conc-chip:hover {
+  border-color: var(--t5e-color-gold);
+}
+
+/* Same two-part shape the ability plates use: the name small and gold above,
+   the sign and the figure below it. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-conc-abbr {
+  font-family: var(--t5e-font-family-default);
+  font-size: 0.5625rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  line-height: 1;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-conc-mod {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.0625rem;
+  font-size: 0.875rem;
+  line-height: 1.1;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-conc-mod .modifier {
+  font-size: 0.6875rem;
+}
 
 /* ── The bar and its name are the same height ──────────────────────────────
    Centring a row only works if the things in it agree on how tall they are. A
@@ -1286,30 +1339,6 @@
   align-items: center;
 }
 
-/* ── Concentration, in the strip ───────────────────────────────────────────
-   It sat in the abilities row three different ways and overlapped the plates
-   every time — the last of them stretching sideways as the sheet grew, which
-   is the tell: its column was being given flex: 1 by something I could not see
-   from outside the browser.
-
-   Here it cannot. Every chip in this strip is flex: 0 0 auto and the strip is
-   nowrap, so it takes the width of its own text and no more. It reads as what
-   it is, too: a derived number, next to the two DCs. */
-.tidy5e-sheet.application.a5e-mancer-sheet .am-conc-button {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--t5e-size-2x);
-  flex: 0 0 auto;
-  width: auto;
-  padding: 0;
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.tidy5e-sheet.application.a5e-mancer-sheet .am-conc-button:hover .am-a5e-value {
-  color: var(--t5e-color-text-gold-emphasis);
-}
 
 /* ── The portrait shrinks with the sheet ───────────────────────────────────
    Tidy gives the vitals column a max-width and leaves it at that. As a flex
