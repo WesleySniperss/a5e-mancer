@@ -275,3 +275,37 @@
 .a5e-mancer-app .am-feat-controls {
   flex-wrap: wrap;
 }
+
+/* ── The builder’s own tokens, in Tidy’s colours ─────────────────────────
+   a5e-mancer.css declares seventeen --am-* tokens on :root and spends them
+   across the whole builder. Re-pointing those is worth more than any number of
+   individual rules: two thirds of every coloured rule in that file follows
+   from them, so the builder re-tints as one thing rather than screen by
+   screen.
+
+   Redefined here rather than edited there, and scoped to our own class, so
+   the :root values stay as the fallback and nothing outside these four
+   windows is touched. */
+.a5e-mancer-app {
+  --am-gold:          var(--t5e-color-text-gold-emphasis);
+  --am-gold-rgb:      192, 173, 129;   /* #c0ad81, Tidy’s gold, as channels */
+  --am-gold-dim:      rgba(var(--am-gold-rgb), 0.18);
+  --am-gold-border:   var(--t5e-color-gold);
+
+  --am-bg-app:        var(--t5e-component-card-darker);
+  --am-bg-content:    var(--t5e-component-card-darker);
+  --am-bg-sidebar:    var(--t5e-component-card-darker);
+  --am-bg-panel:      var(--t5e-component-card-default);
+  --am-bg-hover:      rgba(255, 255, 255, 0.06);
+
+  --am-text-primary:  var(--t5e-color-text-default);
+  --am-text-dim:      var(--t5e-color-text-lighter);
+
+  --am-shadow-gold:   var(--t5e-drop-shadow-card);
+  --am-border-radius: var(--radius-card, 0.1875rem);
+
+  /* --am-accent, --am-success and --am-error say what a thing MEANS rather
+     than what the window is made of. Tidy has no equivalent to borrow, and a
+     gold error would be a worse window, not a more consistent one. They keep
+     the values they had. */
+}
