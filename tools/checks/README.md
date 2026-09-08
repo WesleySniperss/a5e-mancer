@@ -58,3 +58,17 @@ sheet that would not open. Re-create the pre-fix shape and this check says
 `hooks.mjs` fires the module's `init`, `setup` and `ready` hooks and reports what
 throws, plus whether both sheets ended up registered. `loadorder.mjs` proves the
 files import; only this proves a line of hook code runs.
+
+## `dupmembers.mjs`
+
+Two methods with the same name in one class body.
+
+JavaScript does not complain: the later one replaces the earlier, and everything
+the earlier did stops happening. `A5eCharacterSheet` had two `close()` methods
+three thousand lines apart. The second won, so the `ResizeObserver` the first
+disconnected was never disconnected — every sheet opened and closed left one
+behind, still firing its layout callback against an element no longer in the
+document.
+
+Nothing else here would find that. It parses, it runs, and it shows up only as a
+session that gets slower the longer it goes on.

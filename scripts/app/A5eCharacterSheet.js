@@ -151,11 +151,6 @@ export class A5eCharacterSheet extends ActorSheet {
   }
 
   /** Nothing should keep observing an element that has been torn down. */
-  async close(options) {
-    this._abilityLayoutObserver?.disconnect();
-    this._abilityLayoutObserver = null;
-    return super.close(options);
-  }
 
   /* ── Data ─────────────────────────────────────────── */
   async getData() {
@@ -2476,11 +2471,47 @@ export class A5eCharacterSheet extends ActorSheet {
        The figure is always writable; the label, the maximum and the rest of
        the configuration only while unlocked, which is what the template
        renders. Paths differ for class resources — see the context. */
+    /* ── A number changed, not the sheet ─────────────────────────────────
+       Every tracker wrote with actor.update and let Foundry redraw the whole
+       sheet. Measured on the characters in this world, one redraw is 10–17ms
+       of JavaScript producing 126–585KB of HTML, which the browser then has to
+       parse and lay out against 2.1MB of Tidy’s CSS. A frame at 60fps is
+       16.7ms. That is the stutter when a tracker is nudged — and the custom
+       counters were paying it twice, once for the flag write and again for an
+       explicit render call after it.
+
+       Spending a point does not change the shape of the sheet, so it does not
+       need one drawn. The write is made with render: false and the two things
+       that actually change are set in place: the figure, and the length of its
+       bar. The figure is read back off the actor rather than assumed, so a
+       value the system clamps still shows the truth. */
+    const paintMeter = (node) => {
+      const meter = node?.closest?.('.am-tracker-meter, .meter');
+      if (!meter) return;
+      const label  = meter.querySelector('.label') ?? meter;
+      const cur    = Number(label.querySelector('input:not(.max)')?.value ?? 0) || 0;
+      const maxEl  = label.querySelector('.max');
+      const max    = Number(maxEl?.value ?? maxEl?.textContent ?? 0) || 0;
+      const pct    = max > 0 ? Math.min(100, Math.max(0, (cur / max) * 100)) : 0;
+      meter.style.setProperty('--bar-percentage', `${pct}%`);
+    };
+
+    const writeNumber = async (path, value, node) => {
+      await this.actor.update({ [path]: value }, { render: false });
+      const real = Number(foundry.utils.getProperty(this.actor, path) ?? value);
+      if (node && 'value' in node) node.value = Number.isFinite(real) ? real : value;
+      paintMeter(node);
+    };
+
+    /* The figure belonging to a button: the one in the same chip. */
+    const figureFor = (btn, selector) =>
+      btn.closest('.am-tracker, .am-counter, .am-a5e-stat')?.querySelector(selector) ?? null;
+
     el.querySelectorAll('[data-action="resource-value"]').forEach(inp =>
       inp.addEventListener('change', async (e) => {
         const v = parseInt(e.target.value);
         if (isNaN(v)) return;
-        await this.actor.update({ [e.target.dataset.path]: Math.max(0, v) });
+        await writeNumber(e.target.dataset.path, Math.max(0, v), e.target);
       }));
 
     el.querySelectorAll('[data-action="resource-step"]').forEach(b =>
@@ -2494,7 +2525,7 @@ export class A5eCharacterSheet extends ActorSheet {
         if (next < 0) next = 0;
         if (max !== null && Number.isFinite(max) && max > 0 && next > max) next = max;
         if (next === now) return;
-        await this.actor.update({ [path]: next });
+        await writeNumber(path, next, figureFor(b, '[data-action="resource-value"]'));
       }));
 
     el.querySelectorAll('[data-action="resource-field"]').forEach(inp =>
@@ -2632,7 +2663,10 @@ export class A5eCharacterSheet extends ActorSheet {
       const value = parseInt(el.querySelector(`[data-action="counter-val"][data-index="${index}"]`)?.value) || 0;
       const max   = parseInt(el.querySelector(`[data-action="counter-max"][data-index="${index}"]`)?.value) || 0;
       counters[index] = { name, value, max };
-      await this.actor.setFlag(MODULE_ID, 'customCounters', counters);
+      /* setFlag redraws; update with render: false does not. The figures are
+         already on screen — the player typed them. */
+      await this.actor.update(
+        { [`flags.${MODULE_ID}.customCounters`]: counters }, { render: false });
     };
 
     /* Redrawn on rename because naming an empty slot is what turns the
@@ -2646,16 +2680,14 @@ export class A5eCharacterSheet extends ActorSheet {
     );
     el.querySelectorAll('[data-action="counter-val"]').forEach(inp =>
       inp.addEventListener('change', async () => {
-        const idx = parseInt(inp.dataset.index);
-        await saveCounter(idx);
-        this.render(false);
+        await saveCounter(parseInt(inp.dataset.index));
+        paintMeter(inp);
       })
     );
     el.querySelectorAll('[data-action="counter-max"]').forEach(inp =>
       inp.addEventListener('change', async () => {
-        const idx = parseInt(inp.dataset.index);
-        await saveCounter(idx);
-        this.render(false);
+        await saveCounter(parseInt(inp.dataset.index));
+        paintMeter(inp);
       })
     );
     el.querySelectorAll('[data-action="counter-inc"]').forEach(btn =>
@@ -2665,7 +2697,7 @@ export class A5eCharacterSheet extends ActorSheet {
         const maxEl = el.querySelector(`[data-action="counter-max"][data-index="${idx}"]`);
         const max  = parseInt(maxEl?.value) || Infinity;
         const cur  = parseInt(inp?.value) || 0;
-        if (inp && cur < max) { inp.value = cur + 1; await saveCounter(idx); this.render(false); }
+        if (inp && cur < max) { inp.value = cur + 1; await saveCounter(idx); paintMeter(inp); }
       })
     );
     el.querySelectorAll('[data-action="counter-dec"]').forEach(btn =>
@@ -2673,7 +2705,7 @@ export class A5eCharacterSheet extends ActorSheet {
         const idx = parseInt(btn.dataset.index);
         const inp = el.querySelector(`[data-action="counter-val"][data-index="${idx}"]`);
         const cur = parseInt(inp?.value) || 0;
-        if (inp && cur > 0) { inp.value = cur - 1; await saveCounter(idx); this.render(false); }
+        if (inp && cur > 0) { inp.value = cur - 1; await saveCounter(idx); paintMeter(inp); }
       })
     );
     /* The pip row is gone from the sheet — the bar replaced it — so the
@@ -2850,7 +2882,8 @@ export class A5eCharacterSheet extends ActorSheet {
       if (next < 0) next = 0;
       if (max !== null && Number.isFinite(max) && max > 0 && next > max) next = max;
       if (next === now) return;
-      await this.actor.update({ [path]: next });
+      await writeNumber(path, next,
+        el2.closest('.am-tracker, .am-a5e-stat')?.querySelector('input.am-tracker-value'));
     };
 
     /* The resource handlers that stood here read data-resource and always wrote
@@ -3507,7 +3540,20 @@ export class A5eCharacterSheet extends ActorSheet {
     }
   }
 
+  /**
+   * Everything this sheet leaves outside its own element.
+   *
+   * There were two close() methods in this class, three thousand lines apart.
+   * JavaScript does not complain about that — the later one simply replaces
+   * the earlier — so the ResizeObserver the first one disconnected was never
+   * disconnected at all. Every sheet opened and closed left one behind, still
+   * firing its layout callback against an element no longer in the document.
+   * It parses, it runs, and it shows up only as a session that gets slower the
+   * longer it goes on. tools/checks/dupmembers.mjs looks for this now.
+   */
   async close(options = {}) {
+    this._abilityLayoutObserver?.disconnect();
+    this._abilityLayoutObserver = null;
     this._condPanel?.remove();
     this._condPanel = null;
     if (this._condEscHandler) {
