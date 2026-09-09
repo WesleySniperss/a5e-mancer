@@ -154,3 +154,24 @@ own flags, read by the system rather than by this sheet — hit dice, spell
 resources, macros, carrying capacity, crit thresholds. Those change a5e's
 behaviour, not this page's appearance, and the Settings tab now says so under
 each heading.
+
+## `actions.mjs`
+
+Every `data-action` the sheets draw, against every one they listen for. A button
+whose action nobody binds does nothing and says nothing; a listener for an
+action nobody draws is dead code that reads as coverage.
+
+**It cost more than it found on its first run, and that is the lesson.** It
+looked only for `data-action="…"` spelled out in the script, and reported
+`cycle-fatigue` and `cycle-strife` as unbound — while a handler three hundred
+lines further down bound both through `` `[data-action="${action}"]` `` in a
+loop. Acting on that report added a second handler to each button, so one click
+would have moved the track by two. A functional test caught it before release;
+the check had not.
+
+The same day, a quick partial-reference check reported 21 missing partials, all
+of which are registered in a loop over a list of names. Two false positives from
+two naive scans.
+
+So: **a static check says where to look, never what is true.** Fire the handler
+before changing anything.

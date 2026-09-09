@@ -1412,12 +1412,6 @@ export class A5eCharacterSheet extends ActorSheet {
   /* ── Item builders ────────────────────────────────── */
 
   /* Helper: build compact one-liner summary */
-  #summary(...parts) { return parts.filter(Boolean).join(' · '); }
-
-  #actLabel(activation) {
-    return { action: 'Action', bonus: 'Bonus Action', reaction: 'Reaction' }[activation] ?? 'Action';
-  }
-
   /**
    * Parse A5e action data from an item.
    * Supports both old format (action.attackBonus, action.damage[]) and
@@ -3691,27 +3685,6 @@ export class A5eCharacterSheet extends ActorSheet {
         e.target.value = foundry.utils.getProperty(this.actor, Object.keys(pathFn(val))[0]) ?? '';
       }
     });
-  }
-
-  /**
-   * Ask for a positive whole number. Used by the Heal and Damage buttons, which
-   * need one value and nothing else.
-   */
-  static async #askAmount(title) {
-    try {
-      const html = `<input type="number" name="amount" min="1" step="1" autofocus
-                      style="width:100%" placeholder="0">`;
-      const result = await foundry.applications.api.DialogV2.prompt({
-        window: { title },
-        content: html,
-        ok: { label: game.i18n.localize('am.sheet.apply'),
-              callback: (_e, btn) => btn.form.elements.amount.value }
-      });
-      const n = Math.floor(Number(result));
-      return Number.isFinite(n) && n > 0 ? n : 0;
-    } catch {
-      return 0;                       // dismissed
-    }
   }
 
   /**

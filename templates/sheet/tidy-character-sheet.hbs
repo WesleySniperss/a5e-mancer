@@ -367,7 +367,7 @@
           <div class="exhaustion{{#if resources.fatigue}} exhausted{{/if}}">
             <button type="button" class="button button-borderless button-icon-only"
               aria-label="Fatigue"
-              data-tooltip="{{#if fatigueDesc}}Fatigue — {{fatigueDesc}}{{else}}Fatigue{{/if}}"
+              data-tooltip="{{#if fatigueDesc}}Fatigue — {{fatigueDesc}}{{else}}Fatigue{{/if}}&#10;Click to raise, right-click to lower"
               data-action="cycle-fatigue">
               <i class="fas fa-heart-pulse"></i>
               <span class="value">{{resources.fatigue}}</span>
@@ -377,7 +377,7 @@
           <div class="exhaustion am-strife{{#if resources.strife}} exhausted{{/if}}">
             <button type="button" class="button button-borderless button-icon-only"
               aria-label="Strife"
-              data-tooltip="{{#if strifeDesc}}Strife — {{strifeDesc}}{{else}}Strife{{/if}}"
+              data-tooltip="{{#if strifeDesc}}Strife — {{strifeDesc}}{{else}}Strife{{/if}}&#10;Click to raise, right-click to lower"
               data-action="cycle-strife">
               <i class="fas fa-brain"></i>
               <span class="value">{{resources.strife}}</span>
