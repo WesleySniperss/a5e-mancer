@@ -3829,8 +3829,11 @@ export class A5eNPCSheet extends A5eCharacterSheet {
          and a little shorter, since a monster has no tracker row. */
       width: 820,
       height: 780,
+      /* Favorites, as the character sheet opens on — the strip is the same one
+         now, and an `initial` naming a tab that no longer exists would leave
+         the sheet opening on nothing. */
       tabs: [{ navSelector: '.actor-tabs', contentSelector: '.main-content',
-               initial: 'statblock' }],
+               initial: 'favorites' }],
       dragDrop: [{ dragSelector: '.tidy-table-row-container[data-item-id]',
                    dropSelector: '.main-content' }]
     });
@@ -3844,7 +3847,11 @@ export class A5eNPCSheet extends A5eCharacterSheet {
     const sys   = actor.system ?? {};
 
     data.npc       = this.#npcHeader(sys);
-    data.statblock = this.#statblock();
+    /* The statblock tab is gone — the NPC strip is the character sheet’s now,
+       and building a context nothing renders is work done on every redraw for
+       nobody. #statblock stays: it groups a monster’s actions the way the book
+       does, and bringing the tab back is one line here and one in the
+       generator. */
     return data;
   }
 

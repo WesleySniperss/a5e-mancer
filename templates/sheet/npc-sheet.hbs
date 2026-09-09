@@ -623,8 +623,10 @@
            has the things in it. Reading the flag alone would hide the maneuver
            and spell tabs from anyone whose flag was never set, which is most
            characters — a5e only sets it when it grants the first one. --}}
-      <a class="tab-option item active first-tab" role="tab" data-tab="statblock"
-        data-tab-id="statblock" data-group="primary"><span class="tab-title">Statblock</span></a>
+      {{#if showFavorites}}
+        <a class="tab-option item active first-tab" role="tab" data-tab="favorites"
+          data-tab-id="favorites" data-group="primary"><span class="tab-title">Favorites</span></a>
+      {{/if}}
       {{#if showMagicTab}}
         <a class="tab-option item" role="tab" data-tab="magic"
           data-tab-id="magic" data-group="primary"><span class="tab-title">Magic</span></a>
@@ -646,6 +648,8 @@
         data-tab-id="effects" data-group="primary"><span class="tab-title">Effects</span></a>
       <a class="tab-option item" role="tab" data-tab="bonuses"
         data-tab-id="bonuses" data-group="primary"><span class="tab-title">Bonuses</span></a>
+      <a class="tab-option item" role="tab" data-tab="interactions"
+        data-tab-id="interactions" data-group="primary"><span class="tab-title">Actions</span></a>
       <a class="tab-option item no-border-on-last-tab" role="tab" data-tab="settings"
         data-tab-id="settings" data-group="primary"><span class="tab-title">Settings</span></a>
     </nav>
@@ -1073,38 +1077,28 @@
          Martial tab, listed maneuvers in two places at once, and filled the tab
          with things nobody had chosen. Removed.
          ────────────────────────────────────────────────────────────────── --}}
-    {{!-- ══ STATBLOCK ════════════════════════════════════════════════════════
-         Everything the monster can do, grouped as the book groups it. The
-         grouping key is each action’s own activation type, which is where a5e
-         records it — measured across its monster pack: 8426 actions, 1076
-         special, 504 bonus actions, 455 legendary, 356 reactions. An item may
-         hold several actions and a monster’s often does, so each is a row of
-         its own under the heading it belongs to.
-         ═══════════════════════════════════════════════════════════════════ --}}
-    <div class="tab tidy-tab statblock tidy-tab-contents active"
-      data-tab="statblock" data-group="primary" data-tab-contents-for="statblock"
+    <div class="tab tidy-tab favorites tidy-tab-contents active"
+      data-tab="favorites" data-group="primary" data-tab-contents-for="favorites"
       role="tabpanel">
 
-      {{#each statblock}}
-        {{#> tidy-table key=this.key label=(localize this.label) count=this.entries.length
-                        c1=true col1="Cost" c2=true col2="Recharge"}}
-          {{#each this.entries}}
-            {{> tidy-row subtitle=this.subName useAction="statblock-use"
-                         actionId=this.actionId
-                         c1=true cell1=this.cost c2=true cell2=this.recharge}}
+      {{#if favorites.length}}
+        {{#> tidy-table key="favorites" label="Favorites" count=favorites.length
+                        c1=true col1="Attack" c2=true col2="Damage"}}
+          {{#each favorites}}
+            {{> tidy-row starred=true subtitle=this.activationLabel
+                         c1=true cell1=this.atkBonus c2=true cell2=this.dmgFull}}
           {{/each}}
         {{/tidy-table}}
-      {{/each}}
+      {{/if}}
 
-      {{#unless statblock.length}}
+      {{#unless hasFavorites}}
         <div class="empty-state-container empty-state-description">
-          <p>Nothing to do yet. Drop features, weapons, spells or maneuvers
-             onto the sheet and they will be grouped here.</p>
+          <span class="color-text-lighter">
+            Nothing starred yet. The star on any item or skill keeps it here.
+          </span>
         </div>
       {{/unless}}
     </div>
-
-    
 
     {{!-- ▸ MAGIC ────────────────────────────────────────────────────────── --}}
     <div class="tab tidy-tab magic tidy-tab-contents"
@@ -1718,7 +1712,24 @@
          they get the same row as everything else — which means the same
          expander, and these are almost entirely text worth reading. The
          groups come from CONFIG.A5E.interactionTypes, not a list here. --}}
-    
+    <div class="tab tidy-tab interactions tidy-tab-contents"
+      data-tab="interactions" data-group="primary" data-tab-contents-for="interactions"
+      role="tabpanel">
+
+      {{#each interactionGroups}}
+        {{#> tidy-table key=this.key label=this.label count=this.items.length}}
+          {{#each items}}
+            {{> tidy-row}}
+          {{/each}}
+        {{/tidy-table}}
+      {{/each}}
+
+      {{#unless interactionGroups.length}}
+        <div class="empty-state-container empty-state-description">
+          <span class="color-text-lighter">No actions, downtime or journey activities.</span>
+        </div>
+      {{/unless}}
+    </div>
 
     {{!-- ▸ SETTINGS ─────────────────────────────────────────────────────
          a5e keeps these on five sub-pages; they are short enough to read as

@@ -145,72 +145,18 @@ swap('level block', L(
   '              data-tooltip="Challenge {{npc.cr}} — {{npc.xp}} XP">{{npc.cr}}</span>'
 ));
 
-/* ── Tabs a monster does not use ──────────────────────────────────────────
-   Measured across a sample of a5e’s own monsters: the Actions tab
-   (interactions) had rows on NONE of them — interactions are a character’s
-   basic actions, and a monster carries its actions as features instead. And
-   Favorites is a player curating a shortlist; a monster’s shortlist IS its
-   statblock, which is the tab beside it.
+/* ── The tab strip is the character sheet’s, unchanged ───────────────────
+   It was not, for two releases: Favorites and Actions were dropped and a
+   Statblock tab took the first place, because a sample of a5e’s monsters had
+   nothing in Actions and a monster’s shortlist is arguably its statblock.
 
-   Eleven tabs on a 760px window is also simply too many to read. */
-swap('interactions tab', L(
-  '      <a class="tab-option item" role="tab" data-tab="interactions"',
-  '        data-tab-id="interactions" data-group="primary"><span class="tab-title">Actions</span></a>',
-  ''
-), '');
+   The instruction since is the better rule and it is followed here:
+   everything is to be synchronised with the character sheet. A tab that is
+   empty for a monster is a tab that is empty, which is a smaller problem than
+   two sheets that disagree about what tabs exist.
 
-/* ── A statblock tab, first, in place of Favorites ────────────────────────── */
-swap('tab strip', L(
-  '      {{#if showFavorites}}',
-  '        <a class="tab-option item active first-tab" role="tab" data-tab="favorites"',
-  '          data-tab-id="favorites" data-group="primary"><span class="tab-title">Favorites</span></a>',
-  '      {{/if}}'
-), L(
-  '      <a class="tab-option item active first-tab" role="tab" data-tab="statblock"',
-  '        data-tab-id="statblock" data-group="primary"><span class="tab-title">Statblock</span></a>'
-));
-
-/* ── …and its panel, ahead of the favorites panel, which is no longer first ─ */
-swap('statblock panel', L(
-  '    <div class="tab tidy-tab favorites tidy-tab-contents active"',
-  '      data-tab="favorites" data-group="primary" data-tab-contents-for="favorites"',
-  '      role="tabpanel">'
-), L(
-  '    {{!-- ══ STATBLOCK ════════════════════════════════════════════════════════',
-  '         Everything the monster can do, grouped as the book groups it. The',
-  '         grouping key is each action’s own activation type, which is where a5e',
-  '         records it — measured across its monster pack: 8426 actions, 1076',
-  '         special, 504 bonus actions, 455 legendary, 356 reactions. An item may',
-  '         hold several actions and a monster’s often does, so each is a row of',
-  '         its own under the heading it belongs to.',
-  '         ═══════════════════════════════════════════════════════════════════ --}}',
-  '    <div class="tab tidy-tab statblock tidy-tab-contents active"',
-  '      data-tab="statblock" data-group="primary" data-tab-contents-for="statblock"',
-  '      role="tabpanel">',
-  '',
-  '      {{#each statblock}}',
-  '        {{#> tidy-table key=this.key label=(localize this.label) count=this.entries.length',
-  '                        c1=true col1="Cost" c2=true col2="Recharge"}}',
-  '          {{#each this.entries}}',
-  '            {{> tidy-row subtitle=this.subName useAction="statblock-use"',
-  '                         actionId=this.actionId',
-  '                         c1=true cell1=this.cost c2=true cell2=this.recharge}}',
-  '          {{/each}}',
-  '        {{/tidy-table}}',
-  '      {{/each}}',
-  '',
-  '      {{#unless statblock.length}}',
-  '        <div class="empty-state-container empty-state-description">',
-  '          <p>Nothing to do yet. Drop features, weapons, spells or maneuvers',
-  '             onto the sheet and they will be grouped here.</p>',
-  '        </div>',
-  '      {{/unless}}',
-  '    </div>',
-  '',
-  '    <div class="tab tidy-tab favorites tidy-tab-contents"',
-  '      data-tab="favorites" data-group="primary" data-tab-contents-for="favorites"',
-  '      role="tabpanel">'
-));
+   So this file no longer touches the strip. What differs is the header, and
+   only the header. */
 
 /* ── A panel whose tab was dropped goes with it ───────────────────────────
    Removing a tab above leaves its content in the file: rendered, in the DOM,

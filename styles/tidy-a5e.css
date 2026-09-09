@@ -1687,3 +1687,28 @@
   min-height: 0;
   height: auto;
 }
+
+/* ── The AC badge keeps its proportions ────────────────────────────────────
+   Tidy sizes the shield differently at each of its three ability layouts:
+
+     .shield               max-width: 4rem; max-height: 4rem;
+                           background-size: contain;
+                           transition: height …, width …;
+     .ac-container .shield width: 100%; height: auto; min-height: 3.625rem;
+
+   Width follows the column, height follows content, and the art is a
+   background scaled to contain — so nothing holds the box to the shape of the
+   picture. Drag the sheet and the box changes proportion while the art inside
+   it does not, which is the badge appearing to grow, shrink and shift.
+
+   The art is 3.5 × 4.25 in Tidy's own base rule, so that ratio is stated and
+   the height follows from the width. min-height would fight it, and the
+   transition animates the whole thing while the pointer is still moving —
+   both go. */
+.tidy5e-sheet.application.a5e-mancer-sheet .ac-container .shield {
+  aspect-ratio: 3.5 / 4.25;
+  height: auto;
+  min-height: 0;
+  max-height: 4rem;
+  transition: none;
+}
