@@ -175,3 +175,38 @@ two naive scans.
 
 So: **a static check says where to look, never what is true.** Fire the handler
 before changing anything.
+
+## `fireall.mjs`
+
+Clicks every action the sheet draws.
+
+Static checks have twice told me a control was dead when it was not, and the
+correction cost a release. So this one presses the buttons: build a DOM from the
+sheet's own HTML, bind the listeners, then for each `data-action` call its
+handlers and record whether anything happened — a document write, an a5e API
+call, a re-render — or nothing at all.
+
+On the largest character in the world, 51 distinct actions: **37 did something,
+5 threw only where the harness has no dialog or no `ChatMessage.getSpeaker`, and
+9 were silent for reasons that check out** — a confirm dialog the harness cannot
+answer, a value already at its floor, a panel that toggles in the DOM without
+writing.
+
+"Silent" is not proof of a bug. It is a list of places to look, which is all any
+check is.
+
+## `a5eapi.mjs`
+
+Every a5e method this module reaches for, against the methods a5e declares.
+
+Nearly all of them are called with `?.` — `actor.configureSenses?.()` — so a
+wrong name does not throw. The control simply does nothing, silently, which is
+the most common shape of bug reported on this project.
+
+Checked against the system's own source: all 23 actor methods and all 7 primary
+item methods exist. `item.use`, `item.roll`, `item.toChat` and `item.share` do
+not, and are only ever reached as fallbacks after the real method is found
+missing.
+
+Note the scanner is deliberately loose and will name this module's own methods
+too; read its list as candidates, not findings.
