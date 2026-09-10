@@ -69,6 +69,17 @@ console.log(`  mean   ${mean.toFixed(1)} ms`);
 console.log(`  of that, getData is ${(100 * sum(r => r.data) / sum(r => r.total)).toFixed(0)}%`
           + ` and the template ${(100 * sum(r => r.draw) / sum(r => r.total)).toFixed(0)}%`);
 
+/* The timings wander by a few milliseconds between runs — the mean over all 61
+   moved between 11.9 and 15.8 on one unchanged tree, which is more than some
+   of the changes being measured. The markup does not wander at all: it is the
+   same bytes every time, and it is what the browser has to parse and lay out.
+   So that is the number to compare a change against. */
+console.log(`\n  markup, all ${rows.length} characters: `
+  + `${(sum(r => r.kb) / 1024).toFixed(2)} MB total, `
+  + `${sum(r => r.kb).toFixed(0)} kB, `
+  + `${(sum(r => r.kb) / rows.length).toFixed(0)} kB each on average, `
+  + `${rows.reduce((m, r) => Math.max(m, r.kb), 0).toFixed(0)} kB at the worst`);
+
 /* A redraw the player waits on. 16ms is one frame at 60Hz; a keystroke that
    costs more than a few frames is felt. */
 const slow = rows.filter(r => r.total > 50);

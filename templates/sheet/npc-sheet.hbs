@@ -1071,10 +1071,10 @@
       role="tabpanel">
 
       {{#if favorites.length}}
-        {{#> tidy-table key="favorites" label="Favorites" count=favorites.length
+        {{~#> tidy-table key="favorites" label="Favorites" count=favorites.length
                         c1=true col1="Attack" c2=true col2="Damage"}}
           {{#each favorites}}
-            {{> tidy-row starred=true subtitle=this.activationLabel
+            {{~> tidy-row starred=true subtitle=this.activationLabel
                          c1=true cell1=this.atkBonus c2=true cell2=this.dmgFull}}
           {{/each}}
         {{/tidy-table}}
@@ -1107,12 +1107,12 @@
 
       {{#if hasSpells}}
         {{#each spellGroups}}
-          {{#> tidy-table key=@key label=@key count=this.length items=this
+          {{~#> tidy-table key=@key label=@key count=this.length items=this
                           slots=(lookup @root.spellSlots @key)
                           c1=true col1="Cast Time" c2=true col2="Range"
                           c3=true col3="Duration" c4=true col4="Save"}}
             {{#each items}}
-              {{> tidy-row subtitle=this.schoolLabel
+              {{~> tidy-row subtitle=this.schoolLabel
                            c1=true cell1=this.castTime c2=true cell2=this.range
                            c3=true cell3=this.duration c4=true cell4=this.saveDC}}
             {{/each}}
@@ -1143,9 +1143,9 @@
 
       {{#if hasManeuvers}}
         {{#each maneuverGroups}}
-          {{#> tidy-table key=@key label=@key count=this.length items=this c1=true col1="Degree" c2=true col2="Exertion" c3=true col3="Damage"}}
+          {{~#> tidy-table key=@key label=@key count=this.length items=this c1=true col1="Degree" c2=true col2="Exertion" c3=true col3="Damage"}}
             {{#each items}}
-              {{> tidy-row subtitle=this.activation c1=true cell1=this.degree c2=true cell2=this.exertion c3=true cell3=this.dmgFull}}
+              {{~> tidy-row subtitle=this.activation c1=true cell1=this.degree c2=true cell2=this.exertion c3=true cell3=this.dmgFull}}
             {{/each}}
           {{/tidy-table}}
         {{/each}}
@@ -1231,13 +1231,13 @@
       {{/if}}
 
       {{#each inventory.groups}}
-        {{#> tidy-table key=this.key label=this.label count=this.items.length
+        {{~#> tidy-table key=this.key label=this.label count=this.items.length
                         items=this.items
                         showUses=@root.inventory.showUses
                         showQty=@root.inventory.showQty
                         c1=@root.inventory.showWeight col1="Weight"}}
           {{#each items}}
-            {{> tidy-row isEquippable=true
+            {{~> tidy-row isEquippable=true
                          showUses=@root.inventory.showUses
                          showQty=@root.inventory.showQty
                          c1=@root.inventory.showWeight cell1=this.weight}}
@@ -1301,9 +1301,9 @@
       </div>
 
       {{#each featuresBySource}}
-        {{#> tidy-table key=this.source label=this.source count=this.items.length c1=true col1="Activation"}}
+        {{~#> tidy-table key=this.source label=this.source count=this.items.length c1=true col1="Activation"}}
           {{#each this.items}}
-            {{> tidy-row subtitle=this.shortDesc c1=true cell1=this.activation}}
+            {{~> tidy-row subtitle=this.shortDesc c1=true cell1=this.activation}}
           {{/each}}
         {{/tidy-table}}
       {{/each}}
@@ -1787,9 +1787,9 @@
       role="tabpanel">
 
       {{#each interactionGroups}}
-        {{#> tidy-table key=this.key label=this.label count=this.items.length}}
+        {{~#> tidy-table key=this.key label=this.label count=this.items.length}}
           {{#each items}}
-            {{> tidy-row}}
+            {{~> tidy-row}}
           {{/each}}
         {{/tidy-table}}
       {{/each}}
