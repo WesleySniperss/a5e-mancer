@@ -191,10 +191,21 @@ export class A5eCharacterSheet extends ActorSheet {
       mod: a.saveMod, modStr: a.saveModStr, proficient: a.saveProf
     }));
 
-    /* Maneuver DC: 8 + prof + highest of STR/DEX mod */
+    /* Maneuver DC. a5e works this out itself — 8 + prof + bonuses.maneuverDC
+       + the better of STR and DEX — and leaves it at
+       system.attributes.maneuverDC, so that figure is taken as it stands and
+       the two sheets cannot disagree.
+
+       The sum below is the fallback for data with nothing derived on it. It
+       was the only path before, and it left out bonuses.maneuverDC entirely:
+       a character with a bonus to the DC was shown a DC without it, on the
+       very sheet whose Bonuses tab exists to explain that number. */
     const strMod = abilities.find(a => a.key === 'str')?.mod ?? 0;
     const dexMod = abilities.find(a => a.key === 'dex')?.mod ?? 0;
-    const maneuverDC = 8 + profBonus + Math.max(strMod, dexMod);
+    const maneuverDCRaw = sys.attributes?.maneuverDC;
+    const maneuverDC = Number.isFinite(maneuverDCRaw) && maneuverDCRaw > 0
+      ? maneuverDCRaw
+      : 8 + profBonus + Math.max(strMod, dexMod);
 
     /* Proficiencies — A5e stores these in various locations */
     const toArray = v => {
@@ -843,7 +854,8 @@ export class A5eCharacterSheet extends ActorSheet {
     bio.hasDestiny = !!(bio.motivation || bio.goals || bio.connection
                         || bio.fulfillment || bio.inspiration || bio.lore.length);
 
-    const tidy = this.#tidyContext({ sys, abilities, classes, resources, profBonus, currency });
+    const tidy = this.#tidyContext({ sys, abilities, classes, resources, profBonus, currency,
+      spellDC, spellDCBonus: resolveMax(sys.bonuses?.spellDC) });
     const inventory = this.#inventory(actor, items);
     const sidebarTab = this._sidebarTab ?? 'skills';
     inventory.objectTypes = Object.entries(CONFIG?.A5E?.objectTypes ?? {})
@@ -953,7 +965,8 @@ export class A5eCharacterSheet extends ActorSheet {
 
      Tidy splits every modifier into a sign and a bare number, because it
      styles them differently — hence the {sign, value} pairs throughout. */
-  #tidyContext({ sys, abilities, classes, resources, profBonus, currency }) {
+  #tidyContext({ sys, abilities, classes, resources, profBonus, currency,
+                 spellDC, spellDCBonus }) {
     const split = (n) => ({ sign: n < 0 ? '-' : '+', value: Math.abs(Number(n) || 0) });
     const pct = (v, max) => (max > 0 ? Math.round(Math.min(Math.max(v / max, 0), 1) * 100) : 0);
 
@@ -1044,7 +1057,27 @@ export class A5eCharacterSheet extends ActorSheet {
       },
       speeds,
       senses,
-      classLine: classes.map((c) => ({ name: c.name, levels: c.level })),
+      /* The header draws `Wizard 5  INT DC 15`, exactly as Tidy does, and it
+         has been asking for {{this.dc}} and {{this.ability}} since the
+         Quadrone rewrite. Neither was ever put here, so the DC half of that
+         line has never once appeared on any character.
+
+         The figure follows a5e's own: 8 + prof + bonuses.spellDC + the mod of
+         the ability THIS class casts with. Where that is also the actor's
+         spellcasting ability, a5e has already derived the same number and it
+         is used as it stands, so the two sheets agree to the digit. A class
+         that does not cast gets neither field, and the header shows the name
+         and level alone. */
+      classLine: classes.map((c) => {
+        const key = c.castAbility && c.castAbility !== 'none' ? c.castAbility : null;
+        const ab  = key ? abilities.find((a) => a.key === key) : null;
+        if (!ab) return { name: c.name, levels: c.level, ability: null, dc: null };
+        const derived = key === (sys.attributes?.spellcasting || null) ? spellDC : null;
+        return {
+          name: c.name, levels: c.level, ability: ab.abbr,
+          dc: derived ?? (8 + profBonus + (spellDCBonus || 0) + ab.mod)
+        };
+      }),
       currencies: DENOMINATIONS
         .map((d) => ({ ...d, value: Number(currency?.[d.key] ?? 0) || 0 }))
         .filter((d) => !d.onlyIfHeld || d.value > 0),
@@ -1664,7 +1697,13 @@ export class A5eCharacterSheet extends ActorSheet {
       hitDie: item.system?.hp?.hitDiceSize
               ?? item.system?.hitDice?.denomination
               ?? item.system?.hitDie
-              ?? 8
+              ?? 8,
+      /* Every a5e class carries system.spellcasting.ability, holding the
+         ability it casts with — 'none' for the ones that do not cast. It is
+         what the header line needs to show a save DC per class, the way Tidy
+         shows one. */
+      castAbility: (item.system?.spellcasting?.ability?.value
+                    || item.system?.spellcasting?.ability?.base || 'none')
     };
   }
 
@@ -1898,6 +1937,28 @@ export class A5eCharacterSheet extends ActorSheet {
        INSIDE the use button, which carries data-action="item-use", so a
        click on the icon fired both and activated the item twice. Removed;
        the use button below handles the whole target. */
+
+    /* ── The lock ───────────────────────────────────────────────────────
+       a5e's own flag, so the two sheets share one lock rather than each
+       keeping its own.
+
+       Bound HERE, above the edit-only guard, and not below it where it used
+       to sit. isEditable is options.editable AND isOwner, and Foundry also
+       clears it for anything in a locked compendium — so on an NPC it is
+       false far more often than on a character: an unlinked token, a monster
+       opened out of a compendium, a sheet a player may look at but does not
+       own. Below the guard the button was drawn with nothing bound to it,
+       and clicking it did nothing, silently, which is how it was reported.
+
+       The lock is not an editing control — it decides what the viewer is
+       SHOWN. Ownership is what the write needs, and that is checked in the
+       handler, where it belongs. */
+    el.querySelector('[data-action="toggle-lock"]')?.addEventListener('click', async (e) => {
+      e.preventDefault();
+      if (!this.actor.isOwner) return;
+      const locked = this.actor.getFlag('a5e', 'sheetIsLocked') ?? true;
+      await this.actor.setFlag('a5e', 'sheetIsLocked', !locked);
+    });
 
     if (!this.isEditable) return;
 
@@ -2551,14 +2612,6 @@ export class A5eCharacterSheet extends ActorSheet {
         this.actor.configureSkill?.({ skillKey: b.dataset.skillKey });
       }));
 
-    /* ── The lock ───────────────────────────────────────────────────────
-       a5e's own flag, so the two sheets share one lock rather than each
-       keeping its own. */
-    el.querySelector('[data-action="toggle-lock"]')?.addEventListener('click', async (e) => {
-      e.preventDefault();
-      const locked = this.actor.getFlag('a5e', 'sheetIsLocked') ?? true;
-      await this.actor.setFlag('a5e', 'sheetIsLocked', !locked);
-    });
 
     /* ── Resources ──────────────────────────────────────────────────────
        The figure is always writable; the label, the maximum and the rest of

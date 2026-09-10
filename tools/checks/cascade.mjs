@@ -18,6 +18,36 @@ const SHEETS = [
       .map(s => [s, MOD + s])
 ];
 
+/* A selector list is separated by commas — but only the commas OUTSIDE any
+   parentheses.
+
+   Splitting on every comma is how this check spent its whole life lying. Tidy
+   ships minified, and nearly every rule in it is written
+
+     .tidy5e-sheet.quadrone :is(button,.button).button.button-icon-only…
+
+   which a plain split cuts into `.tidy5e-sheet.quadrone :is(button` and
+   `.button)…`. The first fragment has an unterminated pseudo-class, the
+   matcher reads `:is` as a structural pseudo it cannot evaluate and assumes
+   yes — and so a rule for one specific button matched every element asked
+   about. `width: 1.375rem` and `pointer-events: none` were being reported as
+   the winners on the AC shield from a rule about spell-slot buttons.
+
+   Everything this check has ever said about a Tidy rule was suspect for that
+   reason. */
+function splitList(sel) {
+  const out = [];
+  let depth = 0, start = 0;
+  for (let i = 0; i < sel.length; i++) {
+    const c = sel[i];
+    if (c === '(' || c === '[') depth++;
+    else if (c === ')' || c === ']') depth--;
+    else if (c === ',' && depth === 0) { out.push(sel.slice(start, i).trim()); start = i + 1; }
+  }
+  out.push(sel.slice(start).trim());
+  return out.filter(Boolean);
+}
+
 /* A rule is a selector plus a flat declaration block. Nested blocks (& …) are
    flattened against their parent so they are counted too. */
 function rules(src, file) {
@@ -43,9 +73,9 @@ function rules(src, file) {
         if (/^@(media|supports|layer|container)/.test(sel)) walk(open + 1, k, prefix);
       } else {
         const full = prefix
-          ? sel.split(',').map(s => s.trim().replace(/^&/, '').trim())
+          ? splitList(sel).map(s => s.replace(/^&/, '').trim())
                .flatMap(s => prefix.map(p => (s.startsWith(':') ? p + s : p + ' ' + s)))
-          : sel.split(',').map(s => s.trim());
+          : splitList(sel);
         /* declarations at this level only */
         const flat = body.replace(/[^{}]*\{[^{}]*\}/g, '');
         if (flat.trim()) out.push({ file, sels: full, decls: flat, order: out.length });
@@ -95,6 +125,11 @@ function matches(sel, el) {
           const inner = bit.slice(5, -1);
           return !inner.split(',').some(x => hits(x.trim(), node));
         }
+        /* A structural pseudo this cannot evaluate — :nth-child and the
+           like — is assumed to match, which is the right way to be wrong
+           about those. But an UNTERMINATED one is a parse failure, not a
+           selector, and must never be read as a match. */
+        if (/^:(is|where|not|has)$/.test(bit)) return false;
         return true;                                        // structural: assume yes
       }
       if (bit.startsWith('.')) return node.classes.includes(bit.slice(1));
@@ -125,6 +160,15 @@ function matches(sel, el) {
 
 const ROOT = { tag: 'div', classes: ['tidy5e-sheet','application','sheet','actor','character',
   'quadrone','themed','theme-dark','a5e-mancer-sheet','app','window-app'] };
+
+/* The NPC sheet is the same sheet with `npc` in place of `character` and one
+   extra class of its own. Tidy scopes part of the vitals block to
+   :where(.quadrone.actor):where(.npc), and a whole section of this module's
+   own stylesheet is still scoped to .a5e-mancer-npc-sheet from the design
+   before this one — so what wins here is not what wins on a character, and
+   reasoning about it from the character sheet has been wrong twice. */
+const NPC_ROOT = { tag: 'div', classes: ['tidy5e-sheet','application','sheet','actor','npc',
+  'quadrone','themed','theme-dark','a5e-mancer-sheet','a5e-mancer-npc-sheet','app','window-app'] };
 const target = process.argv[2] ?? 'value';
 
 const CASES = {
@@ -151,7 +195,29 @@ const CASES = {
            ancestors: [ROOT, { tag:'header', classes:['sheet-header'] },
                        { tag:'div', classes:['am-tracker-row'] },
                        { tag:'div', classes:['am-a5e-stat','am-tracker','am-tracker-exertion'] },
-                       { tag:'div', classes:['meter','progress','am-tracker-meter'] }] }
+                       { tag:'div', classes:['meter','progress','am-tracker-meter'] }] },
+
+  /* The AC badge, on both sheets. Reported as changing shape while the sheet
+     is dragged: the art is a background scaled to contain, and if nothing
+     holds the box to the picture's proportions the box and the picture part
+     company as the column changes width. */
+  shield: { self: { tag: 'div', classes: ['shield'], attrs: { 'data-attribution': 'attributes.ac' } },
+            ancestors: [ROOT, { tag:'div', classes:['ac-container'] }] },
+  npcshield: { self: { tag: 'div', classes: ['shield'], attrs: { 'data-attribution': 'attributes.ac' } },
+               ancestors: [NPC_ROOT, { tag:'div', classes:['ac-container'] }] },
+
+  /* The padlock, on the NPC sheet, where clicking it is reported to do
+     nothing. The handler is bound and the flag flips when it is called, so
+     what is left is whether the click ever reaches the button. */
+  npclock: { self: { tag: 'button', classes: ['button','button-icon-only','button-borderless'],
+                     attrs: { 'data-action': 'toggle-lock', type: 'button' } },
+             ancestors: [NPC_ROOT, { tag:'section', classes:['window-content'] },
+                         { tag:'header', classes:['sheet-header'] },
+                         { tag:'div', classes:['actor-details'] },
+                         { tag:'div', classes:['actor-details-name-row'] },
+                         { tag:'div', classes:['sheet-header-actions','flexrow'] }] },
+  npccontent: { self: { tag: 'section', classes: ['window-content'], attrs: {} },
+                ancestors: [NPC_ROOT] }
 };
 
 const el = CASES[target];
@@ -169,7 +235,12 @@ for (const [name, path] of SHEETS) {
 const WATCH = ['font-size','font-family','font-weight','line-height','font-variant-numeric',
                'padding','padding-block','padding-inline','border','border-width','height',
                'width','box-sizing','vertical-align','text-align','appearance','field-sizing',
-               'background','background-color','align-items','display','margin'];
+               'background','background-color','align-items','display','margin',
+               /* what makes a wired button unclickable */
+               'pointer-events','z-index','position','inset','top','right','overflow',
+               /* what holds a background-image badge to the shape of its art */
+               'aspect-ratio','min-height','max-height','min-width','max-width',
+               'background-size','transition','flex','flex-basis'];
 
 const winners = new Map();
 for (const r of all) {

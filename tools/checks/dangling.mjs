@@ -17,6 +17,11 @@
  *   dataset.*    every dataset read, matched against the data- attribute that
  *                would have to exist to feed it, in kebab-case.
  *
+ *   #id          every getElementById and every '#…' selector, against the
+ *                ids the templates draw. An id built from a variable —
+ *                `ability-${i}-score` — is matched as the pattern it is, so a
+ *                renamed field still shows up.
+ *
  * As with every check here: this says where to look, not what is true. A class
  * can legitimately be injected by a library, and a dataset key can be set by
  * Foundry on an element we did not draw. Read the code before believing it.
@@ -66,6 +71,55 @@ for (const m of markup.matchAll(/dataset\.([A-Za-z][\w]*)\s*=[^=]/g))
 for (const m of markup.matchAll(/dataset\[\s*['"`]([\w-]+)/g))
   haveData.add(m[1].replace(/[A-Z]/g, c => '-' + c.toLowerCase()));
 
+/* Every id the markup draws, held as the pattern it is: literal text with a
+   gap wherever a mustache fills one in.
+
+   The nuance that matters, and that the first version got wrong: an id which
+   is ENTIRELY dynamic — id="{{this.id}}" on a table row, and there are fifty
+   of those here — has no literal text at all. As a pattern it is `.+`, it
+   matches every lookup on the page, and the check quietly passes everything.
+   It WAS passing everything: a deliberately fake id went unreported. Ids like
+   that are dropped. They say nothing about what is on the page, and a check
+   that cannot tell must not answer.
+
+   The gap is [\\w:.-]* and not .+, so `am-x-y` cannot be satisfied by some
+   unrelated id that merely begins and ends the same way. */
+const HOLE = /\{\{[^}]*\}\}|\$\{[^}]*\}/g;
+const ESC  = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, (c) => '\\' + c);
+
+const haveId = [];
+const supply = (raw) => {
+  const parts = String(raw).split(HOLE);
+  if (!parts.join('').trim()) return;            // nothing literal to go on
+  haveId.push(new RegExp('^' + parts.map(ESC).join('[\\w:.-]*') + '$'));
+};
+
+/* ids written straight into the markup */
+const dynamicIds = new Set();
+for (const m of markup.matchAll(/\bid=["'`]([^"'`]+)["'`]/g)) {
+  supply(m[1]);
+  /* A wholly dynamic one — id="{{this.inputId}}" — is no use as a pattern,
+     but it does name the context key that fills it, and that key is built
+     somewhere in the JS. Follow it. */
+  const whole = m[1].match(/^\{\{\s*(?:this\.|\.\.\/|@)?([\w.]+)\s*\}\}$/);
+  if (whole) dynamicIds.add(whole[1].split('.').pop());
+}
+for (const key of dynamicIds)
+  for (const m of markup.matchAll(new RegExp('\\b' + key + '\\s*[:=]\\s*([`\'"])((?:[^\\\\]|\\\\.)*?)\\1', 'g')))
+    supply(m[2]);
+
+/* An ApplicationV2 window's own root carries the id from its DEFAULT_OPTIONS,
+   which no template ever draws. */
+for (const m of markup.matchAll(/^\s*id:\s*['"]([\w-]+)['"]/gm)) supply(m[1]);
+
+/* An id the JS builds — `ability-${i}-score` — is probed with its holes filled
+   by a plain value, which is what the markup's own gap will accept. */
+const idDrawn = (want) => {
+  const probe = want.replace(HOLE, '0');
+  if (!want.split(HOLE).join('').trim()) return true;   // wholly dynamic
+  return haveId.some(rx => rx.test(probe));
+};
+
 /* Foundry and the DOM set these on elements we did not draw. */
 const NOT_OURS = new Set([
   'action', 'tab', 'group', 'application-part', 'appid', 'app-id', 'document-id',
@@ -78,10 +132,15 @@ const NOT_OURS = new Set([
   'status-id'
 ]);
 
+/* Elements someone else draws and we only reach into: Foundry's own sidebar,
+   and a5e's effects panel. */
+const NOT_OUR_IDS = new Set(['sidebar', 'a5e-effects-panel', 'chat-log']);
+
 /* ── what the JS asks for ──────────────────────────────────────────────── */
 
 const missClass = [];
 const missData  = [];
+const missId    = [];
 
 /* Comments are not code. A prose line naming the very class it says is gone
    — and these files carry many — would otherwise be reported as a live
@@ -114,6 +173,39 @@ for (const [file, raw] of js) {
   }
   for (const [key, at] of reads)
     if (!haveData.has(key) && !NOT_OURS.has(key)) missData.push([rel, line(at), key]);
+
+  /* getElementById('x') and querySelector('#x'), including the ones built
+     from a template literal. */
+  const wanted = new Map();
+  /* Read to the closing quote of the same kind, stepping over anything inside
+     a ${…}. `lore-${key.replace(/\./g, '-')}` carries quotes of its own, and a
+     character class that stops at the first one reports a fragment. */
+  const literalAt = (i) => {
+    const quote = src[i];
+    let out = '', depth = 0;
+    for (let j = i + 1; j < src.length; j++) {
+      const c = src[j];
+      if (c === '\\') { out += c + src[++j]; continue; }
+      if (quote === '`' && c === '$' && src[j + 1] === '{') { depth++; out += '${'; j++; continue; }
+      if (depth) { if (c === '{') depth++; else if (c === '}') depth--; out += c; continue; }
+      if (c === quote) return out;
+      if (c === '\n') return null;
+      out += c;
+    }
+    return null;
+  };
+  for (const m of src.matchAll(/getElementById\(\s*(?=[`'"])/g)) {
+    const lit = literalAt(m.index + m[0].length);
+    if (lit && !wanted.has(lit)) wanted.set(lit, m.index);
+  }
+  for (const m of src.matchAll(/querySelector(?:All)?\(\s*(?=[`'"])/g)) {
+    const lit = literalAt(m.index + m[0].length);
+    if (!lit) continue;
+    const id = lit.match(/^#([\w-]+(?:\$\{[^}]*\}[\w-]*)*)$/);
+    if (id && !wanted.has(id[1])) wanted.set(id[1], m.index);
+  }
+  for (const [id, at] of wanted)
+    if (!idDrawn(id) && !NOT_OUR_IDS.has(id)) missId.push([rel, line(at), id]);
 }
 
 const show = (title, rows, fmt) => {
@@ -124,8 +216,9 @@ const show = (title, rows, fmt) => {
 
 show('classes asked for that no markup writes', missClass, c => '.' + c);
 show('dataset keys read that no markup sets', missData, k => `data-${k}`);
+show('ids looked up that no markup draws', missId, i => '#' + i);
 
-const total = missClass.length + missData.length;
+const total = missClass.length + missData.length + missId.length;
 console.log(total ? `\n${total} reference(s) that cannot match anything — read each before believing it`
-                  : '\nevery am- class and dataset key the JS reads is written somewhere');
+                  : '\nevery am- class, dataset key and id the JS reads is written somewhere');
 process.exit(total ? 1 : 0);

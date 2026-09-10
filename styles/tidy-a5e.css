@@ -1723,10 +1723,25 @@
    the height follows from the width. min-height would fight it, and the
    transition animates the whole thing while the pointer is still moving —
    both go. */
+/* Resolving the cascade across every sheet that loads showed the rest of it:
+   aspect-ratio, height, max-height and max-width all land here, and NOTHING
+   anywhere sets a width. The badge is display:flex with the AC number inside
+   it, so its width came from that text and its height followed from the
+   ratio — the badge was sized by its own contents, and changed shape as the
+   number changed and on every reflow while the window was dragged.
+
+   So the height is stated and the ratio gives the width: 4rem by 3.294rem,
+   the proportions of Tidy's own art, whatever the number inside. min-width
+   goes to 0 because a flex item defaults to min-width:auto, which would let
+   a wide value push the box out again and undo the whole thing. */
 .tidy5e-sheet.application.a5e-mancer-sheet .ac-container .shield {
   aspect-ratio: 3.5 / 4.25;
-  height: auto;
+  height: 4rem;
+  width: auto;
   min-height: 0;
   max-height: 4rem;
+  min-width: 0;
+  max-width: 4rem;
+  flex: 0 0 auto;
   transition: none;
 }
