@@ -1,8 +1,9 @@
 import { AM } from '../am.js';
-import { ManeuverService, getTraditions } from '../utils/maneuverService.js';
+import { ManeuverService, getTraditions, traditionAllowed } from '../utils/maneuverService.js';
 import { ItemDescPanel } from '../utils/itemDescPanel.js';
 import { PackFilter } from '../utils/packFilter.js';
 import { MM_SCHOOLS, MM_SCHOOL_LORE } from '../data/magicManeuvers.js';
+import { TRADITION_LORE } from '../data/traditionLore.js';
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -127,10 +128,8 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     const actorTraditions = new Set(this.actor ? ManeuverService.getActorTraditions(this.actor) : []);
     const allTraditions = getTraditions();
     const traditions = allTraditions
-      .filter(t => {
-        if (this.allowedTraditions.length) return this.allowedTraditions.includes(t.key);
-        return true;
-      })
+      .filter(t => !this.allowedTraditions.length
+                || traditionAllowed(t.key, this.allowedTraditions))
       .map(t => {
         const tradMap = this._allManeuvers.get(t.key);
         // Count only what this character could actually take — a tradition whose
@@ -149,7 +148,12 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
           // The magic schools carry their text in the module; a combat tradition
           // has none of its own, and its sidebar description is looked up from
           // the compendium on click.
-          lore:          MM_SCHOOL_LORE[t.key] ?? '',
+          //
+          // Combat traditions now carry the book's own text too — TRADITION_LORE
+          // for the eleven the Adventurer's Guide describes. Anything else (a
+          // later book, a homebrew tradition) has no entry and still falls
+          // through to the compendium lookup, which is where its text belongs.
+          lore:          MM_SCHOOL_LORE[t.key] ?? ManeuverDialog.#traditionLore(t.key),
           maneuverCount
         };
       })
@@ -313,7 +317,8 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     const results = [];
     for (const [tradition, degreeMap] of this._allManeuvers) {
       if (this._activeTradition && tradition !== this._activeTradition) continue;
-      if (this.allowedTraditions.length && !this.allowedTraditions.includes(tradition)) continue;
+      if (this.allowedTraditions.length
+          && !traditionAllowed(tradition, this.allowedTraditions)) continue;
 
       for (const [degree, maneuvers] of degreeMap) {
         if (this._activeDegree && degree !== this._activeDegree) continue;
@@ -440,6 +445,18 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     if (p2) p2.innerHTML = this._sidebarDescHtml;
   }
 
+  /**
+   * A combat tradition's own text, laid out the way a magic maneuver's is:
+   * the three keywords in italics, then the paragraph. Empty for a tradition
+   * the Adventurer's Guide does not describe — a later book's, or homebrew —
+   * so the caller falls through to the compendium.
+   */
+  static #traditionLore(key) {
+    const t = TRADITION_LORE[key];
+    if (!t?.intro) return '';
+    return (t.keywords ? `<p><em>${t.keywords}</em></p>` : '') + `<p>${t.intro}</p>`;
+  }
+
   async #lookupCompendiumDesc(name) {
     if (this._compendiumCache.has(name)) return this._compendiumCache.get(name);
 
@@ -452,6 +469,17 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       const lore = `<p>${MM_SCHOOL_LORE[school[0]] ?? ''}</p>`;
       this._compendiumCache.set(name, lore);
       return lore;
+    }
+
+    // Same for a combat tradition the book describes: its text is ours to
+    // supply, so there is no point searching the packs for it.
+    const traditions = CONFIG?.A5E?.maneuverTraditions ?? {};
+    const tradKey = Object.keys(traditions).find(k =>
+      game.i18n.localize(traditions[k]).toLowerCase().trim() === name.toLowerCase().trim());
+    const traditionText = tradKey ? ManeuverDialog.#traditionLore(tradKey) : '';
+    if (traditionText) {
+      this._compendiumCache.set(name, traditionText);
+      return traditionText;
     }
 
     const q = name.toLowerCase().trim();

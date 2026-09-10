@@ -39,6 +39,45 @@ export function getTraditions() {
 export const TRADITIONS = TRADITION_KEYS;
 
 /**
+ * The eleven traditions the Adventurer's Guide itself describes, verified
+ * against the book: "Combat traditions are the basic disciplines of fighting…
+ * Adamant Mountain, Biting Zephyr, Mirror's Glint, Mist and Shade, Rapid
+ * Current, Razor's Edge, Sanguine Knot, Spirited Steed, Tempered Iron, Tooth
+ * and Claw, and Unending Wheel."
+ *
+ * This matters because `allowedTraditions` below was derived from that book and
+ * from nothing else, so these are the only traditions it has any authority over.
+ */
+export const CORE_TRADITIONS = [
+  'adamantMountain', 'bitingZephyr', 'mirrorsGlint', 'mistAndShade',
+  'rapidCurrent', 'razorsEdge', 'sanguineKnot', 'spiritedSteed',
+  'temperedIron', 'toothAndClaw', 'unendingWheel'
+];
+
+/**
+ * May a class with this `allowedTraditions` list take from this tradition?
+ *
+ * The list used to be an absolute whitelist, which silently hid everything the
+ * core book never named. The a5e system alone ships 27 traditions while our
+ * lists between them permit 15 — so thirteen were unreachable in both the
+ * builder and the level-up dialog: arcaneKnight, beastUnity, gallantHeart,
+ * cuttingOmen and the rest, all from later sourcebooks that are installed and
+ * working. Any homebrew tradition would have been hidden the same way, with no
+ * message to say why.
+ *
+ * So the whitelist now restricts only among the eleven it actually describes.
+ * A tradition from a later book, a module, or someone's own homebrew passes:
+ * we have no rule about it, and hiding a table's own content is much the worse
+ * way to be wrong. Deliberately permissive — a fighter can reach a psionic
+ * tradition if the world has one installed.
+ */
+export function traditionAllowed(key, allowed) {
+  if (!Array.isArray(allowed)) return true;
+  if (allowed.includes(key)) return true;
+  return !CORE_TRADITIONS.includes(key);
+}
+
+/**
  * Combat-maneuver progression per class. Verified by parsing each class's table on
  * a5e.tools (the "Maneuvers Known" + "Maneuver Degree" columns) and the "Combat
  * Maneuvers" feature text for the tradition list. In A5e every maneuver class gains

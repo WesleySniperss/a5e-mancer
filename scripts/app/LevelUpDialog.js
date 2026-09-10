@@ -1,7 +1,7 @@
 import { AM } from '../am.js';
 import { LevelUpService } from '../utils/levelUpService.js';
 import { DocumentService } from '../utils/documentService.js';
-import { ManeuverService, CLASS_MANEUVER_TABLES, getTraditions } from '../utils/maneuverService.js';
+import { ManeuverService, CLASS_MANEUVER_TABLES, getTraditions, traditionAllowed } from '../utils/maneuverService.js';
 import { SpellService, CLASS_SPELL_TABLES } from '../utils/spellService.js';
 import { ItemDescPanel } from '../utils/itemDescPanel.js';
 import { GrantAbsorber } from '../utils/grantAbsorber.js';
@@ -680,7 +680,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
     return getTraditions()
       // Restrict to the traditions this class may choose from (null = any).
-      .filter(t => !allowedTraditions || allowedTraditions.includes(t.key))
+      .filter(t => traditionAllowed(t.key, allowedTraditions))
       // Drop traditions whose maneuvers all sit above the degree this level
       // allows — the pill opened an empty list.
       .filter(t => reachable(t.key) > 0)

@@ -2,7 +2,7 @@ import { AM } from '../am.js';
 import {
   ActorCreationService, CharacterArtPicker, DOMManager,
   EquipmentService, FormValidation, SavedOptions, StatRoller,
-  ManeuverService, CLASS_MANEUVER_TABLES, getTraditions
+  ManeuverService, CLASS_MANEUVER_TABLES, getTraditions, traditionAllowed
 } from '../utils/index.js';
 import { SpellService, CLASS_SPELL_TABLES } from '../utils/spellService.js';
 import { LoreTableService } from '../utils/loreTableService.js';
@@ -1072,7 +1072,7 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     });
     // …restricted to those the class may choose from.
     if (Array.isArray(info.allowedTraditions)) {
-      tradKeys = tradKeys.filter(k => info.allowedTraditions.includes(k));
+      tradKeys = tradKeys.filter(k => traditionAllowed(k, info.allowedTraditions));
     }
     if (!tradKeys.length) return;
 
@@ -1294,7 +1294,7 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
         return;
       }
       if (tradition && Array.isArray(info.allowedTraditions)
-          && !info.allowedTraditions.includes(tradition)) {
+          && !traditionAllowed(tradition, info.allowedTraditions)) {
         ui.notifications.warn(game.i18n.localize('am.grants.tradition-not-allowed'));
         return;
       }
@@ -1326,7 +1326,7 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
       // Restrict to the traditions this class may choose from. Without this every
       // tradition in the system was offered, whatever the class table allows.
       // null = "any tradition of your choice" (Fighter, Trooper).
-      .filter(t => !allowedTraditions || allowedTraditions.includes(t.key))
+      .filter(t => traditionAllowed(t.key, allowedTraditions))
       // …and drop any whose maneuvers are all above the degree this level allows,
       // which otherwise showed up as a pill that opens an empty list.
       .map(t => ({ ...t, count: reachable(t.key) }))
