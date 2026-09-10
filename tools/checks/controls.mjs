@@ -92,6 +92,39 @@ for (const [action, rowSel] of [['inv-search', '.tidy-table-row-container'],
     box ? `${n} listener(s)` : 'the box itself is not drawn');
 }
 
+/* ── and the inventory search filters rather than redrawing ──────────────
+   It used to re-render the whole sheet on a 250 ms pause — every row of
+   every tab, between 320 and 555 kB of markup, four times a second while
+   somebody types. It hides rows in place now, and must not ask for a redraw
+   while it does. */
+{
+  const box = root.querySelector('[data-action="inv-search"]');
+  const tab = root.querySelector('.tidy-tab.inventory');
+  const rows = tab ? q(tab, '.tidy-table-row-container') : [];
+  const nameOf = (r) => (r.querySelector('.item-name')?.textContent ?? '').trim();
+
+  let ok = !!box && !!tab && rows.length > 0;
+  let detail = rows.length ? '' : 'no inventory rows on this character';
+  if (ok) {
+    const target = nameOf(rows[0]).split(/\s+/).find(w => w.length > 3) ?? nameOf(rows[0]);
+    takeEffects();
+    box.value = target;
+    await fireType(box, 'input');
+    const asked = takeEffects();
+    const kept = rows.filter(r => !r.classList.contains('am-hidden'));
+    const hid  = rows.filter(r => r.classList.contains('am-hidden'));
+    ok = kept.length > 0 && hid.length > 0 && !asked.includes('render');
+    detail = `"${target}": ${kept.length} of ${rows.length} rows kept, `
+           + (asked.includes('render') ? 'and it redrew the sheet' : 'no redraw');
+
+    box.value = '';
+    await fireType(box, 'input');
+    const back = rows.filter(r => !r.classList.contains('am-hidden')).length;
+    if (back !== rows.length) { ok = false; detail += `; cleared, only ${back} came back`; }
+  }
+  check('the inventory search hides rows without redrawing', ok, detail);
+}
+
 /* ── hit points take a sign ─────────────────────────────────────────────
    The +/- buttons were removed in favour of typing +N or -N, which has to
    reach a5e's own applyHealing and applyDamage rather than setting the value. */
@@ -166,6 +199,44 @@ for (const [action, rowSel] of [['inv-search', '.tidy-table-row-container'],
     q(r, '[data-action="slot-dec"]').length === 0
     && q(r, '[data-action="slot-inc"]').length === 0,
     'no slot-dec / slot-inc anywhere on the sheet');
+}
+
+/* ── the Notes tab's pages, on a character ──────────────────────────────
+   a5e gives a character Character Details, Backstory and Notes, and keeps
+   Private Notes for a monster's owner. The NPC side is checked in
+   npccontrols.mjs; this is the other half. */
+{
+  const tabs  = q(root, 'a[data-notes-tab]');
+  const panes = q(root, 'div[data-notes-tab]');
+  const named = tabs.map(a => a.dataset.notesTab);
+
+  check('a character gets Character Details among its notes pages',
+    named.includes('appearance'),
+    named.join(', ') || 'no strip drawn');
+  check('every notes page has a pane behind it',
+    tabs.length > 0 && named.every(n => panes.some(p => p.dataset.notesTab === n)),
+    `${tabs.length} tabs, ${panes.length} panes`);
+
+  const other = tabs.find(a => !a.classList.contains('active'));
+  if (other) await fireType(other, 'click');
+  const openNow = panes.filter(p => p.classList.contains('active'));
+  check('clicking a notes page opens it and closes the rest',
+    !!other && openNow.length === 1
+      && openNow[0].dataset.notesTab === other.dataset.notesTab,
+    other ? `clicked ${other.dataset.notesTab}, open: `
+            + (openNow.map(p => p.dataset.notesTab).join(', ') || 'none')
+          : 'only one page drawn');
+}
+
+/* ── the attunement counter in the inventory footer ──────────────────────
+   Asked for at the bottom of the inventory, which is where Tidy keeps it
+   too. It was only ever in the sidebar's Traits tab. */
+{
+  const footer = root.querySelector('.inventory-footer');
+  const pill = footer?.querySelector('.attunement-tracker');
+  check('the inventory footer carries the attunement count', !!pill,
+    pill ? (pill.textContent ?? '').replace(/\s+/g, ' ').trim() || 'drawn'
+         : 'no attunement pill in the footer');
 }
 
 /* ── the sidebar toggle ─────────────────────────────────────────────────

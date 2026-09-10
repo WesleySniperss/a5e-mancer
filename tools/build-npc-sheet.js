@@ -61,13 +61,11 @@ swap('level-up button', L(
 
 /* ── …nor is it inspired ──────────────────────────────────────────────────── */
 swap('inspiration badge', L(
-  '          <div class="inspiration-badge theme-dark single"',
-  '            data-tidy-sheet-part="inspiration-tracker-container">',
+  '          <div class="inspiration-badge theme-dark single">',
   '            <button type="button"',
   '              class="inspiration button button-borderless button-icon-only single{{#if resources.inspiration}} inspired{{/if}}"',
   '              aria-label="Inspiration" data-tooltip="Inspiration"',
-  '              data-action="toggle-inspiration"',
-  '              data-tidy-sheet-part="inspiration-tracker-toggle"></button>',
+  '              data-action="toggle-inspiration"></button>',
   '          </div>',
   ''), '');
 

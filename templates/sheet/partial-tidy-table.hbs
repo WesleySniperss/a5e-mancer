@@ -24,16 +24,14 @@
          {{/each}}
        {{/tidy-table}}
      ─────────────────────────────────────────────────────────────────────── --}}
-<section class="tidy-table" data-tidy-sheet-part="item-table"
+<section class="tidy-table"
   data-tidy-section-key="{{key}}">
 
-  <header class="tidy-table-header-row theme-dark toggleable"
-    data-tidy-sheet-part="table-header-row">
+  <header class="tidy-table-header-row theme-dark toggleable">
 
-    <div class="tidy-table-header-cell primary header-label-cell"
-      data-tidy-sheet-part="table-header-cell">
+    <div class="tidy-table-header-cell primary header-label-cell">
       <div class="button expand-button expanded">
-        <i class="fa-solid fa-chevron-right" data-tidy-sheet-part="expansion-toggle"></i>
+        <i class="fa-solid fa-chevron-right"></i>
       </div>
       <h3>{{label}}</h3>
       <span class="table-header-count">{{count}}</span>
@@ -58,32 +56,31 @@
     </div>
 
     {{#if showUses}}
-      <div class="tidy-table-header-cell" data-tidy-sheet-part="table-header-cell"
+      <div class="tidy-table-header-cell"
         style="--tidy-table-column-width: var(--am-col-uses)">Uses</div>
     {{/if}}
     {{#if showQty}}
-      <div class="tidy-table-header-cell" data-tidy-sheet-part="table-header-cell"
+      <div class="tidy-table-header-cell"
         style="--tidy-table-column-width: var(--am-col-narrow)">Qty</div>
     {{/if}}
     {{#if c1}}
-      <div class="tidy-table-header-cell" data-tidy-sheet-part="table-header-cell"
+      <div class="tidy-table-header-cell"
         style="--tidy-table-column-width: var(--am-col)">{{col1}}</div>
     {{/if}}
     {{#if c2}}
-      <div class="tidy-table-header-cell hide-under-500" data-tidy-sheet-part="table-header-cell"
+      <div class="tidy-table-header-cell hide-under-500"
         style="--tidy-table-column-width: var(--am-col)">{{col2}}</div>
     {{/if}}
     {{#if c3}}
-      <div class="tidy-table-header-cell hide-under-600" data-tidy-sheet-part="table-header-cell"
+      <div class="tidy-table-header-cell hide-under-600"
         style="--tidy-table-column-width: var(--am-col)">{{col3}}</div>
     {{/if}}
     {{#if c4}}
-      <div class="tidy-table-header-cell hide-under-600" data-tidy-sheet-part="table-header-cell"
+      <div class="tidy-table-header-cell hide-under-600"
         style="--tidy-table-column-width: var(--am-col)">{{col4}}</div>
     {{/if}}
 
     <div class="tidy-table-header-cell header-cell-actions"
-      data-tidy-sheet-part="table-header-cell"
       style="--tidy-table-column-width: var(--am-col-actions)"></div>
   </header>
 

@@ -30,12 +30,11 @@
       <div class="actor-context-row flexrow">
         <div class="flexcol flex1">
 
-          <div class="actor-details-name-row" data-tidy-sheet-part="name-header-row">
+          <div class="actor-details-name-row">
             <input class="actor-name flex1 h1" type="text"
-              name="name" value="{{actor.name}}" data-tidy-sheet-part="actor-name" />
+              name="name" value="{{actor.name}}" />
 
-            <div class="sheet-header-actions flexrow"
-              data-tidy-sheet-part="sheet-header-actions-container">
+            <div class="sheet-header-actions flexrow">
               {{!-- One button, as a5e has. Its own dialog is where the rest
                    type is chosen and hit dice are spent and rolled, so two
                    buttons opening the same chooser would only be in the way. --}}
@@ -64,8 +63,8 @@
           </div>
 
           {{!-- Subtitle: speeds, senses, origin, classes --}}
-          <div class="actor-details-subtitle-row" data-tidy-sheet-part="actor-details-row">
-            <div class="actor-subtitle flexrow" data-tidy-sheet-part="subtitle-row">
+          <div class="actor-details-subtitle-row">
+            <div class="actor-subtitle flexrow">
               {{#each tidy.speeds}}
                 <span class="speed main-speed">
                   <span class="color-text-gold font-label-medium">{{this.label}}</span>
@@ -122,13 +121,11 @@
 
         {{!-- Inspiration badge + level block --}}
         <div class="level-container flex0 flexrow">
-          <div class="inspiration-badge theme-dark single"
-            data-tidy-sheet-part="inspiration-tracker-container">
+          <div class="inspiration-badge theme-dark single">
             <button type="button"
               class="inspiration button button-borderless button-icon-only single{{#if resources.inspiration}} inspired{{/if}}"
               aria-label="Inspiration" data-tooltip="Inspiration"
-              data-action="toggle-inspiration"
-              data-tidy-sheet-part="inspiration-tracker-toggle"></button>
+              data-action="toggle-inspiration"></button>
           </div>
 
           <div class="level-block">
@@ -173,23 +170,18 @@
           </div>
 
           {{#each tidy.abilities}}
-            <div class="ability {{this.key}}{{#if this.saveProf}} has-proficiency{{/if}}"
-              data-tidy-sheet-part="ability-container">
+            <div class="ability {{this.key}}{{#if this.saveProf}} has-proficiency{{/if}}">
 
 
-              <div class="ability-bonus-container{{#if this.saveProf}} proficient{{/if}}"
-                data-tidy-sheet-part="ability-mod-container">
+              <div class="ability-bonus-container{{#if this.saveProf}} proficient{{/if}}">
                 <button type="button" class="button-borderless ability-roll-button"
                   data-action="ability-check" data-ability="{{this.key}}"
                   data-label="{{this.label}}" data-mod="{{this.mod}}"
-                  data-tooltip="{{this.label}} Check"
-                  data-tidy-sheet-part="ability-roller">
+                  data-tooltip="{{this.label}} Check">
                   <span class="ability-abbr color-text-gold">{{this.abbr}}</span>
                   <span class="ability-label-container">
-                    <span class="modifier font-label-xlarge color-text-lightest"
-                      data-tidy-sheet-part="ability-mod">{{this.modSign}}</span>
-                    <span class="value bonus font-data-xlarge color-text-default"
-                      data-tidy-sheet-part="ability-value">{{this.modAbs}}</span>
+                    <span class="modifier font-label-xlarge color-text-lightest">{{this.modSign}}</span>
+                    <span class="value bonus font-data-xlarge color-text-default">{{this.modAbs}}</span>
                   </span>
                 </button>
               </div>
@@ -200,8 +192,7 @@
                    typed into, and the cog opens a5e own ability dialog for save
                    proficiency, expertise dice and bonuses. --}}
               <div class="ability-score-container">
-                <label class="ability-score" data-tooltip="{{this.label}} Score"
-                  data-tidy-sheet-part="ability-score">
+                <label class="ability-score" data-tooltip="{{this.label}} Score">
                   <input class="font-title-small color-text-default am-ability-score uninput"
                     type="number" data-ability="{{this.key}}"
                     data-path="system.abilities.{{this.key}}.value" value="{{this.value}}"
@@ -231,8 +222,7 @@
                 <button type="button" class="button-borderless ability-save flexrow saving-throw"
                   data-action="saving-throw" data-ability="{{this.key}}"
                   data-label="{{this.label}}" data-mod="{{this.saveMod}}"
-                  data-tooltip="{{this.label}} Save"
-                  data-tidy-sheet-part="ability-save-roller">
+                  data-tooltip="{{this.label}} Save">
                   <span class="modifier font-label-medium color-text-lightest">{{this.saveSign}}</span>
                   <span class="value save font-data-medium color-text-default">{{this.saveAbs}}</span>
                   {{#if this.saveExpDie}}
@@ -675,9 +665,9 @@
          expertise dice live on the skill rows, and attunement, conditions and
          proficiencies fill the Traits tab.
          ═══════════════════════════════════════════════════════════════════ --}}
-    <div class="sidebar flexcol expanded" data-tidy-sheet-part="sidebar-container">
+    <div class="sidebar flexcol expanded">
 
-      <div class="sidebar-header" data-tidy-sheet-part="sidebar-header">
+      <div class="sidebar-header">
         <div class="flexrow">
           <nav class="tidy-tabs sidebar-tab-strip button-group wrap tabs"
             role="tablist">
@@ -708,9 +698,9 @@
             </div>
           </div>
 
-          <ul class="skill-list unlist use-ability-list" data-tidy-sheet-part="skills-list">
+          <ul class="skill-list unlist use-ability-list">
             {{#each skills}}
-              <li class="skill-list-item" data-tidy-sheet-part="skill-container"
+              <li class="skill-list-item"
                 data-key="{{this.key}}">
                 <span class="button button-borderless button-icon-only proficiency"
                   data-proficiency="{{this.profLvl}}" data-tooltip="{{this.profLabel}}">
@@ -723,8 +713,7 @@
 
                 <button type="button" class="button button-borderless use-ability-roll-button"
                   data-action="skill-check" data-skill="{{this.key}}"
-                  data-label="{{this.label}}" data-bonus="{{this.bonus}}"
-                  data-tidy-sheet-part="skill-roller">
+                  data-label="{{this.label}}" data-bonus="{{this.bonus}}">
                   {{this.label}}
                 </button>
 
@@ -802,12 +791,10 @@
         {{/if}}
 
         {{#if statusConditions.length}}
-          <section class="tidy-table conditions" data-tidy-sheet-part="item-table"
+          <section class="tidy-table conditions"
             data-tidy-section-key="conditions">
-            <header class="tidy-table-header-row theme-dark"
-              data-tidy-sheet-part="table-header-row">
-              <div class="tidy-table-header-cell primary header-label-cell"
-                data-tidy-sheet-part="table-header-cell">
+            <header class="tidy-table-header-row theme-dark">
+              <div class="tidy-table-header-cell primary header-label-cell">
                 <h3>Conditions</h3>
               </div>
             </header>
@@ -1645,12 +1632,10 @@
       </div>
 
       {{#each effectGroups}}
-        <section class="tidy-table am-fx-table" data-tidy-sheet-part="item-table"
+        <section class="tidy-table am-fx-table"
           data-tidy-section-key="effects-{{this.key}}">
-          <header class="tidy-table-header-row theme-dark"
-            data-tidy-sheet-part="table-header-row">
-            <div class="tidy-table-header-cell primary header-label-cell"
-              data-tidy-sheet-part="table-header-cell">
+          <header class="tidy-table-header-row theme-dark">
+            <div class="tidy-table-header-cell primary header-label-cell">
               <h3>{{this.label}}</h3>
             </div>
             <div class="tidy-table-header-cell text-cell"
@@ -1662,7 +1647,7 @@
             {{#each this.items}}
               <div class="tidy-table-row-container am-fx-row" data-effect-id="{{this.id}}"
                 data-name="{{this.name}}">
-                <div class="tidy-table-row" data-tidy-sheet-part="table-row">
+                <div class="tidy-table-row">
                   <div class="tidy-table-cell primary">
                     <img class="am-fx-img" src="{{this.img}}" alt="" />
                     <span class="cell-text">{{this.name}}</span>
@@ -1712,12 +1697,10 @@
       data-tab="bonuses" data-group="primary" data-tab-contents-for="bonuses"
       role="tabpanel">
 
-      <section class="tidy-table" data-tidy-sheet-part="item-table"
+      <section class="tidy-table"
         data-tidy-section-key="global-bonuses">
-        <header class="tidy-table-header-row theme-dark"
-          data-tidy-sheet-part="table-header-row">
-          <div class="tidy-table-header-cell primary header-label-cell"
-            data-tidy-sheet-part="table-header-cell">
+        <header class="tidy-table-header-row theme-dark">
+          <div class="tidy-table-header-cell primary header-label-cell">
             <h3>Global Bonuses</h3>
           </div>
         </header>
@@ -1746,12 +1729,10 @@
       </section>
 
       {{#each bonuses.categories}}
-        <section class="tidy-table am-bonus-table" data-tidy-sheet-part="item-table"
+        <section class="tidy-table am-bonus-table"
           data-tidy-section-key="bonus-{{this.key}}">
-          <header class="tidy-table-header-row theme-dark"
-            data-tidy-sheet-part="table-header-row">
-            <div class="tidy-table-header-cell primary header-label-cell"
-              data-tidy-sheet-part="table-header-cell">
+          <header class="tidy-table-header-row theme-dark">
+            <div class="tidy-table-header-cell primary header-label-cell">
               <h3>{{this.label}}</h3>
             </div>
             <div class="tidy-table-header-cell text-cell"
@@ -1767,7 +1748,7 @@
             <div class="item-table-body">
               {{#each this.items}}
                 <div class="tidy-table-row-container">
-                  <div class="tidy-table-row" data-tidy-sheet-part="table-row">
+                  <div class="tidy-table-row">
                     <div class="tidy-table-cell primary">
                       {{#if this.img}}<img class="am-fx-img" src="{{this.img}}" alt="" />{{/if}}
                       <span class="cell-text">{{this.label}}</span>
@@ -1838,11 +1819,9 @@
       role="tabpanel">
 
       {{#*inline "settingRows"}}
-        <section class="tidy-table am-settings-table" data-tidy-sheet-part="item-table">
-          <header class="tidy-table-header-row theme-dark"
-            data-tidy-sheet-part="table-header-row">
-            <div class="tidy-table-header-cell primary header-label-cell"
-              data-tidy-sheet-part="table-header-cell">
+        <section class="tidy-table am-settings-table">
+          <header class="tidy-table-header-row theme-dark">
+            <div class="tidy-table-header-cell primary header-label-cell">
               <h3>{{heading}}</h3>
             </div>
           </header>
@@ -1874,11 +1853,9 @@
       {{> settingRows heading="Rest and recovery" rows=settings.rest}}
       {{> settingRows heading="Rolls" rows=settings.rolls}}
 
-      <section class="tidy-table am-settings-table" data-tidy-sheet-part="item-table">
-        <header class="tidy-table-header-row theme-dark"
-          data-tidy-sheet-part="table-header-row">
-          <div class="tidy-table-header-cell primary header-label-cell"
-            data-tidy-sheet-part="table-header-cell">
+      <section class="tidy-table am-settings-table">
+        <header class="tidy-table-header-row theme-dark">
+          <div class="tidy-table-header-cell primary header-label-cell">
             <h3>Thresholds and abilities</h3>
           </div>
         </header>
