@@ -7,3 +7,9 @@ module.zip
 # Crash dumps / junk
 *.stackdump
 
+
+# Read out of the live world for the checks that render the sheet; it is the
+# user's own campaign data and never belongs in the repository.
+world-chars.json
+# Working copies of a5e's packs, taken so classic-level can open them.
+packcopy*/

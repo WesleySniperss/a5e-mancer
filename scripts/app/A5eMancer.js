@@ -50,7 +50,6 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
       rollDestinyTable:       A5eMancer.rollDestinyTable,
       rollLoreTable:          A5eMancer.rollLoreTable,
       rollAllLoreTables:      A5eMancer.rollAllLoreTables,
-      toggleEquipmentChoice:  A5eMancer.toggleEquipmentChoice,
       setHpMethod:             A5eMancer.setHpMethod,
       rollHpDie:               A5eMancer.rollHpDie,
       filterManeuverTradition: A5eMancer.filterManeuverTradition,
@@ -686,15 +685,6 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     } catch (err) {
       AM.log(1, 'Wealth roll error:', err);
     }
-  }
-
-  static toggleEquipmentChoice(event, btn) {
-    const group = btn.closest('.am-equipment-choice-group');
-    if (!group) return;
-    group.querySelectorAll('.am-equipment-option').forEach(el => el.classList.remove('selected'));
-    btn.closest('.am-equipment-option')?.classList.add('selected');
-    const hiddenInput = group.querySelector('input[type="hidden"]');
-    if (hiddenInput) { hiddenInput.value = btn.dataset.optionIndex ?? '0'; }
   }
 
   static randomizeName(event) {

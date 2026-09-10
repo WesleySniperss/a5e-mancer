@@ -986,10 +986,16 @@ export class A5eCharacterSheet extends ActorSheet {
       sys.bonuses?.concentration ?? sys.attributes?.concentration?.bonus ?? 0
     ) || 0;
 
+    /* a5e's CONFIG.A5E.currencyDenominations, in the order a purse is read.
+       Credits are the system's sixth denomination and sit in every actor's
+       schema, but they belong to its science-fantasy material and are zero on
+       an ordinary character, so they appear only when the character has some
+       — money that exists is never hidden, and an empty box is never added. */
     const DENOMINATIONS = [
       { key: 'pp', label: 'Platinum' }, { key: 'gp', label: 'Gold' },
       { key: 'ep', label: 'Electrum' }, { key: 'sp', label: 'Silver' },
-      { key: 'cp', label: 'Copper' }
+      { key: 'cp', label: 'Copper' },
+      { key: 'cr', label: 'Credits', onlyIfHeld: true }
     ];
 
     return {
@@ -1039,7 +1045,9 @@ export class A5eCharacterSheet extends ActorSheet {
       speeds,
       senses,
       classLine: classes.map((c) => ({ name: c.name, levels: c.level })),
-      currencies: DENOMINATIONS.map((d) => ({ ...d, value: currency?.[d.key] ?? 0 })),
+      currencies: DENOMINATIONS
+        .map((d) => ({ ...d, value: Number(currency?.[d.key] ?? 0) || 0 }))
+        .filter((d) => !d.onlyIfHeld || d.value > 0),
       abilities: abilities.map((a) => ({
         ...a,
         modSign:  a.mod < 0 ? '-' : '+',
@@ -2215,16 +2223,9 @@ export class A5eCharacterSheet extends ActorSheet {
       await this.actor.update({ [path]: !cur });
     });
 
-    /* Fatigue / Strife pips */
-    el.querySelectorAll('[data-action="condition-pip"]').forEach(pip =>
-      pip.addEventListener('click', async () => {
-        const type    = pip.dataset.type;
-        const idx     = parseInt(pip.dataset.index);
-        const current = parseInt(pip.dataset.current);
-        const newVal  = idx + 1 === current ? idx : idx + 1;
-        await this.actor.update({ [`system.attributes.${type}`]: newVal });
-      })
-    );
+    /* The fatigue/strife pip row is gone — the bar replaced it, and
+       cycle-fatigue / cycle-strife carry the click now. The handler that
+       set a track by clicking one pip went with the markup. */
 
     /* ── helper: activate a condition (no toggle, just enable) ─────────────── */
     const _activateCond = async (id) => {
@@ -2391,17 +2392,9 @@ export class A5eCharacterSheet extends ActorSheet {
       window.addEventListener('keydown', this._condEscHandler);
     }
 
-    /* Spell slot pips */
-    el.querySelectorAll('[data-action="slot-pip"]').forEach(pip =>
-      pip.addEventListener('click', async () => {
-        const lvl  = parseInt(pip.dataset.level);
-        const idx  = parseInt(pip.dataset.index);
-        const cur  = parseInt(pip.dataset.current);
-        const next = idx === cur - 1 ? idx : idx + 1;
-        await this.actor.update({ [`system.spellResources.slots.${lvl}.current`]: next })
-          .catch(() => this.actor.update({ [`system.spellcasting.slots.spell${lvl}.value`]: next }));
-      })
-    );
+    /* Spell slots are spent with the hexagon pair, slot-dec / slot-inc,
+       bound further down. A pip row was here first; it is drawn on neither
+       sheet any more. */
 
     /* Item quantity */
     el.querySelectorAll('[data-action="item-qty"]').forEach(inp =>
@@ -2423,58 +2416,20 @@ export class A5eCharacterSheet extends ActorSheet {
       }
     });
 
-    /* Exertion pip clicks */
-    el.querySelectorAll('[data-action="exertion-pip"]').forEach(pip =>
-      pip.addEventListener('click', async () => {
-        const idx = parseInt(pip.dataset.index);
-        const cur = parseInt(pip.dataset.current);
-        const next = idx + 1 === cur ? idx : idx + 1;
-        const barInput = el.querySelector('#am-exertion-current');
-        if (barInput) barInput.value = next;
-        const tabInput = el.querySelector('[data-action="exertion-tab-input"]');
-        if (tabInput) tabInput.value = next;
-        await this.actor.update({ 'system.attributes.exertion.current': next })
-          .catch(() => this.actor.update({ 'system.attributes.exertion.value': next }));
-      })
-    );
+    /* Exertion is spent and regained with the pair of buttons on the bar,
+       data-action="exertion-step", bound just above. The pip row they
+       replaced is drawn on neither sheet. */
 
     /* Feat picker */
     el.querySelector('[data-action="open-feat-picker"]')?.addEventListener('click', () => {
       this.#openFeatPicker();
     });
 
-    /* Feat search filter */
-    const featSearch = el.querySelector('#am-feat-search');
-    if (featSearch) {
-      featSearch.addEventListener('input', (e) => {
-        const q = e.target.value.toLowerCase();
-        el.querySelectorAll('.am-feat-item').forEach(item => {
-          const name = item.querySelector('.item-name')?.textContent?.toLowerCase() ?? '';
-          item.style.display = name.includes(q) ? '' : 'none';
-        });
-      });
-    }
-
-    /* Feat source filter buttons */
-    el.querySelectorAll('.am-feat-filter').forEach(btn => {
-      btn.addEventListener('click', () => {
-        el.querySelectorAll('.am-feat-filter').forEach(b => b.classList.remove('am-feat-filter-active'));
-        btn.classList.add('am-feat-filter-active');
-        const filter = btn.dataset.filter;
-        el.querySelectorAll('.am-feat-item').forEach(item => {
-          item.style.display = filter === 'all' || item.dataset.featSource === filter ? '' : 'none';
-        });
-      });
-    });
-
-    /* Feat collapse toggle */
-    el.querySelectorAll('.am-feat-toggle').forEach(btn =>
-      btn.addEventListener('click', () => {
-        const body = btn.closest('.am-feat-item')?.querySelector('.am-feat-body');
-        if (body) body.classList.toggle('am-hidden');
-        btn.textContent = body?.classList.contains('am-hidden') ? '▸' : '▾';
-      })
-    );
+    /* The feat tab's own search, source-filter buttons and collapse arrows
+       stood here. All three addressed .am-feat-item and its children, markup
+       the Quadrone rewrite replaced; nothing draws any of it, so all three
+       were bound to nothing. The search that IS drawn is #am-feature-search,
+       handled further down. */
 
     /* ── Making the header responsive, the way Tidy makes it responsive ──
 
@@ -2855,43 +2810,42 @@ export class A5eCharacterSheet extends ActorSheet {
     /* The pip row is gone from the sheet — the bar replaced it — so the
        handler that set a counter by clicking one went with it. */
 
-    /* Feature/feat search */
+    /* Feature search.
+
+       This filtered `.am-feat-item`, which is markup the Quadrone rewrite
+       replaced with Tidy's .tidy-table-row-container. The box is drawn on
+       both sheets and typing in it did nothing — no error, no rows moving.
+       Filtering in the DOM rather than re-rendering, for the same reason the
+       effects search does: a re-render takes the focus out of the field on
+       every keystroke. */
     el.querySelector('#am-feature-search')?.addEventListener('input', (e) => {
-      const q = e.target.value.toLowerCase();
-      el.querySelectorAll('.am-feat-item').forEach(item => {
-        const name = item.querySelector('.item-name')?.textContent?.toLowerCase() ?? '';
-        item.style.display = name.includes(q) ? '' : 'none';
-      });
+      const q = e.target.value.trim().toLowerCase();
+      const tab = el.querySelector('.tidy-tab.features');
+      if (!tab) return;
+      for (const row of tab.querySelectorAll('.tidy-table-row-container')) {
+        const name = (row.querySelector('.item-name')?.textContent ?? '').toLowerCase();
+        row.classList.toggle('am-hidden', !!q && !name.includes(q));
+      }
+      /* A source group whose every row is filtered out goes too, or the tab
+         is left with headings standing over nothing. */
+      for (const table of tab.querySelectorAll('.tidy-table')) {
+        const rows = [...table.querySelectorAll('.tidy-table-row-container')];
+        table.classList.toggle('am-hidden', rows.length > 0 &&
+          rows.every(r => r.classList.contains('am-hidden')));
+      }
     });
-
-    /* Feature/feat type filter */
-    el.querySelectorAll('.am-feat-filter').forEach(btn => {
-      btn.addEventListener('click', () => {
-        el.querySelectorAll('.am-feat-filter').forEach(b => b.classList.remove('am-feat-filter-active'));
-        btn.classList.add('am-feat-filter-active');
-        const filter = btn.dataset.filter;
-        el.querySelectorAll('.am-feat-item').forEach(item => {
-          item.style.display = filter === 'all' || item.dataset.itemType === filter ? '' : 'none';
-        });
-      });
-    });
-
-    /* Feature collapse */
-    el.querySelectorAll('.am-feat-toggle').forEach(btn =>
-      btn.addEventListener('click', () => {
-        const body = btn.closest('.am-feat-item')?.querySelector('.am-feat-body');
-        if (body) body.classList.toggle('am-hidden');
-        btn.textContent = body?.classList.contains('am-hidden') ? '▸' : '▾';
-      })
-    );
 
     /* Currency */
     el.querySelectorAll('[data-action="currency-edit"]').forEach(inp =>
       inp.addEventListener('change', async (e) => {
-        const key = inp.dataset.currency;
-        const val = parseInt(e.target.value) || 0;
-        await this.actor.update({ [`system.currency.${key}`]: val })
-          .catch(() => this.actor.update({ [`system.wealth.${key}`]: val }));
+        /* data-denom, which is what the template writes. This read
+           dataset.currency, so every coin edit updated
+           system.currency.undefined — a field a5e's schema drops without a
+           word, leaving the coin to snap back on the next render. */
+        const key = inp.dataset.denom;
+        if (!key) return;
+        const val = Math.max(0, parseInt(e.target.value) || 0);
+        await this.actor.update({ [`system.currency.${key}`]: val });
       })
     );
 
@@ -2964,14 +2918,6 @@ export class A5eCharacterSheet extends ActorSheet {
       }).render(true);
     });
 
-    /* Feature collapse */
-    el.querySelectorAll('.am-feature-toggle').forEach(btn =>
-      btn.addEventListener('click', () => {
-        const body = btn.closest('.am-feature-item')?.querySelector('.am-feature-body');
-        if (body) body.classList.toggle('am-hidden');
-        btn.textContent = body?.classList.contains('am-hidden') ? '▸' : '▾';
-      })
-    );
 
     /* Biography textareas — auto-save on blur */
     el.querySelectorAll('[data-path]').forEach(textarea =>

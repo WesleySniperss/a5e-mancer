@@ -20,8 +20,12 @@ const js = readFileSync(R + 'scripts/app/A5eCharacterSheet.js', 'utf8');
 const tplSrc = readFileSync(R + 'templates/sheet/tidy-character-sheet.hbs', 'utf8');
 
 /* Every selector reached for with the singular form. */
-const singular = [...js.matchAll(/el\.querySelector\(\s*'([^']+)'/g)].map(m => m[1]);
-const plural   = new Set([...js.matchAll(/el\.querySelectorAll\(\s*'([^']+)'/g)].map(m => m[1]));
+/* The leading (^|[^\w$]) matters. Without it this also matches the tail of
+   `label.querySelector` and `panel.querySelector` — lookups already scoped to
+   one row or one meter, where a second match on the page is no business of
+   theirs. Eight `.max` inputs were reported that way, all of them fine. */
+const singular = [...js.matchAll(/(?:^|[^\w$])el\.querySelector\(\s*'([^']+)'/g)].map(m => m[1]);
+const plural   = new Set([...js.matchAll(/(?:^|[^\w$])el\.querySelectorAll\(\s*'([^']+)'/g)].map(m => m[1]));
 
 /* Count occurrences in the markup. Handlebars is left un-rendered on purpose:
    an element inside {{#each}} is one in the source and many on screen, and that
@@ -32,7 +36,15 @@ function occurrences(sel) {
   const id = sel.match(/^#([\w-]+)$/);
   if (id) return (tplSrc.match(new RegExp(`id="${id[1]}"`, 'g')) ?? []).length;
   const cls = sel.match(/^\.([\w-]+)$/);
-  if (cls) return (tplSrc.match(new RegExp(`class="[^"]*\\b${cls[1]}\\b`, 'g')) ?? []).length;
+  if (cls) {
+    /* Token by token, not \b: a hyphen is a word boundary to a regex, so
+       \bsidebar\b matched sidebar-toggle, sidebar-header and both
+       sidebar-tab-contents, and reported seven sidebars where there is one. */
+    let n = 0;
+    for (const m of tplSrc.matchAll(/class="([^"]*)"/g))
+      if (m[1].replace(/\{\{[^}]*\}\}/g, ' ').split(/\s+/).includes(cls[1])) n++;
+    return n;
+  }
   return -1;   // not a shape this check can count
 }
 

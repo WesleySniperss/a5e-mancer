@@ -448,6 +448,24 @@
 .tidy5e-sheet.application.a5e-mancer-sheet .inventory-footer .denomination i.currency.sp { background-image: url(../tidy/images/silver.webp); }
 .tidy5e-sheet.application.a5e-mancer-sheet .inventory-footer .denomination i.currency.cp { background-image: url(../tidy/images/copper.webp); }
 
+/* Credits are a5e's sixth denomination and Tidy has no coin for them, so the
+   same box carries a glyph instead of an image. Only ever drawn when the
+   character is holding some. */
+.tidy5e-sheet.application.a5e-mancer-sheet .inventory-footer .denomination i.currency.cr {
+  background-image: none;
+  font-style: normal;
+  font-weight: 700;
+  font-size: 0.75rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--t5e-color-gold, #b8964f);
+}
+.tidy5e-sheet.application.a5e-mancer-sheet .inventory-footer .denomination i.currency.cr::before {
+  content: '\20B5';
+}
+
 /* The coin field is set once, further down with the rest of the coin row —
    two rules for one element is how the last three of these went wrong. */
 

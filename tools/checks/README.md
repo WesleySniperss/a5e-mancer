@@ -1,6 +1,15 @@
 # Checks
 
-Two checks, no dependencies. `node tools/checks/<name>.mjs`.
+`node tools/checks/<name>.mjs`, from the module root.
+
+Most need nothing. The ones that render the sheet — `fireall`, `controls`,
+`truedom`, `tabsync`, `npcsync`, `roundtrip`, `settingsdo` — want `handlebars`
+and `parse5` reachable, and a `world-chars.json` in the module root: the real
+characters out of the world, which is what makes their answers worth anything.
+
+The rule the whole directory exists to enforce is at the bottom of
+`actions.mjs` below, and it is worth reading first: **a static check says where
+to look, never what is true.**
 
 ## `loadorder.mjs`
 
@@ -210,3 +219,73 @@ missing.
 
 Note the scanner is deliberately loose and will name this module's own methods
 too; read its list as candidates, not findings.
+
+## `lib/sheetdom.mjs`
+
+Not a check. The DOM `fireall` and `controls` both drive: the real template
+rendered for a real character out of the world, the real `activateListeners`
+bound over it, and an actor that records the path of every write.
+
+It answers questions about wiring, not about appearance. There is no layout
+here and no CSS, so it can say whether a click reaches a handler and what that
+handler writes, and it can say nothing at all about whether the result is
+legible on screen.
+
+## `controls.mjs`
+
+Named controls, pressed, against what each is actually for.
+
+`fireall` asks the weaker question — did anything happen — and cannot ask a
+stronger one. That turned out not to be enough. The coin fields "did
+something": they called `update`. They had also been writing
+`system.currency.undefined` for the whole life of the Quadrone sheet, because
+the input carries `data-denom` and the handler read `dataset.currency`. a5e
+drops an unknown field without a word, so the coin simply snapped back on the
+next render.
+
+So each case here states what must be true afterwards — the exact path
+written, the exact rows hidden — and every one of them is a bug that shipped:
+the coins, the features search that filtered markup the rewrite had already
+replaced, and `+5` / `-3` in the hit-point field reaching a5e’s own
+`applyHealing` and `applyDamage`. It also settles two of `fireall`’s standing
+"no listener" reports: the inventory and effects searches listen for `input`,
+which that pass never sends.
+
+## `dangling.mjs`
+
+Selectors and `dataset` keys the JS reaches for that no markup ever writes.
+
+This is the shape almost every bug reported on this project has taken: the
+handler is bound, it runs, it finds nothing, and it fails in silence. Nothing
+in the console, nothing on screen, and from the outside it looks exactly like
+"it doesn’t click".
+
+Deliberately narrow — our own `.am-*` classes and every `dataset` read, and
+nothing of Foundry’s or Tidy’s markup, which we do not own and cannot judge.
+Its first run found eleven, of which two were live bugs (the coins, the
+features search) and the rest were handlers still bound to markup the Quadrone
+rewrite had removed: the feat search and its filter buttons, three sets of
+collapse arrows, and the fatigue, exertion and spell-slot pip rows that bars
+and stepper buttons replaced.
+
+It reads comments as prose, not code — the first version did not, and
+immediately reported a class named in a comment that said the class was gone.
+
+## `v2actions.mjs`
+
+The builder windows dispatch clicks through ApplicationV2’s `actions` map, and
+that map **is** the dispatch table: a `data-action` with no entry has nowhere
+to go. Unlike the sheet, where a handler name can be built from a variable —
+which is what made two earlier checks lie — this one is exact.
+
+Three idioms are not entries in that map and are not counted against it:
+`submit` and `saveOptions` sit on `<button type="submit">` and are told apart
+by `event.submitter.dataset.action`; `tab` is ApplicationV2’s own. All three
+were reported as missing handlers on the first run, and all three were fine.
+It also has to gather `templates/tab-*.hbs` from the directory, because
+`A5eMancer` builds those paths from a name and no literal ever appears.
+
+What it did find, once it stopped lying: `toggleEquipmentChoice`, declared in
+the map, defined on the class, drawn nowhere — and stale twice over, stripping
+a class the template does not use and reading a dataset key the button does
+not carry. Removed.
