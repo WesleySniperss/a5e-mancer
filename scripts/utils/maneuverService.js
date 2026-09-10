@@ -182,9 +182,52 @@ export const CLASS_MANEUVER_TABLES = {
 // written 'Psion' or 'Psy Knight' works as well as a bare lowercase one —
 // a list meant to be edited should not fail over a capital letter.
 export const mmKey = (name) => String(name ?? '').toLowerCase().replace(/[^a-z]/g, '');
-export const MM_KEYS = new Set(MM_CLASSES.map(mmKey));
+export const MM_KEYS = new Set();
 
-for (const cls of MM_KEYS) CLASS_MANEUVER_TABLES[cls] = magicManeuverTable();
+/** Classes this module gave a magic-school table to, so a later change can take it back. */
+const MM_INSTALLED = new Set();
+
+/**
+ * Decide who gets magic maneuvers, from the world setting when there is one.
+ *
+ * MM_CLASSES stays the default — the four full casters the homebrew was
+ * written for. But it was reachable only by editing this module's source, so a
+ * table running its own caster, or one of the casters from a later book
+ * (Witch, Wielder, Elementalist, Psion), had no way in. The setting is that
+ * way, and takes the same forgiving names: "Psy Knight" and "psyknight" both
+ * land on the same key.
+ *
+ * Called once at module load with the defaults, and again from
+ * registerMagicSchools once settings exist.
+ */
+export function applyMagicManeuverClasses() {
+  let names = MM_CLASSES;
+  try {
+    const raw = game.settings.get(AM.ID, 'magicManeuverClasses');
+    if (typeof raw === 'string' && raw.trim()) names = raw.split(',');
+  } catch { /* before init there is no setting; the default stands */ }
+
+  /* Take back only what a previous list put there, so a class dropped from the
+     setting stops getting magic maneuvers — while a class that has a combat
+     progression of its own is never touched, in either direction. */
+  for (const key of MM_INSTALLED) delete CLASS_MANEUVER_TABLES[key];
+  MM_INSTALLED.clear();
+  MM_KEYS.clear();
+
+  for (const name of names) {
+    const key = mmKey(name);
+    if (!key) continue;
+    MM_KEYS.add(key);
+    if (CLASS_MANEUVER_TABLES[key]) {
+      AM.log(2, `Magic maneuvers: "${key}" already has a maneuver progression of its own — left as it is`);
+      continue;
+    }
+    CLASS_MANEUVER_TABLES[key] = magicManeuverTable();
+    MM_INSTALLED.add(key);
+  }
+}
+
+applyMagicManeuverClasses();
 
 /**
  * Make the six schools first-class traditions.
@@ -201,6 +244,9 @@ export function registerMagicSchools() {
     // The config holds i18n keys elsewhere; a literal label localizes to itself
     CONFIG.A5E.maneuverTraditions[key] ??= label;
   }
+  /* Now that settings exist, redo the class list — at module load it could only
+     see the built-in default. */
+  applyMagicManeuverClasses();
 }
 
 /** Is this tradition key one of the magic schools? */

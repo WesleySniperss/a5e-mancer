@@ -155,6 +155,21 @@ export function registerSettings() {
     }
   });
 
+  // Who gets magic maneuvers. The homebrew was written for the four full
+  // casters, but that list was reachable only by editing the module's source —
+  // so a table with its own caster, or one from a later book, had no way in.
+  // Names are forgiving: "Psy Knight" and "psyknight" are the same class.
+  game.settings.register(AM.ID, 'magicManeuverClasses', {
+    name: 'am.settings.mm-classes.name', hint: 'am.settings.mm-classes.hint',
+    scope: 'world', config: true, type: String,
+    default: 'wizard, cleric, druid, bard',
+    onChange: () => {
+      import('./utils/maneuverService.js')
+        .then(({ applyMagicManeuverClasses }) => applyMagicManeuverClasses())
+        .catch(err => AM.log(1, 'Magic maneuver class list failed to apply:', err));
+    }
+  });
+
   // Which catalogue version the world's magic maneuver compendium was built
   // from. Hidden: it is bookkeeping, not a choice. It lives here rather than on
   // the pack because a compendium is a collection, not a document, and has no

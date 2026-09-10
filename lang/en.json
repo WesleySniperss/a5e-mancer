@@ -453,6 +453,8 @@
   "am.levelup.archetype-none-chosen": "Levelling up without an archetype.",
   "am.settings.mm-pack.name": "Build the Magic Maneuvers compendium",
   "am.settings.mm-pack.hint": "Creates a world compendium containing the 26 magic maneuvers as maneuver items, so they can be browsed, dragged and read like any other maneuver. Rebuilt automatically when the module updates them. They never appear in the combat maneuver pickers.",
+  "am.settings.mm-classes.name": "Magic maneuver classes",
+  "am.settings.mm-classes.hint": "Which classes may take magic maneuvers, separated by commas. The homebrew was written for the four full casters; add your own caster here, or one from a later book. Names are forgiving — \"Psy Knight\" and \"psyknight\" are the same class.",
   "am.asi.title": "Ability Score Increase",
   "am.asi.mode-ability": "Raise abilities ({n} points)",
   "am.asi.mode-feat": "Take a feat instead",

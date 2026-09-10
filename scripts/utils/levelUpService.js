@@ -387,31 +387,11 @@ export class LevelUpService {
     return results.sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  /**
-   * Get all feats from compendiums for ASI selection.
-   */
-  static async getFeats() {
-    const results = [];
-    const featPacks = PackFilter.itemPacks();
-    for (const pack of featPacks) {
-      try {
-        const index = await pack.getIndex({ fields: ['name', 'type', 'img', 'system'] });
-        for (const entry of index) {
-          // A5e has no 'feat' item type — feats are features tagged
-          // featureType === 'feat'. Without this filter the ASI picker fills with
-          // every class/heritage/culture feature in the compendiums (thousands).
-          if (entry.type !== 'feature' || entry.system?.featureType !== 'feat') continue;
-          results.push({
-            name: entry.name,
-            uuid: `Compendium.${pack.collection}.${entry._id}`,
-            img:  iconForItem(entry.name, entry.type, entry.img ?? '') ?? entry.img,
-            type: entry.type
-          });
-        }
-      } catch {}
-    }
-    return results.sort((a, b) => a.name.localeCompare(b.name));
-  }
+  /* getFeats() lived here and had no callers. It listed feats by their tag but
+     knew nothing about prerequisites, so it would happily have offered a cleric
+     the herald's smites — the exact bug FeatService.optionsFor was written to
+     fix. Leaving a weaker duplicate beside the real one is how that bug comes
+     back, so it is gone; FeatService owns this. */
 
   /**
    * Get the knack-equivalent features a class can pick (Soldiering Knacks, Skill
