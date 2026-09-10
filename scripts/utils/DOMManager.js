@@ -308,7 +308,37 @@ export class DOMManager {
 
   /* ── Heritage Gift ──────────────────────────────────── */
 
+  /**
+   * The size a heritage sets, as a label.
+   *
+   * a5e hands size out as a trait grant with a fixed base and nothing to
+   * choose — which is precisely the shape GrantAbsorber's picker model drops,
+   * since a grant with no options is not a question to ask. So it is read
+   * straight off the item here.
+   */
+  static async #sizeFromHeritage(uuid) {
+    try {
+      const doc = await fromUuid(uuid);
+      for (const grant of Object.values(doc?.system?.grants ?? {})) {
+        if (grant?.grantType !== 'trait' || grant?.traits?.traitType !== 'size') continue;
+        const key = grant.traits?.base?.[0];
+        if (!key) continue;
+        const label = CONFIG?.A5E?.actorSizes?.[key];
+        return label ? (game.i18n.localize(label) || label) : key;
+      }
+    } catch (err) {
+      AM.log(2, 'Could not read the size from the heritage:', err);
+    }
+    return '';
+  }
+
   static async #onHeritageChanged(uuid, form) {
+    /* Before the early return below: the Biography tab shows a Size box whose
+       placeholder reads "Set by Heritage", and nothing ever filled it in. It
+       was a plain text input, so it sat empty and quietly discarded whatever
+       was typed into it — nothing reads `size` at creation. */
+    AM.heritageSize = await this.#sizeFromHeritage(uuid);
+
     // Gifts are the heritage's feature grants. If loadItemGrants took those on —
     // it runs just before this — then asking again here is the same choice twice.
     if (AM.itemGrants?.heritage?.absorb) {

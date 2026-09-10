@@ -164,7 +164,10 @@ export class LevelUpService {
     const results = [];
     for (const pack of PackFilter.itemPacks()) {
       try {
-        const index = await pack.getIndex({ fields: ['name', 'type', 'img', 'system'] });
+        /* Through PackFilter: it reads the cheap index first and pays for the
+           heavy one only when the pack actually holds this type. Most packs in
+           an a5e world hold no classes at all. */
+        const index = await PackFilter.indexOf(pack, ['name', 'type', 'img', 'system'], { types: ['class'] });
         for (const entry of index) {
           if (entry.type !== 'class') continue;
           results.push({
@@ -372,7 +375,11 @@ export class LevelUpService {
     const results = [];
     for (const pack of PackFilter.itemPacks()) {
       try {
-        const index = await pack.getIndex({ fields: ['name', 'type', 'img', 'system'] });
+        /* The hot one: this runs on every class change in the builder, and it
+           used to pull full system data out of every item pack each time. Three
+           packs in this world hold an archetype; the rest now cost the plain
+           index and nothing more. */
+        const index = await PackFilter.indexOf(pack, ['name', 'type', 'img', 'system'], { types: ['archetype'] });
         for (const entry of index) {
           if (entry.type !== 'archetype') continue;
           if (entry.system?.class !== slug) continue;
@@ -431,7 +438,7 @@ export class LevelUpService {
       const out = [], seen = new Set();
       for (const pack of packs) {
         try {
-          const index = await pack.getIndex({ fields: ['name', 'type', 'img', 'system'] });
+          const index = await PackFilter.indexOf(pack, ['name', 'type', 'img', 'system'], { types: ['feature'] });
           for (const entry of index) {
             if (entry.type !== 'feature' || !predicate(entry)) continue;
             const uuid = `Compendium.${pack.collection}.${entry._id}`;

@@ -385,6 +385,12 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
         }
 
         case 'biography': {
+          /* The Size box says "Set by Heritage" and now actually shows it —
+             read off the heritage's own trait grant in DOMManager. Empty until
+             a heritage is chosen, and read-only either way: nothing consumes a
+             typed size at creation, so accepting one would only throw it away. */
+          context.heritageSize = AM.heritageSize ?? '';
+
           // One rollable row per table found in the destiny/background text
           const rows = [];
           for (const src of ['destiny', 'background']) {

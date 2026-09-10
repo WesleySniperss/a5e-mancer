@@ -27,7 +27,11 @@
         </div>
         <div class="form-group">
           <label for="size">{{localize 'am.app.biography.size'}}</label>
-          <input id="size" type="text" name="size" class="form-input"
+          {{!-- Read-only on purpose: the heritage decides size, and nothing
+                reads a typed one at creation. It used to be a plain input, so
+                it sat empty and swallowed whatever was put in it. --}}
+          <input id="size" type="text" name="size" class="form-input" readonly
+            value="{{heritageSize}}"
             placeholder="{{localize 'am.app.biography.size-placeholder'}}" />
         </div>
       </div>
