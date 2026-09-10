@@ -868,6 +868,12 @@ export class A5eCharacterSheet extends ActorSheet {
     /* Only a character has these; the NPC schema has bio, notes and
        privateNotes and nothing else of the kind. */
     details.isCharacter = actor.type === 'character';
+    /* a5e shows the private page for the owner of a monster and nobody else.
+       That is followed, with one addition: a character that already carries
+       something there is still shown it, because hiding what is written is
+       worse than showing a page a5e would not have. */
+    details.showPrivateNotes = (!details.isCharacter && actor.isOwner)
+                            || !!details.privateNotes;
     details.hasPersonality = !!(details.bonds || details.flaws
                               || details.ideals || details.goals);
 
@@ -889,7 +895,7 @@ export class A5eCharacterSheet extends ActorSheet {
                         || bio.fulfillment || bio.inspiration || bio.lore.length);
 
     const tidy = this.#tidyContext({ sys, abilities, classes, resources, profBonus, currency,
-      spellDC, spellDCBonus: resolveMax(sys.bonuses?.spellDC) });
+      spellDC, spellDCBonus: resolveMax(sys.bonuses?.spellDC), attuneCount });
     const inventory = this.#inventory(actor, items);
     const sidebarTab = this._sidebarTab ?? 'skills';
     inventory.objectTypes = Object.entries(CONFIG?.A5E?.objectTypes ?? {})
@@ -943,6 +949,17 @@ export class A5eCharacterSheet extends ActorSheet {
       weapons, maneuvers, maneuverGroups, spells, spellGroups, spellSlots,
       features, feats, allFeatures, featuresBySource, customCounters, freeCounter,
       effectGroups, bonuses, hasBonuses, interactionGroups, settings,
+      /* Which page of the Notes tab is open. a5e opens a character on
+         Character Details and a monster on Notes, and remembers the choice
+         for as long as the sheet is open — which matters here because
+         writing in one of these fields re-renders the whole sheet, and
+         without it the tab would snap back on every keystroke saved. */
+      notesOn: (() => {
+        const fallback = actor.type === 'character' ? 'appearance' : 'bio';
+        const on = this._notesTab ?? fallback;
+        return { appearance: on === 'appearance', bio: on === 'bio',
+                 notes: on === 'notes', privateNotes: on === 'privateNotes' };
+      })(),
       unlocked, actorResources, equipment, currency,
       showFavorites, showXP, hideGenericRes,
       xp: sys.details?.xp?.value ?? sys.details?.xp ?? 0,
@@ -1002,7 +1019,7 @@ export class A5eCharacterSheet extends ActorSheet {
      Tidy splits every modifier into a sign and a bare number, because it
      styles them differently — hence the {sign, value} pairs throughout. */
   #tidyContext({ sys, abilities, classes, resources, profBonus, currency,
-                 spellDC, spellDCBonus }) {
+                 spellDC, spellDCBonus, attuneCount }) {
     const split = (n) => ({ sign: n < 0 ? '-' : '+', value: Math.abs(Number(n) || 0) });
     const pct = (v, max) => (max > 0 ? Math.round(Math.min(Math.max(v / max, 0), 1) * 100) : 0);
 
@@ -1089,7 +1106,11 @@ export class A5eCharacterSheet extends ActorSheet {
 
       attunement: {
         current: sys.attributes?.attunement?.current ?? null,
-        max: Number(sys.attributes?.attunement?.max ?? 3) || 3
+        max: Number(sys.attributes?.attunement?.max ?? 3) || 3,
+        /* Attuned to more than the limit allows. a5e marks the offending
+           rows; the footer figure says so too, rather than leaving the
+           player to compare two numbers. */
+        over: attuneCount > (Number(sys.attributes?.attunement?.max ?? 3) || 3)
       },
       speeds,
       senses,
@@ -1994,6 +2015,50 @@ export class A5eCharacterSheet extends ActorSheet {
       if (!this.actor.isOwner) return;
       const locked = this.actor.getFlag('a5e', 'sheetIsLocked') ?? true;
       await this.actor.setFlag('a5e', 'sheetIsLocked', !locked);
+    });
+
+    /* ── Switching between pages of the sheet ───────────────────────────
+       The sidebar's Skills/Traits strip and the Notes tab's own strip. Both
+       are bound HERE, above the edit-only guard, because neither edits
+       anything: they choose which part of the sheet the viewer is looking
+       at. Below the guard, a sheet that is not editable — a monster from a
+       compendium, a character a player may read but does not own — drew both
+       strips and bound neither, and clicking a page did nothing at all. The
+       padlock was the same mistake and was found first.
+
+       Both remember the choice on the sheet, because writing anything on
+       this page re-renders the whole of it, and without that the page would
+       snap back on every save. */
+    /* The Notes tab's own pages, switched exactly as the sidebar's are.
+       Remembered on the sheet for the same reason: typing in one of these
+       fields saves and re-renders, and without this the page would snap
+       back every time. */
+    el.querySelectorAll('a[data-notes-tab]').forEach(node =>
+      node.addEventListener('click', (e) => {
+        e.preventDefault();
+        const wanted = node.dataset.notesTab;
+        this._notesTab = wanted;
+        el.querySelectorAll('a[data-notes-tab]').forEach(a =>
+          a.classList.toggle('active', a.dataset.notesTab === wanted));
+        el.querySelectorAll('div[data-notes-tab]').forEach(p =>
+          p.classList.toggle('active', p.dataset.notesTab === wanted));
+      })
+    );
+
+    el.querySelectorAll('[data-sidebar-tab]').forEach(node => {
+      if (node.tagName !== 'A') return;
+      node.addEventListener('click', (e) => {
+        e.preventDefault();
+        const wanted = node.dataset.sidebarTab;
+        /* Remembered on the sheet, because switching a condition updates the
+           actor and the whole sheet re-renders — without this the sidebar
+           snapped back to Skills every time a condition was clicked. */
+        this._sidebarTab = wanted;
+        el.querySelectorAll('a[data-sidebar-tab]').forEach(a =>
+          a.classList.toggle('active', a.dataset.sidebarTab === wanted));
+        el.querySelectorAll('div[data-sidebar-tab]').forEach(p =>
+          p.classList.toggle('active', p.dataset.sidebarTab === wanted));
+      });
     });
 
     if (!this.isEditable) return;
@@ -3195,21 +3260,7 @@ export class A5eCharacterSheet extends ActorSheet {
 
     /* The sidebar's own Skills/Traits strip. Not a Foundry tab group — see
        the note in defaultOptions for why it cannot be one. */
-    el.querySelectorAll('[data-sidebar-tab]').forEach(node => {
-      if (node.tagName !== 'A') return;
-      node.addEventListener('click', (e) => {
-        e.preventDefault();
-        const wanted = node.dataset.sidebarTab;
-        /* Remembered on the sheet, because switching a condition updates the
-           actor and the whole sheet re-renders — without this the sidebar
-           snapped back to Skills every time a condition was clicked. */
-        this._sidebarTab = wanted;
-        el.querySelectorAll('a[data-sidebar-tab]').forEach(a =>
-          a.classList.toggle('active', a.dataset.sidebarTab === wanted));
-        el.querySelectorAll('div[data-sidebar-tab]').forEach(p =>
-          p.classList.toggle('active', p.dataset.sidebarTab === wanted));
-      });
-    });
+
 
     /* Collapsing an item table. Tidy toggles .expanded on the wrapper and on
        the chevron; the height animation is entirely CSS, so setting the two
@@ -4027,8 +4078,16 @@ export class A5eNPCSheet extends A5eCharacterSheet {
 
   /* ── Listeners ────────────────────────────────────── */
 
-  activateListeners(el) {
-    super.activateListeners(el);
+  activateListeners(html) {
+    super.activateListeners(html);
+
+    /* Foundry's v1 ActorSheet hands this a jQuery object, and a jQuery object
+       has no querySelectorAll. The character sheet converts on its first line;
+       this override did not, and threw a TypeError on EVERY render of every
+       NPC sheet — after super had bound its listeners, and before Foundry had
+       finished rendering. Everything _render does after that point, the
+       window's own size and position included, never happened. */
+    const el = html?.jquery ? html[0] : html;
     if (!this.isEditable) return;
 
     /* A statblock line rolls the action it names, not the item's first one —

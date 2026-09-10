@@ -76,6 +76,42 @@ async function fireType(el, type) {
          : 'no padlock drawn at all');
 }
 
+/* ── the Notes tab's three pages ────────────────────────────────────────
+   a5e's Notes page is not one page: it carries a secondary navigation bar,
+   and on a monster that owner sees Bio, Notes and Private Notes behind it.
+   This sheet had all three stacked in one column, which is what was
+   reported. Character Details is a5e's character-only page and must NOT
+   appear here. */
+{
+  const r = await render();
+  const tabs  = q(r, 'a[data-notes-tab]');
+  const panes = q(r, 'div[data-notes-tab]');
+  const named = tabs.map(a => a.dataset.notesTab);
+
+  check('the NPC notes tab has a page strip', tabs.length >= 3,
+    named.length ? named.join(', ') : 'no strip drawn');
+  check('Character Details is not among them', !named.includes('appearance'),
+    named.includes('appearance') ? 'appearance is drawn on a monster'
+                                 : "a5e keeps that page for characters");
+  check('every page in the strip has a pane behind it',
+    named.every(n => panes.some(p => p.dataset.notesTab === n)),
+    `${tabs.length} tabs, ${panes.length} panes`);
+  check('exactly one page is open at a time',
+    panes.filter(p => p.classList.contains('active')).length === 1,
+    `${panes.filter(p => p.classList.contains('active')).length} open`);
+
+  /* And clicking a page opens it, closing the one that was open. */
+  const other = tabs.find(a => !a.classList.contains('active'));
+  if (other) await fireType(other, 'click');
+  const openNow = panes.filter(p => p.classList.contains('active'));
+  check('clicking a page opens it and closes the rest',
+    !!other && openNow.length === 1
+      && openNow[0].dataset.notesTab === other.dataset.notesTab,
+    other ? `clicked ${other.dataset.notesTab}, open: `
+            + (openNow.map(p => p.dataset.notesTab).join(', ') || 'none')
+          : 'only one page drawn, nothing to switch to');
+}
+
 console.log(`driving ${monster}, one of ${population} monsters in a5e's pack\n`);
 let bad = 0;
 for (const [name, ok, detail] of results) {

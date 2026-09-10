@@ -1277,7 +1277,20 @@
            apart instead of sitting together. Same class, same trap as the
            concentration block and the initiative column. --}}
       <div class="inventory-footer">
-        <div class="currency">
+        {{!-- Attunement, beside the coins, which is where Tidy keeps it:
+             its own footer is one .attunement-and-currency row. The count
+             was only in the sidebar's Traits tab before, two clicks from
+             the inventory it is about. The list of WHICH items are attuned
+             stays there; this is the figure. --}}
+        <div class="am-footer-left">
+          <div class="attunement-tracker pill{{#if tidy.attunement.over}} am-attune-over{{/if}}"
+            data-tooltip="Attuned items">
+            <i class="fa-solid fa-sun"></i>
+            <span class="am-attune-current">{{attuneCount}}</span><span
+              class="am-attune-sep">/</span><span
+              class="am-attune-max">{{tidy.attunement.max}}</span>
+          </div>
+        <div class="currency currency-tracker">
           {{#each tidy.currencies}}
             <label class="denomination {{this.key}}" data-tooltip="{{this.label}}">
               <i class="currency {{this.key}}"></i>
@@ -1286,6 +1299,7 @@
                 aria-label="{{this.label}}" />
             </label>
           {{/each}}
+        </div>
         </div>
         <div class="am-carried" data-tooltip="Carried weight">
           <span class="am-a5e-label font-label-medium color-text-gold">Carried</span>
@@ -1335,9 +1349,43 @@
            roll or write, and which lives nowhere else: the backstory, the
            destiny answers and the lore-table results. --}}
 
-      {{!-- What a5e itself stores about the character: the appearance fields
-           and the three written pages. These are where anything typed on a5e
-           own sheet lives, and this tab was not reading them at all. --}}
+      {{!-- a5e's Notes page is not one page. It carries a secondary navigation
+           bar, and behind it: Character Details, Backstory and Notes on a
+           character; Bio, Notes and Private Notes on a monster. This sheet had
+           all of that content stacked into a single column, which on an NPC is
+           the difference the report was about.
+
+           Same strip as the sidebar's, because it is the same idea and the
+           player has already learnt it. The panes below are switched by
+           data-notes-tab, exactly as data-sidebar-tab switches those. --}}
+      <nav class="tidy-tabs am-notes-tab-strip button-group wrap tabs" role="tablist">
+        {{#if details.isCharacter}}
+          <a class="tab-option button button-secondary button-toggle{{#if notesOn.appearance}} active{{/if}}"
+            role="tab" data-notes-tab="appearance">
+            <span class="tab-title">Character Details</span>
+          </a>
+        {{/if}}
+        <a class="tab-option button button-secondary button-toggle{{#if notesOn.bio}} active{{/if}}"
+          role="tab" data-notes-tab="bio">
+          <span class="tab-title">{{#if details.isCharacter}}Backstory{{else}}Bio{{/if}}</span>
+        </a>
+        <a class="tab-option button button-secondary button-toggle{{#if notesOn.notes}} active{{/if}}"
+          role="tab" data-notes-tab="notes">
+          <span class="tab-title">Notes</span>
+        </a>
+        {{#if details.showPrivateNotes}}
+          <a class="tab-option button button-secondary button-toggle{{#if notesOn.privateNotes}} active{{/if}}"
+            role="tab" data-notes-tab="privateNotes">
+            <span class="tab-title">Private Notes</span>
+          </a>
+        {{/if}}
+      </nav>
+
+      {{!-- ── Character Details: the seven short fields and the appearance
+           write-up. a5e shows this one on a character only. --}}
+      {{#if details.isCharacter}}
+      <div class="am-notes-pane{{#if notesOn.appearance}} active{{/if}}"
+        data-notes-tab="appearance" role="tabpanel">
       {{#if @root.unlocked}}
         <section class="am-bio-card am-detail-fields">
           {{#each details.fields}}
@@ -1377,19 +1425,29 @@
         </section>
       {{/if}}
 
+      </div>
+      {{/if}}
+
+      {{!-- ── Backstory on a character, Bio on a monster: everything written
+           about who this is, including what the builder collected at
+           creation and stores nowhere else. --}}
+      <div class="am-notes-pane{{#if notesOn.bio}} active{{/if}}"
+        data-notes-tab="bio" role="tabpanel">
+
       {{#if details.bio}}
         <section class="am-bio-card">
-          <h3 class="font-title-small">Backstory</h3>
+          <h3 class="font-title-small">{{#if details.isCharacter}}Backstory{{else}}Bio{{/if}}</h3>
           <div class="am-origin-desc">{{{details.bio}}}</div>
+        </section>
+      {{else if @root.unlocked}}
+        <section class="am-bio-card">
+          <h3 class="font-title-small">{{#if details.isCharacter}}Backstory{{else}}Bio{{/if}}</h3>
+          <textarea class="am-bio-input" data-action="detail-html"
+            data-path="system.details.bio"
+            placeholder="Who they are and where they came from"></textarea>
         </section>
       {{/if}}
 
-      {{#if details.notes}}
-        <section class="am-bio-card">
-          <h3 class="font-title-small">Notes</h3>
-          <div class="am-origin-desc">{{{details.notes}}}</div>
-        </section>
-      {{/if}}
 
       {{!-- Bonds, flaws, ideals and goals. They are a5e’s own character
            fields and THIS module’s builder writes them at creation, but
@@ -1440,12 +1498,6 @@
         {{/if}}
       {{/if}}
 
-      {{#if details.privateNotes}}
-        <section class="am-bio-card">
-          <h3 class="font-title-small">Private Notes <i class="fa-solid fa-user-secret"></i></h3>
-          <div class="am-origin-desc">{{{details.privateNotes}}}</div>
-        </section>
-      {{/if}}
 
       {{#if bio.backstory}}
         <section class="card am-bio-card">
@@ -1505,6 +1557,15 @@
                 <div class="list-content am-origin-desc">{{{bio.fulfillment}}}</div>
               </div>
             {{/if}}
+            {{!-- The builder asks for this, the flag stores it and the context
+                  reads it back — it was only ever missing from here, so it was
+                  the one destiny field that went in and never came out. --}}
+            {{#if bio.inspiration}}
+              <div class="list-entry">
+                <div class="list-label flexrow"><h4 class="font-weight-label">Inspiration Feature</h4></div>
+                <div class="list-content am-origin-desc">{{{bio.inspiration}}}</div>
+              </div>
+            {{/if}}
           </div>
           {{#if bio.lore.length}}
             <ul class="pills">
@@ -1516,6 +1577,54 @@
             </ul>
           {{/if}}
         </section>
+      {{/if}}
+      </div>
+
+      {{!-- ── Notes. One page, and on a monster it is the one a5e opens on. --}}
+      <div class="am-notes-pane{{#if notesOn.notes}} active{{/if}}"
+        data-notes-tab="notes" role="tabpanel">
+        {{#if details.notes}}
+          <section class="am-bio-card">
+            <div class="am-origin-desc">{{{details.notes}}}</div>
+          </section>
+        {{else if @root.unlocked}}
+          <section class="am-bio-card">
+            <textarea class="am-bio-input" data-action="detail-html"
+              data-path="system.details.notes"
+              placeholder="Anything worth keeping"></textarea>
+          </section>
+        {{else}}
+          <div class="empty-state-container empty-state-description">
+            <span class="color-text-lighter">Nothing written here yet.</span>
+          </div>
+        {{/if}}
+      </div>
+
+      {{!-- ── Private notes. a5e keeps this one for the owner of a monster,
+           and so does this — with the addition that a character carrying
+           something here is still shown it, rather than having it hidden by a
+           rule about a different kind of actor. --}}
+      {{#if details.showPrivateNotes}}
+        <div class="am-notes-pane{{#if notesOn.privateNotes}} active{{/if}}"
+          data-notes-tab="privateNotes" role="tabpanel">
+          {{#if details.privateNotes}}
+            <section class="am-bio-card">
+              <h3 class="font-title-small">Private <i class="fa-solid fa-user-secret"></i></h3>
+              <div class="am-origin-desc">{{{details.privateNotes}}}</div>
+            </section>
+          {{else if @root.unlocked}}
+            <section class="am-bio-card">
+              <h3 class="font-title-small">Private <i class="fa-solid fa-user-secret"></i></h3>
+              <textarea class="am-bio-input" data-action="detail-html"
+                data-path="system.details.privateNotes"
+                placeholder="Only the owner sees this"></textarea>
+            </section>
+          {{else}}
+            <div class="empty-state-container empty-state-description">
+              <span class="color-text-lighter">Nothing written here yet.</span>
+            </div>
+          {{/if}}
+        </div>
       {{/if}}
     </div>
 

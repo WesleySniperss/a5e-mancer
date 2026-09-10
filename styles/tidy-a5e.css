@@ -415,7 +415,7 @@
 .tidy5e-sheet.application.a5e-mancer-sheet .inventory-footer .denomination {
   display: inline-flex;
   align-items: center;
-  gap: var(--t5e-size-1x);
+  gap: var(--t5e-size-halfx);
 }
 
 .tidy5e-sheet.application.a5e-mancer-sheet .inventory-footer .denomination i.currency {
@@ -1446,23 +1446,85 @@
   display: flex;
 }
 
+/* Tidy's own coin row is a .currency-tracker at a quarter-rem gap. Ours was
+   three full steps between denominations and free to wrap, which took most
+   of the footer and read as five form fields rather than as a purse. */
 .tidy5e-sheet.application.a5e-mancer-sheet .inventory-footer .currency {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--t5e-size-2x);
+}
+
+/* Attunement and the coins are one group at the left of the footer, the way
+   Tidy has them; the carried weight stays at the right. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-footer-left {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--t5e-size-3x);
+  min-width: 0;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .attunement-tracker.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--t5e-size-1x);
+  flex: 0 0 auto;
+  height: 1.5rem;
+  padding-inline: var(--t5e-size-2x);
+  border-radius: 1rem;
+  background: var(--t5e-component-card-default);
+  box-shadow: var(--t5e-drop-shadow-field);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .attunement-tracker.pill i {
+  font-size: 0.6875rem;
+  color: var(--t5e-color-text-gold-emphasis);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-attune-current {
+  color: var(--t5e-color-text-default);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-attune-sep,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-attune-max {
+  color: var(--t5e-color-text-lightest);
+}
+
+/* Over the limit: a5e marks the rows, and this says the same in one place. */
+.tidy5e-sheet.application.a5e-mancer-sheet .attunement-tracker.am-attune-over i,
+.tidy5e-sheet.application.a5e-mancer-sheet .attunement-tracker.am-attune-over .am-attune-current {
+  color: var(--t5e-color-text-invalid, #d05c5c);
 }
 
 .tidy5e-sheet.application.a5e-mancer-sheet .inventory-footer .denomination {
   flex: 0 0 auto;
 }
 
-/* A coin field is three digits wide at most in practice; the numbers line up
-   down the row with tabular figures rather than shuffling as they change. */
+/* The field takes the width of the number it holds rather than a fixed three
+   digits each, which is what made the row so wide. field-sizing is Chromium's
+   and Foundry is Chromium; the min and max keep it sane where it is not
+   supported and stop a long value from pushing the row apart. */
 .tidy5e-sheet.application.a5e-mancer-sheet .inventory-footer .denomination input {
-  width: 3rem;
+  field-sizing: content;
+  width: 2rem;
+  min-width: 1.25rem;
+  max-width: 3.5rem;
   text-align: end;
   font-variant-numeric: tabular-nums;
+}
+
+/* The spinner arrows a number input draws are pure width here. */
+.tidy5e-sheet.application.a5e-mancer-sheet .inventory-footer .denomination input::-webkit-outer-spin-button,
+.tidy5e-sheet.application.a5e-mancer-sheet .inventory-footer .denomination input::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
 }
 
 /* ── Nothing sits on the hit point bar but its numbers ─────────────────────
@@ -1623,6 +1685,29 @@
 .tidy5e-sheet.application.a5e-mancer-sheet .tabs-row > .tidy-tabs {
   padding-inline-start: 2.25rem;
 }
+/* ── The Notes tab's own pages ────────────────────────────────────────────
+   a5e's Notes page carries a secondary navigation bar — Character Details,
+   Backstory and Notes on a character; Bio, Notes and Private Notes on a
+   monster — and this sheet had all of it in one column.
+
+   The strip is the sidebar's, so it needs no rules of its own beyond the room
+   above the panes. A pane is hidden outright rather than moved off-screen:
+   there is a textarea in most of them, and one that is merely invisible still
+   takes tab focus. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-notes-tab-strip {
+  margin-block-end: var(--t5e-size-3x);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-notes-pane {
+  display: none;
+  flex-direction: column;
+  gap: var(--t5e-size-3x);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-notes-pane.active {
+  display: flex;
+}
+
 /* ── Spell slots on the level heading ─────────────────────────────────────
    One star per slot, beside the spell count, on the line that is already
    there — and they are the control, not a readout: there is no second place
@@ -1745,7 +1830,14 @@
    the proportions of Tidy's own art, whatever the number inside. min-width
    goes to 0 because a flex item defaults to min-width:auto, which would let
    a wide value push the box out again and undo the whole thing. */
-.tidy5e-sheet.application.a5e-mancer-sheet .ac-container .shield {
+/* All three of Tidy's ability layouts, because the two tighter ones carry a
+   rule of their own — `.abilities-size-small .ac-container .shield` — that
+   puts the badge back to width:100%, height:auto, at five classes to the four
+   below. It won there, and the badge went back to being sized by the number
+   inside it on exactly the sheets most likely to be narrow. */
+.tidy5e-sheet.application.a5e-mancer-sheet .ac-container .shield,
+.tidy5e-sheet.application.a5e-mancer-sheet .abilities-size-small .ac-container .shield,
+.tidy5e-sheet.application.a5e-mancer-sheet .abilities-size-compact .ac-container .shield {
   aspect-ratio: 3.5 / 4.25;
   height: 4rem;
   width: auto;
