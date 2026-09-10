@@ -1111,32 +1111,10 @@
         </button>
       </div>
 
-      {{#if slotRows.length}}
-        <div class="spell-slots-row flexrow">
-          {{#each slotRows}}
-            <div class="spell-slot-group card">
-              <span class="label font-label-medium color-text-gold">Level {{this.level}}</span>
-              <div class="spell-slot-tracker flexrow">
-                <button type="button"
-                  class="spell-slot-tracker-button button button-borderless button-icon-only flexshrink"
-                  data-action="slot-dec" data-level="{{this.level}}"
-                  aria-label="Spend a slot">
-                  <i class="fa-solid fa-hexagon-minus"></i>
-                </button>
-                <span class="value{{#unless this.value}} color-text-lightest{{/unless}}">{{this.value}}</span>
-                <span class="separator color-text-lightest">/</span>
-                <span class="max color-text-lighter">{{this.max}}</span>
-                <button type="button"
-                  class="spell-slot-tracker-button button button-borderless button-icon-only flexshrink"
-                  data-action="slot-inc" data-level="{{this.level}}"
-                  aria-label="Recover a slot">
-                  <i class="fa-solid fa-hexagon-plus"></i>
-                </button>
-              </div>
-            </div>
-          {{/each}}
-        </div>
-      {{/if}}
+      {{!-- The row of nine tracker cards that stood here is gone. It said what
+           each level heading now says, a scroll away from the spells it was
+           about, and it had its own pair of buttons for doing what the stars
+           on those headings do. --}}
 
       {{#if hasSpells}}
         {{#each spellGroups}}

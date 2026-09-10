@@ -14,7 +14,7 @@
  */
 import { buildSheet, listeners, takeEffects, eventOn, q } from './lib/sheetdom.mjs';
 
-const { root, writes, character } = await buildSheet();
+const { sheet, actor, root, writes, character, render } = await buildSheet();
 
 const results = [];
 const check = (name, ok, detail) => { results.push([name, ok, detail]); };
@@ -111,6 +111,61 @@ for (const [action, rowSel] of [['inv-search', '.tidy-table-row-container'],
     heals.some(e => /applyHealing/.test(e)) && hurts.some(e => /applyDamage/.test(e)),
     hp ? `+5 -> ${heals.join(',') || 'nothing'} | -3 -> ${hurts.join(',') || 'nothing'}`
        : 'the field is not drawn');
+}
+
+/* ── the spell-slot stars ───────────────────────────────────────────────
+   a5e derives slots.N.max during prepareData, so every character read
+   straight out of the world has a stored max of 0 and no stars to press.
+   They are seeded here for that reason, and only that reason: the question
+   is what the control does, not what this world happens to hold.
+
+   a5e's own rule, from its ItemListSpellSlots component: star n is spent
+   when n is above what is left; clicking a lit star sets current to n-1,
+   clicking a spent one sets it to n. */
+{
+  /* A second sheet, for a character who actually casts: the stars sit on a
+     spell table's heading, and the character with the most items in this
+     world has no spells at all. */
+  const { actor: caster, writes: casterWrites, render: renderCaster } =
+    await buildSheet({ choose: (all) => all
+      .filter(c => c.items.some(i => i.type === 'spell'))
+      .sort((a, b) => b.items.length - a.items.length)[0] });
+
+  caster.system.spellResources = caster.system.spellResources ?? {};
+  caster.system.spellResources.slots = { ...(caster.system.spellResources.slots ?? {}),
+    '3': { current: 2, max: 4, override: 0 } };
+  const r = await renderCaster();
+  const stars = q(r, '.am-slot').filter(b => b.dataset.level === '3');
+  const spent = stars.filter(b => b.classList.contains('am-slot-spent'));
+
+  check('a level heading draws one star per slot', stars.length === 4,
+    `${stars.length} stars for 4 slots, ${spent.length} of them spent`);
+  check('the spent ones are the ones above what is left', spent.length === 2,
+    `current 2 of 4, so stars 3 and 4 should be dark: ${spent.length} are`);
+
+  /* Click star 2, which is lit: a5e sets current to 1. */
+  casterWrites.length = 0;
+  const lit = stars.find(b => b.dataset.n === '2');
+  if (lit) await fireType(lit, 'click');
+  const afterSpend = casterWrites.map(w => w['system.spellResources.slots.3.current'])
+    .filter(v => v !== undefined);
+  check('clicking a lit star spends down to it', afterSpend[0] === 1,
+    `current 2, clicked star 2 -> ${afterSpend[0] ?? 'nothing written'} (a5e: 1)`);
+
+  /* Click star 4, which is spent: a5e sets current to 4. */
+  casterWrites.length = 0;
+  const dark = stars.find(b => b.dataset.n === '4');
+  if (dark) await fireType(dark, 'click');
+  const afterRecover = casterWrites.map(w => w['system.spellResources.slots.3.current'])
+    .filter(v => v !== undefined);
+  check('clicking a spent star recovers up to it', afterRecover[0] === 4,
+    `current 2, clicked star 4 -> ${afterRecover[0] ?? 'nothing written'} (a5e: 4)`);
+
+  /* And the row of nine tracker cards is gone. */
+  check('the old row of slot trackers is gone',
+    q(r, '[data-action="slot-dec"]').length === 0
+    && q(r, '[data-action="slot-inc"]').length === 0,
+    'no slot-dec / slot-inc anywhere on the sheet');
 }
 
 /* ── the sidebar toggle ─────────────────────────────────────────────────

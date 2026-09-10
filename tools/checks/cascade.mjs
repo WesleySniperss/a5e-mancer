@@ -217,7 +217,18 @@ const CASES = {
                          { tag:'div', classes:['actor-details-name-row'] },
                          { tag:'div', classes:['sheet-header-actions','flexrow'] }] },
   npccontent: { self: { tag: 'section', classes: ['window-content'], attrs: {} },
-                ancestors: [NPC_ROOT] }
+                ancestors: [NPC_ROOT] },
+
+  /* One spell slot, as a star on a level heading. It is a <button>, and Tidy
+     gives every button in the sheet a min-height, a border and a transition —
+     all three have to lose here or the stars come out field-height, boxed and
+     animating under the pointer. */
+  slot: { self: { tag: 'button', classes: ['am-slot'],
+                  attrs: { 'data-action': 'slot-pip', type: 'button' } },
+          ancestors: [ROOT, { tag:'section', classes:['tidy-table'] },
+                      { tag:'header', classes:['tidy-table-header-row'] },
+                      { tag:'div', classes:['tidy-table-header-cell','primary'] },
+                      { tag:'span', classes:['am-slots'] }] }
 };
 
 const el = CASES[target];

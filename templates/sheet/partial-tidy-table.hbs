@@ -37,12 +37,22 @@
       </div>
       <h3>{{label}}</h3>
       <span class="table-header-count">{{count}}</span>
-      {{!-- Slots, where the section has them. One chip beside the count, on
-           the line that is already there — the heading does not grow. --}}
-      {{#if slots}}
-        <span class="am-slot-chip" data-tooltip="Spell slots remaining">
-          <span class="am-slot-left">{{slots.value}}</span><span
-            class="am-slot-sep">/</span><span class="am-slot-max">{{slots.max}}</span>
+      {{!-- Slots, where the section has them: one star per slot, on the line
+           that is already there. a5e draws them exactly so, and they are what
+           is clicked to spend and recover — there is no second place to do
+           it. Lit means available; a spent one is dark. --}}
+      {{#if slots.pips.length}}
+        <span class="am-slots" role="group"
+          aria-label="{{slots.value}} of {{slots.max}} slots left">
+          {{#each slots.pips}}
+            <button type="button"
+              class="am-slot{{#if this.expended}} am-slot-spent{{/if}}"
+              data-action="slot-pip" data-level="{{this.level}}" data-n="{{this.n}}"
+              aria-label="Slot {{this.n}}"
+              data-tooltip="{{#if this.expended}}Spent — click to recover{{else}}Click to spend{{/if}}">
+              <i class="fa-solid fa-star"></i>
+            </button>
+          {{/each}}
         </span>
       {{/if}}
     </div>

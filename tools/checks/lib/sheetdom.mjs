@@ -178,12 +178,18 @@ export async function buildSheet(opts = {}) {
   const sheet = new A5eCharacterSheet(actor);
   sheet._actor = actor;
   sheet.render = () => { record('render'); };
-  const html = tpl(await sheet.getData());
-  const root = build(parse(html));
-  sheet.activateListeners(root);
-  takeEffects();                       // rendering is not a finding
 
-  return { sheet, actor, root, writes, character: raw.name };
+  /* Rendering again matters: a control whose markup depends on the actor —
+     the spell-slot stars, the padlock's two states — can only be judged by
+     changing the actor and looking at the sheet a second time. */
+  const render = async () => {
+    const root = build(parse(tpl(await sheet.getData())));
+    sheet.activateListeners(root);
+    takeEffects();                     // rendering is not a finding
+    return root;
+  };
+
+  return { sheet, actor, writes, render, root: await render(), character: raw.name };
 }
 
 /** A plausible enough event for a handler that only wants the element. */

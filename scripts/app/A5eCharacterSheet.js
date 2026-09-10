@@ -565,12 +565,13 @@ export class A5eCharacterSheet extends ActorSheet {
     const maneuverGroups = this.#groupBy(maneuvers, 'tradition');
     const featsBySource  = this.#groupFeatsBySource(feats);
 
-    /* Spells grouped by level */
-    const spellGroups = {};
+    /* Spells grouped by level. Filled in below with any level that has slots
+       but no spell of its own — see the note there. */
+    const spellsByLevel = {};
     for (const s of spells.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name))) {
       const k = s.level === 0 ? 'Cantrips' : `Level ${s.level}`;
-      if (!spellGroups[k]) spellGroups[k] = [];
-      spellGroups[k].push(s);
+      if (!spellsByLevel[k]) spellsByLevel[k] = [];
+      spellsByLevel[k].push(s);
     }
 
     /* Spell slots — A5e stores at system.spellResources.slots keyed by level string, uses 'current' */
@@ -580,16 +581,49 @@ export class A5eCharacterSheet extends ActorSheet {
       const max   = d.max     ?? 0;
       const value = d.current ?? d.value ?? 0;
       if (!max) return null;
-      const pips = Array.from({ length: max }, (_, i) => ({ index: i, used: i >= value, level: l }));
+      /* Numbered from 1, and expended when the number is above what is
+         left — a5e's own rule, from its ItemListSpellSlots component. The
+         number is what the click arithmetic works on, so it is carried
+         rather than the index. */
+      const pips = Array.from({ length: max }, (_, i) => ({
+        n: i + 1, level: l, expended: i + 1 > value
+      }));
       return { level: l, value, max, pips };
     }).filter(Boolean);
 
-    /* The same figures again, keyed as the spell groups are keyed, so a level
-       heading can carry its own slots. The row of trackers stays where it is;
-       this is only so that "Level 3" says how many third-level slots are left
-       without the eye going anywhere. */
-    const spellSlots = Object.fromEntries(
-      slotRows.map(r => [`Level ${r.level}`, { value: r.value, max: r.max }]));
+    /* Keyed as the spell groups are keyed, so each level heading carries its
+       own slots — and carries the stars themselves, not a count.
+
+       There used to be a row of nine tracker cards above the spell list as
+       well, each with a pair of hexagon buttons. It said the same thing a
+       second time, a long way from the spells it was about, and it is gone:
+       the slots for a level now sit on that level's own heading, which is
+       where the eye already is when the question comes up. */
+    /* a5e has a switch of its own for whether slots are shown at all, and its
+       sheet reads it as `?? true`. Read the same way here, so turning it off
+       there turns them off on both. */
+    const showSlots = actor.flags?.a5e?.showSpellSlots ?? true;
+    const spellSlots = !showSlots ? {} : Object.fromEntries(slotRows.map(r =>
+      [`Level ${r.level}`, { level: r.level, value: r.value, max: r.max, pips: r.pips }]));
+
+    /* A level's slots belong to the level, not to the spells in it.
+
+       Grouping by the spells alone meant a level with slots and no spell of
+       its own had no heading — and so nowhere for its slots to appear. A
+       prepared caster holding four third-level slots and no third-level spell
+       prepared was shown no third-level slots at all. a5e lists the level
+       either way, and so does this now: an empty level shows its heading, its
+       stars, and no rows.
+
+       Rebuilt in order rather than merged, because {{#each}} walks an object
+       in insertion order and a level added afterwards would sit at the end. */
+    const spellGroups = {};
+    if (spellsByLevel.Cantrips) spellGroups.Cantrips = spellsByLevel.Cantrips;
+    for (let l = 1; l <= 9; l++) {
+      const k = `Level ${l}`;
+      if (spellsByLevel[k]) spellGroups[k] = spellsByLevel[k];
+      else if (spellSlots[k]) spellGroups[k] = [];
+    }
 
     /* Fatigue/Strife pip arrays */
     const fatiguePips  = Array.from({ length: 6 }, (_, i) => ({ i, active: i < resources.fatigue }));
@@ -906,7 +940,7 @@ export class A5eCharacterSheet extends ActorSheet {
       sidebarOnTraits: sidebarTab === 'traits',
       abilities, skills, resources, classes,
       savingThrows, maneuverDC, proficiencies,
-      weapons, maneuvers, maneuverGroups, spells, spellGroups, slotRows, spellSlots,
+      weapons, maneuvers, maneuverGroups, spells, spellGroups, spellSlots,
       features, feats, allFeatures, featuresBySource, customCounters, freeCounter,
       effectGroups, bonuses, hasBonuses, interactionGroups, settings,
       unlocked, actorResources, equipment, currency,
@@ -953,6 +987,8 @@ export class A5eCharacterSheet extends ActorSheet {
       })(),
 
       // Spell level order for template iteration (Handlebars can't do computed keys)
+      /* A level with slots and no spells is still a section to draw, so the
+         list is shown whenever there is anything to show — spells or slots. */
       spellLevelOrder: ['Level 1','Level 2','Level 3','Level 4','Level 5',
                         'Level 6','Level 7','Level 8','Level 9']
     };
@@ -3213,23 +3249,28 @@ export class A5eCharacterSheet extends ActorSheet {
       });
     }
 
-    /* Spell slots. Tidy spends and restores with a pair of hexagon buttons
-       rather than with pips; a5e keeps the count at .current. */
-    const stepSlot = (delta) => async (e) => {
-      e.preventDefault();
-      const level = e.currentTarget.dataset.level;
-      const slots = this.actor.system?.spellResources?.slots?.[level];
-      if (!slots) return;
-      const max = Number(slots.max ?? 0) || 0;
-      const now = Number(slots.current ?? 0) || 0;
-      const next = Math.min(Math.max(now + delta, 0), max);
-      if (next === now) return;
-      await this.actor.update({ [`system.spellResources.slots.${level}.current`]: next });
-    };
-    el.querySelectorAll('[data-action="slot-dec"]').forEach(b =>
-      b.addEventListener('click', stepSlot(-1)));
-    el.querySelectorAll('[data-action="slot-inc"]').forEach(b =>
-      b.addEventListener('click', stepSlot(1)));
+    /* Spell slots, as stars on the level's own heading.
+
+       The arithmetic is a5e's, taken from its ItemListSpellSlots component so
+       the two sheets behave identically: slot n is expended when n is above
+       what is left; clicking a star that is still lit spends down to just
+       below it (current = n - 1), and clicking a spent one recovers up to and
+       including it (current = n). One click therefore both spends and
+       restores, depending on which star it lands on, and clicking the lowest
+       lit star empties the level. */
+    el.querySelectorAll('[data-action="slot-pip"]').forEach(b =>
+      b.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const level = b.dataset.level;
+        const n     = Number(b.dataset.n);
+        const slots = this.actor.system?.spellResources?.slots?.[level];
+        if (!slots || !Number.isFinite(n)) return;
+        const now  = Number(slots.current ?? 0) || 0;
+        const next = n <= now ? n - 1 : n;
+        if (next === now) return;
+        await this.actor.update({ [`system.spellResources.slots.${level}.current`]: next });
+      })
+    );
 
     /* Initiative and concentration, which the old header had no buttons for. */
     el.querySelector('[data-action="roll-initiative"]')?.addEventListener('click', async (e) => {
