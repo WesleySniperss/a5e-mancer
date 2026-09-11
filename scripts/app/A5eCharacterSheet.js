@@ -2179,15 +2179,13 @@ export class A5eCharacterSheet extends ActorSheet {
       })
     );
 
+    el.querySelectorAll('[data-action="attunement"]').forEach(b =>
+      b.addEventListener('click', (e) => { e.preventDefault(); this.#openAttunement(); }));
+
     /* Damaged-state cycle (intact → damaged → broken), as on the original sheet */
-    el.querySelectorAll('[data-action="item-damage"]').forEach(b =>
-      b.addEventListener('click', async () => {
-        const item = this.actor.items.get(b.dataset.id);
-        if (!item) return;
-        if (typeof item.toggleDamagedState === 'function') await item.toggleDamagedState();
-        else await item.update({ 'system.damagedState': ((item.system?.damagedState ?? 0) + 1) % 3 });
-      })
-    );
+    /* The damaged-state cycle is bound above, against `item-damaged`, which
+       is what the row draws. A second copy spelled `item-damage` stood here
+       and had never matched anything. */
 
     /* Use button — skip dialog, just roll with defaults */
     /* Using an item, and using one named action on it.
@@ -2637,17 +2635,6 @@ export class A5eCharacterSheet extends ActorSheet {
       })
     );
 
-    /* Exertion tab input */
-    el.querySelector('[data-action="exertion-tab-input"]')?.addEventListener('change', async (e) => {
-      const val = parseInt(e.target.value);
-      if (!isNaN(val)) {
-        // Sync resource bar input too
-        const barInput = el.querySelector('#am-exertion-current');
-        if (barInput) barInput.value = val;
-        await this.actor.update({ 'system.attributes.exertion.current': val })
-          .catch(() => this.actor.update({ 'system.attributes.exertion.value': val }));
-      }
-    });
 
     /* Exertion is spent and regained with the pair of buttons on the bar,
        data-action="exertion-step", bound just above. The pip row they
@@ -3715,6 +3702,122 @@ export class A5eCharacterSheet extends ActorSheet {
     return 'action'; // 'action', '', or anything else → main action
   }
 
+  /**
+   * Everything on this character that can be attuned, in one window, with the
+   * attuned ones marked and either state a click away.
+   *
+   * The figure in the inventory footer says how many of how many, and the
+   * sidebar's Traits tab lists them as pills — but a pill row is a poor place
+   * to choose from when a character carries a dozen, and neither says which
+   * items COULD be attuned without being.
+   *
+   * The set is a5e's: an item can be attuned exactly when it requires
+   * attunement. Toggling goes through a5e's own item.toggleAttunement, so
+   * whatever rules it applies are applied here too, and the character sheet
+   * behind this window redraws itself when the item changes.
+   */
+  async #openAttunement() {
+    const actor = this.actor;
+    const max = Number(actor.system?.attributes?.attunement?.max ?? 3) || 3;
+
+    const rowsFor = () => actor.items.contents
+      .filter((i) => i.system?.requiresAttunement)
+      .sort((a, b) => Number(!!b.system?.attuned) - Number(!!a.system?.attuned)
+                   || a.name.localeCompare(b.name));
+
+    const esc = (s) => String(s ?? '').replace(/[&<>"]/g,
+      (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+    const rarityOf = (i) => {
+      const key = i.system?.rarity ?? '';
+      const label = CONFIG?.A5E?.itemRarity?.[key];
+      return key ? (label ? game.i18n.localize(label) : key) : '';
+    };
+
+    const drawRow = (i) => {
+      const on = !!i.system?.attuned;
+      return `
+      <button type="button" class="am-att-row${on ? ' am-att-on' : ''}" data-id="${i.id}">
+        <img src="${esc(i.img)}" width="28" height="28" alt="" />
+        <span class="am-att-name">${esc(i.name)}</span>
+        <span class="am-att-rarity">${esc(rarityOf(i))}</span>
+        <i class="am-att-sun ${on ? 'fa-solid fa-sun' : 'fa-regular fa-sun'}"></i>
+      </button>`;
+    };
+
+    const items = rowsFor();
+    if (!items.length) {
+      ui.notifications.info(game.i18n.localize('am.sheet.nothing-to-attune'));
+      return;
+    }
+
+    const content = `
+      <style>
+        .am-att-wrap { display:flex; flex-direction:column; gap:0.5rem; }
+        .am-att-count { display:flex; align-items:baseline; gap:0.4rem; font-size:0.85rem; }
+        .am-att-count b { font-size:1.1rem; font-variant-numeric:tabular-nums; }
+        .am-att-count.am-over { color:#d05c5c; }
+        .am-att-note { font-size:0.75rem; opacity:0.7; }
+        .am-att-list { display:flex; flex-direction:column; gap:0.2rem; max-height:26rem; overflow-y:auto; }
+        .am-att-row { display:flex; align-items:center; gap:0.5rem; width:100%; text-align:start;
+          padding:0.3rem 0.45rem; border:1px solid rgba(255,255,255,0.08); border-radius:4px;
+          background:rgba(255,255,255,0.02); cursor:pointer; font-size:0.85rem; }
+        .am-att-row:hover { background:rgba(200,160,32,0.12); }
+        .am-att-row img { border:none; border-radius:3px; flex:0 0 auto; }
+        .am-att-name { flex:1; font-weight:600; }
+        .am-att-rarity { font-size:0.72rem; opacity:0.55; white-space:nowrap; }
+        .am-att-sun { width:1rem; text-align:center; opacity:0.35; }
+        .am-att-on { border-color:rgba(200,160,32,0.55); background:rgba(200,160,32,0.1); }
+        .am-att-on .am-att-sun { opacity:1; color:#c8a84a; }
+      </style>
+      <div class="am-att-wrap">
+        <div class="am-att-count"><b class="am-att-n"></b><span>attuned</span></div>
+        <p class="am-att-note">Every item on this character that can be attuned. Click one to attune or release it.</p>
+        <div class="am-att-list">${items.map(drawRow).join('')}</div>
+      </div>`;
+
+    foundry.applications.api.DialogV2.wait({
+      window: { title: game.i18n.localize('am.sheet.attunement') },
+      content,
+      position: { width: 460, height: 560 },
+      rejectClose: false,
+      buttons: [{ action: 'close', label: 'Close', default: true }],
+      render: (_event, dialog) => {
+        const root = dialog.element;
+
+        /* The count is redrawn from the actor rather than counted in the
+           window, so it agrees with the sheet even when something else
+           changes an item while this is open. */
+        const repaint = () => {
+          const now = actor.items.contents.filter((i) => i.system?.attuned).length;
+          const box = root.querySelector('.am-att-count');
+          const n = root.querySelector('.am-att-n');
+          if (n) n.textContent = `${now} / ${max}`;
+          box?.classList.toggle('am-over', now > max);
+          for (const row of root.querySelectorAll('.am-att-row')) {
+            const on = !!actor.items.get(row.dataset.id)?.system?.attuned;
+            row.classList.toggle('am-att-on', on);
+            const sun = row.querySelector('.am-att-sun');
+            if (sun) sun.className = `am-att-sun ${on ? 'fa-solid fa-sun' : 'fa-regular fa-sun'}`;
+          }
+        };
+        repaint();
+
+        for (const row of root.querySelectorAll('.am-att-row')) {
+          row.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const item = actor.items.get(row.dataset.id);
+            if (!item) return;
+            /* a5e's own, so its rules apply here as they do on its sheet. */
+            if (typeof item.toggleAttunement === 'function') await item.toggleAttunement();
+            else await item.update({ 'system.attuned': !(item.system?.attuned ?? false) });
+            repaint();
+          });
+        }
+      }
+    });
+  }
+
   async #openFeatPicker() {
     // Build a searchable dialog from compendium feats
     const packs  = PackFilter.itemPacks();
@@ -4194,29 +4297,14 @@ export class A5eNPCSheet extends A5eCharacterSheet {
        NPC sheet — after super had bound its listeners, and before Foundry had
        finished rendering. Everything _render does after that point, the
        window's own size and position included, never happened. */
-    const el = html?.jquery ? html[0] : html;
-    if (!this.isEditable) return;
+    /* Nothing of its own left to bind. The statblock tab's use button went
+       when that tab was replaced by Favorites, and everything else this sheet
+       does is the character sheet's, bound by the call above.
 
-    /* A statblock line rolls the action it names, not the item's first one —
-       a monster whose bite and breath live on one feature must be able to use
-       either. a5e's own activate() takes the action id, so it is handed over
-       rather than reimplemented. */
-    el.querySelectorAll('[data-action="statblock-use"]').forEach(btn =>
-      btn.addEventListener('click', async (event) => {
-        event.preventDefault();
-        const item = this.actor.items.get(btn.dataset.id);
-        if (!item) return;
-        const actionId = btn.dataset.actionId || null;
-        try {
-          if (actionId && typeof item.activate === 'function') await item.activate(actionId);
-          else if (typeof item.activate === 'function')         await item.activate();
-          else if (typeof item.use === 'function')              await item.use();
-          else await item.share?.();
-        } catch (err) {
-          AM.log(2, `Could not use ${item.name}:`, err);
-          ui.notifications.warn(err.message);
-        }
-      })
-    );
+       The conversion stays, and so does the guard, because the next thing
+       added here will need both — and the last one that forgot the first threw
+       a TypeError on every render for as long as this class existed. */
+    const el = html?.jquery ? html[0] : html;
+    void el;
   }
 }

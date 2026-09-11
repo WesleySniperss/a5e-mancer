@@ -237,6 +237,30 @@ for (const [action, rowSel] of [['inv-search', '.tidy-table-row-container'],
   check('the inventory footer carries the attunement count', !!pill,
     pill ? (pill.textContent ?? '').replace(/\s+/g, ' ').trim() || 'drawn'
          : 'no attunement pill in the footer');
+
+  /* And it opens the window, rather than only stating a number. Asked for:
+     one place listing everything that CAN be attuned, with the attuned ones
+     marked and either state a click away — which a figure in a corner and a
+     row of pills in the sidebar were not. */
+  check('the count is a button, not a label',
+    pill?.tag === 'button' && pill?.dataset.action === 'attunement',
+    pill ? `<${pill.tag}> with data-action="${pill.dataset.action ?? '(none)'}"` : 'no pill');
+
+  takeEffects();
+  const opened = pill ? await fireType(pill, 'click') : 0;
+  check('clicking it opens something', opened > 0,
+    `${opened} listener(s) on the count`);
+
+  /* The window lists what a5e says can be attuned: items that require it.
+
+     Seeded, because exactly one item across all 61 characters in this world
+     requires attunement and it is not on the character with the most items.
+     The question is what the window offers, not what this campaign owns. */
+  for (const it of [...actor.items].slice(0, 3)) it.system.requiresAttunement = true;
+  const canAttune = [...actor.items].filter(i => i.system?.requiresAttunement);
+  check('the character used here has items to list', canAttune.length > 0,
+    `${canAttune.length} item(s) requiring attunement,`
+    + ` ${canAttune.filter(i => i.system?.attuned).length} of them attuned`);
 }
 
 /* ── the sidebar toggle ─────────────────────────────────────────────────

@@ -21,12 +21,15 @@ import { fileURLToPath } from 'url';
 
 const R = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..') + path.sep;
 
-const TEMPLATES = [
-  'templates/sheet/tidy-character-sheet.hbs',
-  'templates/sheet/npc-sheet.hbs',
-  'templates/sheet/partial-tidy-row.hbs',
-  'templates/sheet/partial-tidy-table.hbs'
-];
+/* Every template under templates/sheet, read from the directory.
+
+   These four were named by hand, and the partial added for the Notes pages
+   was not among them — so `detail-html` came out as "listened for and never
+   drawn" when it is drawn eight times. A list of subjects kept by the check
+   is a list that goes stale without saying so. */
+const TEMPLATES = fs.readdirSync(R + 'templates/sheet')
+  .filter((f) => f.endsWith('.hbs'))
+  .map((f) => 'templates/sheet/' + f);
 const SCRIPTS = ['scripts/app/A5eCharacterSheet.js'];
 
 const drawn = new Map();     // action -> files that draw it

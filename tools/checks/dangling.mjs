@@ -57,10 +57,29 @@ for (const m of markup.matchAll(/class(?:Name)?\s*=\s*["'`]([^"'`]*)["'`]/g))
   for (const tok of m[1].replace(/\{\{[^}]*\}\}/g, ' ').split(/\s+/)) if (tok) haveClass.add(tok);
 for (const m of markup.matchAll(/classList\.(?:add|toggle|replace)\(([^)]*)\)/g))
   for (const s of m[1].matchAll(/['"`]([\w-]+)['"`]/g)) haveClass.add(s[1]);
-/* classes built into a template literal: `am-tab am-${kind}` — the static half
-   is still a real token, and a dynamic half means we cannot judge the rest */
+/* Classes built into a template literal: `am-tab am-${kind}`.
+
+   A token that CONTAINS an interpolation still writes the literal part before
+   it: `am-att-row${on ? ' am-att-on' : ''}` puts `am-att-row` on the element
+   as surely as a plain attribute would. Dropping such tokens whole reported
+   that class as written nowhere, which was the check misreading its own
+   source rather than a fault in the sheet.
+
+   So each token is cut at its first ${ and the literal head kept. A token
+   that begins with one has no literal head and is skipped, which is the
+   honest answer for `${cls}-row`. */
 for (const m of markup.matchAll(/class(?:Name)?\s*=\s*[`]([^`]*)[`]/g))
-  for (const tok of m[1].split(/\s+/)) if (tok && !tok.includes('$')) haveClass.add(tok);
+  for (const tok of m[1].split(/\s+/)) {
+    const head = tok.split('${')[0];
+    if (head) haveClass.add(head);
+  }
+
+/* And the same for a class list assembled inside a template literal that is
+   not an attribute at all — `class="am-att-row${…}"` sits inside one. */
+for (const m of markup.matchAll(/class(?:Name)?\s*=\s*\\?["']([^"'`]*)\$\{/g)) {
+  const head = m[1].split(/\s+/).pop();
+  if (head) haveClass.add(head);
+}
 
 /* Every data- attribute the markup writes, and every dataset key JS assigns. */
 const haveData = new Set();

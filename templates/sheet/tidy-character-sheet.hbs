@@ -1270,13 +1270,15 @@
              the inventory it is about. The list of WHICH items are attuned
              stays there; this is the figure. --}}
         <div class="am-footer-left">
-          <div class="attunement-tracker pill{{#if tidy.attunement.over}} am-attune-over{{/if}}"
-            data-tooltip="Attuned items">
+          <button type="button"
+            class="attunement-tracker pill{{#if tidy.attunement.over}} am-attune-over{{/if}}"
+            data-action="attunement"
+            data-tooltip="Attuned items — click to choose">
             <i class="fa-solid fa-sun"></i>
             <span class="am-attune-current">{{attuneCount}}</span><span
               class="am-attune-sep">/</span><span
               class="am-attune-max">{{tidy.attunement.max}}</span>
-          </div>
+          </button>
         <div class="currency currency-tracker">
           {{#each tidy.currencies}}
             <label class="denomination {{this.key}}" data-tooltip="{{this.label}}">
