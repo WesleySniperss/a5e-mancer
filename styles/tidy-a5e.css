@@ -748,11 +748,43 @@
 
 .tidy5e-sheet.application.a5e-mancer-sheet .am-fx-temp { margin-inline-start: var(--t5e-size-2x); }
 
-.tidy5e-sheet.application.a5e-mancer-sheet .am-fx-buttons {
+/* ── A cell of icon buttons is a row, and stays one ───────────────────────
+   quadrone.css turns every text cell into a column:
+
+     .tidy5e-sheet.quadrone :is(.tidy-table-cell,.tidy-table-header-cell).text-cell
+       { flex-direction: column; justify-content: center; max-height: none }
+
+   which is right for a cell holding a value over a label, and wrong for one
+   holding three buttons: they stacked, and `max-height: none` let the row
+   grow to fit the stack. The effects list came out three times its proper
+   height with the controls in a vertical strip down the right.
+
+   Our own rule set display, alignment and gap — and not the direction, so
+   Tidy's column stood. It is stated now, for every cell of ours that holds
+   buttons rather than text, and the row is held to one line.
+
+   Same reasoning for the width: these columns are icons, and 7rem was sized
+   for the four an item row carries. A cell takes what its buttons need. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-fx-buttons,
+.tidy5e-sheet.application.a5e-mancer-sheet .tidy-table-cell.text-cell:has(> button),
+.tidy5e-sheet.application.a5e-mancer-sheet .tidy-table-cell.text-cell:has(> a.button) {
   display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-end;
   gap: var(--t5e-size-1);
+}
+
+/* The effects list carries three, not the four an item row does. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-fx-row .am-fx-buttons,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-fx-table .tidy-table-header-cell.text-cell {
+  --tidy-table-column-width: 5.25rem;
+}
+
+/* And nothing in these tables needs a row taller than its own line. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-fx-row .tidy-table-row {
+  min-height: 0;
 }
 
 .tidy5e-sheet.application.a5e-mancer-sheet .am-fx-search {

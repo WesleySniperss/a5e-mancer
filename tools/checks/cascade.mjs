@@ -225,6 +225,13 @@ const CASES = {
      that keeps the number on the badge rather than at its left edge. */
   accontainer:    { self: { tag: 'div', classes: ['ac-container'], attrs: {} },
                     ancestors: [ROOT] },
+  /* The cell of icon buttons on an effects row. Reported as a vertical strip:
+     quadrone.css makes every .text-cell a column, and ours set everything but
+     the direction. */
+  fxbuttons: { self: { tag: 'div', classes: ['tidy-table-cell','text-cell','am-fx-buttons'], attrs: {} },
+               ancestors: [ROOT, { tag:'section', classes:['tidy-table','am-fx-table'] },
+                           { tag:'div', classes:['tidy-table-row-container','am-fx-row'] },
+                           { tag:'div', classes:['tidy-table-row'] }] },
   npcaccontainer: { self: { tag: 'div', classes: ['ac-container'], attrs: {} },
                     ancestors: [NPC_ROOT] },
   shieldlabel:    { self: { tag: 'span', classes: ['ac-label'], attrs: {} },

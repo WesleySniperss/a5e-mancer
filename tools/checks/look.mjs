@@ -114,6 +114,25 @@ for (const [who, shieldCase, containerCase] of [['character', 'shield', 'acconta
     `display ${ask(`${shieldCase}label`)?.display ?? '(shown — two lines on art made for one)'}`);
 }
 
+/* ── A cell of icon buttons ─────────────────────────────────────────────
+   quadrone.css turns every .text-cell into a column:
+
+     :is(.tidy-table-cell,.tidy-table-header-cell).text-cell
+       { flex-direction: column; justify-content: center; max-height: none }
+
+   which is right for a value over a label and wrong for three buttons in a
+   row. Our own rule set the display, the alignment and the gap — and not the
+   direction, so Tidy's column stood: the effects controls came out as a
+   vertical strip down the right, and max-height:none let the row grow to
+   three times its height to hold them. */
+{
+  const w = ask('fxbuttons');
+  const dir = w['flex-direction'];
+  check('a cell of icon buttons is laid out as a row', dir === 'row',
+    `flex-direction is ${dir ?? '(unset)'}`
+    + ' — and Tidy makes every .text-cell a column');
+}
+
 let bad = 0;
 for (const [name, ok, detail] of results) {
   if (!ok) bad++;
