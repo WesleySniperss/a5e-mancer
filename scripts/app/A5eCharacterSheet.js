@@ -3342,6 +3342,12 @@ export class A5eCharacterSheet extends ActorSheet {
     el.querySelectorAll('[data-action="slot-pip"]').forEach(b =>
       b.addEventListener('click', async (e) => {
         e.preventDefault();
+        /* The stars sit in the section heading, and the heading collapses the
+           table when it is clicked. That handler already steps aside for a
+           button, so this is belt and braces — but a star that both spends a
+           slot and folds the list away would be indistinguishable from one
+           that does not work, and it is one line. */
+        e.stopPropagation();
         const level = b.dataset.level;
         const n     = Number(b.dataset.n);
         const slots = this.actor.system?.spellResources?.slots?.[level];

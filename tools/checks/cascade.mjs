@@ -249,9 +249,13 @@ const WATCH = ['font-size','font-family','font-weight','line-height','font-varia
                'background','background-color','align-items','display','margin',
                /* what makes a wired button unclickable */
                'pointer-events','z-index','position','inset','top','right','overflow',
-               /* what holds a background-image badge to the shape of its art */
+               /* what holds a background-image badge to the shape of its art —
+                  and which art it is, since Tidy sets --t5e-shield-image twice
+                  and an NPC inherits the one meant for another box */
                'aspect-ratio','min-height','max-height','min-width','max-width',
-               'background-size','transition','flex','flex-basis'];
+               'background-size','background-image','background-position',
+               'flex-direction','justify-content',
+               'transition','flex','flex-basis'];
 
 const winners = new Map();
 for (const r of all) {

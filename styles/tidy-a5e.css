@@ -1734,8 +1734,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 0.8125rem;
-  height: 0.8125rem;
+  width: 1.15rem;
+  height: 1.15rem;
   min-height: 0;
   min-width: 0;
   flex: 0 0 auto;
@@ -1753,7 +1753,7 @@
 .tidy5e-sheet.application.a5e-mancer-sheet .am-slot i {
   margin: 0;
   padding: 0;
-  font-size: 0.375rem;
+  font-size: 0.5rem;
   line-height: 1;
 }
 
@@ -1835,9 +1835,25 @@
    puts the badge back to width:100%, height:auto, at five classes to the four
    below. It won there, and the badge went back to being sized by the number
    inside it on exactly the sheets most likely to be narrow. */
+/* Tidy hides the word AC on a character and lifts the value a quarter-rem —
+   that, and not the box, is what centres the number on this art. Both rules
+   are scoped to .character there, so the NPC sheet got neither and drew a
+   two-line stack centred on a badge made for one line. */
+.tidy5e-sheet.application.a5e-mancer-sheet .ac-container .shield .ac-label {
+  display: none;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .ac-container .shield .ac-value {
+  margin: -0.25rem 0 0;
+}
+
 .tidy5e-sheet.application.a5e-mancer-sheet .ac-container .shield,
 .tidy5e-sheet.application.a5e-mancer-sheet .abilities-size-small .ac-container .shield,
 .tidy5e-sheet.application.a5e-mancer-sheet .abilities-size-compact .ac-container .shield {
+  /* Stated rather than inherited: Tidy puts the character badge on the
+     shield element and the NPC badge on the header, so an NPC using the
+     character's .ac-container inherited art meant for another box. */
+  background-image: url(../tidy/images/badge_ac_dark.webp);
   aspect-ratio: 3.5 / 4.25;
   height: 4rem;
   width: auto;
