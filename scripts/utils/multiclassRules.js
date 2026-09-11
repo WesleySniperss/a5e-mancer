@@ -151,12 +151,24 @@ export class MulticlassRules {
     const keys   = new Set(categories);        // the category name itself, just in case
     for (const category of categories) {
       const group = config[category];
-      if (!group || typeof group !== 'object') {
-        AM.log(2, `Multiclass: CONFIG.A5E.weapons has no "${category}" — `
-                + `leaving the class's weapon grant alone`);
-        return null;
+      if (group && typeof group === 'object') {
+        for (const key of Object.keys(group)) keys.add(key);
+        continue;
       }
-      for (const key of Object.keys(group)) keys.add(key);
+
+      /* Not a category — but the multiclassing table names individual weapons
+         as well as categories: the adept's entry is "simple weapons,
+         shortswords". So a name that is a real weapon inside any category is
+         taken literally, and only a name that is neither falls through to the
+         bail-out below. Without this the adept's list resolved to null and the
+         class kept its full grant, punching and throwing daggers included. */
+      const isWeapon = Object.values(config)
+        .some(g => g && typeof g === 'object' && Object.hasOwn(g, category));
+      if (isWeapon) continue;                    // already in `keys`
+
+      AM.log(2, `Multiclass: CONFIG.A5E.weapons has no "${category}" — `
+              + `leaving the class's weapon grant alone`);
+      return null;
     }
     return [...keys];
   }

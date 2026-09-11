@@ -163,7 +163,11 @@ export function knackLevelsFor({ slug, name, item } = {}) {
  * away on a guess, which is the one error the player would never spot.
  */
 export const A5E_MULTICLASS = {
-  adept:     { armor: [],                            weapons: 'all',      tools: null,         skills: null },
+  /* 'all' would keep the adept's own weapon grant, and that grant is wider than
+     the multiclassing table allows: the class gives simple weapons, punching
+     daggers, shortswords and throwing daggers, while the table gives simple
+     weapons and shortswords. Verified against the Adventurer's Guide. */
+  adept:     { armor: [],                            weapons: ['simple', 'shortsword'], tools: null, skills: null },
   bard:      { armor: ['light'],                     weapons: [],         tools: { total: 1 }, skills: { total: 1 } },
   berserker: { armor: ['light', 'medium', 'shield'], weapons: 'all',      tools: null,         skills: null },
   cleric:    { armor: [],                            weapons: [],         tools: null,         skills: { total: 2, only: ['culture', 'history', 'medicine', 'religion'] } },
@@ -174,7 +178,9 @@ export const A5E_MULTICLASS = {
   psion:     { armor: [],                            weapons: [],         tools: null,         skills: { total: 0, base: ['arcana'] } },
   psyknight: { armor: ['light', 'medium'],           weapons: 'all',      tools: null,         skills: { total: 1 } },
   ranger:    { armor: ['light', 'medium', 'shield'], weapons: 'all',      tools: null,         skills: { total: 1 } },
-  rogue:     { armor: ['light'],                     weapons: [],         tools: 'all',        skills: { total: 1 } },
+  /* Likewise: the rogue's own grant is disguise kit, poisoner's kit AND
+     thieves' tools, while the multiclassing table gives thieves' tools alone. */
+  rogue:     { armor: ['light'],                     weapons: [],         tools: { total: 0, base: ['thievesTools'] }, skills: { total: 1 } },
   scientist: { armor: ['light'],                     weapons: [],         tools: { total: 1 }, skills: { total: 1, base: ['science'] } },
   scout:     { armor: ['light'],                     weapons: ['simple'], tools: { total: 1 }, skills: { total: 1 } },
   sorcerer:  { armor: [],                            weapons: [],         tools: null,         skills: { total: 0, base: ['arcana'] } },
