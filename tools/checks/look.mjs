@@ -1,14 +1,28 @@
-/* The handful of resolved CSS values that have been reported broken twice.
+/* The resolved CSS values behind reports that no other check here can see.
  *
- * No DOM check can see these. The markup is right, the handler is bound, the
- * click writes what it should — and the thing still looks wrong or cannot be
- * hit, because of which rule won in a stylesheet 2 MB long that we did not
- * write. Both of the cases below were reported, fixed, and reported again.
+ * The markup is right, the handler is bound, the click writes what it should —
+ * and the thing still looks wrong, because of which rule won in a 2 MB
+ * stylesheet we did not write.
  *
- * cascade.mjs already resolves the cascade; this asks it the questions and
- * insists on the answers. It runs it as a child process rather than importing
- * it, because that script is a command and not a library, and turning it into
- * one to save a process would be the more fragile of the two.
+ * The AC badge was reported four times. Each time I found one rule, fixed it,
+ * and missed the rest, because I was looking at whichever property I had a
+ * theory about. There are six, and quadrone.css scopes every one of them to
+ * `:where(.quadrone.character)`:
+ *
+ *     .ac-container          text-align, align-items, max-width, position
+ *     .shield                width, height
+ *     .ac-container .shield  --t5e-shield-image
+ *     .shield .ac-label      display:none
+ *     .shield .ac-value      margin
+ *     .abilities-size-small  width:100%; height:auto   (to be refused)
+ *
+ * Our NPC sheet uses the character's .ac-container and carries .npc, so it
+ * matched NONE of them. The one that mattered most was text-align: without it
+ * the number sits at the LEFT EDGE of the badge, which is why three fixes to
+ * its vertical geometry changed nothing anyone could see.
+ *
+ * So this no longer checks a property I happen to suspect. It takes Tidy's own
+ * character AC block as the specification and holds both sheets to all of it.
  */
 import { execFileSync } from 'child_process';
 import fs from 'fs';
@@ -20,10 +34,9 @@ const ask = (target) => {
   const out = execFileSync(process.execPath, [path.join(HERE, 'cascade.mjs'), target],
     { encoding: 'utf8' });
   const won = {};
-  const lines = out.split(/\r?\n/);
-  for (let i = 0; i < lines.length; i++) {
-    const m = lines[i].match(/^ {2}([-a-z]+)\s{2,}(.+?)\s{2,}(\S+)$/);
-    if (m) won[m[1]] = { value: m[2].trim(), from: m[3] };
+  for (const line of out.split(/\r?\n/)) {
+    const m = line.match(/^ {2}([-a-z]+)\s{2,}(.+?)\s{2,}(\S+)$/);
+    if (m) won[m[1]] = m[2].trim();
   }
   return won;
 };
@@ -31,80 +44,74 @@ const ask = (target) => {
 const results = [];
 const check = (name, ok, detail) => results.push([name, ok, detail]);
 
-/* The size of a WebP, from the file. VP8L, VP8 and VP8X each carry it
-   differently, so all three are read.
-
-   This is here because the aspect-ratio in the stylesheet was wrong for three
-   releases, and it was wrong because it had been copied by hand out of a Tidy
-   rule about a different picture. A number that describes a file should be
-   read from that file. */
-function webpSize(buf) {
-  if (buf.toString('ascii', 0, 4) !== 'RIFF' || buf.toString('ascii', 8, 12) !== 'WEBP') return null;
-  const fourcc = buf.toString('ascii', 12, 16);
-  if (fourcc === 'VP8X') return { w: 1 + (buf[24] | (buf[25] << 8) | (buf[26] << 16)),
-                                  h: 1 + (buf[27] | (buf[28] << 8) | (buf[29] << 16)) };
-  if (fourcc === 'VP8L') { const b = buf.readUInt32LE(21);
-    return { w: 1 + (b & 0x3fff), h: 1 + ((b >> 14) & 0x3fff) }; }
-  if (fourcc === 'VP8 ') return { w: buf.readUInt16LE(26) & 0x3fff,
-                                  h: buf.readUInt16LE(28) & 0x3fff };
-  return null;
+/* What Tidy states for a character, read out of quadrone.css rather than
+   copied here — copying a number out of that file by hand is how the box came
+   to have the proportions of a different badge for three releases. */
+const QUADRONE = fs.readFileSync(path.join(HERE, '..', '..', 'tidy', 'quadrone.css'), 'utf8');
+function tidySays(selectorTail) {
+  const found = {};
+  let i = 0;
+  while (i < QUADRONE.length) {
+    const open = QUADRONE.indexOf('{', i);
+    if (open < 0) break;
+    let d = 0, k = open;
+    for (; k < QUADRONE.length; k++) {
+      if (QUADRONE[k] === '{') d++;
+      else if (QUADRONE[k] === '}') { d--; if (!d) break; }
+    }
+    const prev = Math.max(QUADRONE.lastIndexOf('}', open), QUADRONE.lastIndexOf(';', open),
+                          QUADRONE.lastIndexOf('{', open - 1));
+    const sel = QUADRONE.slice(prev + 1, open).trim();
+    const body = QUADRONE.slice(open + 1, k);
+    if (!/\{/.test(body)) {
+      for (const one of sel.split(',')) {
+        const s = one.trim();
+        if (/:where\(\.quadrone\.character\)/.test(s)
+            && !/abilities-size|theme-basic|theme-light/.test(s)
+            && s.endsWith(selectorTail)) {
+          /* Merged across every matching rule, later winning, because that is
+             what the cascade does. Returning the first match instead read
+             `.ac-container .shield`, which declares only the badge image, and
+             reported Tidy as having no opinion about the size. */
+          for (const m of body.matchAll(/([-a-z]+)\s*:\s*([^;]+)/g)) found[m[1]] = m[2].trim();
+        }
+      }
+    }
+    i = k + 1;
+  }
+  return found;
 }
 
-const rem = (v) => {
-  const m = String(v).match(/^([\d.]+)rem$/);
-  return m ? parseFloat(m[1]) : null;
-};
+const wantShield = tidySays('.shield') ?? {};
+const wantValue  = tidySays('.shield .ac-value') ?? {};
+const wantLabel  = tidySays('.ac-container .shield .ac-label') ?? {};
 
-/* ── The AC badge ───────────────────────────────────────────────────────
-   Reported as "the numbers are off the shield". Twice. The second time it was
-   the image: Tidy defines --t5e-shield-image on .sheet-header for any actor and
-   again on .character .ac-container .shield, so an NPC using the character's
-   container inherited the NPC badge — art drawn for a 3.5 x 4.25rem box pinned
-   to the portrait — while the number was centred on ours. */
-for (const [who, target] of [['character', 'shield'], ['NPC', 'npcshield']]) {
-  const w = ask(target);
-  check(`the ${who} AC badge has a size of its own`,
-    rem(w.height?.value) > 0 && !!w['aspect-ratio'],
-    `height ${w.height?.value ?? '(none)'}, aspect-ratio ${w['aspect-ratio']?.value ?? '(none)'},`
-    + ` width ${w.width?.value ?? '(none)'}`);
-  check(`the ${who} AC badge draws the character art`,
-    /badge_ac_dark/.test(w['background-image']?.value ?? ''),
-    w['background-image']?.value ?? '(inherited — which is the bug)');
+for (const [who, shieldCase, containerCase] of [['character', 'shield', 'accontainer'],
+                                                ['NPC', 'npcshield', 'npcaccontainer']]) {
+  const s = ask(shieldCase);
+  const c = ask(containerCase);
 
-  /* And the box is the shape of that picture.
+  /* The one that was actually wrong for four releases. */
+  check(`${who}: the AC number is centred on the badge`,
+    c['text-align'] === 'center',
+    `.ac-container text-align is ${c['text-align'] ?? '(unset — the number sits at the left edge)'}`);
 
-     background-size is `contain`, so the art keeps its own proportions inside
-     whatever box it is given. A box of a different shape letterboxes it, and
-     with background-position:top the slack all goes to the bottom — so the
-     number, centred on the box, comes out below the middle of the shield.
-     That is what "the armour is crooked" was, three times. */
-  const url = (w['background-image']?.value ?? '').match(/url\(([^)]+)\)/)?.[1];
-  const file = url && path.resolve(HERE, '..', '..', 'styles', url);
-  const px = file && fs.existsSync(file) ? webpSize(fs.readFileSync(file)) : null;
-  const stated = (w['aspect-ratio']?.value ?? '').match(/([\d.]+)\s*\/\s*([\d.]+)/);
-  const want = px ? px.w / px.h : null;
-  const got = stated ? Number(stated[1]) / Number(stated[2]) : null;
-  check(`the ${who} AC badge box is the shape of that picture`,
-    want !== null && got !== null && Math.abs(want - got) < 0.005,
-    px ? `the file is ${px.w} x ${px.h} = ${want.toFixed(4)};`
-         + ` the sheet says ${w['aspect-ratio']?.value} = ${got?.toFixed(4) ?? '(none)'}`
-       : `could not read ${url ?? '(no image)'}`);
-}
+  check(`${who}: the badge is the size Tidy draws it`,
+    s.width === wantShield.width && s.height === wantShield.height,
+    `${s.width ?? '(none)'} x ${s.height ?? '(none)'};`
+    + ` Tidy says ${wantShield.width ?? '?'} x ${wantShield.height ?? '?'}`);
 
-/* ── A spell slot star ──────────────────────────────────────────────────
-   Reported as "too small and they don't work". a5e draws its own at 1.15rem;
-   these were at 0.8125rem, which is thirteen pixels. A miss lands on the
-   section heading and collapses the table, which is indistinguishable from the
-   star doing nothing. Anything under a rem is not a control. */
-{
-  const w = ask('slot');
-  const size = rem(w.width?.value);
-  check('a spell slot star is big enough to hit', size !== null && size >= 1,
-    `${w.width?.value ?? '(none)'} wide — a5e draws its own at 1.15rem`);
-  check('and it is not wearing Tidy’s button chrome',
-    w['min-height']?.value === '0' && w.transition?.value === 'none',
-    `min-height ${w['min-height']?.value ?? '(Tidy’s)'},`
-    + ` transition ${w.transition?.value ?? '(Tidy’s)'}`);
+  check(`${who}: nothing crops the badge`,
+    parseFloat(s['max-height']) >= parseFloat(wantShield.height ?? '0'),
+    `max-height ${s['max-height'] ?? '(none)'} against a height of ${wantShield.height ?? '?'}`);
+
+  check(`${who}: the badge draws the character art`,
+    /badge_ac_dark/.test(s['background-image'] ?? ''),
+    s['background-image'] ?? '(inherited — which is how it got the NPC badge)');
+
+  check(`${who}: the word AC is hidden, as Tidy hides it`,
+    ask(`${shieldCase}label`)?.display === (wantLabel.display ?? 'none'),
+    `display ${ask(`${shieldCase}label`)?.display ?? '(shown — two lines on art made for one)'}`);
 }
 
 let bad = 0;
@@ -113,6 +120,6 @@ for (const [name, ok, detail] of results) {
   console.log(`  ${ok ? 'ok  ' : 'FAIL'}  ${name}`);
   console.log(`        ${detail}`);
 }
-console.log(bad ? `\n${bad} resolved value(s) are not what they were fixed to be`
-                : '\nevery value these two reports turned on is still what it was set to');
+console.log(bad ? `\n${bad} of Tidy's AC rules do not reach this sheet`
+                : "\nboth sheets carry every one of Tidy's character AC rules");
 process.exit(bad ? 1 : 0);

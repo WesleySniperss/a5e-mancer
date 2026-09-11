@@ -219,6 +219,21 @@ const CASES = {
   npccontent: { self: { tag: 'section', classes: ['window-content'], attrs: {} },
                 ancestors: [NPC_ROOT] },
 
+  /* The AC block, both sheets, every part of it. Tidy scopes six rules for
+     this block to :where(.quadrone.character), and an NPC sheet using the
+     character's container matches none of them — including the text-align
+     that keeps the number on the badge rather than at its left edge. */
+  accontainer:    { self: { tag: 'div', classes: ['ac-container'], attrs: {} },
+                    ancestors: [ROOT] },
+  npcaccontainer: { self: { tag: 'div', classes: ['ac-container'], attrs: {} },
+                    ancestors: [NPC_ROOT] },
+  shieldlabel:    { self: { tag: 'span', classes: ['ac-label'], attrs: {} },
+                    ancestors: [ROOT, { tag:'div', classes:['ac-container'] },
+                                { tag:'div', classes:['shield'] }] },
+  npcshieldlabel: { self: { tag: 'span', classes: ['ac-label'], attrs: {} },
+                    ancestors: [NPC_ROOT, { tag:'div', classes:['ac-container'] },
+                                { tag:'div', classes:['shield'] }] },
+
   /* One spell slot, as a star on a level heading. It is a <button>, and Tidy
      gives every button in the sheet a min-height, a border and a transition —
      all three have to lose here or the stars come out field-height, boxed and

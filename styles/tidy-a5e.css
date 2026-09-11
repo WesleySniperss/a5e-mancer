@@ -1835,10 +1835,38 @@
    puts the badge back to width:100%, height:auto, at five classes to the four
    below. It won there, and the badge went back to being sized by the number
    inside it on exactly the sheets most likely to be narrow. */
-/* Tidy hides the word AC on a character and lifts the value a quarter-rem —
-   that, and not the box, is what centres the number on this art. Both rules
-   are scoped to .character there, so the NPC sheet got neither and drew a
-   two-line stack centred on a badge made for one line. */
+/* ── Tidy's character AC block, stated for both sheets ────────────────────
+   Reported four times as "the number is off the shield", and each time I
+   fixed one rule and missed the rest. There are six of them, and quadrone.css
+   scopes every one to :where(.quadrone.character):
+
+     .ac-container              text-align:center; align-items:center;
+                                max-width:5rem; position:relative
+     .shield                    width:4rem; height:4.25rem
+     .ac-container .shield      --t5e-shield-image: badge_ac_dark.webp
+     .shield .ac-label          display:none
+     .shield .ac-value          margin:-.25rem 0 0
+     .abilities-size-small …    width:100%; height:auto  (the one to refuse)
+
+   Our NPC sheet uses the character's .ac-container and carries .npc, so it
+   matched NONE of them. No centring — which is why the number sat to the LEFT
+   of the art, and why three fixes to its vertical geometry changed nothing.
+   No badge, so it inherited the NPC one from .sheet-header, which is drawn
+   for a box pinned to the portrait. No hidden label, so it drew two lines on
+   art made for one.
+
+   Tidy's own numbers now, not a ratio of my own: 4 x 4.25rem is what the art
+   was drawn against, and background-size:contain fits it to the height with a
+   sixteenth of a rem of slack each side. The only thing refused is the pair
+   of responsive rules that put the box back to width:100%/height:auto, since
+   that is what made the badge change shape while the window was dragged. */
+.tidy5e-sheet.application.a5e-mancer-sheet .ac-container {
+  text-align: center;
+  align-items: center;
+  max-width: 5rem;
+  position: relative;
+}
+
 .tidy5e-sheet.application.a5e-mancer-sheet .ac-container .shield .ac-label {
   display: none;
 }
@@ -1850,23 +1878,15 @@
 .tidy5e-sheet.application.a5e-mancer-sheet .ac-container .shield,
 .tidy5e-sheet.application.a5e-mancer-sheet .abilities-size-small .ac-container .shield,
 .tidy5e-sheet.application.a5e-mancer-sheet .abilities-size-compact .ac-container .shield {
-  /* Stated rather than inherited: Tidy puts the character badge on the
-     shield element and the NPC badge on the header, so an NPC using the
-     character's .ac-container inherited art meant for another box. */
   background-image: url(../tidy/images/badge_ac_dark.webp);
-  /* The picture's own pixels: badge_ac_dark.webp is 216 x 237. It was 3.5 /
-     4.25, which is Tidy's NPC portrait badge and a different shape, so the
-     art was contained inside a box too narrow for it, sat against the top,
-     and the number centred on the box came out below the middle of the
-     shield. tools/checks/look.mjs reads the file and holds these two to
-     each other. */
-  aspect-ratio: 216 / 237;
-  height: 4rem;
-  width: auto;
-  min-height: 0;
-  max-height: 4rem;
+  width: 4rem;
+  height: 4.25rem;
   min-width: 0;
+  min-height: 0;
   max-width: 4rem;
+  /* Tidy's base .shield caps this at 4rem, which would crop a quarter-rem
+     off the bottom of its own character badge. */
+  max-height: 4.25rem;
   flex: 0 0 auto;
   transition: none;
 }
