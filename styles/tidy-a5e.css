@@ -1542,6 +1542,51 @@
   --bar-end-border-width: 0;
 }
 
+/* ── Our own icons keep the background they were given ────────────────────
+   quadrone.css paints a gold plate behind any row icon whose file is an svg:
+
+     .tidy5e-sheet.quadrone .tidy-table-row .item-image[src$=".svg"]
+       { background: var(--t5e-color-text-gold-emphasis) }
+     …:where(.theme-dark) …  { background-color: var(--t5e-color-palette-gold-56) }
+
+   That is right for Tidy's own art, which is white glyphs on nothing and
+   needs something behind it. It is wrong for ours: 313 of the 390 svg icons
+   across the characters in this world come from this module's own assets —
+   pictures taken off the site with their backgrounds deliberately removed —
+   and a gold plate is exactly the background that was taken off.
+
+   Refused for ours by where the file comes from, so Foundry's core glyph
+   icons keep the plate that makes them legible. */
+.tidy5e-sheet.application.a5e-mancer-sheet .tidy-table-row .item-image[src^="modules/a5e-mancer"],
+.tidy5e-sheet.application.a5e-mancer-sheet .favorite .item-image[src^="modules/a5e-mancer"] {
+  background: none;
+  background-color: transparent;
+}
+
+/* ── The initiative frame, at every width ─────────────────────────────────
+   The frame is a background image fitted with `contain`, and Tidy's tighter
+   ability layouts drop the box that carries it to height:auto:
+
+     :where(.quadrone) .abilities-size-small .ability .initiative-score-container
+        { width:100%; min-width:auto; height:auto }
+
+   then put a floor back under it for a character and nobody else:
+
+     :where(.quadrone.character) .abilities-size-small .ability .initiative-score-container
+        { min-height:3.5rem; margin-top:.25rem }
+
+   A box collapsed to the height of the number inside it fits the frame into
+   almost nothing, which is the border disappearing at certain widths. Same
+   shape of bug as the AC badge, and the same half of it missing: the NPC
+   sheet matches the first rule and not the second.
+
+   The floor is stated for both sheets and for both tight layouts. */
+.tidy5e-sheet.application.a5e-mancer-sheet .abilities-size-small .ability .initiative-score-container,
+.tidy5e-sheet.application.a5e-mancer-sheet .abilities-size-compact .ability .initiative-score-container {
+  min-height: 3.5rem;
+  margin-top: 0.25rem;
+}
+
 /* ── The initiative badge sits square ──────────────────────────────────────
    Its frame is a background image drawn at the top of a fixed-height box. If
    the button inside is any taller than the box, the art and the number stop

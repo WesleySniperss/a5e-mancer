@@ -451,16 +451,26 @@ export class A5eCharacterSheet extends ActorSheet {
         { path: 'flags.a5e.showPassiveScores',             label: 'Show passive scores',        on: !!fl.showPassiveScores },
         { path: 'flags.a5e.showXP',                        label: 'Show experience',            on: !!fl.showXP },
         { path: 'flags.a5e.hideGenericResources',          label: 'Hide the generic resources', on: !!fl.hideGenericResources },
-        { path: 'flags.a5e.includeAbilityModifiersForSkills', label: 'Include ability modifiers for skills', on: !!fl.includeAbilityModifiersForSkills },
-        { path: 'flags.a5e.automatePrototypeTokenSize',    label: 'Keep the prototype token sized to the character', on: !!fl.automatePrototypeTokenSize }
+        /* Read since the stars went onto the level headings, and offered
+           nowhere until now — a switch a5e has, that this sheet obeyed and
+           gave you no way to set. */
+        { path: 'flags.a5e.showSpellSlots',                label: 'Show spell slots',           on: fl.showSpellSlots ?? true },
       ],
       automation: [
+        /* These two sat under Sheet, whose heading says "What this sheet
+           draws". Neither draws anything: the first changes how a5e works
+           out a skill modifier, the second resizes the prototype token. */
+        { path: 'flags.a5e.includeAbilityModifiersForSkills', label: 'Include ability modifiers for skills', on: !!fl.includeAbilityModifiersForSkills },
+        { path: 'flags.a5e.automatePrototypeTokenSize',    label: 'Keep the prototype token sized to the character', on: !!fl.automatePrototypeTokenSize },
         { path: 'flags.a5e.automateHitDice',       label: 'Spend hit dice automatically',   on: !!fl.automateHitDice },
         { path: 'flags.a5e.automateSpellResources', label: 'Spend spell resources automatically', on: !!fl.automateSpellResources },
         { path: 'flags.a5e.automaticallyExecuteAvailableMacros', label: 'Run item macros automatically', on: !!fl.automaticallyExecuteAvailableMacros }
       ],
       inventory: [
-        { path: 'flags.a5e.trackInventoryWeight', label: 'Track the weight of what is carried', on: !!fl.trackInventoryWeight },
+        /* a5e hides the carried figure altogether when this is off. This
+           sheet offered the switch and then read it nowhere, so ticking it
+           did nothing — which is the complaint, and a fair one. */
+        { path: 'flags.a5e.trackInventoryWeight', label: 'Track the weight of what is carried', on: fl.trackInventoryWeight ?? true },
         { path: 'flags.a5e.trackCurrencyWeight',  label: 'Count coins toward that weight',      on: !!fl.trackCurrencyWeight },
         { path: 'flags.a5e.showWeightColumn',     label: 'Show the weight column',              on: !!fl.showWeightColumn },
         { path: 'flags.a5e.doubleCarryCapacity',  label: 'Double carrying capacity',            on: !!fl.doubleCarryCapacity }
@@ -939,7 +949,7 @@ export class A5eCharacterSheet extends ActorSheet {
                         || bio.fulfillment || bio.inspiration || bio.lore.length);
 
     const tidy = this.#tidyContext({ sys, abilities, classes, resources, profBonus, currency,
-      spellDC, spellDCBonus: resolveMax(sys.bonuses?.spellDC), attuneCount });
+      spellDC, spellDCBonus: resolveMax(sys.bonuses?.spellDC), attuneCount, flags: fl });
     const inventory = this.#inventory(actor, items);
     const sidebarTab = this._sidebarTab ?? 'skills';
     inventory.objectTypes = Object.entries(CONFIG?.A5E?.objectTypes ?? {})
@@ -1013,7 +1023,17 @@ export class A5eCharacterSheet extends ActorSheet {
       showPassives, showMagicTab, showMartialTab, traitSections, charInfo, bio, details,
       hasWeapons:          weapons.length        > 0,
       hasManeuvers:        maneuvers.length      > 0,
-      hasSpells:           spells.length         > 0,
+      /* A caster with slots and nothing prepared still has a list to show:
+         the levels those slots belong to. spellGroups carries a heading for
+         every level with slots, spells or none, so it is the thing to ask.
+
+         This was meant to have changed when the slots became stars on the
+         headings, and did not — the edit was made with a here-document whose
+         failure went unnoticed, and the line stayed as it was for four
+         releases. It was found by settingsdo.mjs the moment that check
+         started testing every switch instead of six: with `Show spell slots`
+         off and on, the page did not move. */
+      hasSpells:           spells.length > 0 || Object.keys(spellGroups).length > 0,
       hasFeatures:         features.length       > 0,
       hasEquipment:        equipment.length      > 0,
       hasCombat:           weapons.length + maneuvers.length + spells.length > 0,
@@ -1062,8 +1082,12 @@ export class A5eCharacterSheet extends ActorSheet {
 
      Tidy splits every modifier into a sign and a bare number, because it
      styles them differently — hence the {sign, value} pairs throughout. */
+  /* `flags` is the actor's a5e flag bag. It is handed over whole rather than
+     a field at a time: this method is a hundred lines from where they are
+     read, and every previous addition that needed one was written as though
+     the actor were in scope here. It is not. */
   #tidyContext({ sys, abilities, classes, resources, profBonus, currency,
-                 spellDC, spellDCBonus, attuneCount }) {
+                 spellDC, spellDCBonus, attuneCount, flags }) {
     const split = (n) => ({ sign: n < 0 ? '-' : '+', value: Math.abs(Number(n) || 0) });
     const pct = (v, max) => (max > 0 ? Math.round(Math.min(Math.max(v / max, 0), 1) * 100) : 0);
 
@@ -1179,6 +1203,9 @@ export class A5eCharacterSheet extends ActorSheet {
           dc: derived ?? (8 + profBonus + (spellDCBonus || 0) + ab.mod)
         };
       }),
+      /* Whether the carried figure is drawn at all, which is what a5e's
+         own switch decides. */
+      trackWeight: flags?.trackInventoryWeight ?? true,
       currencies: DENOMINATIONS
         .map((d) => ({ ...d, value: Number(currency?.[d.key] ?? 0) || 0 }))
         .filter((d) => !d.onlyIfHeld || d.value > 0),

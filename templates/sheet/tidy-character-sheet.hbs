@@ -1288,10 +1288,12 @@
           {{/each}}
         </div>
         </div>
-        <div class="am-carried" data-tooltip="Carried weight">
-          <span class="am-a5e-label font-label-medium color-text-gold">Carried</span>
-          <span class="am-a5e-value font-data-medium color-text-default">{{inventory.carried}}</span>
-        </div>
+        {{#if tidy.trackWeight}}
+          <div class="am-carried" data-tooltip="Carried weight">
+            <span class="am-a5e-label font-label-medium color-text-gold">Carried</span>
+            <span class="am-a5e-value font-data-medium color-text-default">{{inventory.carried}}</span>
+          </div>
+        {{/if}}
       </div>
     </div>
 

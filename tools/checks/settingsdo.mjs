@@ -52,10 +52,11 @@ const chars = JSON.parse(readFileSync('./world-chars.json', 'utf8'));
 /* A character carrying enough that most switches have something to act on. */
 const base = chars.slice().sort((a,b)=>b.items.length-a.items.length)[0];
 
-async function renderWith(flags, resources) {
+async function renderWith(flags, resources, tweak) {
   const raw = JSON.parse(JSON.stringify(base.actor));
   raw.flags = { ...(raw.flags ?? {}), a5e: { ...(raw.flags?.a5e ?? {}), ...flags } };
   if (resources) raw.system.resources = resources;
+  if (tweak) tweak(raw.system);
   const actor = { id:raw._id, uuid:'Actor.'+raw._id, name:raw.name, type:raw.type,
     isOwner:true, img:'p.png', flags:raw.flags, system:raw.system,
     items:new Collection(base.items.map(i=>[i._id, wrap(i, raw._id)])),
@@ -66,29 +67,110 @@ async function renderWith(flags, resources) {
   return tpl(await sheet.getData());
 }
 
-/* The four this sheet is meant to act on itself. The rest belong to a5e and
-   change its behaviour, not this sheet's appearance — they are listed at the
-   end rather than failed. */
-const OURS = [
-  { flag: 'showSpellTab',          label: 'Show the spell tab' },
-  { flag: 'showManeuverTab',       label: 'Show the maneuver tab' },
-  { flag: 'showFavoritesSection',  label: 'Show the Favorites section' },
-  { flag: 'showXP',                label: 'Show experience' },
-  { flag: 'showPassiveScores',     label: 'Show passive scores' },
-  { flag: 'hideGenericResources',  label: 'Hide the generic resources',
-    resources: { primary: { label:'Rage', value:1, max:'3' } } }
-];
+/* Every switch the Settings tab draws, taken from the sheet's own context
+   rather than from a list kept here.
+
+   The list WAS kept here, and it held six. The sheet drew twenty-two. The
+   ones it did not name were never tested, and two of them were the problem:
+   `trackInventoryWeight` was offered and read nowhere at all, and
+   `showSpellSlots` was read and offered nowhere. A check that names its own
+   subjects only ever finds what it was already looking for.
+
+   Which groups must move the page:
+
+     sheet      all of them. That group exists to say what this sheet draws.
+     inventory  the two about display — the weight column and whether weight
+                is tracked at all. The other two change a5e's arithmetic.
+
+   automation, rest and rolls are a5e's own behaviour. A tick there correctly
+   changes nothing here, and they are listed at the end rather than failed. */
+
+/* Some switches can only show their effect on a character that has the thing
+   they govern. a5e derives slot maxima at prepare time, so one read out of
+   the world has none and the stars would be absent either way. */
+const SEEDED = {
+  hideGenericResources: { resources: { primary: { label: 'Rage', value: 1, max: '3' } } },
+  showSpellSlots: { system: (sys) => {
+    sys.spellResources = sys.spellResources ?? {};
+    sys.spellResources.slots = { ...(sys.spellResources.slots ?? {}),
+      '3': { current: 2, max: 4, override: 0 } };
+  } }
+};
+
+const MUST_SHOW = {
+  sheet: () => true,
+  inventory: (flag) => flag === 'showWeightColumn' || flag === 'trackInventoryWeight'
+};
+
+/* What the sheet itself says it offers. */
+const probe = await (async () => {
+  const raw = JSON.parse(JSON.stringify(base.actor));
+  const actor = { id:raw._id, uuid:'Actor.'+raw._id, name:raw.name, type:raw.type,
+    isOwner:true, img:'p.png', flags:raw.flags ?? {}, system:raw.system,
+    items:new Collection(base.items.map(i=>[i._id, wrap(i, raw._id)])),
+    effects:new Collection(), statuses:new Set(),
+    getFlag:(s,k)=>raw.flags?.[s]?.[k], getRollData:()=>({}),
+    spellBooks:{first:()=>null, values:()=>[]} };
+  const sheet = new A5eCharacterSheet(actor); sheet._actor = actor;
+  return (await sheet.getData()).settings ?? {};
+})();
+
+const flagOf = (row) => String(row.path ?? '').replace(/^flags\.a5e\./, '');
+
+/* Everything BEFORE the Settings tab.
+
+   Ticking a switch always changes the Settings tab, because the checkbox that
+   was ticked redraws with a `checked` on it. The first version of this
+   compared whole pages and so reported every switch as changing seven
+   characters of markup — its own — including the ones that do nothing at all.
+   A check that cannot tell the difference between an effect and its own
+   reflection is worse than none. */
+const outside = (html) => {
+  const at = html.indexOf('data-tab-contents-for="settings"');
+  return at < 0 ? html : html.slice(0, at);
+};
 
 let dead = 0;
-console.log(`switch                        effect on the sheet`);
-for (const s of OURS) {
-  const on  = await renderWith({ [s.flag]: true  }, s.resources);
-  const off = await renderWith({ [s.flag]: false }, s.resources);
-  const same = on === off;
-  if (same) dead++;
-  console.log(`  ${s.label.padEnd(28)} ${same ? 'NONE — the switch does nothing'
-    : `${Math.abs(on.length - off.length)} characters of markup`}`);
+const quiet = [];
+console.log('switch                              effect on the sheet');
+for (const group of ['sheet', 'inventory', 'automation', 'rest', 'rolls']) {
+  for (const row of probe[group] ?? []) {
+    const flag = flagOf(row);
+    if (!row.path?.startsWith('flags.a5e.')) continue;   // a system field, not a flag
+    const seed = SEEDED[flag] ?? {};
+    const on  = outside(await renderWith({ ...seed.also, [flag]: true  }, seed.resources, seed.system));
+    const off = outside(await renderWith({ ...seed.also, [flag]: false }, seed.resources, seed.system));
+    const moves = on !== off;
+    const required = (MUST_SHOW[group] ?? (() => false))(flag);
+
+    if (!moves && required) { dead++;
+      console.log(`  ${row.label.padEnd(34)} NONE — and this group promises one`);
+    } else if (moves) {
+      console.log(`  ${row.label.padEnd(34)} ${Math.abs(on.length - off.length)} characters of markup`);
+    } else {
+      quiet.push(row.label);
+    }
+  }
 }
+
+if (quiet.length) {
+  console.log(`\n  these change a5e's behaviour and correctly not this page:`);
+  for (const q of quiet) console.log(`    ${q}`);
+}
+
+/* And the other direction: a display switch a5e has that we never offer is a
+   switch that silently does not exist here. */
+const OFFERED = new Set(Object.values(probe).flat().map(flagOf));
+const A5E_DISPLAY = ['showSpellTab', 'showManeuverTab', 'showFavoritesSection',
+  'showPassiveScores', 'showXP', 'hideGenericResources', 'showSpellSlots',
+  'showWeightColumn', 'trackInventoryWeight'];
+const missing = A5E_DISPLAY.filter((f) => !OFFERED.has(f));
+if (missing.length) {
+  dead += missing.length;
+  console.log(`\n  a5e has these and this sheet offers no switch for them:`);
+  for (const m of missing) console.log(`    ${m}`);
+}
+
 console.log(dead ? `\n${dead} switch(es) this sheet claims and does not honour`
                  : `\nevery switch this sheet claims changes what it draws`);
 process.exit(dead ? 1 : 0);
