@@ -11,6 +11,7 @@
  * one to save a process would be the more fragile of the two.
  */
 import { execFileSync } from 'child_process';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -29,6 +30,25 @@ const ask = (target) => {
 
 const results = [];
 const check = (name, ok, detail) => results.push([name, ok, detail]);
+
+/* The size of a WebP, from the file. VP8L, VP8 and VP8X each carry it
+   differently, so all three are read.
+
+   This is here because the aspect-ratio in the stylesheet was wrong for three
+   releases, and it was wrong because it had been copied by hand out of a Tidy
+   rule about a different picture. A number that describes a file should be
+   read from that file. */
+function webpSize(buf) {
+  if (buf.toString('ascii', 0, 4) !== 'RIFF' || buf.toString('ascii', 8, 12) !== 'WEBP') return null;
+  const fourcc = buf.toString('ascii', 12, 16);
+  if (fourcc === 'VP8X') return { w: 1 + (buf[24] | (buf[25] << 8) | (buf[26] << 16)),
+                                  h: 1 + (buf[27] | (buf[28] << 8) | (buf[29] << 16)) };
+  if (fourcc === 'VP8L') { const b = buf.readUInt32LE(21);
+    return { w: 1 + (b & 0x3fff), h: 1 + ((b >> 14) & 0x3fff) }; }
+  if (fourcc === 'VP8 ') return { w: buf.readUInt16LE(26) & 0x3fff,
+                                  h: buf.readUInt16LE(28) & 0x3fff };
+  return null;
+}
 
 const rem = (v) => {
   const m = String(v).match(/^([\d.]+)rem$/);
@@ -50,6 +70,25 @@ for (const [who, target] of [['character', 'shield'], ['NPC', 'npcshield']]) {
   check(`the ${who} AC badge draws the character art`,
     /badge_ac_dark/.test(w['background-image']?.value ?? ''),
     w['background-image']?.value ?? '(inherited — which is the bug)');
+
+  /* And the box is the shape of that picture.
+
+     background-size is `contain`, so the art keeps its own proportions inside
+     whatever box it is given. A box of a different shape letterboxes it, and
+     with background-position:top the slack all goes to the bottom — so the
+     number, centred on the box, comes out below the middle of the shield.
+     That is what "the armour is crooked" was, three times. */
+  const url = (w['background-image']?.value ?? '').match(/url\(([^)]+)\)/)?.[1];
+  const file = url && path.resolve(HERE, '..', '..', 'styles', url);
+  const px = file && fs.existsSync(file) ? webpSize(fs.readFileSync(file)) : null;
+  const stated = (w['aspect-ratio']?.value ?? '').match(/([\d.]+)\s*\/\s*([\d.]+)/);
+  const want = px ? px.w / px.h : null;
+  const got = stated ? Number(stated[1]) / Number(stated[2]) : null;
+  check(`the ${who} AC badge box is the shape of that picture`,
+    want !== null && got !== null && Math.abs(want - got) < 0.005,
+    px ? `the file is ${px.w} x ${px.h} = ${want.toFixed(4)};`
+         + ` the sheet says ${w['aspect-ratio']?.value} = ${got?.toFixed(4) ?? '(none)'}`
+       : `could not read ${url ?? '(no image)'}`);
 }
 
 /* ── A spell slot star ──────────────────────────────────────────────────
