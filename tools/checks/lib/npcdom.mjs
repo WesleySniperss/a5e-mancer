@@ -13,6 +13,7 @@ import { readFileSync } from 'fs';
 import { parse } from 'parse5';
 import { ClassicLevel } from 'classic-level';
 import { build, listeners, record, takeEffects, q, R } from './sheetdom.mjs';
+import { registerSheetPartials } from './partials.mjs';
 
 export { listeners, takeEffects, q, R };
 
@@ -29,8 +30,12 @@ export async function buildNPCSheet(opts = {}) {
   Handlebars.registerHelper('eq', (a, b) => a === b);
   Handlebars.registerHelper('localize', (k) => String(k ?? ''));
   ['concat', 'numberFormat'].forEach(h => Handlebars.registerHelper(h, () => ''));
-  Handlebars.registerPartial('tidy-table', readFileSync(R + 'templates/sheet/partial-tidy-table.hbs', 'utf8'));
-  Handlebars.registerPartial('tidy-row',   readFileSync(R + 'templates/sheet/partial-tidy-row.hbs', 'utf8'));
+  /* Every partial the module registers, read from the module rather than
+     listed again here. Two were named by hand before, and the moment a third
+     was added every check that renders the sheet died on "The partial
+     am-note-field could not be found" — which is a harness drifting from what
+     it is meant to be a copy of. */
+  registerSheetPartials(R);
   const tpl = Handlebars.compile(readFileSync(R + 'templates/sheet/npc-sheet.hbs', 'utf8'));
 
   /* a5e ships its packs as LevelDB. The copy is read directly; a LOCK file in

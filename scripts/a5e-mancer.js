@@ -284,7 +284,11 @@ Hooks.once('ready', async () => {
     // row are the two shapes it repeats, so they live as partials rather than
     // being written out once per tab. See templates/sheet/ and tidy/README.md.
     ['tidy-table',       'sheet/partial-tidy-table.hbs'],
-    ['tidy-row',         'sheet/partial-tidy-row.hbs']
+    ['tidy-row',         'sheet/partial-tidy-row.hbs'],
+    // One written page of the Notes tab. It is a partial because the choice
+    // it makes — an editor when unlocked, the text when locked — was written
+    // out eight times and all eight had it the wrong way round.
+    ['am-note-field',    'sheet/partial-note-field.hbs']
   ]) {
     try {
       Handlebars.registerPartial(name, await getTpl(`modules/a5e-mancer/templates/${file}`));

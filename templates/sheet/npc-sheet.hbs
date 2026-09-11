@@ -1390,17 +1390,12 @@
 
       {{!-- Appearance. a5e’s own Notes page puts an editor here beside the
            seven short fields; this sheet had the fields and not the editor. --}}
-      {{#if details.appearance}}
+      {{#if details.appearanceShown}}
         <section class="am-bio-card">
           <h3 class="font-title-small">Appearance</h3>
-          <div class="am-origin-desc">{{{details.appearance}}}</div>
-        </section>
-      {{else if @root.unlocked}}
-        <section class="am-bio-card">
-          <h3 class="font-title-small">Appearance</h3>
-          <textarea class="am-bio-input" data-action="detail-html"
-            data-path="system.details.appearance"
-            placeholder="What they look like"></textarea>
+          {{~> am-note-field label="Appearance" path="system.details.appearance"
+                html=details.appearance text=details.appearanceText
+                hint="What they look like"}}
         </section>
       {{/if}}
 
@@ -1413,17 +1408,12 @@
       <div class="am-notes-pane{{#if notesOn.bio}} active{{/if}}"
         data-notes-tab="bio" role="tabpanel">
 
-      {{#if details.bio}}
+      {{#if details.bioShown}}
         <section class="am-bio-card">
           <h3 class="font-title-small">{{#if details.isCharacter}}Backstory{{else}}Bio{{/if}}</h3>
-          <div class="am-origin-desc">{{{details.bio}}}</div>
-        </section>
-      {{else if @root.unlocked}}
-        <section class="am-bio-card">
-          <h3 class="font-title-small">{{#if details.isCharacter}}Backstory{{else}}Bio{{/if}}</h3>
-          <textarea class="am-bio-input" data-action="detail-html"
-            data-path="system.details.bio"
-            placeholder="Who they are and where they came from"></textarea>
+          {{~> am-note-field label="Backstory" path="system.details.bio"
+                html=details.bio text=details.bioText
+                hint="Who they are and where they came from"}}
         </section>
       {{/if}}
 
@@ -1435,44 +1425,15 @@
            these four; this is the one place here that shows more than the
            original, and it does it because the data is already there. --}}
       {{#if details.isCharacter}}
-        {{#if details.hasPersonality}}
+        {{#if details.personalityShown}}
           <section class="am-bio-card am-personality">
-            {{#if details.ideals}}
+            {{#each details.personality}}
               <div class="am-personality-part">
-                <h4 class="font-label-medium color-text-gold">Ideals</h4>
-                <div class="am-origin-desc">{{{details.ideals}}}</div>
+                <h4 class="font-label-medium color-text-gold">{{this.label}}</h4>
+                {{~> am-note-field label=this.label path=this.path
+                      html=this.html text=this.text hint=this.label}}
               </div>
-            {{/if}}
-            {{#if details.bonds}}
-              <div class="am-personality-part">
-                <h4 class="font-label-medium color-text-gold">Bonds</h4>
-                <div class="am-origin-desc">{{{details.bonds}}}</div>
-              </div>
-            {{/if}}
-            {{#if details.flaws}}
-              <div class="am-personality-part">
-                <h4 class="font-label-medium color-text-gold">Flaws</h4>
-                <div class="am-origin-desc">{{{details.flaws}}}</div>
-              </div>
-            {{/if}}
-            {{#if details.goals}}
-              <div class="am-personality-part">
-                <h4 class="font-label-medium color-text-gold">Goals</h4>
-                <div class="am-origin-desc">{{{details.goals}}}</div>
-              </div>
-            {{/if}}
-          </section>
-        {{else if @root.unlocked}}
-          <section class="am-bio-card am-personality">
-            <h3 class="font-title-small">Ideals, Bonds, Flaws, Goals</h3>
-            <textarea class="am-bio-input" data-action="detail-html"
-              data-path="system.details.ideals" placeholder="Ideals"></textarea>
-            <textarea class="am-bio-input" data-action="detail-html"
-              data-path="system.details.bonds" placeholder="Bonds"></textarea>
-            <textarea class="am-bio-input" data-action="detail-html"
-              data-path="system.details.flaws" placeholder="Flaws"></textarea>
-            <textarea class="am-bio-input" data-action="detail-html"
-              data-path="system.details.goals" placeholder="Goals"></textarea>
+            {{/each}}
           </section>
         {{/if}}
       {{/if}}
@@ -1562,15 +1523,11 @@
       {{!-- ── Notes. One page, and on a monster it is the one a5e opens on. --}}
       <div class="am-notes-pane{{#if notesOn.notes}} active{{/if}}"
         data-notes-tab="notes" role="tabpanel">
-        {{#if details.notes}}
+        {{#if details.notesShown}}
           <section class="am-bio-card">
-            <div class="am-origin-desc">{{{details.notes}}}</div>
-          </section>
-        {{else if @root.unlocked}}
-          <section class="am-bio-card">
-            <textarea class="am-bio-input" data-action="detail-html"
-              data-path="system.details.notes"
-              placeholder="Anything worth keeping"></textarea>
+            {{~> am-note-field label="Notes" path="system.details.notes"
+                  html=details.notes text=details.notesText
+                  hint="Anything worth keeping"}}
           </section>
         {{else}}
           <div class="empty-state-container empty-state-description">
@@ -1586,17 +1543,12 @@
       {{#if details.showPrivateNotes}}
         <div class="am-notes-pane{{#if notesOn.privateNotes}} active{{/if}}"
           data-notes-tab="privateNotes" role="tabpanel">
-          {{#if details.privateNotes}}
+          {{#if details.privateNotesShown}}
             <section class="am-bio-card">
               <h3 class="font-title-small">Private <i class="fa-solid fa-user-secret"></i></h3>
-              <div class="am-origin-desc">{{{details.privateNotes}}}</div>
-            </section>
-          {{else if @root.unlocked}}
-            <section class="am-bio-card">
-              <h3 class="font-title-small">Private <i class="fa-solid fa-user-secret"></i></h3>
-              <textarea class="am-bio-input" data-action="detail-html"
-                data-path="system.details.privateNotes"
-                placeholder="Only the owner sees this"></textarea>
+              {{~> am-note-field label="Private Notes" path="system.details.privateNotes"
+                    html=details.privateNotes text=details.privateNotesText
+                    hint="Only the owner sees this"}}
             </section>
           {{else}}
             <div class="empty-state-container empty-state-description">

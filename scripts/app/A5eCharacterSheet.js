@@ -867,6 +867,50 @@ export class A5eCharacterSheet extends ActorSheet {
     details.hasFields = details.fields.some(f => f.value);
     /* Only a character has these; the NPC schema has bio, notes and
        privateNotes and nothing else of the kind. */
+    /* Every written page twice over: as stored, for reading, and as plain
+       text, for the editor.
+
+       These are HTMLFields. The editor is a textarea, so it has to be handed
+       text and not markup, and what it hands back is turned into paragraphs
+       again by the detail-html handler. The two conversions are inverses, so
+       opening a page and saving it unchanged stores what was already there.
+
+       `…Shown` says whether the block is drawn at all: unlocked, every page
+       is, empty or not, because an empty one has to be reachable to be
+       filled in; locked, only the ones with something in them.
+
+       That is the whole of the bug this replaces. The editor used to appear
+       only while a field was EMPTY — `{{#if details.bio}}` read-only
+       `{{else if unlocked}}` editor — so a page could be written once and
+       never edited again, and the textarea was rendered with nothing between
+       its tags anyway. It was written that way eight times, and all eight
+       were wrong in the same direction. */
+    const htmlToText = (html) => String(html ?? '')
+      .replace(/<\s*br\s*\/?>/gi, '\n')
+      .replace(/<\/\s*p\s*>\s*<\s*p[^>]*>/gi, '\n\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+      .trim();
+
+    for (const key of ['appearance', 'bio', 'notes', 'privateNotes',
+                       'ideals', 'bonds', 'flaws', 'goals']) {
+      details[`${key}Text`]  = htmlToText(details[key]);
+      details[`${key}Shown`] = unlocked || !!details[key];
+    }
+
+    /* The four personality fields as one list, because the template drew each
+       of them by hand and none of the four had an editor once it held
+       anything. */
+    details.personality = [
+      ['ideals', 'Ideals'], ['bonds', 'Bonds'],
+      ['flaws', 'Flaws'],   ['goals', 'Goals']
+    ].map(([key, label]) => ({
+      key, label, path: `system.details.${key}`,
+      html: details[key], text: details[`${key}Text`]
+    })).filter((f) => unlocked || !!f.html);
+    details.personalityShown = details.personality.length > 0;
+
     details.isCharacter = actor.type === 'character';
     /* a5e shows the private page for the owner of a monster and nobody else.
        That is followed, with one addition: a character that already carries

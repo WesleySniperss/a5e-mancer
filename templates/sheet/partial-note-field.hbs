@@ -1,0 +1,33 @@
+{{!-- ───────────────────────────────────────────────────────────────────────
+     One written page of the Notes tab.
+
+     This exists because the decision it makes was written out eight times, and
+     every one of the eight had the same bug:
+
+         {{#if details.bio}}   <div>…the html…</div>
+         {{else if unlocked}}  <textarea …></textarea>
+
+     Read that again. The editor appears only when the field is EMPTY. A page
+     could be written once and never edited afterwards — and the textarea was
+     rendered with nothing between its tags anyway, so even that first write
+     started from blank no matter what was already stored.
+
+     One place now, and the rule is the other way round: unlocked, there is an
+     editor, and it holds what is there; locked, the text is shown as a5e
+     enriched it.
+
+     Takes:  label   the heading
+             text    the field as plain text, for the editor
+             html    the field as stored, for reading
+             path    where to write it, e.g. system.details.bio
+             hint    placeholder for an empty one
+             flat    true to leave the heading off (the four personality
+                     fields sit under one shared heading)
+     ─────────────────────────────────────────────────────────────────────── --}}
+{{#if @root.unlocked}}
+  <textarea class="am-bio-input" data-action="detail-html"
+    data-path="{{path}}" aria-label="{{label}}"
+    placeholder="{{hint}}">{{text}}</textarea>
+{{else if html}}
+  <div class="am-origin-desc">{{{html}}}</div>
+{{/if}}

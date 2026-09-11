@@ -15,6 +15,7 @@ import Handlebars from 'handlebars';
 import { readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { registerSheetPartials } from './lib/partials.mjs';
 
 const R = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..') + path.sep;
 
@@ -36,8 +37,10 @@ const { A5eCharacterSheet } = await import('file:///' + R + 'scripts/app/A5eChar
 Handlebars.registerHelper('eq', (a,b)=>a===b);
 Handlebars.registerHelper('localize', (k)=>String(k??''));
 ['concat','numberFormat'].forEach(h=>Handlebars.registerHelper(h,()=>''));
-Handlebars.registerPartial('tidy-table', readFileSync(R+'templates/sheet/partial-tidy-table.hbs','utf8'));
-Handlebars.registerPartial('tidy-row',   readFileSync(R+'templates/sheet/partial-tidy-row.hbs','utf8'));
+/* Every partial the module registers, read from the module. Naming them by
+   hand here is what broke all four of these checks the day a third one was
+   added. */
+registerSheetPartials(R);
 const tpl = Handlebars.compile(readFileSync(R+'templates/sheet/tidy-character-sheet.hbs','utf8'));
 
 const wrap = (i, o) => ({ id:i._id, uuid:'Actor.'+o+'.Item.'+i._id, name:i.name,

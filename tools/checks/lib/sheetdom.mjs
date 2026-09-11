@@ -13,6 +13,7 @@ import '../stubs.mjs';
 import Handlebars from 'handlebars';
 import { readFileSync } from 'fs';
 import { parse } from 'parse5';
+import { registerSheetPartials } from './partials.mjs';
 
 export const R = 'c:/Users/Jonkm/AppData/Local/FoundryVTT/Data/modules/a5e-mancer/';
 
@@ -126,8 +127,12 @@ export async function buildSheet(opts = {}) {
   Handlebars.registerHelper('eq', (a, b) => a === b);
   Handlebars.registerHelper('localize', (k) => String(k ?? ''));
   ['concat', 'numberFormat'].forEach(h => Handlebars.registerHelper(h, () => ''));
-  Handlebars.registerPartial('tidy-table', readFileSync(R + 'templates/sheet/partial-tidy-table.hbs', 'utf8'));
-  Handlebars.registerPartial('tidy-row',   readFileSync(R + 'templates/sheet/partial-tidy-row.hbs', 'utf8'));
+  /* Every partial the module registers, read from the module rather than
+     listed again here. Two were named by hand before, and the moment a third
+     was added every check that renders the sheet died on "The partial
+     am-note-field could not be found" — which is a harness drifting from what
+     it is meant to be a copy of. */
+  registerSheetPartials(R);
   const tpl = Handlebars.compile(readFileSync(R + 'templates/sheet/tidy-character-sheet.hbs', 'utf8'));
 
   const chars = JSON.parse(readFileSync(R + 'world-chars.json', 'utf8'));

@@ -4,6 +4,7 @@ import './stubs.mjs';
 import Handlebars from 'handlebars';
 import { readFileSync } from 'fs';
 import { ClassicLevel } from 'classic-level';
+import { registerSheetPartials } from './lib/partials.mjs';
 
 globalThis.CONFIG = { A5E: {
   bonusTypes: { abilities:'a', attacks:'b', damage:'c', exertion:'d', healing:'e',
@@ -26,8 +27,10 @@ const { A5eNPCSheet } = await import('file:///' + R + 'scripts/app/A5eNPCSheet.j
 Handlebars.registerHelper('eq', (a,b)=>a===b);
 Handlebars.registerHelper('localize', (k)=>String(k??''));
 ['concat','numberFormat'].forEach(h=>Handlebars.registerHelper(h,()=>''));
-Handlebars.registerPartial('tidy-table', readFileSync(R+'templates/sheet/partial-tidy-table.hbs','utf8'));
-Handlebars.registerPartial('tidy-row',   readFileSync(R+'templates/sheet/partial-tidy-row.hbs','utf8'));
+/* Every partial the module registers, read from the module. Naming them by
+   hand here is what broke all four of these checks the day a third one was
+   added. */
+registerSheetPartials(R);
 const tpl = Handlebars.compile(readFileSync(R+'templates/sheet/npc-sheet.hbs','utf8'));
 
 const db = new ClassicLevel('./packcopy2/monsters', { valueEncoding: 'json' });
