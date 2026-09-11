@@ -289,3 +289,52 @@ What it did find, once it stopped lying: `toggleEquipmentChoice`, declared in
 the map, defined on the class, drawn nowhere — and stale twice over, stripping
 a class the template does not use and reading a dataset key the button does
 not carry. Removed.
+
+## `bench.mjs`
+
+What one redraw costs — `getData()` and the template — on every character in the
+world.
+
+The headline is not the milliseconds. Those wander: the mean over all 61
+characters moved between 11.9 ms and 15.8 ms on one unchanged tree, which is
+more than several of the changes measured against it, and one reading made a
+change look like a 26% win that a rerun did not support. **The markup size does
+not wander.** It is the same bytes every time, it is what the browser parses and
+lays out on every redraw, and it is what a change should be argued from.
+
+It also warms both halves before timing either. The first version warmed only
+`getData`, so whichever character came first paid for compiling the template and
+reported three times its real cost — it named a six-item character as the most
+expensive sheet in the world.
+
+## `tabcost.mjs`
+
+What each tab costs on its own, for deciding whether to build only the tab that
+is open.
+
+On the heaviest sheet in this world: the header, sidebar and tab strip together
+are **0.21 ms and 71 kB**; the ten tab panels are **3.42 ms and 400 kB**, of
+which Features alone is **2.18 ms and 287 kB**.
+
+So a redraw while sitting on Favorites would cost 0.21 ms and 72 kB instead of
+3.63 ms and 471 kB — and a tab switch, which is free today because Foundry
+toggles one class, would cost a full re-render.
+
+**Three attempts at this measurement were wrong before one was right**, and they
+are worth knowing about because the first produced a number that nearly got
+acted on:
+
+1. It timed the whole sheet first, cold, and got 14.8 ms. A later script that
+   had already run seventeen templates got 4.2 ms for the same template. The
+   difference was V8 warming up on the Handlebars runtime, and the conclusion
+   drawn from it — *"the chrome costs 11 of the 15 ms, so lazy tabs would make
+   things worse"* — was pure artifact.
+2. It built the stripped template with `String.replace()` against a source with
+   CRLF endings, using text that had been split and rejoined with LF. Nothing
+   matched, nothing was stripped, and "the chrome" was measured as the whole
+   sheet — 473 kB of it.
+3. Only the third, warming everything first and cutting by line index, agreed
+   with itself twice.
+
+Timing is the least trustworthy thing in this directory. Prefer a number that
+cannot drift.
