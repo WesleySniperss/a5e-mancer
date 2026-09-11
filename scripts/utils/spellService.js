@@ -149,7 +149,7 @@ export class SpellService {
    *
    * Full casters gain a level of spells every other class level; a5e keeps the
    * standard 5e progression, so this is the familiar ceil(level / 2) capped at 9.
-   * Half casters (herald, artificer) come online at 2nd and climb half as fast.
+   * Half casters (herald, artificer) cast from 1st and climb half as fast.
    * Returns 0 for a class that casts nothing, so callers can tell "no spells" from
    * "cantrips only".
    */
@@ -466,8 +466,24 @@ export class SpellService {
     // list whatever the spell's own class field says.
     if (uuid && this.extraAllowed.has(uuid)) return true;
 
+    /* Three cases, and the middle one used to be folded into the last.
+
+         no name at all      nothing to go on, so hide nothing
+         a name a5e knows    filter to that class's list
+         a name with no list this class does not cast; show nothing
+
+       a5e keeps seventeen spell lists and the Berserker is on none of them,
+       along with the Fighter, the Rogue and the rest. The old rule read
+       'no list' as 'no restriction', so opening the spell window on a
+       Berserker offered every spell in every compendium — 895 of them, none
+       of which that character can ever learn. The comment where this was
+       decided called it costing nothing. It cost the whole window.
+
+       A blank name still hides nothing, because that is a genuine unknown
+       rather than an answer. */
+    if (!String(className ?? '').trim()) return true;
     const key = this.classSpellListKey(className);
-    if (!key) return true;                      // unknown class — don't hide anything
+    if (!key) return false;                     // named, and a5e gives it no spell list
 
     const raw = sys?.classes ?? sys?.spellClasses ?? null;
     if (raw === null || raw === undefined) return true;

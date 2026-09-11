@@ -117,6 +117,10 @@ export class SpellDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       spellsLimited:         this.spellsToChoose > 0,
       manage:                this.manage,
       loadReport:            SpellService.lastLoadReport ?? null,
+      /* a5e gives seventeen classes a spell list, and the Berserker is on
+         none of them. An empty window then needs to say which it is: a class
+         that cannot cast, or a filter that happens to match nothing. */
+      classHasNoList:        !!this.className && !SpellService.classSpellListKey(this.className),
       maxSpellLevel:         this.maxSpellLevel,
       selectedCantrips:      this._selectedCantrips.size,
       selectedSpells:        this._selectedSpells.size,

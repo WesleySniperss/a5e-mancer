@@ -482,6 +482,7 @@
   "am.mixed.source": "Heritage to take the gift from",
   "am.mixed.choose-source": "Choose which heritage the gift comes from.",
   "am.mixed.pick": "Gifts offered by {name}:",
+  "am.spells.class-has-no-list": "{class} has no spell list — a5e gives one to seventeen classes, and this is not one of them.",
   "am.sheet.attunement": "Attunement",
   "am.sheet.nothing-to-attune": "Nothing this character carries requires attunement.",
   "am.sheet.condition-from-item": "{condition} was applied by \"{item}\" — its effect has been switched off on the item itself. Re-enabling that item's effect brings the condition back.",

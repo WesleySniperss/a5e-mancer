@@ -164,7 +164,11 @@
     {{else}}
       <div class="am-empty-state">
         <i class="fa-solid fa-hat-wizard fa-3x" style="opacity:0.3"></i>
-        <p>{{localize 'am.spells.none-found'}}</p>
+        {{#if classHasNoList}}
+          <p>{{localize 'am.spells.class-has-no-list' class=className}}</p>
+        {{else}}
+          <p>{{localize 'am.spells.none-found'}}</p>
+        {{/if}}
 
         {{#if loadReport}}
           <p class="am-hint">
