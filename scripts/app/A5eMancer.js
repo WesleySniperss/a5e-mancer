@@ -1115,8 +1115,11 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     const spellPool = [];
     for (let lvl = 1; lvl <= maxLevel; lvl++) spellPool.push(...(data.get(lvl) ?? []));
     A5eMancer.#shuffle(spellPool);
-    // 'known' casters pick exactly spellsKnown; 'prepared' (spellsKnown = -1) get a sensible handful.
-    const want = info.type === 'known' ? (info.spellsKnown ?? 0) : Math.min(spellPool.length, 4);
+    /* Keyed on the count, not the caster type: the wizard prepares, but from a
+       spellbook holding exactly six at 1st level, so it has a real number like a
+       known caster does. Only the open-ended ones (-1) get the handful. */
+    const cap  = info.spellsKnown ?? 0;
+    const want = cap > 0 ? cap : Math.min(spellPool.length, 4);
     const spells = spellPool.slice(0, Math.max(0, want));
 
     AM.creationSpells = {
@@ -1408,7 +1411,9 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
         spells.splice(idx, 1);
         const ni = names.indexOf(spellName); if (ni >= 0) names.splice(ni, 1);
       } else {
-        if (info.type === 'known' && spells.length >= (info.spellsKnown ?? 0)) {
+        // A positive count is a real cap whoever holds it — see the randomiser
+        // above. -1 means prepare from the whole list, so nothing to enforce.
+        if ((info.spellsKnown ?? 0) > 0 && spells.length >= info.spellsKnown) {
           ui.notifications.warn(game.i18n.format('am.spells.spells-full', { n: info.spellsKnown }));
           return;
         }

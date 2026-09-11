@@ -11,21 +11,37 @@ import { castOnlyEffects } from './effectTiming.js';
 // Spells known at level 1 for "known" casters.
 //
 // `maxLevel` is the highest spell level a 1st-level character of the class can
-// take. The herald is 0: its table gives two cantrips at 1st level and no spell
-// slots until 2nd, so offering it a 1st-level spell offered one it cannot cast —
-// while `cantrips: 0` did the opposite harm and withheld the two it is owed.
-// The artificer is NOT the same case despite also being a half caster: it casts
-// from spell inventions rather than slots and its maximum spell level is 1st
-// from 1st level, so it keeps maxLevel: 1.
+// take.
+//
+// The herald used to be 0 here, on a note of mine saying its table gave no
+// spell slots until 2nd level. That was misread: the Herald Spells table reads
+//
+//     LEVEL  CANTRIPS KNOWN  1ST  2ND 3RD 4TH 5TH
+//     1st    2               2    --  --  --  --
+//
+// and the dashes are the 2nd-to-5th columns, not the 1st. A 1st-level herald
+// has two 1st-level slots and prepares Charisma modifier + half its level
+// (minimum one). Confirmed against both the Adventurer's Guide and a5e.tools.
+//
+// `spellsKnown` is -1 for a caster that prepares from its whole list, and a
+// count for one that does not. The wizard is the awkward case: it prepares,
+// but only from a spellbook, and the book is finite — "At 1st level, your
+// spellbook contains six 1st-level wizard spells of your choice." So it takes
+// a real number while cleric, druid and herald stay open-ended.
+//
+// The artificer is not the herald's case despite also being a half caster: it
+// casts from spell inventions rather than slots and its maximum spell level is
+// 1st from 1st level, so it keeps maxLevel: 1.
 export const CLASS_SPELL_TABLES = {
   bard:      { type: 'known',    spellsKnown: 4,  cantrips: 2, maxLevel: 1 },
   sorcerer:  { type: 'known',    spellsKnown: 2,  cantrips: 4, maxLevel: 1 },
   warlock:   { type: 'known',    spellsKnown: 2,  cantrips: 2, maxLevel: 1 },
-  // Prepared casters: spellsKnown: -1 = unlimited (add any spells to their list/spellbook)
-  wizard:    { type: 'prepared', spellsKnown: -1, cantrips: 3, maxLevel: 1 },
+  // Prepared casters. -1 means the whole class list is available to prepare
+  // from; the wizard is the exception, capped by what its spellbook holds.
+  wizard:    { type: 'prepared', spellsKnown: 6,  cantrips: 3, maxLevel: 1 },
   cleric:    { type: 'prepared', spellsKnown: -1, cantrips: 3, maxLevel: 1 },
   druid:     { type: 'prepared', spellsKnown: -1, cantrips: 2, maxLevel: 1 },
-  herald:    { type: 'prepared', spellsKnown: -1, cantrips: 2, maxLevel: 0 },
+  herald:    { type: 'prepared', spellsKnown: -1, cantrips: 2, maxLevel: 1 },
   artificer: { type: 'prepared', spellsKnown: -1, cantrips: 2, maxLevel: 1 }
 };
 
@@ -144,15 +160,15 @@ export class SpellService {
 
     const lvl = Math.max(1, Math.min(20, Number(classLevel) || 1));
 
-    // The two half casters climb identically — one spell level at 1st/2nd, then
-    // 5th, 9th, 13th, 17th, capped at 5th — but they do not START together, and
-    // treating them as one case was wrong at exactly one level. The herald has
-    // no slots until 2nd; the artificer casts from 1st through spell inventions,
-    // and its own table reads "Maximum Spell Level: 1st" at 1st level. Lumping
-    // them together told a 1st-level artificer it could cast nothing, while
-    // CLASS_SPELL_TABLES said otherwise — the two disagreed in the same file.
+    // The two half casters climb identically: one spell level from 1st, then
+    // 5th, 9th, 13th and 17th, capped at 5th. ceil(level / 4) is that curve.
+    //
+    // The herald used to be held back to 2nd level here, matching the maxLevel: 0
+    // it had in the table above, and both came from the same misreading of the
+    // Herald Spells table — its 1st-level row is "2 cantrips, 2 first-level
+    // slots", not two cantrips and nothing. Checked against the book and
+    // a5e.tools; the dashes on that row are the 2nd-to-5th columns.
     if (key === 'herald' || key === 'artificer') {
-      if (key === 'herald' && lvl < 2) return 0;
       return Math.min(5, Math.ceil(lvl / 4));
     }
 

@@ -759,7 +759,11 @@ export class DOMManager {
         const info = className ? SpellService.getClassSpellInfo(className) : null;
         if (!info) return true; // no spells for this class
         const cantripsDone = (AM.creationSpells?.cantrips?.length ?? 0) >= (info.cantrips ?? 0);
-        const spellsDone   = info.type !== 'known' || (AM.creationSpells?.spells?.length ?? 0) >= (info.spellsKnown ?? 0);
+        /* A class with a real count is only done once it has them all — the
+           wizard included, whose six spellbook spells are a count even though
+           it prepares. -1 means there is nothing to finish choosing. */
+        const cap          = info.spellsKnown ?? 0;
+        const spellsDone   = cap <= 0 || (AM.creationSpells?.spells?.length ?? 0) >= cap;
         return cantripsDone && spellsDone;
       },
       equipment:   () => true, // optional
