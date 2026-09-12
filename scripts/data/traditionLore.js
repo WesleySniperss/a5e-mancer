@@ -77,3 +77,49 @@ export const TRADITION_LORE = {
     intro: `There are many facets to combat — how one places their feet, an adroit grip upon a weapon's hilt, the angle of a shield arm — but achieving exceptional skill over specific weaponry can be an efficient means to victory. By patiently focusing your martial studies you unlock secrets that general practitioners of combat never glean, and with dedicated training you master their use.`
   },
 };
+
+/* ============================================================
+   OUR OWN SUMMARIES — not from any book
+   ============================================================
+   Eleven traditions the module can show but nobody publishes a description
+   for: they come from Gate Pass Gazette, the Voidrunner line and third-party
+   products, and their text is in books we do not have. It is not in the
+   Adventurer's Guide, not on a5e.tools (taxonomy/term/612 and /613 answer
+   NONE), not in the a5e system's journal pack, which holds only conditions,
+   and not in any installed module.
+
+   So these are written from what each tradition's maneuvers actually do, read
+   out of the compendium in the reporter's own world. They are a summary, not a
+   quotation, and they are kept in a SEPARATE export for that reason: whatever
+   happens to this file later, the boundary between what a book said and what
+   we wrote stays visible.
+
+   No keyword lines. The real traditions have them — "Hardiness, Might, Power"
+   and the rest — and inventing three words to sit in the same place, in the
+   same type, would make ours indistinguishable from the published ones inside
+   a year. An empty line says honestly that we do not know them, and leaves an
+   obvious slot if a book ever turns up.
+   ============================================================ */
+export const TRADITION_NOTES = {
+  arcaneArtillery: `A bow needs no spell to kill, but it profits from one. Practitioners of Arcane Artillery lay the magic on the shot rather than the shooter: an arrow that splits in flight, one that fades out of the world and back in at the target, one that drags a tempest along behind it. Most of the tradition is about reaching what ought to be out of reach.`,
+
+  arcaneKnight: `Steel need not stop at what the arm can reach. Arcane Knight techniques feed magic into the swing itself — a blade arriving wreathed in flame or frost, a step taken through space rather than across it, a ward thrown over an ally in the same motion that parries. The spell and the strike are one movement.`,
+
+  awakenedMind: `The mind reaches further than the arm and arrives sooner. These warriors fight with attention itself: pinning a foe by intruding on their thoughts, hurling a weapon and calling it back, reading the next attack before it is thrown. Insight does the work that weapon skill does elsewhere.`,
+
+  beastUnity: `Two bodies with one intent, though only one of them takes orders. Beast Unity is the craft of directing an animal companion mid-battle — striking with it in tandem, bringing down something a size larger than it is, calling it back out of reach the moment it is hurt. As much of the tradition protects the companion as arms it.`,
+
+  comedicJabs: `An opponent braced for a blade is not braced for a punchline. Those who fight with Comedic Jabs disarm in the older sense of the word: a pratfall that takes an enemy down with them, a drink poured into a snarling mouth, a gift pressed on someone who came to kill them. Nobody swings well while off balance.`,
+
+  cuttingOmen: `Magic held in reserve is magic doing nothing. This tradition spends it — a spell slot burned to put weight behind a strike, a school's power poured into a parry, resolve traded back for reserves once they run dry. Nearly every technique asks what you will give up to make the next hit land.`,
+
+  grindingCog: `A warrior's pack is an arsenal if they are quick enough with it. Grinding Cog turns oil flasks, caltrops, manacles and a crowbar into combat techniques: armour pried open, ground made impassable, fire and oil landing in the same square. It rewards whoever packed for the problem.`,
+
+  sanctifiedSteel: `Some enemies are not merely killed. Sanctified Steel arms the faithful against them — holy water anointing a blade, silver worked hastily onto a striking edge, radiance carried on from one wound into the next. Its techniques ask for a prepared prayer as often as an opening.`,
+
+  selflessSentinel: `The point is not to win the exchange but to see that someone else survives it. A Selfless Sentinel stands where the blow will fall: swapping places with an ally mid-strike, catching one who drops, making themselves the only target worth attacking. Almost nothing here improves your own attack.`,
+
+  viciousVein: `Being wounded is a condition, and a condition can be used. Vicious Vein draws on blood already spilled — strikes that open arteries, a blade drawn through one's own wound, a heartbeat amplified until it unsettles the room. Several of these techniques only work once you are bloodied.`,
+
+  vipersFangs: `A dose costs less than a wound and outlasts it. Viper's Fangs is fought with what is on the blade rather than the blade itself: blinding dust, a toxin that saps the limbs, curare that stops them altogether. Its practitioners spend poison the way others spend stamina.`,
+};
