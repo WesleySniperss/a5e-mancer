@@ -2,7 +2,8 @@ import { AM } from '../am.js';
 import {
   ActorCreationService, CharacterArtPicker, DOMManager,
   EquipmentService, FormValidation, SavedOptions, StatRoller,
-  ManeuverService, CLASS_MANEUVER_TABLES, getTraditions, traditionAllowed
+  ManeuverService, CLASS_MANEUVER_TABLES, getTraditions, traditionAllowed,
+  DocumentService
 } from '../utils/index.js';
 import { SpellService, CLASS_SPELL_TABLES } from '../utils/spellService.js';
 import { LoreTableService } from '../utils/loreTableService.js';
@@ -202,6 +203,8 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
               ...a, selected: a.uuid === arch.uuid
             }));
             context.archetypeChosen = arch.options.find(a => a.uuid === arch.uuid)?.name ?? '';
+            // Loaded by selectArchetype; a5e's archetype text lists what it grants.
+            context.archetypeDescription = arch.descriptionHtml ?? '';
 
             // Spellcasting ability, when the class leaves the choice open
             const cls = AM.itemGrants?.class;
@@ -611,6 +614,21 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     // Clicking the chosen one again clears it — the same toggle the level-up
     // dialog uses, so a misclick does not need a different gesture to undo.
     arch.uuid = arch.uuid === btn.dataset.uuid ? null : btn.dataset.uuid;
+
+    /* Load what was chosen so the tab can show it. The cards are a name and a
+       picture, which is not enough to choose between seventeen Divine Domains —
+       and a5e's archetype descriptions list the features the archetype grants,
+       so the text answers both "what is this" and "what does it give me".
+       Cleared along with the selection so a deselect leaves nothing behind. */
+    arch.descriptionHtml = '';
+    if (arch.uuid) {
+      try {
+        arch.descriptionHtml = await DocumentService.getEnrichedDescription(arch.uuid);
+      } catch (err) {
+        AM.log(2, 'Could not read the archetype description:', err);
+      }
+    }
+
     await AM.app?.render(false, { parts: ['class'] });
   }
 

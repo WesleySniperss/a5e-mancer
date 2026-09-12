@@ -485,8 +485,22 @@ export class SpellService {
     const key = this.classSpellListKey(className);
     if (!key) return false;                     // named, and a5e gives it no spell list
 
+    /* A spell that names no class is on no class's list, so it is not offered
+       to one. Both shapes count: the field absent, and the field present but
+       empty. Both used to read as "unrestricted" and put the spell in front of
+       everybody — 478 of them in the reporter's world, 56 of those reachable by
+       a 1st-level cleric.
+
+       Measured before changing, because hiding real spells would be the worse
+       error. Of the 103 in a5e's own pack with an empty list, 99 are marked
+       `rare` — and a5e's rare spells belong to no class list by design; they
+       are found or granted, never learned from one. The other four (Message,
+       Witch's Broom, Sufferer's Pact, Calatyr's Explosive Conflagration) are
+       genuine gaps in the data, and they are counted in the log below rather
+       than quietly dropped. The remaining 375 sit in the 5e conversion pack and
+       a third-party one. */
     const raw = sys?.classes ?? sys?.spellClasses ?? null;
-    if (raw === null || raw === undefined) return true;
+    if (raw === null || raw === undefined) return false;
 
     // Array, Set, or any other iterable — the same spread a5e uses
     let list = [];
@@ -497,7 +511,7 @@ export class SpellService {
     const norm = (s) => String(s ?? '').toLowerCase().replace(/[^a-z]/g, '');
     const wanted = norm(key);
     const normalized = list.map(norm).filter(Boolean);
-    if (!normalized.length) return true;        // unrestricted / unknown
+    if (!normalized.length) return false;       // names no class — see above
 
     return normalized.includes(wanted);
   }

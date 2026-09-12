@@ -119,6 +119,17 @@
                 </button>
               {{/each}}
             </div>
+
+            {{!-- Choosing between seventeen Divine Domains from a name and a
+                  picture is not choosing. a5e's archetype text lists the
+                  features it grants, so this answers both what it is and what
+                  it gives. Loaded on selection, not for all of them at once. --}}
+            {{#if archetypeDescription}}
+              <div class="am-description-panel am-inline-description overflow-vert-only"
+                   id="archetype-description" role="region" aria-live="polite">
+                {{{archetypeDescription}}}
+              </div>
+            {{/if}}
           </div>
         {{else if archetypeLevel}}
           <p class="am-hint am-archetype-note">
