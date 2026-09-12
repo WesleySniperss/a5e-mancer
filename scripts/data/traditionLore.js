@@ -1,20 +1,24 @@
 /**
- * What each combat tradition is, in the book's own words.
+ * What each combat tradition is, in its own book's words. Nothing here is
+ * written by us.
  *
- * Taken verbatim from the Level Up: Advanced 5e Adventurer's Guide, from the
- * paragraph that opens each tradition's maneuver list. It is NOT on a5e.tools:
- * the per-tradition pages there carry only a list of maneuvers, and the rules
- * page gives a single sentence naming all eleven. It is not in the a5e system
- * either, whose lang file has the names without any description. So a combat
- * tradition showed no text at all where a magic school showed its own, which
- * is the gap this closes.
+ * The eleven core ones come from the Level Up: Advanced 5e Adventurer's Guide,
+ * from the paragraph that opens each tradition's maneuver list.
+ *
+ * Two more come from a5e.tools, which turned out to carry flavour text for some
+ * of the later traditions after all — on `taxonomy/term/<id>`, not on the
+ * `traditions/<slug>` pages that were checked first and which carry only a list
+ * of maneuvers. The core eleven have no prose even there, so the two paths hold
+ * different things and both had to be looked at.
  *
  * Keys are a5e's own, as used in CONFIG.A5E.maneuverTraditions.
  *
- * Only the eleven the Adventurer's Guide describes are here. Traditions from
- * later books and any homebrew a table adds are deliberately absent rather
- * than invented: the dialog falls back to looking their description up in the
- * compendium, which is where such a tradition's own text belongs.
+ * The rest are still absent rather than invented. Of the 27 traditions the
+ * system knows, a5e.tools hosts maneuvers for only 15; Arcane Knight (613) and
+ * Beast Unity (612) are hosted but carry no prose, and the remaining twelve —
+ * the Voidrunner and third-party ones, Ace Starfighter and Viper's Fangs among
+ * them — are not on the site at all. For any tradition missing here the dialog
+ * falls back to looking its description up in the compendium.
  */
 export const TRADITION_LORE = {
   adamantMountain: {
