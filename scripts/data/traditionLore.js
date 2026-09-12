@@ -21,6 +21,17 @@
  * falls back to looking its description up in the compendium.
  */
 export const TRADITION_LORE = {
+  /* From a5e.tools taxonomy/term/840. Gate Pass Gazette. */
+  gallantHeart: {
+    keywords: 'Honor, Glamour, Presentation',
+    intro: `Combat, in all of its bleak mundanity, is so much more to those who wield Gallant Heart maneuvers. Dramatic flairs, honorable duels, glamorous attire — fighters using this tradition know how to turn a battle into something truly stylish.`
+  },
+  /* From a5e.tools taxonomy/term/616. The note about antimagic is the
+     site's own text, kept because it is the tradition's defining limit. */
+  eldritchBlackguard: {
+    keywords: '',
+    intro: `Terror and pain can be unleashed through those willing to delve into dark magics and blend them with martial prowess. Note. Unlike normal combat maneuvers, mystical martial maneuvers cannot be used where magic is suppressed, such as within an antimagic field or similar effect.`
+  },
   adamantMountain: {
     keywords: 'Hardiness, Might, Power',
     intro: `Engaging in combat means enduring some amount of suffering and those who make use of Adamant Mountain maneuvers are well prepared to weather their opponents' blows, relying not just on their might but the careful and expert application of force in all aspects of battle.`
