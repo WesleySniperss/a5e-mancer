@@ -81,6 +81,84 @@ const pathsWritten = () => writes.flatMap(w => Object.keys(w));
   check('the features search hides the rows that do not match', ok, detail);
 }
 
+/* ── the Features filters ───────────────────────────────────────────────
+   A chip per source, and one for the things that take an action. They have
+   to compose with the search rather than replace it, and each has to be a
+   toggle — pressing the chosen one again clears it. */
+{
+  const tab = root.querySelector('.tidy-tab.features');
+  const chips = tab ? q(tab, '[data-feat-source]') : [];
+  /* A row can hold a table of its own, and those inner rows are not what a
+     source filter acts on — hiding the outer row hides them with it. */
+  const outer = (within) => q(within, '.tidy-table-row-container')
+    .filter((r) => r.parent?.closest?.('.tidy-table-row-container') == null);
+  const rows = tab ? outer(tab) : [];
+  const visible = () => rows.filter((r) => !r.classList.contains('am-hidden')).length;
+
+  check('the Features tab offers a chip per source', chips.length > 1,
+    chips.length ? chips.map((c) => c.dataset.featSource).join(', ') : 'no chips drawn');
+
+  if (chips.length > 1 && rows.length) {
+    const all = visible();
+    const first = chips[0];
+    const want = first.dataset.featSource;
+    const inThatSource = q(tab, '.tidy-table')
+      .filter((s) => s.dataset.tidySectionKey === want)
+      .reduce((n, s) => n + outer(s).length, 0);
+
+    await fireType(first, 'click');
+    check('choosing a source shows only that source',
+      visible() === inThatSource && visible() < all,
+      `${all} rows -> ${visible()}, and ${want} holds ${inThatSource}`);
+
+    /* Composed with the search rather than replaced by it. */
+    const box = root.querySelector('#am-feature-search');
+    const kept = q(tab, '.tidy-table')
+      .filter((s) => s.dataset.tidySectionKey === want)
+      .flatMap((s) => outer(s))
+      .filter((r) => !r.classList.contains('am-hidden'));
+    const word = (kept[0]?.querySelector('.item-name')?.textContent ?? '')
+      .trim().split(/\s+/).find((w) => w.length > 3);
+    if (box && word) {
+      box.value = word;
+      await fireType(box, 'input');
+      const now = rows.filter((r) => !r.classList.contains('am-hidden'));
+      check('and the search narrows what the source left',
+        now.length > 0 && now.length <= inThatSource
+        && now.every((r) => (r.querySelector('.item-name')?.textContent ?? '')
+             .toLowerCase().includes(word.toLowerCase())),
+        `"${word}" within ${want}: ${now.length} of ${inThatSource}`);
+      box.value = '';
+      await fireType(box, 'input');
+    }
+
+    await fireType(first, 'click');
+    check('and pressing the chip again clears it', visible() === all,
+      `back to ${visible()} of ${all}`);
+  }
+
+  /* The other axis: only what takes an action.
+
+     What must be true is that nothing passive survives — not that the list
+     gets shorter. On a character whose every feature is active it does not,
+     and the first version of this called that a failure. The number removed
+     is reported so a character with nothing to remove reads as such rather
+     than as a pass that proved nothing. */
+  const activeChip = tab ? q(tab, '[data-feat-active]')[0] : null;
+  if (activeChip && rows.length) {
+    const all = visible();
+    const passive = rows.filter((r) => !r.dataset.activation).length;
+    await fireType(activeChip, 'click');
+    const now = rows.filter((r) => !r.classList.contains('am-hidden'));
+    check('the Active chip keeps only what takes an action',
+      now.length === all - passive && now.every((r) => !!r.dataset.activation),
+      passive ? `${all} rows -> ${now.length}; ${passive} passive ones removed`
+              : `${all} rows -> ${now.length}; this character has no passive features`);
+    await fireType(activeChip, 'click');
+    check('and it toggles off', visible() === all, `back to ${visible()}`);
+  }
+}
+
 /* ── the searches that filter in place ──────────────────────────────────
    These carry a data-action but listen for `input`, so fireall's click/change
    pass reports them as unbound. They are not; this is where that is settled. */

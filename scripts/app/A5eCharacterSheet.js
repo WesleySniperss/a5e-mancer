@@ -326,6 +326,21 @@ export class A5eCharacterSheet extends ActorSheet {
       .filter(([, arr]) => arr.length > 0)
       .map(([source, items]) => ({ source, items }));
 
+    /* What the Features tab can be filtered by. The sources are the groups
+       it is already divided into, so a chip per group and nothing invented;
+       drawn only when there is more than one, since one chip that selects
+       everything is a button that does nothing.
+
+       `hasActive` asks whether any feature is something you DO rather than
+       something you have — a5e records that as the action's activation, and
+       a feature with none is passive. */
+    const featureFilters = {
+      sources: featuresBySource.length > 1
+        ? featuresBySource.map((g) => ({ key: g.source, label: g.source, count: g.items.length }))
+        : [],
+      hasActive: allFeatures.some((f) => !!f.activation)
+    };
+
     // Custom counters — stored in actor flags
     const savedCounters = actor.getFlag(MODULE_ID, 'customCounters') ?? [{}, {}];
     const customCounters = [0, 1].map(i => {
@@ -1001,7 +1016,8 @@ export class A5eCharacterSheet extends ActorSheet {
       abilities, skills, resources, classes,
       savingThrows, maneuverDC, proficiencies,
       weapons, maneuvers, maneuverGroups, spells, spellGroups, spellSlots,
-      features, feats, allFeatures, featuresBySource, customCounters, freeCounter,
+      features, feats, allFeatures, featuresBySource, featureFilters,
+      customCounters, freeCounter,
       effectGroups, bonuses, hasBonuses, interactionGroups, settings,
       /* Which page of the Notes tab is open. a5e opens a character on
          Character Details and a monster on Notes, and remembers the choice
@@ -3022,30 +3038,99 @@ export class A5eCharacterSheet extends ActorSheet {
     /* The pip row is gone from the sheet — the bar replaced it — so the
        handler that set a counter by clicking one went with it. */
 
-    /* Feature search.
+    /* ── The Features tab: a search and two filters ─────────────────────
 
-       This filtered `.am-feat-item`, which is markup the Quadrone rewrite
-       replaced with Tidy's .tidy-table-row-container. The box is drawn on
-       both sheets and typing in it did nothing — no error, no rows moving.
-       Filtering in the DOM rather than re-rendering, for the same reason the
-       effects search does: a re-render takes the focus out of the field on
-       every keystroke. */
-    el.querySelector('#am-feature-search')?.addEventListener('input', (e) => {
-      const q = e.target.value.trim().toLowerCase();
-      const tab = el.querySelector('.tidy-tab.features');
-      if (!tab) return;
-      for (const row of tab.querySelectorAll('.tidy-table-row-container')) {
-        const name = (row.querySelector('.item-name')?.textContent ?? '').toLowerCase();
-        row.classList.toggle('am-hidden', !!q && !name.includes(q));
+       One function, because the three have to compose: choosing a source
+       and then typing must narrow what the source left, not start again.
+       Each is applied in turn to every row, and a section whose every row
+       is hidden goes with them — or the tab is left with headings standing
+       over nothing.
+
+       All of it in the DOM, not by re-rendering. This tab is the biggest on
+       the sheet — ninety rows on the heaviest character here, more than half
+       the page — and redrawing it to hide eighty of them is what made the
+       inventory search stutter before it was changed for the same reason.
+
+       The choice is remembered on the sheet, because writing anything to the
+       actor redraws the page and would otherwise clear it.
+
+       The search itself used to filter `.am-feat-item`, markup the Quadrone
+       rewrite had already replaced, so typing in it did nothing at all. */
+    const featureTab = el.querySelector('.tidy-tab.features');
+    if (featureTab) {
+      const applyFeatureFilters = () => {
+        const q      = (this._featSearch ?? '').trim().toLowerCase();
+        const source = this._featSource ?? null;
+        const active = !!this._featActive;
+
+        /* Only the tables that are a source group, and only the rows that
+           belong to one directly.
+
+           A row can hold a table of its own — an item whose actions are
+           listed under it — and those inner tables carry no section key. The
+           first version of this walked every .tidy-table, read the inner
+           ones' missing key as 'not the chosen source', and hid their rows:
+           choosing Class showed one row where the group holds two, and the
+           one that vanished was a feature's own action. Hiding a row hides
+           what is nested inside it anyway, so only the outer rows are
+           touched. */
+        const sections = [...featureTab.querySelectorAll('.tidy-table[data-tidy-section-key]')];
+        for (const section of sections) {
+          const key = section.dataset.tidySectionKey ?? '';
+          const sectionOut = !!source && key !== source;
+
+          const own = [...section.querySelectorAll('.tidy-table-row-container')]
+            .filter((row) => row.parentElement?.closest?.('.tidy-table-row-container') == null);
+
+          let shown = 0;
+          for (const row of own) {
+            const name = (row.querySelector('.item-name')?.textContent ?? '').toLowerCase();
+            const hide = sectionOut
+              || (!!q && !name.includes(q))
+              || (active && !row.dataset.activation);
+            row.classList.toggle('am-hidden', hide);
+            if (!hide) shown++;
+          }
+          section.classList.toggle('am-hidden', shown === 0);
+        }
+      };
+
+      el.querySelector('#am-feature-search')?.addEventListener('input', (e) => {
+        this._featSearch = e.target.value;
+        applyFeatureFilters();
+      });
+
+      /* A chip is a toggle: pressing the one already chosen clears it, the
+         way the spell window's level and school buttons behave. */
+      el.querySelectorAll('[data-feat-source]').forEach(chip =>
+        chip.addEventListener('click', (e) => {
+          e.preventDefault();
+          const want = chip.dataset.featSource;
+          this._featSource = this._featSource === want ? null : want;
+          el.querySelectorAll('[data-feat-source]').forEach(c =>
+            c.classList.toggle('am-active', c.dataset.featSource === this._featSource));
+          applyFeatureFilters();
+        })
+      );
+
+      el.querySelector('[data-feat-active]')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        this._featActive = !this._featActive;
+        e.currentTarget.classList.toggle('am-active', this._featActive);
+        applyFeatureFilters();
+      });
+
+      /* A redraw brings back every row; the choice outlived it, so it is
+         applied again — and the controls are put back in the state it left. */
+      if (this._featSearch) {
+        const box = el.querySelector('#am-feature-search');
+        if (box) box.value = this._featSearch;
       }
-      /* A source group whose every row is filtered out goes too, or the tab
-         is left with headings standing over nothing. */
-      for (const table of tab.querySelectorAll('.tidy-table')) {
-        const rows = [...table.querySelectorAll('.tidy-table-row-container')];
-        table.classList.toggle('am-hidden', rows.length > 0 &&
-          rows.every(r => r.classList.contains('am-hidden')));
-      }
-    });
+      el.querySelectorAll('[data-feat-source]').forEach(c =>
+        c.classList.toggle('am-active', c.dataset.featSource === this._featSource));
+      el.querySelector('[data-feat-active]')?.classList.toggle('am-active', !!this._featActive);
+      if (this._featSearch || this._featSource || this._featActive) applyFeatureFilters();
+    }
 
     /* Currency */
     el.querySelectorAll('[data-action="currency-edit"]').forEach(inp =>

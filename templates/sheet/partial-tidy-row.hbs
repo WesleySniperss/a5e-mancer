@@ -21,8 +21,12 @@
      as Tidy has them, so a row carrying more icons than its neighbour still
      lines up down the right-hand side.
      ─────────────────────────────────────────────────────────────────────── --}}
+{{!-- data-activation carries how the thing is used — action, bonus action,
+     reaction, or absent for something passive. The Features tab filters on
+     it in the DOM, so it has to be on the row rather than only in the cell
+     text, which is localised and would be matched by its spelling. --}}
 <div class="tidy-table-row-container" data-item-id="{{id}}"
-  data-document-uuid="{{uuid}}">
+  data-document-uuid="{{uuid}}"{{#if activation}} data-activation="{{activation}}"{{/if}}>
   <div
     class="tidy-table-row tidy-table-row-v2{{#if equipped}} equipped{{/if}}{{#if attuneProblem}} attunement-problem{{/if}}"
     data-tidy-table-row data-tidy-draggable data-tidy-item-type="{{type}}">

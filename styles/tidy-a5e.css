@@ -1785,6 +1785,66 @@
   display: flex;
 }
 
+/* ── The Features filter chips ────────────────────────────────────────────
+   A row under the search: one chip per source, and one for "things you do".
+   Compact, because they sit above ninety rows and are not the point of the
+   tab — a pill's height, tabular, and wrapping rather than scrolling.
+
+   These are <button>s, and Tidy gives every button in the sheet a
+   min-height of a field, a border and a transition. All three have to be
+   overruled or a row of chips is as tall as a row of form fields. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-feat-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--t5e-size-1x);
+  margin-block-end: var(--t5e-size-2x);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-feat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--t5e-size-1);
+  flex: 0 0 auto;
+  height: 1.375rem;
+  min-height: 0;
+  min-width: 0;
+  margin: 0;
+  padding-inline: var(--t5e-size-2x);
+  border: 0.0625rem solid var(--t5e-component-pill-border);
+  border-radius: 1rem;
+  background: none;
+  color: var(--t5e-color-text-lighter);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: none;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-feat-chip:hover {
+  color: var(--t5e-color-text-default);
+  border-color: var(--t5e-color-text-gold-emphasis);
+}
+
+/* The one in force. Gold, as every other chosen thing on this sheet is. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-feat-chip.am-active {
+  color: var(--t5e-color-text-gold-emphasis);
+  border-color: var(--t5e-color-text-gold-emphasis);
+  background: rgba(200, 168, 74, 0.12);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-feat-chip i {
+  font-size: 0.625rem;
+}
+
+/* "Active" filters on a different axis from the sources, so it stands apart
+   from them rather than reading as one more source. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-feat-chip-apart {
+  margin-inline-start: auto;
+}
+
 /* ── Spell slots on the level heading ─────────────────────────────────────
    One star per slot, beside the spell count, on the line that is already
    there — and they are the control, not a readout: there is no second place

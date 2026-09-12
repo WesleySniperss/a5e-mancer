@@ -1312,6 +1312,29 @@
         </button>
       </div>
 
+      {{!-- Where a feature came from, and whether it is something you DO.
+           Both filter in the DOM beside the search rather than redrawing the
+           sheet, which on this tab means ninety rows rebuilt to hide eighty.
+
+           The source chips are the sections themselves — the tab is already
+           grouped that way — so choosing one hides the other groups whole.
+           Only drawn when there is more than one group to choose between. --}}
+      {{#if featureFilters.sources.length}}
+        <div class="am-feat-filters" role="group" aria-label="Filter features">
+          {{#each featureFilters.sources}}
+            <button type="button" class="am-feat-chip" data-feat-source="{{this.key}}"
+              data-tooltip="{{this.count}} from {{this.label}}">{{this.label}}</button>
+          {{/each}}
+          {{#if featureFilters.hasActive}}
+            <button type="button" class="am-feat-chip am-feat-chip-apart"
+              data-feat-active="1"
+              data-tooltip="Only the ones that take an action, a bonus action or a reaction">
+              <i class="fa-solid fa-bolt"></i> Active
+            </button>
+          {{/if}}
+        </div>
+      {{/if}}
+
       {{#each featuresBySource}}
         {{~#> tidy-table key=this.source label=this.source count=this.items.length c1=true col1="Activation"}}
           {{#each this.items}}
