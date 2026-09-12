@@ -506,6 +506,32 @@ export class SpellService {
    * Load all spells from compendiums, grouped by level then class.
    * Returns: Map<level (0–9), spell[]>
    */
+  /** The eight primary schools, as a5e spells them. */
+  static #PRIMARY_SCHOOLS = ['abjuration', 'conjuration', 'divination', 'enchantment',
+                             'evocation', 'illusion', 'necromancy', 'transmutation'];
+
+  /**
+   * One school key, however the pack chose to write it.
+   *
+   * The filter row builds its pills from the spells themselves, so a pack that
+   * abbreviates put a second pill beside the real one: "Con" next to
+   * "Conjuration", "Trs" next to "Transmutation", and so on for five more. In
+   * the reporter's world 46 spells across seven abbreviations did this, all
+   * from one third-party pack.
+   *
+   * Most abbreviations are prefixes and resolve by matching; "trs" is not one,
+   * so it is named. Anything still unrecognised is handed back untouched — a
+   * genuinely new school should appear rather than be silently folded into a
+   * neighbour.
+   */
+  static normalizeSchool(raw) {
+    const key = String(raw ?? '').trim().toLowerCase();
+    if (!key || this.#PRIMARY_SCHOOLS.includes(key)) return key;
+    if (key === 'trs') return 'transmutation';
+    const hit = this.#PRIMARY_SCHOOLS.filter(s => s.startsWith(key));
+    return hit.length === 1 ? hit[0] : key;   // ambiguous prefixes stay as they are
+  }
+
   static async loadSpells(filterClass = null, maxLevel = 9) {
     const byLevel = new Map();
     for (let i = 0; i <= 9; i++) byLevel.set(i, []);
@@ -539,7 +565,8 @@ export class SpellService {
           const uuid = entry.uuid ?? `Compendium.${pack.collection}.Item.${entry._id}`;
           if (filterClass && !this.spellAllowsClass(entry.system, filterClass, uuid)) continue;
 
-          const school = entry.system?.schools?.primary ?? entry.system?.school ?? '';
+          const school = SpellService.normalizeSchool(
+            entry.system?.schools?.primary ?? entry.system?.school ?? '');
           const schoolI18nKey = CONFIG?.A5E?.spellSchools?.primary?.[school];
           const schoolLabel = schoolI18nKey
             ? game.i18n.localize(schoolI18nKey)

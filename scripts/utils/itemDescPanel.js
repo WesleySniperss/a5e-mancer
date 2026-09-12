@@ -144,8 +144,14 @@ export class ItemDescPanel {
     const act = sys.activation ?? action.activation ?? {};
     if (act.type) push('fa-clock', 'Casting Time', `${act.cost ? `${act.cost} ` : ''}${act.type}`);
 
+    /* `range && typeof …` because typeof null is 'object', so an item carrying
+       none of these three fields fell into Object.values(null) and threw. The
+       throw was caught upstream and logged, which meant the whole description
+       panel silently did nothing for those items — right-click looked broken
+       rather than errored. Items from third-party packs hit it constantly. */
     const range = sys.range ?? action.ranges ?? action.range ?? null;
-    const r = Array.isArray(range) ? range[0] : (typeof range === 'object' ? Object.values(range)[0] : range);
+    const r = Array.isArray(range) ? range[0]
+            : (range && typeof range === 'object' ? Object.values(range)[0] : range);
     if (r) push('fa-ruler', 'Range', typeof r === 'object' ? [r.range, r.distance].filter(Boolean).join(' ') : r);
 
     const dur = sys.duration ?? action.duration ?? null;
