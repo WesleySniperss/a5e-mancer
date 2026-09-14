@@ -120,6 +120,13 @@ Hooks.once('setup', () => {
    world-load critical path. See compendiumIndexFix.js. */
 Hooks.once('ready', () => { installCompendiumFilterFix(); });
 
+/* Spells features name in their text; see ProseSpells. */
+Hooks.once('ready', () => {
+  import('./utils/proseSpells.js')
+    .then(({ ProseSpells }) => ProseSpells.installHooks())
+    .catch(err => AM.log(1, 'Feature spell hooks could not be installed:', err));
+});
+
 /* ── Beyond20 bridge ────────────────────────────────────── */
 /* Installed early and independently of document loading: the extension can
    dispatch its events as soon as the page is up, and we do not want to miss a

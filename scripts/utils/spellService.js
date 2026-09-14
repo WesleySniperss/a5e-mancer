@@ -788,7 +788,12 @@ export class SpellService {
   /**
    * Add selected spells to actor.
    */
-  static async applySpellsToActor(actor, spellUuids) {
+  /**
+   * @param {object} [opts]
+   * @param {number} [opts.prepared]  a5e's prepared state to write (2 = always prepared)
+   * @param {(uuid: string) => object} [opts.flags]  module flags for each created spell
+   */
+  static async applySpellsToActor(actor, spellUuids, { prepared = null, flags = null } = {}) {
     if (!spellUuids.length) return;
 
     // A5e requires spells to reference a spellbook on the actor.
@@ -828,6 +833,14 @@ export class SpellService {
         if (spellBookId) {
           data.system = data.system || {};
           data.system.spellBook = spellBookId;
+        }
+        if (prepared !== null) {
+          data.system = data.system || {};
+          data.system.prepared = prepared;
+        }
+        if (flags) {
+          data.flags = data.flags || {};
+          data.flags[AM.ID] = { ...(data.flags[AM.ID] ?? {}), ...flags(uuid) };
         }
         itemDatas.push(data);
         existingNames.add(item.name.toLowerCase()); // prevent within-batch dupes

@@ -159,6 +159,13 @@ export function registerSettings() {
   // casters, but that list was reachable only by editing the module's source —
   // so a table with its own caster, or one from a later book, had no way in.
   // Names are forgiving: "Psy Knight" and "psyknight" are the same class.
+  // Spells named in feature text: "you learn the Guidance cantrip", domain
+  // spell tables, "you always have X prepared". a5e grants none of them.
+  game.settings.register(AM.ID, 'proseSpells', {
+    name: 'am.settings.prose-spells.name', hint: 'am.settings.prose-spells.hint',
+    scope: 'world', config: true, type: Boolean, default: true
+  });
+
   game.settings.register(AM.ID, 'magicManeuverClasses', {
     name: 'am.settings.mm-classes.name', hint: 'am.settings.mm-classes.hint',
     scope: 'world', config: true, type: String,

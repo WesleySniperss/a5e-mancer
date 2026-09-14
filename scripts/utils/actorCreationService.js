@@ -4,6 +4,7 @@ import { EquipmentService } from './equipmentService.js';
 import { ManeuverService } from './maneuverService.js';
 import { SpellService } from './spellService.js';
 import { GrantAbsorber } from './grantAbsorber.js';
+import { ProseSpells } from './proseSpells.js';
 import { applyItemIcon } from '../data/a5eIcons.js';
 
 export class ActorCreationService {
@@ -41,6 +42,13 @@ export class ActorCreationService {
 
       // Apply spells (for caster classes)
       await this.#applySpells(actor);
+
+      // Spells the character's features name in their text - "you learn the
+      // Guidance cantrip", a domain's spell table. a5e has no grant for them.
+      if (ProseSpells.enabled) {
+        try { await ProseSpells.ensure(actor); }
+        catch (err) { AM.log(1, 'Spells from features could not be added:', err); }
+      }
 
       // Apply biography
       await this.#applyBiography(actor, fd);

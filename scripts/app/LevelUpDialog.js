@@ -1606,6 +1606,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
           dialog.actor, [...dialog._selectedCantripUuids, ...dialog._selectedSpellUuids]
         );
       }
+      await LevelUpDialog.#featureSpells(dialog.actor);
       return;
     }
 
@@ -1649,5 +1650,19 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
     // Magic maneuvers need nothing here: their school is a tradition, so they go
     // through the maneuver path above like every other maneuver.
+
+    await LevelUpDialog.#featureSpells(dialog.actor);
+  }
+
+  /**
+   * Spells this level's features, and the ones already held, now owe - a
+   * domain's next row, "at 5th level you learn ...". After everything else,
+   * so the features gained this level are on the actor to be read.
+   */
+  static async #featureSpells(actor) {
+    const { ProseSpells } = await import('../utils/proseSpells.js');
+    if (!ProseSpells.enabled) return;
+    try { await ProseSpells.ensure(actor); }
+    catch (err) { AM.log(1, 'Spells from features could not be added:', err); }
   }
 }
