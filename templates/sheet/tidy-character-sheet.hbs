@@ -1119,6 +1119,60 @@
            about, and it had its own pair of buttons for doing what the stars
            on those headings do. --}}
 
+      {{!-- Spell books, as a5e's Spells page has them: one book shown at a
+           time, a strip to switch — drawn when unlocked or when there is more
+           than one — and, unlocked, a cog and a bin on each and a plus at the
+           end. See "Spell books" in getData. --}}
+      {{#if spellBookNav}}
+        <nav class="am-spellbooks" aria-label="Spell books">
+          {{#each spellBooks}}
+            <span class="am-spellbook{{#if this.active}} active{{/if}}">
+              <button type="button" class="am-spellbook-pick" data-action="spellbook-pick"
+                data-book="{{this.id}}" aria-pressed="{{#if this.active}}true{{else}}false{{/if}}"
+                {{#if this.tip}}data-tooltip="{{this.tip}}"{{/if}}>
+                {{this.name}} <span class="am-spellbook-count">{{this.count}}</span>
+              </button>
+              {{#if @root.unlocked}}
+                <button type="button" class="unbutton am-spellbook-tool" data-action="spellbook-config"
+                  data-book="{{this.id}}" data-tooltip="Configure spell book" aria-label="Configure {{this.name}}">
+                  <i class="fa-solid fa-gear"></i>
+                </button>
+                <button type="button" class="unbutton am-spellbook-tool" data-action="spellbook-delete"
+                  data-book="{{this.id}}" data-tooltip="Delete spell book" aria-label="Delete {{this.name}}">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
+              {{/if}}
+            </span>
+          {{/each}}
+          {{#if @root.unlocked}}
+            <button type="button" class="unbutton am-spellbook am-spellbook-add" data-action="spellbook-add"
+              data-tooltip="Create new spell book" aria-label="Create new spell book">
+              <i class="fa-solid fa-plus"></i>
+            </button>
+          {{/if}}
+        </nav>
+      {{/if}}
+
+      {{!-- The book's own resources, as a5e's spell footer shows them for the
+           book being looked at. The total is fixed while locked, as there. --}}
+      {{#if spellBookResources.length}}
+        <div class="am-spell-resources">
+          {{#each spellBookResources}}
+            <span class="am-spell-resource">
+              <span class="am-spell-resource-label color-text-lighter">{{this.label}}</span>
+              {{#if this.hasCurrent}}
+                <input type="number" class="am-slot-field" min="0" data-action="spell-resource"
+                  data-path="{{this.currentPath}}" value="{{this.current}}" aria-label="{{this.label}} left" />
+                <span class="separator">/</span>
+              {{/if}}
+              <input type="number" class="am-slot-field" min="0" data-action="spell-resource"
+                data-path="{{this.maxPath}}" value="{{this.max}}" aria-label="{{this.label}} in total"
+                {{#unless @root.unlocked}}disabled{{/unless}} />
+            </span>
+          {{/each}}
+        </div>
+      {{/if}}
+
       {{#if hasSpells}}
         {{#each spellGroups}}
           {{!-- Five short columns rather than four wide ones, so the heading

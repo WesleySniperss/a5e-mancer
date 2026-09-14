@@ -690,8 +690,68 @@ export class A5eCharacterSheet extends ActorSheet {
 
     /* Spells grouped by level. Filled in below with any level that has slots
        but no spell of its own — see the note there. */
+    /* ── Spell books ─────────────────────────────────────────────────────
+       a5e keeps spells in books — system.spellBooks on the actor, each spell
+       naming its own in system.spellBook — and its Spells page shows one book
+       at a time, with a strip to switch between them: drawn when unlocked, or
+       when there is more than one. Unlocked, each book has a cog and a bin,
+       and the strip a plus. ActorSpellsPage.svelte; so here.
+
+       The book being looked at is remembered on the sheet, as a5e keeps it in
+       its temp settings, so a redraw does not jump back to the first.
+
+       One departure, on purpose: a spell naming no book, or a book that is
+       gone, is listed under the first book. a5e files those under "none" and
+       never draws that list, so they vanish from its sheet — and in the saved
+       copy of this world's characters, 74 of their 92 spells name no book.
+       Hiding a character's spells is not a thing to copy. */
+    const bookIds = Object.keys(sys.spellBooks ?? {});
+    const bookOf  = (id) => actor.spellBooks?.get?.(id) ?? sys.spellBooks?.[id] ?? {};
+    const currentBook = bookIds.includes(this._spellBook) ? this._spellBook : (bookIds[0] ?? null);
+    const abilityName = (key) => ABILITIES.find((a) => a.key === key)?.label ?? key;
+    const spellBooks = bookIds.map((id) => {
+      const b = bookOf(id);
+      const dc = b.stats?.dc;
+      const ability = b.stats?.ability && b.stats.ability !== 'default'
+        ? b.stats.ability : (sys.attributes?.spellcasting || null);
+      return {
+        id, name: b.name || 'Spell Book', active: id === currentBook,
+        count: spells.filter((s) => s.spellBook === id
+          || (id === bookIds[0] && !bookIds.includes(s.spellBook))).length,
+        tip: [dc ? `Spell save DC ${dc}` : null, ability ? abilityName(ability) : null].filter(Boolean).join(' · ') || null
+      };
+    });
+    const spellBookNav = unlocked || bookIds.length > 1;
+    const bookSpells = !currentBook ? spells : spells.filter((s) => s.spellBook === currentBook
+      || (currentBook === bookIds[0] && !bookIds.includes(s.spellBook)));
+    const book = currentBook ? bookOf(currentBook) : {};
+
+    /* The book's own resources, as a5e's spell footer shows them for the book
+       being looked at: spell points and artifact charges, left and total;
+       inventions, a total only. A character's total is derived, so unlocked
+       it edits the override; a monster edits the total. */
+    const res = sys.spellResources ?? {};
+    const isCharacter = actor.type === 'character';
+    const resourceRow = (key, label, hasCurrent) => ({
+      key, label, hasCurrent,
+      current: Number(res[key]?.current ?? 0) || 0,
+      currentPath: `system.spellResources.${key}.current`,
+      max: Number((isCharacter && unlocked ? res[key]?.override : res[key]?.max) ?? 0) || 0,
+      maxPath: `system.spellResources.${key}.${isCharacter ? 'override' : 'max'}`
+    });
+    const spellBookResources = [
+      (book.showArtifactCharges ?? false) && resourceRow('artifactCharges', 'Artifact charges', true),
+      (book.showSpellInventions ?? false) && resourceRow('inventions', 'Spell inventions', false),
+      (book.showSpellPoints ?? false) && resourceRow('points', 'Spell points', true)
+    ].filter(Boolean);
+    /* a5e passes the book's showSpellSlots to every level heading: off, and
+       no stars or slot fields are drawn for this book. */
+    const bookShowsSlots = book.showSpellSlots ?? true;
+
     const spellsByLevel = {};
-    for (const s of spells.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name))) {
+    const byLevelThenName = (a, b) => a.level - b.level || a.name.localeCompare(b.name);
+    spells.sort(byLevelThenName);           // in place, as it always was
+    for (const s of bookSpells.slice().sort(byLevelThenName)) {
       const k = s.level === 0 ? 'Cantrips' : `Level ${s.level}`;
       if (!spellsByLevel[k]) spellsByLevel[k] = [];
       spellsByLevel[k].push(s);
@@ -736,11 +796,13 @@ export class A5eCharacterSheet extends ActorSheet {
        where the eye already is when the question comes up. */
     /* a5e's "Show spell slots" switch, read as `?? true` the way its sheet
        reads it. What it governs there is narrower than its name: not whether
-       a level's stars are drawn — SpellBook.svelte always passes those — but
-       whether a level with slots and no spells gets a heading at all while
-       the sheet is locked. So it is applied below, to the headings. */
+       a level's stars are drawn — that is the book's own showSpellSlots,
+       which SpellBook.svelte passes to every heading — but whether a level
+       with slots and no spells gets a heading at all while the sheet is
+       locked. So it is applied below, to the headings. */
     const showSlots = actor.flags?.a5e?.showSpellSlots ?? true;
-    const spellSlots = Object.fromEntries(slotRows.map(r => [`Level ${r.level}`, r]));
+    const slotsByLevel = Object.fromEntries(slotRows.map(r => [`Level ${r.level}`, r]));
+    const spellSlots = bookShowsSlots ? slotsByLevel : {};
 
     /* A level's slots belong to the level, not to the spells in it.
 
@@ -761,7 +823,7 @@ export class A5eCharacterSheet extends ActorSheet {
       /* a5e's isSpellLevelVisible: unlocked, every level that has slots or
          an override; locked, only those with slots to spend, and only while
          the switch is on. */
-      else if (spellSlots[k].has && (unlocked || (showSlots && spellSlots[k].max > 0))) spellGroups[k] = [];
+      else if (slotsByLevel[k].has && (unlocked || (showSlots && slotsByLevel[k].max > 0))) spellGroups[k] = [];
     }
 
     /* Fatigue/Strife pip arrays */
@@ -1118,6 +1180,7 @@ export class A5eCharacterSheet extends ActorSheet {
       abilities, skills, resources, classes,
       savingThrows, maneuverDC, proficiencies,
       weapons, maneuvers, maneuverGroups, spells, spellGroups, spellSlots,
+      spellBooks, spellBookNav, spellBookResources,
       features, feats, allFeatures, featuresBySource, featureFilters,
       customCounters, freeCounter,
       effectGroups, bonuses, hasBonuses, interactionGroups, settings,
@@ -1159,7 +1222,9 @@ export class A5eCharacterSheet extends ActorSheet {
          releases. It was found by settingsdo.mjs the moment that check
          started testing every switch instead of six: with `Show spell slots`
          off and on, the page did not move. */
-      hasSpells:           spells.length > 0 || Object.keys(spellGroups).length > 0,
+      /* The book being looked at, not the character: an empty second book
+         says it is empty rather than drawing nothing under its tab. */
+      hasSpells:           bookSpells.length > 0 || Object.keys(spellGroups).length > 0,
       hasFeatures:         features.length       > 0,
       hasEquipment:        equipment.length      > 0,
       hasCombat:           weapons.length + maneuvers.length + spells.length > 0,
@@ -1838,6 +1903,7 @@ export class A5eCharacterSheet extends ActorSheet {
       level,
       levelLabel: level === 0 ? 'Cantrip' : `Level ${level}`,
       school: schoolKey,
+      spellBook: sys.spellBook ?? '',
       summaryTags: [
         labels.reactionTrigger ? `Trigger: ${labels.reactionTrigger}` : null,
         level === 0 ? 'Cantrip' : `Level ${level}`,
@@ -2248,8 +2314,11 @@ export class A5eCharacterSheet extends ActorSheet {
       return scroll;
     }
 
-    const bookId = actor.spellBooks?.first?.()?._id
-                ?? Object.keys(actor.system?.spellBooks ?? {})[0];
+    /* The book the Magic tab is showing, as a5e drops into its current book;
+       the first when none has been picked or the picked one is gone. */
+    const bookIds = Object.keys(actor.system?.spellBooks ?? {});
+    const bookId = bookIds.includes(this._spellBook) ? this._spellBook
+                 : (actor.spellBooks?.first?.()?._id ?? bookIds[0]);
     const book = bookId ? actor.spellBooks?.get?.(bookId) : null;
     if (!book) {
       ui.notifications.warn(`${actor.name} has no spell book to put ${item.name} in. a5e makes one when a class that casts is added.`);
@@ -2462,6 +2531,17 @@ export class A5eCharacterSheet extends ActorSheet {
        Remembered on the sheet for the same reason: typing in one of these
        fields saves and re-renders, and without this the page would snap
        back every time. */
+    /* Which spell book the Magic tab shows. Viewing, not editing, so above
+       the guard; remembered on the sheet, as a5e keeps it in temp settings. */
+    el.querySelectorAll('[data-action="spellbook-pick"]').forEach(b =>
+      b.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (this._spellBook === b.dataset.book) return;
+        this._spellBook = b.dataset.book;
+        this.render(false);
+      })
+    );
+
     el.querySelectorAll('a[data-notes-tab]').forEach(node =>
       node.addEventListener('click', (e) => {
         e.preventDefault();
@@ -3581,7 +3661,9 @@ export class A5eCharacterSheet extends ActorSheet {
         className:        casterClass?.name ?? '',
         cantripsToChoose: -1,
         spellsToChoose:   -1,
-        maxSpellLevel:    Math.max(1, Math.min(9, Math.ceil(casterLevel / 2)))
+        maxSpellLevel:    Math.max(1, Math.min(9, Math.ceil(casterLevel / 2))),
+        /* Into the book the Magic tab is showing, not always the first. */
+        spellBookId:      this._spellBook ?? null
       }).render(true);
     });
 
@@ -3880,6 +3962,60 @@ export class A5eCharacterSheet extends ActorSheet {
        from its classes, and the total itself on a monster. The field names
        come from the context, which decided that once. Neither input carries
        a name, so the form's own submit leaves them alone. */
+    /* Spell books, through a5e's own SpellBookManager: add() writes a new
+       book with its schema's defaults and returns its id, remove() deletes
+       the book and every spell in it. As on a5e's page, a new book is shown
+       at once and its settings opened. */
+    el.querySelector('[data-action="spellbook-add"]')?.addEventListener('click', async (e) => {
+      e.preventDefault();
+      if (typeof this.actor.spellBooks?.add !== 'function') return;
+      const id = await this.actor.spellBooks.add({});
+      if (!id) return;
+      this._spellBook = id;
+      this.#configureSpellBook(id);
+    });
+
+    el.querySelectorAll('[data-action="spellbook-config"]').forEach(b =>
+      b.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.#configureSpellBook(b.dataset.book);
+      })
+    );
+
+    el.querySelectorAll('[data-action="spellbook-delete"]').forEach(b =>
+      b.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = b.dataset.book;
+        const book = this.actor.spellBooks?.get?.(id);
+        if (!book) return;
+        const esc = (s) => foundry.utils.escapeHTML(String(s ?? ''));
+        const count = this.actor.items.filter(i => i.type === 'spell' && i.system?.spellBook === id).length;
+        /* a5e's delete takes the spells in the book with it, so the question
+           says so. */
+        const ok = await foundry.applications.api.DialogV2.confirm({
+          window: { title: 'Delete spell book' },
+          content: `<p>Delete <strong>${esc(book.name)}</strong>${count
+            ? ` and the ${count} spell${count === 1 ? '' : 's'} in it` : ''}? This cannot be undone.</p>`,
+          rejectClose: false
+        });
+        if (!ok) return;
+        if (this._spellBook === id) this._spellBook = null;
+        await this.actor.spellBooks.remove(id);
+      })
+    );
+
+    /* A book's resources: spell points, inventions, artifact charges. */
+    el.querySelectorAll('[data-action="spell-resource"]').forEach(inp =>
+      inp.addEventListener('change', async (e) => {
+        e.stopPropagation();
+        const path = inp.dataset.path;
+        if (!/^system\.spellResources\.(points|inventions|artifactCharges)\.(current|max|override)$/.test(path)) return;
+        await this.actor.update({ [path]: Math.max(0, Math.floor(Number(inp.value) || 0)) });
+      })
+    );
+
     el.querySelectorAll('[data-action="slot-field"]').forEach(inp =>
       inp.addEventListener('change', async (e) => {
         e.stopPropagation();
@@ -4285,6 +4421,62 @@ export class A5eCharacterSheet extends ActorSheet {
             if (typeof item.toggleAttunement === 'function') await item.toggleAttunement();
             else await item.update({ 'system.attuned': !(item.system?.attuned ?? false) });
             repaint();
+          });
+        }
+      }
+    });
+  }
+
+  /* a5e's SpellBookConfig: the book's name, the ability its spells cast with,
+     which resources it shows, and whether its spells skip their consumers.
+     Each field writes system.spellBooks.<id>.<field> the moment it changes,
+     as a5e's does, so there is nothing to save. */
+  #configureSpellBook(id) {
+    const actor = this.actor;
+    const book = actor.spellBooks?.get?.(id) ?? actor.system?.spellBooks?.[id];
+    if (!book) return;
+    const esc = (s) => foundry.utils.escapeHTML(String(s ?? ''));
+    const ability = book.ability ?? 'default';
+    const abilities = [['default', 'Sheet default'],
+      ...ABILITIES.map((a) => [a.key, a.label])];
+    const boxes = [
+      ['showArtifactCharges', 'Show artifact charges', book.showArtifactCharges ?? false],
+      ['showSpellInventions', 'Show spell inventions', book.showSpellInventions ?? false],
+      ['showSpellPoints',     'Show spell points',     book.showSpellPoints ?? false],
+      ['showSpellSlots',      'Show spell slots',      book.showSpellSlots ?? true],
+      ['disableSpellConsumers', 'Disable spell consumers', book.disableSpellConsumers ?? false]
+    ];
+    const content = `
+      <div class="am-book-config" style="display:flex;flex-direction:column;gap:0.6rem">
+        <label style="display:flex;flex-direction:column;gap:0.2rem">
+          <span>Spell book name</span>
+          <input type="text" data-field="name" value="${esc(book.name)}" spellcheck="false" />
+        </label>
+        <label style="display:flex;flex-direction:column;gap:0.2rem">
+          <span>Spellcasting ability</span>
+          <select data-field="ability">${abilities.map(([k, l]) =>
+            `<option value="${esc(k)}"${k === ability ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>
+          <small style="opacity:0.7">Spells in this book use this ability for their attack rolls and save DCs in place of the sheet default.</small>
+        </label>
+        ${boxes.map(([k, l, on]) => `
+          <label style="display:flex;align-items:center;gap:0.4rem">
+            <input type="checkbox" data-field="${k}"${on ? ' checked' : ''} /> <span>${esc(l)}</span>
+          </label>`).join('')}
+        <small style="opacity:0.7">Disabling spell consumers ignores spell slot and spell point costs by default — for ritual books and the like.</small>
+      </div>`;
+
+    foundry.applications.api.DialogV2.wait({
+      window: { title: 'Configure Spell Book' },
+      content,
+      position: { width: 420 },
+      rejectClose: false,
+      buttons: [{ action: 'close', label: 'Close', default: true }],
+      render: (_event, dialog) => {
+        for (const input of dialog.element.querySelectorAll('[data-field]')) {
+          input.addEventListener('change', async () => {
+            const field = input.dataset.field;
+            const value = input.type === 'checkbox' ? input.checked : input.value;
+            await actor.update({ [`system.spellBooks.${id}.${field}`]: value });
           });
         }
       }

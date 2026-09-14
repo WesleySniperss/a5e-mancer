@@ -1935,6 +1935,91 @@
   box-shadow: 0 0 0 0.0625rem var(--t5e-color-text-gold-emphasis, #e9d7a1);
 }
 
+/* ── Spell books ──────────────────────────────────────────────────────────
+   a5e's strip of books on its Spells page, drawn as Tidy draws a row of
+   pills: the book being shown lit gold, the others plain, the count beside
+   each name. Unlocked, each carries a cog and a bin, and a plus ends the row.
+   It wraps rather than scrolls, so a fourth book is never out of sight. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-spellbooks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--t5e-size-1x);
+  padding-block: var(--t5e-size-1x);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-spellbook {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+  min-height: 1.75rem;
+  padding-inline: 0.25rem;
+  border: 0.0625rem solid var(--t5e-component-pill-border, rgba(255, 255, 255, 0.15));
+  border-radius: 1rem;
+  background: var(--t5e-component-pill-background, rgba(255, 255, 255, 0.04));
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-spellbook.active {
+  border-color: var(--t5e-color-gold, #b8964f);
+  background: rgba(184, 150, 79, 0.18);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-spellbook-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 0;
+  margin: 0;
+  padding: 0.125rem 0.5rem;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-spellbook-count {
+  font-weight: 400;
+  opacity: 0.6;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-spellbook-tool {
+  min-height: 0;
+  padding: 0.125rem 0.25rem;
+  font-size: 0.75rem;
+  opacity: 0.6;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-spellbook-tool:hover {
+  opacity: 1;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-spellbook-add {
+  justify-content: center;
+  width: 1.75rem;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* The book's points, inventions and charges, in a row under the strip. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-spell-resources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--t5e-size-3x);
+  padding-block: 0 var(--t5e-size-1x);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-spell-resource {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8125rem;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-spell-resource-label {
+  margin-inline-end: 0.25rem;
+}
+
 /* Unlocked: a5e's two fields, left and total, in place of the stars. */
 .tidy5e-sheet.application.a5e-mancer-sheet .am-slots-edit {
   gap: 0.25rem;
@@ -1978,6 +2063,16 @@
   overflow-wrap: anywhere;
   line-height: 1.1;
   text-align: center;
+}
+
+/* A short cell and the glyph after it — an area's shape — on one line. The
+   cell lays its children out as Tidy's text cells do, which put the glyph
+   under "20" once the value was allowed to wrap. */
+.tidy5e-sheet.application.a5e-mancer-sheet .tidy-table-cell.text-cell:has(> .am-cell-icon) {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
 }
 
 /* A short cell and the glyph after it — an area's shape — on one line. */

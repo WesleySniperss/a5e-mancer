@@ -339,6 +339,19 @@ acted on:
 Timing is the least trustworthy thing in this directory. Prefer a number that
 cannot drift.
 
+## `spellbooks.mjs`
+
+The Magic tab's spell books against a5e's Spells page: the strip drawn when
+unlocked or when there is more than one book; one book's spells at a time, the
+pick surviving a redraw; a book's `showSpellSlots` deciding the stars and its
+points shown with it; unlocked, the plus adding a book through
+`SpellBookManager.add` and opening its settings, the cog opening a5e's fields,
+the bin asking — naming the spells that go with the book — before `remove`.
+
+A spell naming no book is listed under the first book. a5e files those under
+"none" and never draws them; in the saved copy of this world's characters 74 of
+92 spells name no book, so copying that would empty most spell lists.
+
 ## `dropspell.mjs`
 
 Drops a5e's Fireball on the sheet. On Magic it must go into a spell book
