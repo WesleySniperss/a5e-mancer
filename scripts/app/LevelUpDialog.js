@@ -316,11 +316,25 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       // so both have to be passed — not one number standing in for both.
       const lv = { charLevel: context.newTotalLevel, clsLevel: newLevel };
 
+      // Past the archetype level, the archetype is on the character and its
+      // grants arrive with the class's. Taking the level over means answering
+      // for those too, so if any of them cannot be listed the whole level goes
+      // back to a5e, whose window asks for both.
+      const archLevel = LevelUpService.archetypeLevelOf(classItem);
+      const ownedArch = archLevel && newLevel > archLevel
+        ? GrantAbsorber.archetypeOf(this.actor, classItem)
+        : null;
+
       // Also cached: canAbsorb walks the same tree to reach its verdict, and the
       // verdict cannot change while the dialog is open.
-      const absorbKey = `${classItem.id}|${newLevel}|${context.newTotalLevel}`;
+      const absorbKey = `${classItem.id}|${newLevel}|${context.newTotalLevel}|${ownedArch?.id ?? ''}`;
       if (this._absorbCache?.key !== absorbKey) {
-        this._absorbCache = { key: absorbKey, ok: await GrantAbsorber.canAbsorb(classItem, lv) };
+        let ok = await GrantAbsorber.canAbsorb(classItem, lv);
+        if (ok && ownedArch && !await GrantAbsorber.canAbsorb(ownedArch, lv)) {
+          AM.log(3, `${ownedArch.name} level ${newLevel}: archetype grants left to a5e`);
+          ok = false;
+        }
+        this._absorbCache = { key: absorbKey, ok };
       }
       if (!this._absorbCache.ok) {
         AM.log(3, `${classItem.name} level ${newLevel}: grants left to a5e`);
@@ -360,7 +374,6 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       // The archetype level. a5e asks for this at the end of its grant routine,
       // so suppressing that routine without asking here would let the level pass
       // with no archetype at all.
-      const archLevel = LevelUpService.archetypeLevelOf(classItem);
       if (archLevel && newLevel === archLevel) {
         store.archetypeLevel = true;
         store.archetypes = await LevelUpService.getArchetypesForClass(classItem);
@@ -396,6 +409,26 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
           store.features = [...store.features, ...picked.features];
           context.archetypeAbsorbed = picked.absorbed;
         }
+      } else if (ownedArch) {
+        // Every later level. An archetype hands out features every few levels
+        // and plenty of them ask something — a Knight's second fighting style
+        // at 10th, a Psalmist's hymn at 6th, every Trooper archetype at 7th —
+        // and these were applied without asking, taking the base set of each.
+        // 74 of a5e's 303 archetypes have such a choice. Same prefix and cache
+        // as the archetype level, so answers are filed and handed back alike.
+        const archPicks = LevelUpDialog.#choicesWithPrefix(store.choices, LevelUpDialog.#ARCH_PREFIX);
+        const archKey   = `owned|${ownedArch.id}|${newLevel}|${context.newTotalLevel}|`
+                        + LevelUpDialog.#picksKey(archPicks);
+        if (this._archCache?.key !== archKey) {
+          const tree = await GrantAbsorber.describeTreeForLevel(ownedArch, lv, archPicks);
+          const tag  = (g) => ({ ...g, id: `${LevelUpDialog.#ARCH_PREFIX}${g.id}`, fromArchetype: true });
+          this._archCache = { key: archKey,
+                              models: { grants: tree.grants.map(tag), features: tree.features.map(tag) } };
+        }
+        const picked = this._archCache.models;
+        store.archetypeOwned = ownedArch.id;
+        store.grants   = [...store.grants,   ...picked.grants];
+        store.features = [...store.features, ...picked.features];
       }
 
       AM.levelUpGrants = store;

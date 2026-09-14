@@ -275,13 +275,22 @@ export class LevelUpService {
     const takingFeat = AM.levelUpGrants?.asiMode === 'feat' && AM.levelUpGrants?.featUuid;
     const skip = takingFeat ? new Set(AM.levelUpGrants.asiIds ?? []) : null;
 
+    // The archetype already on the character, when the dialog asked for its
+    // grants at this level: its half of the answers, under the archetype prefix.
+    let archetypeChoices = null;
+    if (AM.levelUpGrants?.absorb && AM.levelUpGrants.archetypeOwned) {
+      const { LevelUpDialog } = await import('../app/LevelUpDialog.js');
+      archetypeChoices = LevelUpDialog.archetypeChoicesFrom(AM.levelUpGrants.choices ?? {});
+    }
+
     const absorbed = AM.levelUpGrants?.absorb
       ? await GrantAbsorber.levelUpWithoutDialog(
           actor, classItem, newLevel, AM.levelUpGrants.choices ?? {},
           { hpValue:   AM.levelUpGrants.hpValue ?? 0,
             charLevel: AM.levelUpGrants.charLevel ?? 0,
             lv:        AM.levelUpGrants.lv ?? null,
-            skip })
+            skip,
+            archetypeChoices })
       : false;
 
     if (!absorbed) {

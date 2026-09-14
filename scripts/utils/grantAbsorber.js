@@ -323,20 +323,31 @@ export class GrantAbsorber {
    * base set, which is empty. That is why knacks did not exist.
    *
    * @returns {Promise<{grants: object[], features: object[]}>} models whose ids
-   *   are paths — `key` at the top, `<uuid>|key` one level down, and so on.
+   *   are paths — `key` at the top, `<uuid>|key` one level down,
+   *   `<uuid>|<uuid>|key` below that. The whole chain, because `apply` peels one
+   *   uuid off per level on the way down; an id carrying only the nearest uuid
+   *   matched at the first level and was dropped at the second.
    */
   static async describeTree(doc, lv = {}, opts = {}) {
     // The third argument is an options bag, but it is easy to hand the choices
     // map straight in — and doing so loses every pick silently, which is the
     // one failure this walk must never have. Accept either.
-    const bag = ['depth', 'prefix', 'seen', 'choices'].some(k => k in (opts ?? {}))
+    const bag = ['depth', 'prefix', 'seen', 'choices', 'fresh'].some(k => k in (opts ?? {}))
               ? opts : { choices: opts ?? {} };
-    const { depth = 0, prefix = '', seen = new Set(), choices = {} } = bag;
+    const { depth = 0, prefix = '', seen = new Set(), choices = {}, fresh = false } = bag;
 
     const out = { grants: [], features: [] };
     if (!doc || depth > this.#MAX_DEPTH) return out;
 
-    const tag = (g) => ({ ...g, id: `${prefix}${g.id}`, source: doc.name ?? '' });
+    /* Whether a grant fires at this level, which is what a level-up has to ask.
+       Not simply "names this level": a feature created at this level brings
+       every grant it holds that the level allows — a5e applies them the moment
+       the item is made — and a5e writes most of those as level 1. Steely Mien
+       arrives at 2nd with its choice marked 1st, and a test on the level alone
+       never showed it. So inside a fresh feature everything fires; inside one
+       the character already had, only what names exactly this level does. */
+    const firesNow = (g) => fresh || this.#isExactlyAtLevel(g.grant, lv);
+    const tag = (g) => ({ ...g, id: `${prefix}${g.id}`, source: doc.name ?? '', firesNow: firesNow(g) });
     out.grants.push(...this.describe(doc, lv).map(tag));
 
     const features = (await this.describeFeatures(doc, lv)).map(tag);
@@ -363,9 +374,13 @@ export class GrantAbsorber {
           if (!child) continue;
           const nested = await this.describeTree(child, lv, {
             depth: depth + 1,
-            prefix: `${uuid}${this.NEST}`,
+            // The chain so far, not just this uuid — see the id format above.
+            // Dread Thaumaturge → Highest Arcanum is two levels down, and its
+            // pick was asked for and then never reached the feature.
+            prefix: `${prefix}${uuid}${this.NEST}`,
             seen,
-            choices
+            choices,
+            fresh: model.firesNow        // a feature granted now is new, and so is all it holds
           });
           out.grants.push(...nested.grants);
           out.features.push(...nested.features);
@@ -380,20 +395,8 @@ export class GrantAbsorber {
   /** describeTree, keeping only what this level introduces. */
   static async describeTreeForLevel(doc, lv = {}, choices = {}) {
     const all = await this.describeTree(doc, lv, { choices });
-    const atLevel = (model) => {
-      const grant = this.#grantFor(model);
-      return grant ? this.#isExactlyAtLevel(grant, lv) : false;
-    };
-    return { grants: all.grants.filter(atLevel), features: all.features.filter(atLevel) };
-  }
-
-  /**
-   * The grant object a model was built from, so its level can be re-checked.
-   * Cached on the model at describe time — re-resolving a nested uuid here would
-   * mean another round of pack reads for every row.
-   */
-  static #grantFor(model) {
-    return model?.grant ?? null;
+    const now = (model) => !!model.firesNow;
+    return { grants: all.grants.filter(now), features: all.features.filter(now) };
   }
 
   /**
@@ -422,7 +425,8 @@ export class GrantAbsorber {
    *   feat instead of an ability score increase is expressed, since a5e has no
    *   grant for that choice and simply carries the two ability points.
    */
-  static async apply(actor, item, choices = {}, lv = {}, depth = 0, { skip } = {}) {
+  static async apply(actor, item, choices = {}, lv = {}, depth = 0,
+                     { skip, exactOnly = false, visited = new Set() } = {}) {
     if (!actor || !item) return;
     if (depth > this.#MAX_DEPTH) {
       AM.log(2, `Grant nesting too deep at ${item.name}; leaving the rest to a5e`);
@@ -436,6 +440,7 @@ export class GrantAbsorber {
     let applied = 0;
     const documentIds = {};   // grantId → created feature item ids
     const spawned = [];       // features created here, whose own grants come next
+    const owned   = [];       // features the character already had — see below
 
     for (const [id, grant] of grantMap.entries?.() ?? []) {
       // a5e's grant routines skip anything above the level being applied;
@@ -443,14 +448,25 @@ export class GrantAbsorber {
       // and a heritage handed out every level's traits at once.
       if (!this.#appliesAtLevel(grant, lv)) continue;
       if (this.#isOwnedElsewhere(grant, item?.type)) continue;
-      if (skip?.has(id)) { AM.log(3, `Grant ${id} skipped by choice`); continue; }
+
+      // Inside a feature the character already had, only what names this level
+      // fires; the rest was applied when the feature arrived. A grant passed
+      // over either way still has its features walked — what they hold may
+      // name this level even when the grant that gave them does not.
+      const earlier = exactOnly && !this.#isExactlyAtLevel(grant, lv);
+      if (earlier || skip?.has(id)) {
+        if (!earlier) AM.log(3, `Grant ${id} skipped by choice`);
+        if (grant?.grantType === 'feature') owned.push(...this.#ownedFrom(actor, grant));
+        continue;
+      }
 
       if (grant?.grantType === 'feature') {
         try {
-          const { update: u, ids, items } = await this.#applyFeatureGrant(actor, grant, choices[id]);
+          const { update: u, ids, items, had } = await this.#applyFeatureGrant(actor, grant, choices[id]);
           update = foundry.utils.mergeObject(update, u, { inplace: false });
           if (ids.length) documentIds[id] = ids;
           spawned.push(...items);
+          owned.push(...had);
           applied++;
         } catch (err) {
           AM.log(2, `Feature grant ${id} on ${item.name} failed:`, err);
@@ -498,10 +514,48 @@ export class GrantAbsorber {
     // nested grant looked for its record key, the dialog had stored it under
     // `<uuid>|<key>`, nothing matched, and the choice was dropped.
     for (const feature of spawned) {
+      visited.add(feature.id);
       const uuid = feature._stats?.compendiumSource ?? '';
       const sub  = uuid ? this.#choicesFor(choices, uuid) : {};
-      await this.apply(actor, feature, sub, lv, depth + 1, { skip });
+      await this.apply(actor, feature, sub, lv, depth + 1, { skip, visited });
     }
+
+    /* And the features the character already had. a5e walks every item at a
+       level-up and fires what names the new level: Soldiering Knacks is a
+       1st-level feature whose knacks arrive at 5th, 9th, 13th and 17th. With
+       that routine suppressed, only the features created at this level were
+       ever walked — so the dialog asked for the 5th-level knack and nothing
+       applied it. Only grants naming exactly this level, so nothing that
+       already fired fires again. Pointless at 1st: an item that exists there
+       received its 1st-level grants when it was made. */
+    if ((lv.charLevel ?? 1) > 1 || (lv.clsLevel ?? 1) > 1) {
+      for (const { item: feature, uuid } of owned) {
+        if (!feature || visited.has(feature.id)) continue;
+        visited.add(feature.id);
+        await this.apply(actor, feature, this.#choicesFor(choices, uuid), lv, depth + 1,
+                         { skip, exactOnly: true, visited });
+      }
+    }
+  }
+
+  /**
+   * The items a feature grant produced that the character still has, with the
+   * uuid each came from — read off the actor, with no compendium reads, for a
+   * grant that is not being applied this time.
+   */
+  static #ownedFrom(actor, grant) {
+    const uuids = [...(grant?.features?.base ?? []), ...(grant?.features?.options ?? [])]
+      .map(f => f?.uuid ?? f)
+      .filter(u => typeof u === 'string' && u);
+    const out = [];
+    for (const uuid of uuids) {
+      // Features keep their compendium id; the source is the fallback for one
+      // that had to be created without it.
+      const item = actor.items.get(uuid.split('.').pop())
+                ?? actor.items.find(i => i._stats?.compendiumSource === uuid);
+      if (item) out.push({ item, uuid });
+    }
+    return out;
   }
 
   /* ── level changes ────────────────────────────────────── */
@@ -523,7 +577,8 @@ export class GrantAbsorber {
    * @returns {boolean} whether the level actually changed
    */
   static async levelUpWithoutDialog(actor, classItem, newLevel, choices = {},
-                                    { hpValue = 0, charLevel = 0, lv = null, skip = null } = {}) {
+                                    { hpValue = 0, charLevel = 0, lv = null, skip = null,
+                                      archetypeChoices = null } = {}) {
     if (!actor || !classItem) return false;
 
     const manager = actor.grants;
@@ -574,7 +629,7 @@ export class GrantAbsorber {
     try {
       const fresh = actor.items.get(classItem.id) ?? classItem;
       await this.apply(actor, fresh, choices, atLevel, 0, { skip });
-      await this.applyArchetypeGrants(actor, fresh, atLevel);
+      await this.applyArchetypeGrants(actor, fresh, atLevel, archetypeChoices);
     } catch (err) {
       AM.log(1, `Applying the level ${newLevel} grants failed:`, err);
       ui.notifications.error(
@@ -596,34 +651,50 @@ export class GrantAbsorber {
    * granted features keep their compendium id, so ones the character already has
    * are recognised rather than duplicated.
    *
-   * Grants that would open a picker are left for a5e — applying them here would
-   * silently take their default instead of asking.
+   * Grants that ask something take their answers from the level-up dialog,
+   * which asks for this level's. Without answers — the dialog could not list
+   * them — they are skipped rather than applied with their default.
+   *
+   * @param {object|null} choices  the archetype's half of the dialog's answers,
+   *   prefix already stripped; null when the dialog did not ask
    */
-  static async applyArchetypeGrants(actor, classItem, lv = {}) {
-    // `||`, not `??` — see the same chain in LevelUpService.getArchetypesForClass.
-    // a5e leaves `system.slug` as an empty string on several classes, and `??`
-    // treats that as a value, so the archetype lookup matched on "" instead.
+  static async applyArchetypeGrants(actor, classItem, lv = {}, choices = null) {
+    const archetype = this.archetypeOf(actor, classItem);
+    if (!archetype) return false;
+
+    const answered = !!choices && typeof choices === 'object';
+    const skip = new Set();
+    for (const [id, grant] of archetype.grants?.entries?.() ?? []) {
+      if (!this.#appliesAtLevel(grant, lv)) continue;
+      if (!this.#needsConfig(grant)) continue;
+      const now = this.#isExactlyAtLevel(grant, lv);
+      // This level's questions, answered, go through. An earlier level's were
+      // answered at that level: applying one again with no answer would take
+      // its base set and overwrite the record of what was picked.
+      if (answered && now) continue;
+      skip.add(id);
+      if (now) AM.log(2, `${archetype.name}: grant "${grant.label ?? id}" needs a choice nobody was asked for`);
+    }
+
+    await this.apply(actor, archetype, answered ? choices : {}, lv, 0, { skip });
+    AM.log(3, `Archetype grants applied: ${archetype.name}`);
+    return true;
+  }
+
+  /**
+   * The archetype a character has for this class, if any.
+   *
+   * `||`, not `??` — see the same chain in LevelUpService.getArchetypesForClass.
+   * a5e leaves `system.slug` as an empty string on several classes, and `??`
+   * treats that as a value, so the archetype lookup matched on "" instead.
+   */
+  static archetypeOf(actor, classItem) {
     const slug = classItem?.slug
       || classItem?.system?.slug
       || String(classItem?.name ?? '').slugify?.({ strict: true })
       || '';
-    if (!slug) return false;
-
-    const archetype = actor.items.find(i => i.type === 'archetype' && i.system?.class === slug);
-    if (!archetype) return false;
-
-    const skip = new Set();
-    for (const [id, grant] of archetype.grants?.entries?.() ?? []) {
-      if (!this.#appliesAtLevel(grant, lv)) continue;
-      if (this.#needsConfig(grant)) {
-        skip.add(id);
-        AM.log(2, `${archetype.name}: grant "${grant.label ?? id}" needs a choice — configure it on the archetype`);
-      }
-    }
-
-    await this.apply(actor, archetype, {}, lv, 0, { skip });
-    AM.log(3, `Archetype grants applied: ${archetype.name}`);
-    return true;
+    if (!slug || !actor) return null;
+    return actor.items.find(i => i.type === 'archetype' && i.system?.class === slug) ?? null;
   }
 
   /** Grants that belong to exactly this level — what a level-up has to ask for. */
@@ -951,7 +1022,7 @@ export class GrantAbsorber {
       .slice(0, total);
 
     const uuids = [...new Set([...base, ...picked])];
-    if (!uuids.length) return { update: grant.getApplyData(actor, { uuids }) ?? {}, ids: [], items: [] };
+    if (!uuids.length) return { update: grant.getApplyData(actor, { uuids }) ?? {}, ids: [], items: [], had: [] };
 
     const datas = [];
     for (const uuid of uuids) {
@@ -973,6 +1044,10 @@ export class GrantAbsorber {
       .map(d => d._id)
       .filter(id => id && actor.items.get(id));
     const fresh = datas.filter(d => !alreadyOwned.includes(d._id));
+    // Returned so apply can walk them for grants that name this level.
+    const had = datas
+      .filter(d => alreadyOwned.includes(d._id))
+      .map(d => ({ item: actor.items.get(d._id), uuid: d._stats.compendiumSource }));
 
     let ids = [...alreadyOwned], items = [];
     if (fresh.length) {
@@ -989,6 +1064,6 @@ export class GrantAbsorber {
         items = [...created];
       }
     }
-    return { update: grant.getApplyData(actor, { uuids }) ?? {}, ids, items };
+    return { update: grant.getApplyData(actor, { uuids }) ?? {}, ids, items, had };
   }
 }
