@@ -206,6 +206,15 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
             // Loaded by selectArchetype; a5e's archetype text lists what it grants.
             context.archetypeDescription = arch.descriptionHtml ?? '';
 
+            // ...and what it asks for. An archetype can ask as much as a class
+            // does — a Divine Domain hands out skills and tools, several give a
+            // choice of spell list — and every one of those questions used to
+            // be skipped in silence, with the base set taken in its place.
+            const archBlock = A5eMancer.#grantContext(context, 'archetype');
+            context.archGrants    = archBlock?.grants   ?? [];
+            context.archFeatures  = archBlock?.features ?? [];
+            context.hasArchGrants = !!archBlock?.has;
+
             // Spellcasting ability, when the class leaves the choice open
             const cls = AM.itemGrants?.class;
             if (cls?.absorb && (cls.spellcastingOptions?.length ?? 0) > 1) {
@@ -621,12 +630,19 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
        so the text answers both "what is this" and "what does it give me".
        Cleared along with the selection so a deselect leaves nothing behind. */
     arch.descriptionHtml = '';
+    AM.itemGrants.archetype = null;
     if (arch.uuid) {
       try {
         arch.descriptionHtml = await DocumentService.getEnrichedDescription(arch.uuid);
       } catch (err) {
         AM.log(2, 'Could not read the archetype description:', err);
       }
+      /* Its grants, taken over for the same reason the class's are: the
+         archetype is created with noGrant, so a5e never opens its window for
+         it — and a choice nobody is asked for is a choice made by default.
+         If any grant on it cannot be listed as options, the store stays empty
+         and the whole archetype goes back to a5e's own routine. */
+      await DOMManager.loadItemGrants('archetype', arch.uuid);
     }
 
     await AM.app?.render(false, { parts: ['class'] });
@@ -686,7 +702,8 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     // Choosing a gift brings its own contents into the tree, and dropping one
     // takes them out again — so the tree is rebuilt before the tab redraws.
     await DOMManager.refreshItemGrants(type);
-    await AM.app?.render(false, { parts: [type] });
+    // The archetype's pickers sit on the class tab; it has no part of its own.
+    await AM.app?.render(false, { parts: [type === 'archetype' ? 'class' : type] });
   }
 
   /** Discard the pool and go back to rolling each ability on its own. */
@@ -761,8 +778,26 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
 
   /** Fill in the grant pickers for an origin tab, if we took its grants over. */
   static #addGrantContext(context, type) {
+    const block = A5eMancer.#grantContext(context, type);
+    if (block) {
+      context.bgGrants    = block.grants;
+      context.bgFeatures  = block.features;
+      context.hasBgGrants = block.has;
+    }
+    if (type === 'heritage') A5eMancer.#addMixedHeritageContext(context);
+  }
+
+  /**
+   * The same pickers as a plain object, for a tab that shows two sets of them.
+   *
+   * The class tab does: the class's own grants, and — for a class that picks
+   * its archetype at 1st level — the archetype's. Both cannot write the context
+   * keys the partial reads, so this hands the block back and the caller decides
+   * where it lands; the partial takes those names as arguments.
+   */
+  static #grantContext(context, type) {
     const store = AM.itemGrants?.[type];
-    if (!context.selectedItem || !store?.absorb) return;
+    if (!context.selectedItem || !store?.absorb) return null;
 
     const withState = (g) => {
       const picked = store.choices[g.id] ?? [];
@@ -787,11 +822,9 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     // all, which reads as a section that failed to load.
     const shows = (g) => g.options.length > 0 || g.baseLabels.length > 0;
 
-    context.bgGrants   = store.grants.map(withState).filter(shows);
-    context.bgFeatures = store.features.map(withState).filter(shows);
-    context.hasBgGrants = context.bgGrants.length > 0 || context.bgFeatures.length > 0;
-
-    if (type === 'heritage') A5eMancer.#addMixedHeritageContext(context);
+    const grants   = store.grants.map(withState).filter(shows);
+    const features = store.features.map(withState).filter(shows);
+    return { grants, features, has: grants.length > 0 || features.length > 0 };
   }
 
   /**

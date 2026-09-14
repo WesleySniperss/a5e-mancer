@@ -71,7 +71,7 @@ export class ProficiencyLedger {
    */
   static inBuild(kind, { type: skipType = '', id: skipId = '' } = {}) {
     const have = new Set();
-    for (const t of ['heritage', 'culture', 'background', 'destiny', 'class']) {
+    for (const t of ['heritage', 'culture', 'background', 'destiny', 'class', 'archetype']) {
       const store = AM.itemGrants?.[t];
       if (!store?.absorb) continue;
       for (const g of [...(store.grants ?? []), ...(store.features ?? [])]) {

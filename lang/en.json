@@ -432,6 +432,8 @@
   "am.app.hover-for-description": "Hover a card to preview it — right-click for the full text and its costs",
   "am.levelup.features-traditions": "Combat tradition proficiency",
   "am.grants.item-title": "What This Grants",
+  "am.grants.archetype-title": "What the Archetype Grants",
+  "am.grants.archetype-hint": "Your archetype's own grants. Answered here and applied along with it — a5e will not ask again.",
   "am.grants.casting-ability": "Spellcasting Ability",
   "am.app.lore.intro": "Tables from your destiny and background — roll them or write your own.",
   "am.app.lore.roll-all": "Roll all",

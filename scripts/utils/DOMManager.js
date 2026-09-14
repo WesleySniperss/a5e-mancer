@@ -425,6 +425,11 @@ export class DOMManager {
       // `archetypeLevel` is the class item's own field, so this asks the class
       // rather than keeping a list of which ones do it at 1st.
       AM.archetypes = { level: 0, options: [], uuid: null };
+      // A new class means a new archetype list, so anything gathered for the
+      // old one goes with it. Its grant choices especially: left behind, they
+      // would be applied to an archetype this character never took.
+      AM.itemGrants.archetype   = null;
+      AM.originSpells.archetype = null;
       const archLevel = LevelUpService.archetypeLevelOf(classItem);
       if (archLevel === 1) {
         AM.archetypes.level   = 1;

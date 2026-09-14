@@ -4,8 +4,11 @@
       otherwise a5e still handles them and this block stays hidden. --}}
 {{#if hasBgGrants}}
   <hr />
-  <h3><i class="fa-solid fa-award"></i> {{localize 'am.grants.item-title'}}</h3>
-  <p class="am-hint">{{localize 'am.grants.background-hint'}}</p>
+  {{!-- The heading is overridable so one tab can carry two owners: the class
+        asks with the default wording, and the archetype under it says whose
+        grants these are. Without that the two lists read as one. --}}
+  <h3><i class="fa-solid fa-award"></i> {{#if grantsTitle}}{{localize grantsTitle}}{{else}}{{localize 'am.grants.item-title'}}{{/if}}</h3>
+  <p class="am-hint">{{#if grantsHint}}{{localize grantsHint}}{{else}}{{localize 'am.grants.background-hint'}}{{/if}}</p>
 
   {{#each bgGrants}}
     <div class="am-grant-block">

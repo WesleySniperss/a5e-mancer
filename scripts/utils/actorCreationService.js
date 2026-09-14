@@ -219,7 +219,12 @@ export class ActorCreationService {
         continue;
       }
 
-      await actor.createEmbeddedDocuments('Item', [data]);
+      const [plain] = await actor.createEmbeddedDocuments('Item', [data]);
+      // The archetype is chosen on the class tab whether or not the class's own
+      // grants were taken over, so it has to be applied on this path as well.
+      // Hanging it off the absorbed branch alone meant that a class a5e still
+      // handles started play with no archetype, silently.
+      if (plain && data.type === 'class') await this.#applyArchetype(actor);
     }
     if (itemDatas.length) AM.log(3, `Added ${itemDatas.length} items`);
   }
@@ -236,7 +241,12 @@ export class ActorCreationService {
     const arch = AM.archetypes;
     if (!arch?.uuid || arch.level !== 1) return;
     try {
-      const ok = await GrantAbsorber.applyArchetype(actor, arch.uuid, { charLevel: 1, clsLevel: 1 });
+      // The picks made on the class tab. Without them an archetype's choice
+      // grants took their base set and nothing else: a domain's two fixed
+      // skills arrived, the one the player chose did not.
+      const choices = AM.itemGrants?.archetype?.choices ?? {};
+      const ok = await GrantAbsorber.applyArchetype(actor, arch.uuid,
+                                                    { charLevel: 1, clsLevel: 1 }, choices);
       AM.log(3, ok ? `Archetype applied: ${arch.uuid}` : `Archetype not applied: ${arch.uuid}`);
     } catch (err) {
       // The character is already created at this point, so this is reported

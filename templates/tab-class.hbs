@@ -130,6 +130,14 @@
                 {{{archetypeDescription}}}
               </div>
             {{/if}}
+
+            {{!-- And what it asks of you. The same partial the class uses,
+                  pointed at the archetype's own context keys — one block of
+                  markup, two owners on the tab. --}}
+            {{> am-item-grants bgGrants=archGrants bgFeatures=archFeatures
+                               hasBgGrants=hasArchGrants
+                               grantsTitle='am.grants.archetype-title'
+                               grantsHint='am.grants.archetype-hint'}}
           </div>
         {{else if archetypeLevel}}
           <p class="am-hint am-archetype-note">
