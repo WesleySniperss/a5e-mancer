@@ -338,3 +338,27 @@ acted on:
 
 Timing is the least trustworthy thing in this directory. Prefer a number that
 cannot drift.
+
+## `slotroom.mjs` and `lib/browser.mjs`
+
+The only checks here that look at the sheet the way a person does: laid out in
+headless Edge, inside the window Foundry wraps a v1 sheet in, under Foundry's
+`foundry2.css`, a5e's stylesheet and this module's in `module.json` order. A
+probe runs in the page and returns JSON; `--shots` also saves a picture.
+
+Every other check reads markup through a DOM of our own, which knows what an
+element is and nothing about where it lands. That is how *"the stars are too
+small, there is no room for them"* survived `controls.mjs`, which proved the
+star's handler writes what a5e writes — by calling it. It never asked whether
+the star was 18px, or whether two of the four columns beside it had been hidden
+outright for width. In the browser, at the default 820px window, the answer
+was: `Cast Time=112 | Range=112 | Duration=0 | Save=0`.
+
+It renders all 895 spells in a5e's pack, not a sample: a short column fits or
+not by its longest value. Its first run over the pack found seven free-text
+ranges cut to an ellipsis that a dozen hand-picked spells had not.
+
+What it is not: Foundry. None of Foundry's or the sheet's JavaScript runs, so
+anything a listener would do to the layout — opening a tab — the probe does
+itself, and says so. The window's 700px minimum width is Foundry's CSS, and
+applies here as there.

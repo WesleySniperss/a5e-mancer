@@ -61,9 +61,12 @@
             A5e adds damaged and broken, which have no Tidy equivalent, so they
             borrow its item-state-indicator styling. --}}
       <span class="am-state-icons">
+        {{!-- Concentration and ritual as a5e abbreviates them, C and R
+             (A5E.spells.concentrationAbbr, ritualAbbr): a letter beside the
+             name reads faster than a glyph and takes less room, and beside
+             the name it stays when narrow columns are hidden. --}}
         {{#if concentration}}
-          <i class="fa-solid fa-head-side-brain color-icon-theme-highlight highlighted item-state-indicator"
-            data-tooltip="Concentration"></i>
+          <span class="am-mark item-state-indicator" data-tooltip="Concentration">C</span>
         {{/if}}
         {{!-- Magic. a5e says so through rarity, and the rarity is worth
              naming in the tooltip because "legendary" and "common" are not
@@ -74,8 +77,7 @@
         {{/if}}
 
         {{#if ritual}}
-          <i class="fa-solid fa-hands-praying color-text-lightest item-state-indicator"
-            data-tooltip="Ritual"></i>
+          <span class="am-mark item-state-indicator" data-tooltip="Ritual">R</span>
         {{/if}}
         {{#if needsAttune}}
           <button type="button" data-action="item-attune" data-id="{{id}}"
@@ -125,33 +127,42 @@
           value="{{qty}}" min="0" aria-label="Quantity" />
       </div>
     {{/if}}
+    {{!-- wN and hN as in tidy-table, and must match it. tipN is the long
+         form behind a short cell; iconN a glyph after it (an area's shape). An empty cell
+         still holds its column open, and shows Tidy's dash when dash is set. --}}
     {{#if c1}}
-      <div class="tidy-table-cell text-cell"
-        style="--tidy-table-column-width: var(--am-col)">
-        <span class="cell-text">{{cell1}}</span>
+      <div class="tidy-table-cell text-cell{{#if h1}} {{h1}}{{/if}}"
+        style="--tidy-table-column-width: {{#if w1}}{{w1}}{{else}}var(--am-col){{/if}}"{{#if tip1}} data-tooltip="{{tip1}}"{{/if}}>
+        <span class="cell-text">{{#if cell1}}{{cell1}}{{else if dash}}<span class="color-text-disabled">—</span>{{/if}}</span>{{#if icon1}}<i class="{{icon1}} am-cell-icon"></i>{{/if}}
       </div>
     {{/if}}
     {{#if c2}}
-      <div class="tidy-table-cell text-cell hide-under-500"
-        style="--tidy-table-column-width: var(--am-col)">
-        <span class="cell-text">{{cell2}}</span>
+      <div class="tidy-table-cell text-cell {{#if h2}}{{h2}}{{else}}hide-under-500{{/if}}"
+        style="--tidy-table-column-width: {{#if w2}}{{w2}}{{else}}var(--am-col){{/if}}"{{#if tip2}} data-tooltip="{{tip2}}"{{/if}}>
+        <span class="cell-text">{{#if cell2}}{{cell2}}{{else if dash}}<span class="color-text-disabled">—</span>{{/if}}</span>{{#if icon2}}<i class="{{icon2}} am-cell-icon"></i>{{/if}}
       </div>
     {{/if}}
     {{#if c3}}
-      <div class="tidy-table-cell text-cell hide-under-600"
-        style="--tidy-table-column-width: var(--am-col)">
-        <span class="cell-text">{{cell3}}</span>
+      <div class="tidy-table-cell text-cell {{#if h3}}{{h3}}{{else}}hide-under-600{{/if}}"
+        style="--tidy-table-column-width: {{#if w3}}{{w3}}{{else}}var(--am-col){{/if}}"{{#if tip3}} data-tooltip="{{tip3}}"{{/if}}>
+        <span class="cell-text">{{#if cell3}}{{cell3}}{{else if dash}}<span class="color-text-disabled">—</span>{{/if}}</span>{{#if icon3}}<i class="{{icon3}} am-cell-icon"></i>{{/if}}
       </div>
     {{/if}}
     {{#if c4}}
-      <div class="tidy-table-cell text-cell hide-under-600"
-        style="--tidy-table-column-width: var(--am-col)">
-        <span class="cell-text">{{cell4}}</span>
+      <div class="tidy-table-cell text-cell {{#if h4}}{{h4}}{{else}}hide-under-600{{/if}}"
+        style="--tidy-table-column-width: {{#if w4}}{{w4}}{{else}}var(--am-col){{/if}}"{{#if tip4}} data-tooltip="{{tip4}}"{{/if}}>
+        <span class="cell-text">{{#if cell4}}{{cell4}}{{else if dash}}<span class="color-text-disabled">—</span>{{/if}}</span>{{#if icon4}}<i class="{{icon4}} am-cell-icon"></i>{{/if}}
+      </div>
+    {{/if}}
+    {{#if c5}}
+      <div class="tidy-table-cell text-cell {{#if h5}}{{h5}}{{else}}hide-under-600{{/if}}"
+        style="--tidy-table-column-width: {{#if w5}}{{w5}}{{else}}var(--am-col){{/if}}"{{#if tip5}} data-tooltip="{{tip5}}"{{/if}}>
+        <span class="cell-text">{{#if cell5}}{{cell5}}{{else if dash}}<span class="color-text-disabled">—</span>{{/if}}</span>{{#if icon5}}<i class="{{icon5}} am-cell-icon"></i>{{/if}}
       </div>
     {{/if}}
 
     <div class="tidy-table-cell header-cell-actions row-actions"
-      style="--tidy-table-column-width: var(--am-col-actions)">
+      style="--tidy-table-column-width: {{#if @root.unlocked}}var(--am-col-actions){{else}}var(--am-col-actions-locked){{/if}}">
       <button type="button" class="button button-borderless button-icon-only"
         data-action="item-star" data-id="{{id}}"
         data-tooltip="{{#if starred}}Remove from favorites{{else}}Add to favorites{{/if}}">

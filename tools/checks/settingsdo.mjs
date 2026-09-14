@@ -90,7 +90,12 @@ async function renderWith(flags, resources, tweak) {
    the world has none and the stars would be absent either way. */
 const SEEDED = {
   hideGenericResources: { resources: { primary: { label: 'Rage', value: 1, max: '3' } } },
-  showSpellSlots: { system: (sys) => {
+  /* What this switch governs in a5e is narrower than its name: not whether
+     stars are drawn, but whether a level with slots and NO spells gets a
+     heading — and only while the sheet is locked, since unlocked a5e shows
+     every such level regardless (SpellBook.svelte, isSpellLevelVisible). So
+     the seed locks the sheet and gives slots to a level with nothing in it. */
+  showSpellSlots: { also: { sheetIsLocked: true }, system: (sys) => {
     sys.spellResources = sys.spellResources ?? {};
     sys.spellResources.slots = { ...(sys.spellResources.slots ?? {}),
       '3': { current: 2, max: 4, override: 0 } };

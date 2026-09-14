@@ -663,9 +663,14 @@ export class A5eCharacterSheet extends ActorSheet {
     const rawSlots = sys.spellResources?.slots ?? sys.spellcasting?.slots ?? sys.spells ?? {};
     const slotRows = [1,2,3,4,5,6,7,8,9].map(l => {
       const d = rawSlots[String(l)] ?? rawSlots[`spell${l}`] ?? rawSlots[l] ?? {};
-      const max   = d.max     ?? 0;
-      const value = d.current ?? d.value ?? 0;
-      if (!max) return null;
+      const max      = d.max      ?? 0;
+      const override = d.override ?? 0;
+      const value    = d.current  ?? d.value ?? 0;
+      /* Every level gets a row, slots or none: unlocked, a5e puts its two
+         fields on every level heading, which is how a total is given to a
+         level that has spells and no slots yet. Whether an EMPTY level gets
+         a heading is decided below, from `has`. */
+      const has = !!(max || override);
       /* Numbered from 1, and expended when the number is above what is
          left — a5e's own rule, from its ItemListSpellSlots component. The
          number is what the click arithmetic works on, so it is carried
@@ -673,8 +678,15 @@ export class A5eCharacterSheet extends ActorSheet {
       const pips = Array.from({ length: max }, (_, i) => ({
         n: i + 1, level: l, expended: i + 1 > value
       }));
-      return { level: l, value, max, pips };
-    }).filter(Boolean);
+      /* Unlocked, a5e swaps the stars for two number fields: what is left,
+         and how many there are. A character's total is derived from its
+         classes, so the field it edits is the override; a monster has no
+         classes, and edits the total itself. Both as a5e's component does. */
+      const ownMax = actor.type === 'character';
+      return { level: l, value, max, pips, has,
+               total: ownMax ? override : max, totalField: ownMax ? 'override' : 'max',
+               totalIsOverride: ownMax };
+    });
 
     /* Keyed as the spell groups are keyed, so each level heading carries its
        own slots — and carries the stars themselves, not a count.
@@ -684,12 +696,13 @@ export class A5eCharacterSheet extends ActorSheet {
        second time, a long way from the spells it was about, and it is gone:
        the slots for a level now sit on that level's own heading, which is
        where the eye already is when the question comes up. */
-    /* a5e has a switch of its own for whether slots are shown at all, and its
-       sheet reads it as `?? true`. Read the same way here, so turning it off
-       there turns them off on both. */
+    /* a5e's "Show spell slots" switch, read as `?? true` the way its sheet
+       reads it. What it governs there is narrower than its name: not whether
+       a level's stars are drawn — SpellBook.svelte always passes those — but
+       whether a level with slots and no spells gets a heading at all while
+       the sheet is locked. So it is applied below, to the headings. */
     const showSlots = actor.flags?.a5e?.showSpellSlots ?? true;
-    const spellSlots = !showSlots ? {} : Object.fromEntries(slotRows.map(r =>
-      [`Level ${r.level}`, { level: r.level, value: r.value, max: r.max, pips: r.pips }]));
+    const spellSlots = Object.fromEntries(slotRows.map(r => [`Level ${r.level}`, r]));
 
     /* A level's slots belong to the level, not to the spells in it.
 
@@ -707,7 +720,10 @@ export class A5eCharacterSheet extends ActorSheet {
     for (let l = 1; l <= 9; l++) {
       const k = `Level ${l}`;
       if (spellsByLevel[k]) spellGroups[k] = spellsByLevel[k];
-      else if (spellSlots[k]) spellGroups[k] = [];
+      /* a5e's isSpellLevelVisible: unlocked, every level that has slots or
+         an override; locked, only those with slots to spend, and only while
+         the switch is on. */
+      else if (spellSlots[k].has && (unlocked || (showSlots && spellSlots[k].max > 0))) spellGroups[k] = [];
     }
 
     /* Fatigue/Strife pip arrays */
@@ -1773,7 +1789,8 @@ export class A5eCharacterSheet extends ActorSheet {
     const { activation, dmgFull, saveDC } = this.#parseActions(item);
     const level    = sys.level ?? sys.spellLevel ?? 0;
     const conc     = sys.concentration ?? false;
-    const labels   = this.#actionLabels(item, this.#primaryAction(item));
+    const action   = this.#primaryAction(item);
+    const labels   = this.#actionLabels(item, action);
     const range    = labels.rangeLabel;
 
     const duration = labels.durationLabel;
@@ -1808,9 +1825,131 @@ export class A5eCharacterSheet extends ActorSheet {
          that carry one there, so it is the fallback rather than the source. */
       saveDC: labels.saveLabel ?? saveDC,
       castTime: labels.activationLabel,
+      col: this.#spellColumns(item, action, labels),
       desc: this.#itemDesc(item),
       actions: this.#allActionsForItem(item),
     };
+  }
+
+  /* The spell table's columns, each in the fewest characters that still say
+     it. Reported as: the slot stars had no room, and the columns were why —
+     four of them at 7rem took 448px of a 542px table at the default width,
+     so two were hidden outright and the level heading got what was left.
+
+     Every short form is one the reader already knows: A, BA and R for the
+     action economy, as dnd5e and Tidy print them; a target as how many; a
+     range in feet. Concentration and ritual are a5e's own C and R, beside
+     the name — see tidy-row. The long form a5e writes goes in the tooltip, word for
+     word, so a short column loses nothing a hover cannot give back.
+
+     The data shapes are the ones in a5e's spell pack, all 895 entries
+     counted: activation action 656, bonusAction 80, minute 99, hour 33,
+     reaction 24; ranges self, the three bands, touch, or free text; a target
+     type with a quantity, or none and an area instead. */
+  #spellColumns(item, action, labels) {
+    const A   = CONFIG?.A5E ?? {};
+    const loc = (v) => (v ? game.i18n.localize(v) : '');
+    const ft  = (loc(A.distanceAbbreviations?.feet) || 'ft').replace(/\.$/, '');
+    const PERIOD = { round: 'rd', turn: 'turn', second: 's', minute: 'min', hour: 'hr',
+                     day: 'd', week: 'wk', month: 'mo', year: 'yr' };
+    const out = {};
+
+    /* Time. A plain action is "A", two of them "2 A"; a minute is "1 min". */
+    const act  = action?.activation ?? {};
+    const cost = Number(act.cost);
+    const n    = Number.isFinite(cost) && cost > 0 ? cost : 1;
+    const TURN = { action: 'A', bonusAction: 'BA', reaction: 'R',
+                   legendaryAction: 'LA', lairAction: 'Lair', objectInteraction: 'OI' };
+    if (TURN[act.type])        out.time = n > 1 ? `${n} ${TURN[act.type]}` : TURN[act.type];
+    else if (PERIOD[act.type]) out.time = `${n} ${PERIOD[act.type]}`;
+    else if (act.type === 'special') out.time = 'Sp';
+    out.timeTip = [labels.activationLabel, labels.reactionTrigger].filter(Boolean).join(' — ') || null;
+
+    /* Range. The bands print their distance, since that is what is measured
+       on the table; free text keeps its words with feet and miles shortened. */
+    const ranges = Object.values(action?.ranges ?? {});
+    const r = ranges[0];
+    if (r?.range !== undefined && r.range !== null && r.range !== '') {
+      const v = r.range;
+      if (['fiveFeet', 'short', 'medium', 'long'].includes(v)) {
+        /* a5e's CONFIG.A5E.rangeValues, with its own numbers behind it in
+           case a module has emptied the table. */
+        const feet = A.rangeValues?.[v] ?? { fiveFeet: 5, short: 30, medium: 60, long: 120 }[v];
+        out.range = `${feet} ${ft}`;
+      }
+      else if (v === 'self' || v === 'touch' || v === 'other') out.range = loc(A.rangeDescriptors?.[v]) || (v[0].toUpperCase() + v.slice(1));
+      else if (r.unit) out.range = `${v} ${(loc(A.distanceAbbreviations?.[r.unit]) || r.unit).replace(/\.$/, '')}`;
+      /* Free text, as a few dozen of a5e's spells write it: "300 feet", "1 mile",
+         "30-foot radius", "100 feet above you". Where it starts with a
+         distance the column shows the distance and the tooltip keeps the
+         rest; where it does not ("Same plane", "Sight") the words stay, and
+         the cell wraps them. */
+      else {
+        const text = String(v).trim();
+        const lead = text.match(/^(\d[\d,]*)[\s-]*(feet|foot|ft\.?|miles?|mi\.?)\b/i);
+        out.range = lead
+          ? `${lead[1].replace(/,/g, '')} ${/^m/i.test(lead[2]) ? 'mi' : ft}`
+          : text;
+      }
+      if (ranges.length > 1) out.range += '+';
+    }
+    out.rangeTip = labels.rangeLabel;
+
+    /* Target: how many, or the area when there is no count to give. */
+    const t = action?.target ?? {};
+    const area = action?.area ?? {};
+    const SIZE = { circle: 'radius', cylinder: 'radius', emanation: 'radius', sphere: 'radius',
+                   cone: 'length', line: 'length', wall: 'length', cube: 'width', square: 'width' };
+    const SHAPE_ICON = { circle: 'fa-circle', cylinder: 'fa-circle', emanation: 'fa-circle-dot',
+                         sphere: 'fa-circle', cone: 'fa-play fa-rotate-270', line: 'fa-minus',
+                         wall: 'fa-grip-lines-vertical', cube: 'fa-square', square: 'fa-square' };
+    const areaSize = Number(area[SIZE[area.shape]]);
+    const hasArea  = !!SIZE[area.shape] && areaSize > 0;
+    const tq = t.quantity === 0 || t.quantity === '0' ? 0 : (Number(t.quantity) || 1);
+    const areaTip = hasArea
+      ? `${loc(A.areaTypes?.[area.shape]) || area.shape} ${areaSize} ${ft}${Number(area.quantity) > 1 ? ` × ${area.quantity}` : ''}`
+      : null;
+    let targetTip = null;
+    if (t.type === 'self') {
+      out.target = loc(A.targetTypes?.self) || 'Self';
+      targetTip = out.target;
+    } else if (['creature', 'object', 'creatureObject'].includes(t.type)) {
+      out.target = String(tq);
+      const table = tq === 1 ? A.targetTypes : A.targetTypesPlural;
+      targetTip = `${tq} ${loc(table?.[t.type]) || t.type}`;
+    } else if (t.type === 'other') {
+      out.target = t.otherText || loc(A.targetTypes?.other) || 'Other';
+      targetTip = out.target;
+    }
+    if (hasArea && (!out.target || out.target === (loc(A.targetTypes?.self) || 'Self'))) {
+      out.target = `${areaSize}`;
+      out.targetIcon = `fa-solid ${SHAPE_ICON[area.shape]}`;
+    }
+    out.targetTip = [targetTip, areaTip].filter(Boolean).join(', ') || null;
+
+    /* Duration. Concentration is not repeated here: it is the C beside the
+       name, which stays when this column is hidden for width. */
+    const d = action?.duration ?? {};
+    const LASTING = { instantaneous: 'Inst', permanent: 'Perm', special: 'Sp' };
+    if (LASTING[d.unit]) out.dur = LASTING[d.unit];
+    else if (PERIOD[d.unit]) {
+      const v = this.#formulaToNumber(d.value ?? '0') ?? 0;
+      out.dur = `${(v || d.value) ?? 1} ${PERIOD[d.unit]}`;
+    }
+    out.durTip = labels.durationLabel;
+
+    /* Roll: the ability a save is made with, or that it is an attack. */
+    const prompts = Object.values(action?.prompts ?? {});
+    const save    = prompts.find((p) => p?.type === 'savingThrow');
+    const rolls   = Object.values(action?.rolls ?? {});
+    if (save?.ability) {
+      out.roll = (loc(A.abilityAbbreviations?.[save.ability]) || save.ability).toUpperCase();
+      out.rollTip = `${loc('A5E.rollLabels.savingThrows.title') || 'Saving Throw'}: ${labels.saveLabel ?? out.roll}`;
+    } else if (rolls.some((x) => x?.type === 'attack')) {
+      out.roll = 'Atk';
+      out.rollTip = 'Spell attack';
+    }
+    return out;
   }
 
   #feature(item) {
@@ -3518,7 +3657,10 @@ export class A5eCharacterSheet extends ActorSheet {
        classes is the whole job. */
     el.querySelectorAll('.tidy-table-header-row.toggleable').forEach(header => {
       header.addEventListener('click', (e) => {
-        if (e.target.closest('button, a, input')) return;
+        /* .am-slots too, not only its buttons: a click that falls in the gap
+           between two stars would otherwise fold the list away, which to the
+           person aiming at a star reads as the star doing the wrong thing. */
+        if (e.target.closest('button, a, input, .am-slots')) return;
         const section = header.closest('.tidy-table');
         const wrapper = section?.querySelector('.expandable');
         const chevron = header.querySelector('.expand-button');
@@ -3577,6 +3719,21 @@ export class A5eCharacterSheet extends ActorSheet {
         const next = n <= now ? n - 1 : n;
         if (next === now) return;
         await this.actor.update({ [`system.spellResources.slots.${level}.current`]: next });
+      })
+    );
+
+    /* Unlocked, the stars give way to a5e's two fields: slots left, and the
+       total — the override on a character, whose total is otherwise derived
+       from its classes, and the total itself on a monster. The field names
+       come from the context, which decided that once. Neither input carries
+       a name, so the form's own submit leaves them alone. */
+    el.querySelectorAll('[data-action="slot-field"]').forEach(inp =>
+      inp.addEventListener('change', async (e) => {
+        e.stopPropagation();
+        const { level, field } = inp.dataset;
+        if (!['current', 'override', 'max'].includes(field)) return;
+        const value = Math.max(0, Math.floor(Number(inp.value) || 0));
+        await this.actor.update({ [`system.spellResources.slots.${level}.${field}`]: value });
       })
     );
 

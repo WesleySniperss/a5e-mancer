@@ -259,6 +259,16 @@
   --am-col-uses:    4.5rem;   /* "3 / 5" plus its separator              */
   --am-col-narrow:  3.5rem;   /* quantity                                */
   --am-col-actions: 7rem;     /* star, chat, edit, delete                */
+  --am-col-actions-locked: 3.75rem; /* star and chat: all a locked row has */
+
+  /* The spell table, in short forms — see #spellColumns. Sized to the
+     longest value a5e's pack gives each: "10 min", "120 ft", "20" and
+     a shape, "24 hr", "DEX". */
+  --am-col-time:    3.25rem;
+  --am-col-range:   3.75rem;
+  --am-col-target:  3rem;
+  --am-col-dur:     3.5rem;
+  --am-col-roll:    2.75rem;
 }
 
 /* The state icons live inside the flexible name column, as they do in Tidy,
@@ -1853,9 +1863,10 @@
    a5e draws its own as a round pip with a star in it, deep red while the slot
    is available and near-black once spent, ringed in gold. That is kept,
    because it is what the player already reads at a glance on the system's own
-   sheet. What changes is the size: a5e's are 1.15rem and stand in a row of
-   their own, these sit on a heading, so they come down to 0.8125rem and the
-   heading does not grow.
+   sheet. The size is a5e's pip and then some: 1.15rem with a 0.375rem star
+   was reported as too small to see and to hit, so the pip is 1.375rem and the
+   star inside it half that. The heading has the room since the spell columns
+   went to short forms.
 
    Tidy gives every <button> a min-height, a border and a transition. All three
    have to be overruled here or the stars are field-height, boxed, and animate
@@ -1863,16 +1874,24 @@
 .tidy5e-sheet.application.a5e-mancer-sheet .am-slots {
   display: inline-flex;
   align-items: center;
-  gap: 0.1875rem;
-  margin-inline-start: var(--t5e-size-1x);
+  gap: 0.3125rem;
+  margin-inline-start: var(--t5e-size-2x);
+  flex: 0 0 auto;
+}
+
+/* The level's name before its stars. Tidy lets a heading's h3 shrink to
+   an ellipsis, which at the 700px minimum left "L" and four stars. */
+.tidy5e-sheet.application.a5e-mancer-sheet .header-label-cell:has(.am-slots) > h3,
+.tidy5e-sheet.application.a5e-mancer-sheet .header-label-cell:has(.am-slots) > .table-header-count {
+  flex-shrink: 0;
 }
 
 .tidy5e-sheet.application.a5e-mancer-sheet .am-slot {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.15rem;
-  height: 1.15rem;
+  width: 1.375rem;
+  height: 1.375rem;
   min-height: 0;
   min-width: 0;
   flex: 0 0 auto;
@@ -1890,7 +1909,7 @@
 .tidy5e-sheet.application.a5e-mancer-sheet .am-slot i {
   margin: 0;
   padding: 0;
-  font-size: 0.5rem;
+  font-size: 0.6875rem;
   line-height: 1;
 }
 
@@ -1904,6 +1923,59 @@
 
 .tidy5e-sheet.application.a5e-mancer-sheet .am-slot:hover {
   border-color: var(--t5e-color-text-gold-emphasis, #e9d7a1);
+  box-shadow: 0 0 0 0.0625rem var(--t5e-color-text-gold-emphasis, #e9d7a1);
+}
+
+/* Unlocked: a5e's two fields, left and total, in place of the stars. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-slots-edit {
+  gap: 0.25rem;
+  font-size: 0.8125rem;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-slot-field {
+  width: 2.25rem;
+  height: 1.375rem;
+  min-height: 0;
+  padding: 0 0.125rem;
+  text-align: center;
+  border: 0.0625rem solid rgba(255, 255, 255, 0.2);
+  border-radius: 0.25rem;
+  background: rgba(255, 255, 255, 0.12);
+  color: inherit;
+}
+
+/* A spell's C and R, beside its name. Small capitals in a ring, the way a
+   printed spell list marks them, so they read as marks and not as text. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  border: 0.0625rem solid currentColor;
+  border-radius: 50%;
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--t5e-color-text-lighter);
+  cursor: help;
+}
+
+/* A spell column's value may wrap to a second line — the few ranges a5e
+   writes as words ("Same plane") — rather than be cut to an ellipsis. The
+   row is two lines tall already, for the name and the school. */
+.tidy5e-sheet.application.a5e-mancer-sheet .tab.magic .tidy-table-row .tidy-table-cell.text-cell:not(.primary) > .cell-text {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.1;
+  text-align: center;
+}
+
+/* A short cell and the glyph after it — an area's shape — on one line. */
+.tidy5e-sheet.application.a5e-mancer-sheet .tidy-table-cell .am-cell-icon {
+  margin-inline-start: 0.1875rem;
+  font-size: 0.625rem;
+  color: var(--t5e-color-text-lighter);
 }
 /* A line under a settings heading saying who acts on those switches. */
 .tidy5e-sheet.application.a5e-mancer-sheet .am-settings-hint {

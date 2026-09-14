@@ -38,20 +38,38 @@
       {{!-- Slots, where the section has them: one star per slot, on the line
            that is already there. a5e draws them exactly so, and they are what
            is clicked to spend and recover — there is no second place to do
-           it. Lit means available; a spent one is dark. --}}
-      {{#if slots.pips.length}}
-        <span class="am-slots" role="group"
-          aria-label="{{slots.value}} of {{slots.max}} slots left">
-          {{#each slots.pips}}
-            <button type="button"
-              class="am-slot{{#if this.expended}} am-slot-spent{{/if}}"
-              data-action="slot-pip" data-level="{{this.level}}" data-n="{{this.n}}"
-              aria-label="Slot {{this.n}}"
-              data-tooltip="{{#if this.expended}}Spent — click to recover{{else}}Click to spend{{/if}}">
-              <i class="fa-solid fa-star"></i>
-            </button>
-          {{/each}}
-        </span>
+           it. Lit means available; a spent one is dark.
+
+           Unlocked, a5e shows two fields in their place — slots left, and
+           the total — so the total can be set at all. See slotRows. They
+           are boxed rather than Tidy's .uninput, which is transparent until
+           hovered and read as two stray numbers. --}}
+      {{#if slots}}
+        {{#if @root.unlocked}}
+          <span class="am-slots am-slots-edit" role="group" aria-label="Spell slots">
+            <input type="number" class="am-slot-field" min="0"
+              data-action="slot-field" data-level="{{slots.level}}" data-field="current"
+              value="{{slots.value}}" aria-label="Slots left" data-tooltip="Slots left" />
+            <span class="separator">/</span>
+            <input type="number" class="am-slot-field" min="0"
+              data-action="slot-field" data-level="{{slots.level}}" data-field="{{slots.totalField}}"
+              value="{{slots.total}}" placeholder="0" aria-label="Slots in total"
+              data-tooltip="{{#if slots.totalIsOverride}}Total — overrides what the classes give{{else}}Total{{/if}}" />
+          </span>
+        {{else if slots.pips.length}}
+          <span class="am-slots" role="group"
+            aria-label="{{slots.value}} of {{slots.max}} slots left">
+            {{#each slots.pips}}
+              <button type="button"
+                class="am-slot{{#if this.expended}} am-slot-spent{{/if}}"
+                data-action="slot-pip" data-level="{{this.level}}" data-n="{{this.n}}"
+                aria-label="Slot {{this.n}}"
+                data-tooltip="{{#if this.expended}}Spent — click to recover{{else}}Click to spend{{/if}}">
+                <i class="fa-solid fa-star"></i>
+              </button>
+            {{/each}}
+          </span>
+        {{/if}}
       {{/if}}
     </div>
 
@@ -63,25 +81,34 @@
       <div class="tidy-table-header-cell"
         style="--tidy-table-column-width: var(--am-col-narrow)">Qty</div>
     {{/if}}
+    {{!-- wN overrides a column's width and hN the width under which it
+         hides; both default to what every table had before. tidy-row takes
+         the same two, and a table must pass them to both. --}}
     {{#if c1}}
-      <div class="tidy-table-header-cell"
-        style="--tidy-table-column-width: var(--am-col)">{{col1}}</div>
+      <div class="tidy-table-header-cell{{#if h1}} {{h1}}{{/if}}"
+        style="--tidy-table-column-width: {{#if w1}}{{w1}}{{else}}var(--am-col){{/if}}">{{col1}}</div>
     {{/if}}
     {{#if c2}}
-      <div class="tidy-table-header-cell hide-under-500"
-        style="--tidy-table-column-width: var(--am-col)">{{col2}}</div>
+      <div class="tidy-table-header-cell {{#if h2}}{{h2}}{{else}}hide-under-500{{/if}}"
+        style="--tidy-table-column-width: {{#if w2}}{{w2}}{{else}}var(--am-col){{/if}}">{{col2}}</div>
     {{/if}}
     {{#if c3}}
-      <div class="tidy-table-header-cell hide-under-600"
-        style="--tidy-table-column-width: var(--am-col)">{{col3}}</div>
+      <div class="tidy-table-header-cell {{#if h3}}{{h3}}{{else}}hide-under-600{{/if}}"
+        style="--tidy-table-column-width: {{#if w3}}{{w3}}{{else}}var(--am-col){{/if}}">{{col3}}</div>
     {{/if}}
     {{#if c4}}
-      <div class="tidy-table-header-cell hide-under-600"
-        style="--tidy-table-column-width: var(--am-col)">{{col4}}</div>
+      <div class="tidy-table-header-cell {{#if h4}}{{h4}}{{else}}hide-under-600{{/if}}"
+        style="--tidy-table-column-width: {{#if w4}}{{w4}}{{else}}var(--am-col){{/if}}">{{col4}}</div>
+    {{/if}}
+    {{#if c5}}
+      <div class="tidy-table-header-cell {{#if h5}}{{h5}}{{else}}hide-under-600{{/if}}"
+        style="--tidy-table-column-width: {{#if w5}}{{w5}}{{else}}var(--am-col){{/if}}">{{col5}}</div>
     {{/if}}
 
+    {{!-- Locked, a row has two buttons, not four; the column is sized for
+         what is there. --}}
     <div class="tidy-table-header-cell header-cell-actions"
-      style="--tidy-table-column-width: var(--am-col-actions)"></div>
+      style="--tidy-table-column-width: {{#if @root.unlocked}}var(--am-col-actions){{else}}var(--am-col-actions-locked){{/if}}"></div>
   </header>
 
   <div class="expandable expanded" role="presentation">

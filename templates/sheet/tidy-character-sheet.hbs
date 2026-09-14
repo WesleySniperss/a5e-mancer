@@ -1115,14 +1115,27 @@
 
       {{#if hasSpells}}
         {{#each spellGroups}}
+          {{!-- Five short columns rather than four wide ones, so the heading
+               keeps room for its stars — see #spellColumns. The hide classes
+               follow Tidy's priorities, measured in a browser: the table is 532px
+               wide in an 820px window and 422px at the 700px minimum. The
+               target goes under 500, the time under 450, and range, duration
+               and roll always stay — so the heading never has less than
+               180px for its name and its stars. --}}
           {{~#> tidy-table key=@key label=@key count=this.length items=this
                           slots=(lookup @root.spellSlots @key)
-                          c1=true col1="Cast Time" c2=true col2="Range"
-                          c3=true col3="Duration" c4=true col4="Save"}}
+                          c1=true col1="Time"     w1="var(--am-col-time)"   h1="hide-under-450"
+                          c2=true col2="Range"    w2="var(--am-col-range)"  h2="am-keep"
+                          c3=true col3="Target"   w3="var(--am-col-target)" h3="hide-under-500"
+                          c4=true col4="Duration" w4="var(--am-col-dur)"    h4="am-keep"
+                          c5=true col5="Roll"     w5="var(--am-col-roll)"   h5="am-keep"}}
             {{#each items}}
-              {{~> tidy-row subtitle=this.schoolLabel
-                           c1=true cell1=this.castTime c2=true cell2=this.range
-                           c3=true cell3=this.duration c4=true cell4=this.saveDC}}
+              {{~> tidy-row subtitle=this.schoolLabel dash=true
+                           c1=true cell1=this.col.time   tip1=this.col.timeTip   w1="var(--am-col-time)"   h1="hide-under-450"
+                           c2=true cell2=this.col.range  tip2=this.col.rangeTip  w2="var(--am-col-range)"  h2="am-keep"
+                           c3=true cell3=this.col.target tip3=this.col.targetTip w3="var(--am-col-target)" h3="hide-under-500" icon3=this.col.targetIcon
+                           c4=true cell4=this.col.dur    tip4=this.col.durTip    w4="var(--am-col-dur)"    h4="am-keep"
+                           c5=true cell5=this.col.roll   tip5=this.col.rollTip   w5="var(--am-col-roll)"   h5="am-keep"}}
             {{/each}}
           {{/tidy-table}}
         {{/each}}

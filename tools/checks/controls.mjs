@@ -272,6 +272,26 @@ for (const [action, rowSel] of [['inv-search', '.tidy-table-row-container'],
   check('clicking a spent star recovers up to it', afterRecover[0] === 4,
     `current 2, clicked star 4 -> ${afterRecover[0] ?? 'nothing written'} (a5e: 4)`);
 
+  /* Unlocked, a5e swaps the stars for two fields — left, and the total — and
+     on a character the total it edits is the override, since the real total
+     is derived from its classes. On every level heading, slots or none, so a
+     level with spells and no slots can be given some. */
+  caster.flags.a5e = { ...(caster.flags.a5e ?? {}), sheetIsLocked: false };
+  const u = await renderCaster();
+  const fields = q(u, '[data-action="slot-field"]');
+  const onLevel3 = fields.filter(f => f.dataset.level === '3');
+  check('unlocked: a level heading carries a5e’s two slot fields, and no stars',
+    onLevel3.length === 2 && q(u, '.am-slot').length === 0,
+    `${onLevel3.length} fields on level 3, ${q(u, '.am-slot').length} stars on the sheet`);
+  const total = onLevel3.find(f => f.dataset.field !== 'current');
+  casterWrites.length = 0;
+  if (total) { total.value = '5'; await fireType(total, 'change'); }
+  const wroteTotal = casterWrites.flatMap(w => Object.entries(w));
+  check('unlocked: a character’s total field writes the override, as a5e does',
+    wroteTotal.length === 1 && wroteTotal[0][0] === 'system.spellResources.slots.3.override' && wroteTotal[0][1] === 5,
+    wroteTotal.map(([k, v]) => `${k}=${v}`).join(', ') || 'nothing written');
+  caster.flags.a5e.sheetIsLocked = true;
+
   /* And the row of nine tracker cards is gone. */
   check('the old row of slot trackers is gone',
     q(r, '[data-action="slot-dec"]').length === 0
