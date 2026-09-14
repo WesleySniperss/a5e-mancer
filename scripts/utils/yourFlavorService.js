@@ -26,6 +26,15 @@ import { AM } from '../am.js';
  * screen stays unstyled - for every system, not just a5e. Only messages that
  * arrive afterwards, through the render hook, get themed.
  *
+ * ── 3. Your Flavor's test cards  (enableYourFlavorRestyle) ─────────────────
+ *
+ * The Test button posts a real message flagged with a previewId, whose draft
+ * config Your Flavor keeps in memory - on the clicking client only, for five
+ * minutes - and its hook returns on any previewId it holds no draft for. So on
+ * every other client, after any reload, and on any re-render past five minutes
+ * (an update, scrolling up into older messages, a popped-out log) the card is
+ * refused. See _adoptPreview for how the bridge decides instead.
+ *
  * ── Why the bridge lives here ─────────────────────────────────────────────
  *
  * Both are fixable inside Your Flavor, but Your Flavor is a module we do not
@@ -119,19 +128,27 @@ export class YourFlavorService {
      * middle of a fight never waits on a network round trip. */
     this._loadYourFlavorModules();
 
-    /* The render hook handles a5e cards ONLY.
+    /* The render hook handles a5e cards, and test cards Your Flavor refused.
      *
      * Foundry loads modules in id order, so "a5e-mancer" registers before
      * "your-flavor" and this handler runs first. Styling anything else here
      * would mean beating Your Flavor to every message and quietly taking over
      * its job. Everything that is not an a5e card is left to Your Flavor's own
      * hook, which works correctly; the sweep below picks up only what it
-     * demonstrably missed. */
-    if (this.enabled && game.system?.id === 'a5e') {
+     * demonstrably missed.
+     *
+     * Test cards are not decided here at all: see _adoptPreview. */
+    const a5e = this.enabled && game.system?.id === 'a5e';
+    if (a5e || this.restyleEnabled) {
       this._renderHook = Hooks.on('renderChatMessageHTML', (message, html) => {
         try {
           const element = html?.jquery ? html[0] : html;
-          if (this._isA5eCard(message, element)) this._styleMessage(message, element);
+          const isA5e = this._isA5eCard(message, element);
+          if (this._isPreview(message)) {
+            if (isA5e ? a5e : this.restyleEnabled) queueMicrotask(() => this._adoptPreview(message, element));
+          } else if (isA5e && a5e) {
+            this._styleMessage(message, element);
+          }
         } catch (err) {
           AM.log(1, 'Your Flavor bridge: styling failed', err);
         }
@@ -199,6 +216,39 @@ export class YourFlavorService {
     setTimeout(() => this._sweepWhenReady(attempt + 1), 100);
   }
 
+  /** A Your Flavor test card: a message carrying the draft id its Test button sets. */
+  static _isPreview(message) {
+    return Boolean(message?.flags?.[this.YF_ID]?.previewId);
+  }
+
+  /**
+   * Paint a test card, but only once Your Flavor has had its turn and passed.
+   *
+   * Its draft config lives in memory on one client for five minutes, and while
+   * it does Your Flavor paints the card with it - the saved config painted over
+   * that would show the editor the wrong thing. This used to be settled by
+   * age: leave any card younger than five minutes, adopt anything older. But
+   * age says nothing about whether THIS client holds the draft. Every other
+   * client never did, so their test cards stayed bare; a reload empties the
+   * map, so a young card stayed bare there too; and nothing ever came back once
+   * the five minutes had passed, so a re-render left it bare for the session.
+   *
+   * Asking what happened answers it exactly. Hooks run synchronously, in one
+   * loop, so a microtask queued from ours runs after Your Flavor's regardless
+   * of which of the two registered first: if it painted the card, yf-processed
+   * is there and this does nothing; if it refused, nobody else will. The sweep
+   * reaches the same verdict for cards already in the log, where Your Flavor
+   * has plainly had its chance.
+   */
+  static _adoptPreview(message, element) {
+    try {
+      if (!element?.classList || element.classList.contains('yf-processed')) return;
+      this._styleMessage(message, element);
+    } catch (err) {
+      AM.log(1, 'Your Flavor bridge: styling a test card failed', err);
+    }
+  }
+
   /**
    * Sweep again whenever the log itself re-renders.
    *
@@ -206,22 +256,6 @@ export class YourFlavorService {
    * window, and Foundry re-rendering the log. Cheap to repeat - _styleMessage
    * skips anything already marked yf-processed - so this is idempotent.
    */
-  /** Your Flavor's own TTL for a preview draft: 5 * 60 * 1000 in your-flavor.js. */
-  static PREVIEW_TTL_MS = 5 * 60 * 1000;
-
-  /**
-   * Whether a preview card's draft config is certainly gone.
-   *
-   * Matched to Your Flavor's own timer rather than guessed, so the two cannot
-   * disagree. A message with no timestamp is treated as NOT expired — refusing
-   * to style it is the safe way to be wrong.
-   */
-  static _previewExpired(message) {
-    const stamp = Number(message?.timestamp);
-    if (!Number.isFinite(stamp) || stamp <= 0) return false;
-    return (Date.now() - stamp) > this.PREVIEW_TTL_MS;
-  }
-
   static _watchChatLog() {
     this._logHook = Hooks.on('renderChatLog', () => {
       /* After the render, not during: the messages are not in the document yet
@@ -249,6 +283,11 @@ export class YourFlavorService {
     let styled = 0;
     for (const element of document.querySelectorAll('.chat-message')) {
       if (element.classList.contains('yf-processed')) continue;
+      /* Inside Your Flavor's live chat preview, while its window is open, a
+         message can be bare on purpose - the draft being previewed turned it
+         off. That draft is not a config this bridge can see, and painting the
+         saved one would show the editor something other than its edit. */
+      if (element.classList.contains('yf-live-preview')) continue;
 
       const message = game.messages.get(element.dataset?.messageId);
       if (!message) continue;
@@ -276,32 +315,11 @@ export class YourFlavorService {
      * or its hook simply ran first. Re-applying would fight what it decided. */
     if (element.classList.contains('yf-processed')) return false;
 
-    /* Your Flavor's throwaway test messages carry an in-memory draft config
-     * only it holds. Styling one while that draft is live would use the saved
-     * config instead and show the wrong thing in its own preview.
-     *
-     * But the draft does not live long. Your Flavor keeps it in a Map and
-     * deletes it after five minutes:
-     *
-     *     window.setTimeout(() => this._previewConfigs.delete(previewId),
-     *                       5 * 60 * 1000);
-     *
-     * and its own renderer bails on any preview whose config has gone:
-     *
-     *     if (previewId && !previewConfig) return;
-     *
-     * So a preview card that reached the chat log was unstyleable FOREVER —
-     * Your Flavor refused it because the draft had expired, and this refused
-     * it because of the flag. On the reporter's world every unstyled message
-     * was one of these, 23 of 23. It only showed on their cloud host because
-     * Your Flavor has no sweep of its own: locally its hook caught everything
-     * else, so nothing revealed that the fallback was declining these.
-     *
-     * Past the same five minutes the draft is provably gone and no preview can
-     * be spoiled, so the card is adopted and painted with the saved config —
-     * which is what the reader expects to see. */
-    const previewId = message?.flags?.[this.YF_ID]?.previewId;
-    if (previewId && !this._previewExpired(message)) return false;
+    /* Test cards reach this only after Your Flavor has passed on them - from
+     * _adoptPreview or the sweep - so a live draft is never painted over. On
+     * the reporter's world every unstyled message was one of these, 23 of 23.
+     * The yf-processed check above is what keeps a card Your Flavor did paint
+     * out of here. */
 
     const styles = this._styles;
     if (!styles) return false;
@@ -629,17 +647,12 @@ export class YourFlavorService {
       /* What actually landed on screen */
       'messages in DOM': rows.length,
       'messages unstyled': unstyled.length,
-      /* Preview cards that reached the log. Both modules used to refuse these
-         forever; anything still counted as live is inside the 5-minute draft
-         window and is left alone on purpose. */
-      'unstyled: dead previews': unstyled.filter(el => {
-        const m = game.messages.get(el.dataset?.messageId);
-        return m?.flags?.[M]?.previewId && this._previewExpired(m);
-      }).length,
-      'unstyled: live previews': unstyled.filter(el => {
-        const m = game.messages.get(el.dataset?.messageId);
-        return m?.flags?.[M]?.previewId && !this._previewExpired(m);
-      }).length,
+      /* Test cards neither module painted. Should be 0: Your Flavor paints one
+         whose draft it holds, and the bridge adopts any it refused. */
+      'unstyled: YF test cards': unstyled.filter(el =>
+        this._isPreview(game.messages.get(el.dataset?.messageId))).length,
+      /* Bare on purpose while Your Flavor's window previews a draft. */
+      'unstyled: in YF live preview': unstyled.filter(el => el.classList.contains('yf-live-preview')).length,
     };
 
     console.table(report);
