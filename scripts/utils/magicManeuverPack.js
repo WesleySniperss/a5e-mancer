@@ -187,7 +187,9 @@ export class MagicManeuverPack {
    * doing, so calling them an action would misstate the cost.
    */
   static #activationType(m) {
-    return m.activation === 'reaction' ? 'reaction' : 'special';
+    if (m.activation === 'reaction') return 'reaction';
+    if (m.activation === 'bonusAction') return 'bonusAction';
+    return 'special';
   }
 
   /**

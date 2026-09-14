@@ -58,7 +58,7 @@ export const MM_PROGRESSION = [
  *               Independent of cost — a 1st-degree maneuver may cost 3.
  *   cost        exertion spent on activation
  *   trigger     what the cast must be for this to be offered
- *   activation  'cast' | 'reaction' | 'triggered' | 'special'
+ *   activation  'cast' | 'bonusAction' | 'reaction' | 'triggered' | 'special'
  *   reactionTrigger  for a reaction, the trigger a5e shows on the action:
  *               "Reaction (When ...)", as its own maneuvers do
  *   consumesState  true for the shared "next attack on the target" state; false
@@ -117,10 +117,10 @@ export const MAGIC_MANEUVERS = [
     flavor: `A second light finds what hid from the first.`,
     effect: `When you make a spell attack roll with a spell or cantrip that deals radiant damage against a creature you dealt radiant damage to in the previous round, you make the attack roll with advantage.` },
 
-  { id: 'peak', name: 'Peak', school: 'esentsia', degree: 3, cost: 3,
-    trigger: 'damageType', damageType: 'any', activation: 'cast', consumesState: false,
+  { id: 'peak', name: 'Peak', school: 'esentsia', degree: 3, cost: 4,
+    trigger: 'damageType', damageType: 'any', activation: 'bonusAction', consumesState: false,
     flavor: `Magic carried to its limit.`,
-    effect: `When you cast a spell or cantrip that deals damage, each of its damage dice counts as its highest number. You use this maneuver as part of casting the spell.` },
+    effect: `When you cast a spell or cantrip that deals damage, you can use a bonus action to make each of its damage dice count as its highest number.` },
 
   /* ── Breach ───────────────────────────────────────────── */
   { id: 'bypass', name: 'Bypass', school: 'probiy', degree: 1, cost: 1,
@@ -178,12 +178,12 @@ export const MAGIC_MANEUVERS = [
   { id: 'harvest', name: 'Harvest', school: 'utrymannia', degree: 2, cost: 1,
     trigger: 'onKill', activation: 'reaction', reactionTrigger: 'When your spell or cantrip reduces a hostile creature to 0 hit points', consumesState: false,
     flavor: `One death feeds the next blow.`,
-    effect: `When a spell or cantrip you cast reduces a hostile creature to 0 hit points, the damage beyond what it needed carries over to another hostile creature within 15 feet of it.` },
+    effect: `When a spell or cantrip you cast reduces a hostile creature to 0 hit points, the damage beyond what it needed carries over to another hostile creature you can see within 15 feet of it.` },
 
   { id: 'ricochet', name: 'Ricochet', school: 'utrymannia', degree: 2, cost: 1,
     trigger: 'savingThrow', activation: 'reaction', reactionTrigger: 'When a creature succeeds on a saving throw against your spell or cantrip', consumesState: false,
     flavor: `It was not the spell that missed. It was the mark.`,
-    effect: `When a creature succeeds on its saving throw against a spell or cantrip you cast, the spell does not end. It passes to the hostile creature nearest that creature within 20 feet, which makes the same saving throw against the same DC. If two creatures are equally near, you choose. The spell passes only once: it ends if the new creature succeeds, and it can't pass to a creature it has already targeted.` },
+    effect: `When a creature succeeds on its saving throw against a spell or cantrip you cast, the spell does not end. It passes to the hostile creature you can see nearest that creature within 20 feet, which makes the same saving throw against the same DC. If two creatures are equally near, you choose. The spell passes only once: it ends if the new creature succeeds, and it can't pass to a creature it has already targeted.` },
 
   { id: 'riposte', name: 'Riposte', school: 'utrymannia', degree: 2, cost: 4,
     trigger: 'shield', activation: 'reaction', reactionTrigger: 'When your ward or shield absorbs damage from a melee attack', consumesState: false,
@@ -191,9 +191,9 @@ export const MAGIC_MANEUVERS = [
     effect: `When a ward or shield effect from a spell or cantrip you cast absorbs damage from a melee attack, the attacker takes damage equal to half the damage absorbed.` },
 
   { id: 'steadfast', name: 'Steadfast', school: 'utrymannia', degree: 3, cost: 4,
-    trigger: 'concentration', activation: 'triggered', consumesState: false,
+    trigger: 'concentration', activation: 'reaction', reactionTrigger: 'When you fail a saving throw to maintain concentration on a spell', consumesState: false,
     flavor: `Rooted, you will not be moved — and the charm will not fall.`,
-    effect: `When you fail a saving throw to maintain concentration on a spell, you keep concentrating on it until the end of your next turn, and your speed is halved for the same time. When that time ends, you can spend this maneuver's exertion again to extend both by another round in the same way.` },
+    effect: `When you fail a saving throw to maintain concentration on a spell, you can use your reaction to keep concentrating on it until the end of your next turn, and your speed is halved for the same time. When that time ends, you can use your reaction and spend this maneuver's exertion again to extend both by another round in the same way.` },
 
   /* ── Foresight ────────────────────────────────────────── */
   { id: 'insight', name: 'Insight', school: 'provydinnia', degree: 1, cost: 1,
