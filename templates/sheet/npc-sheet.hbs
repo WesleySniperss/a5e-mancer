@@ -1843,7 +1843,8 @@
             <label class="am-setting am-setting-value">
               <span class="color-text-default">{{this.label}}</span>
               <select class="am-setting-select" data-action="setting-choice"
-                data-path="{{this.path}}" aria-label="{{this.label}}">
+                data-path="{{this.path}}"{{#if this.numeric}} data-numeric="1"{{/if}}
+                aria-label="{{this.label}}">
                 {{#each this.options}}
                   <option value="{{this.key}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
                 {{/each}}

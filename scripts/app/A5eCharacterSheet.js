@@ -397,7 +397,48 @@ export class A5eCharacterSheet extends ActorSheet {
     /* a5e's four unnamed resource slots. Its own sheet has a switch for hiding
        them; this sheet wrote that switch and never read it, so the row kept
        them whatever the setting said. */
-    const hideGeneric = !!actor.flags?.a5e?.hideGenericResources;
+    /* ── What each display switch currently decides ─────────────────────
+       Made ONCE, here, and read both by the checkbox in Settings and by the
+       part of the sheet the switch governs.
+
+       They were two separate expressions, and for three switches they gave
+       different answers. The box said `!!flag` — unset reads as OFF — while
+       the sheet said the tab or the scores were ON. So a character who had
+       never touched the setting saw the maneuver tab with its box unticked:
+       ticking it changed nothing on screen, and the box then looked like
+       something that would not come off. That is the report.
+
+       The defaults are a5e's, read from its own settings page:
+
+         showFavoritesSection  ?? true
+         showPassiveScores     ?? true
+         showXP                ?? true    (always on for an NPC)
+         hideGenericResources  ?? true for an NPC, false for a character
+
+       The two tabs keep the rule this sheet already had, for the reason
+       written beside it further down: the flag decides once it has been
+       set, and whether the character has any spells or maneuvers decides
+       until then. */
+    const _fl = actor.flags?.a5e ?? {};
+    const _set = (v) => v !== undefined && v !== null;
+    const decided = {
+      showFavoritesSection: _set(_fl.showFavoritesSection) ? !!_fl.showFavoritesSection : true,
+      showManeuverTab: _set(_fl.showManeuverTab) ? !!_fl.showManeuverTab
+                       : items.some((i) => i.type === 'maneuver'),
+      showSpellTab:    _set(_fl.showSpellTab) ? !!_fl.showSpellTab
+                       : items.some((i) => i.type === 'spell'),
+      showPassiveScores: _set(_fl.showPassiveScores) ? !!_fl.showPassiveScores : true,
+      showXP: actor.type === 'npc' ? true
+              : (_set(_fl.showXP) ? !!_fl.showXP : true),
+      hideGenericResources: _set(_fl.hideGenericResources) ? !!_fl.hideGenericResources
+                            : actor.type === 'npc',
+      /* a5e offers three, not two: hidden, shown, and shown only where a
+         container is carrying something. */
+      showWeightColumn: [0, 1, 2].includes(Number(_fl.showWeightColumn))
+                        ? Number(_fl.showWeightColumn) : 0
+    };
+
+    const hideGeneric = decided.hideGenericResources;
 
     const actorResources = Object.entries(sys.resources ?? {})
       .filter(([key, r]) => key !== 'classResources' && r && typeof r === 'object')
@@ -460,12 +501,13 @@ export class A5eCharacterSheet extends ActorSheet {
 
     const settings = {
       sheet: [
-        { path: 'flags.a5e.showFavoritesSection',          label: 'Show the Favorites section', on: fl.showFavoritesSection ?? true },
-        { path: 'flags.a5e.showManeuverTab',               label: 'Show the maneuver tab',      on: !!fl.showManeuverTab },
-        { path: 'flags.a5e.showSpellTab',                  label: 'Show the spell tab',         on: !!fl.showSpellTab },
-        { path: 'flags.a5e.showPassiveScores',             label: 'Show passive scores',        on: !!fl.showPassiveScores },
-        { path: 'flags.a5e.showXP',                        label: 'Show experience',            on: !!fl.showXP },
-        { path: 'flags.a5e.hideGenericResources',          label: 'Hide the generic resources', on: !!fl.hideGenericResources },
+        /* Each box shows what the sheet is actually doing — see `decided`. */
+        { path: 'flags.a5e.showFavoritesSection',          label: 'Show the Favorites section', on: decided.showFavoritesSection },
+        { path: 'flags.a5e.showManeuverTab',               label: 'Show the maneuver tab',      on: decided.showManeuverTab },
+        { path: 'flags.a5e.showSpellTab',                  label: 'Show the spell tab',         on: decided.showSpellTab },
+        { path: 'flags.a5e.showPassiveScores',             label: 'Show passive scores',        on: decided.showPassiveScores },
+        { path: 'flags.a5e.showXP',                        label: 'Show experience',            on: decided.showXP },
+        { path: 'flags.a5e.hideGenericResources',          label: 'Hide the generic resources', on: decided.hideGenericResources },
         /* Read since the stars went onto the level headings, and offered
            nowhere until now — a switch a5e has, that this sheet obeyed and
            gave you no way to set. */
@@ -487,7 +529,7 @@ export class A5eCharacterSheet extends ActorSheet {
            did nothing — which is the complaint, and a fair one. */
         { path: 'flags.a5e.trackInventoryWeight', label: 'Track the weight of what is carried', on: fl.trackInventoryWeight ?? true },
         { path: 'flags.a5e.trackCurrencyWeight',  label: 'Count coins toward that weight',      on: !!fl.trackCurrencyWeight },
-        { path: 'flags.a5e.showWeightColumn',     label: 'Show the weight column',              on: !!fl.showWeightColumn },
+
         { path: 'flags.a5e.doubleCarryCapacity',  label: 'Double carrying capacity',            on: !!fl.doubleCarryCapacity }
       ],
       rest: [
@@ -505,8 +547,22 @@ export class A5eCharacterSheet extends ActorSheet {
         { path: 'flags.a5e.criticalHitThresholdSpell',  label: 'Critical on a spell',   value: fl.criticalHitThresholdSpell ?? 20 }
       ],
       choices: [
-        { path: 'system.attributes.spellcasting',   label: 'Spellcasting ability', options: withSelected(sys.attributes?.spellcasting) },
-        { path: 'flags.a5e.carryCapacityAbility',   label: 'Carrying capacity from', options: withSelected(fl.carryCapacityAbility ?? 'str') }
+        /* `numeric` on every row, not only the one that needs it: the markup
+           reads it off each, and context.mjs samples the first row of a list
+           to learn its shape — so a key present on the third row alone reads
+           as a key nothing supplies. */
+        { path: 'system.attributes.spellcasting',   label: 'Spellcasting ability', numeric: false, options: withSelected(sys.attributes?.spellcasting) },
+        { path: 'flags.a5e.carryCapacityAbility',   label: 'Carrying capacity from', numeric: false, options: withSelected(fl.carryCapacityAbility ?? 'str') },
+        /* a5e draws this as three buttons, and stores a number. As a checkbox
+           it wrote true or false over a setting that has three values, and
+           could never choose the third. `numeric` tells the handler to write
+           the number back, so a5e's own sheet reads the same thing. */
+        { path: 'flags.a5e.showWeightColumn', label: 'Weight column', numeric: true,
+          options: [
+            { key: '0', label: 'Hidden',            selected: decided.showWeightColumn === 0 },
+            { key: '1', label: 'Shown',             selected: decided.showWeightColumn === 1 },
+            { key: '2', label: 'With containers',   selected: decided.showWeightColumn === 2 }
+          ] }
       ]
     };
 
@@ -742,7 +798,7 @@ export class A5eCharacterSheet extends ActorSheet {
        things in it. On the flag alone the maneuver and spell tabs would vanish
        for anyone whose flag was never set, which is most characters: a5e sets
        it when it grants the first spell or maneuver, not before. */
-    const showPassives = actor.flags?.a5e?.showPassiveScores ?? true;
+    const showPassives = decided.showPassiveScores;
     const hasSpellItems    = items.some(i => i.type === 'spell');
     const hasManeuverItems = items.some(i => i.type === 'maneuver');
     /* These were `flag || hasItems`, which lets the flag ADD a tab and never
@@ -756,15 +812,18 @@ export class A5eCharacterSheet extends ActorSheet {
        a character who never touched the setting still gets it. */
     const setOr = (flag, fallback) => (flag === undefined || flag === null)
       ? fallback : !!flag;
-    const showMagicTab   = setOr(actor.flags?.a5e?.showSpellTab,    hasSpellItems);
-    const showMartialTab = setOr(actor.flags?.a5e?.showManeuverTab, hasManeuverItems);
+    /* Both read `decided`, which applies exactly this rule. setOr stays for
+       anything else that needs it. */
+    void setOr; void hasSpellItems; void hasManeuverItems;
+    const showMagicTab   = decided.showSpellTab;
+    const showMartialTab = decided.showManeuverTab;
 
     /* Three more that were written and never read. a5e reads them for its own
        sheet; on this one they did nothing at all, which is exactly the
        complaint. */
-    const showFavorites  = setOr(actor.flags?.a5e?.showFavoritesSection, true);
-    const showXP         = !!actor.flags?.a5e?.showXP;
-    const hideGenericRes = !!actor.flags?.a5e?.hideGenericResources;
+    const showFavorites  = decided.showFavoritesSection;
+    const showXP         = decided.showXP;
+    const hideGenericRes = decided.hideGenericResources;
 
     const spellDCRaw = sys.attributes?.spellDC;
     const spellDC = Number.isFinite(spellDCRaw) && spellDCRaw > 0 ? spellDCRaw : null;
@@ -1359,7 +1418,9 @@ export class A5eCharacterSheet extends ActorSheet {
     const hasUses = (list) => list.some(item =>
       item?.system?.uses?.max || actionsOf(item).some(x => x?.uses?.max));
 
-    const weightFlag = Number(actor.getFlag('a5e', 'showWeightColumn') ?? 0);
+    /* Read the way a5e reads it; anything other than 0, 1 or 2 is hidden. */
+    const weightFlag = [0, 1, 2].includes(Number(actor.getFlag('a5e', 'showWeightColumn')))
+      ? Number(actor.getFlag('a5e', 'showWeightColumn')) : 0;
     const anythingWeighs = allObjects.some(i => i.system?.weight);
     const showWeight =
       weightFlag !== 0 && anythingWeighs && (
@@ -2867,9 +2928,16 @@ export class A5eCharacterSheet extends ActorSheet {
       await this.actor.update({ [path]: value });
     };
 
+    /* stopPropagation: the sheet is a v1 form, and a change bubbling up to it
+       is picked up by Foundry's own form handling as well as by this one.
+       These inputs carry no name and belong to nothing it would submit, so
+       it is kept here rather than left to two handlers to settle between
+       them. */
     el.querySelectorAll('[data-action="setting-toggle"]').forEach(inp =>
-      inp.addEventListener('change', (e) =>
-        writeSetting(e.target.dataset.path, e.target.checked)));
+      inp.addEventListener('change', (e) => {
+        e.stopPropagation();
+        writeSetting(e.target.dataset.path, e.target.checked);
+      }));
 
     el.querySelectorAll('[data-action="setting-number"]').forEach(inp =>
       inp.addEventListener('change', (e) => {
@@ -2878,8 +2946,14 @@ export class A5eCharacterSheet extends ActorSheet {
       }));
 
     el.querySelectorAll('[data-action="setting-choice"]').forEach(sel =>
-      sel.addEventListener('change', (e) =>
-        writeSetting(e.target.dataset.path, e.target.value)));
+      sel.addEventListener('change', (e) => {
+        e.stopPropagation();
+        /* A setting a5e stores as a number is written back as one; its own
+           sheet compares it against numbers and would show nothing chosen. */
+        const raw = e.target.value;
+        const value = e.target.dataset.numeric ? Number(raw) : raw;
+        writeSetting(e.target.dataset.path, value);
+      }));
 
     /* ── Effects ────────────────────────────────────────────────────────
        Everything here is a5e's own document API, so an effect toggled from

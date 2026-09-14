@@ -81,23 +81,22 @@ const all = await count(null);
 check('with no class named, nothing is hidden', all.length === docs.length,
   `${all.length} of ${docs.length} spells`);
 
-/* A caster gets its own list and not the whole pack.
+/* A caster gets its own list, and only its own list.
 
-   Its own list plus the spells that name no class at all, which the filter
-   admits on purpose: a5e's pack leaves that field empty on some of its own
-   entries, and homebrew and imported spells routinely do. Hiding those would
-   hide the very spells a table has written itself.
-
-   This check first expected the tagged count alone and reported the 103
-   unlisted ones as intruders — the check being wrong about the rule rather
-   than the rule being wrong. */
+   Spells that name no class used to be admitted to every class, and this
+   check held the filter to that. The rule changed in 1411056, measured
+   before it was: of the 103 in a5e's pack with an empty class list, 99 are
+   `rare`, and a5e's rare spells belong to no class list by design — they are
+   found or granted, never learned from a list. So an empty list now means
+   on no class's list, and a Wizard is offered exactly the spells tagged
+   wizard. The check follows the rule; it does not get a vote on it. */
 const wizard = await count('Wizard');
 const tagged   = docs.filter((x) => (x.system?.classes ?? []).includes('wizard')).length;
 const unlisted = docs.filter((x) => !(x.system?.classes ?? []).length).length;
 check('a Wizard gets the wizard list and no other class\u2019s',
-  wizard.length === tagged + unlisted && wizard.length < docs.length,
-  `${wizard.length} spells = ${tagged} tagged wizard + ${unlisted} that name no class`
-  + `, out of ${docs.length}`);
+  wizard.length === tagged && wizard.length < docs.length,
+  `${wizard.length} spells = the ${tagged} tagged wizard;`
+  + ` the ${unlisted} that name no class are on no class's list`);
 
 /* And every spell it got really is a wizard spell. */
 const wrong = wizard.filter((s) => {
