@@ -339,6 +339,21 @@ acted on:
 Timing is the least trustworthy thing in this directory. Prefer a number that
 cannot drift.
 
+## `featpicker.mjs`
+
+Opens **Add Feat** on the Features tab against a5e's real feats pack
+(`packcopy2/feats`, a copy with `LOCK` removed), served by a stand-in that
+behaves as Foundry does on it: the plain index has no system data, and asking
+`getIndex` for more throws. Against the released code it printed exactly what
+was reported — *"No feat compendiums found"* — because the window kept items of
+type `feat`, which a5e never uses, after a `getIndex` call that had already
+thrown and been swallowed. It now reads through `FeatService`, as the level-up
+does: 625 feats.
+
+Writing it turned up a harness gap too: the stub `Collection` had no `some` or
+`every`, which Foundry's does, so the prerequisite check threw here and only
+here.
+
 ## `settingsa5e.mjs`
 
 The Settings tab against a5e's own settings pages, read out of `a5e.js.map`:

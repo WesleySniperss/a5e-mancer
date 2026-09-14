@@ -6,6 +6,11 @@ class Collection extends Map {
   map(f)    { return this.contents.map(f); }
   reduce(f, i) { return this.contents.reduce(f, i); }
   forEach(f){ return this.contents.forEach(f); }
+  /* Foundry's Collection has these too (common/utils/collection.mjs). Without
+     them FeatService's prerequisite check threw here on `actor.items.some`,
+     which in Foundry works — a harness failure dressed as a module one. */
+  some(f)   { return this.contents.some(f); }
+  every(f)  { return this.contents.every(f); }
   get first() { return () => this.contents[0]; }
   [Symbol.iterator]() { return this.values(); }
 }

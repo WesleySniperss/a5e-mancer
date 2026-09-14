@@ -4,6 +4,7 @@ import { ManeuverDialog } from './ManeuverDialog.js';
 import { SpellDialog } from './SpellDialog.js';
 import { SpellService } from '../utils/spellService.js';
 import { PackFilter } from '../utils/packFilter.js';
+import { FeatService } from '../utils/featService.js';
 import { ManeuverService } from '../utils/maneuverService.js';
 import { ConditionSource } from '../utils/conditionSource.js';
 import { ItemRepair } from '../utils/itemRepair.js';
@@ -4161,41 +4162,40 @@ export class A5eCharacterSheet extends ActorSheet {
   }
 
   async #openFeatPicker() {
-    // Build a searchable dialog from compendium feats
-    const packs  = PackFilter.itemPacks();
-    const feats  = [];
+    /* The feats come from FeatService, the loader the level-up already uses.
 
-    for (const pack of packs) {
-      try {
-        const index = await pack.getIndex({ fields: ['name', 'type', 'img', 'system'] });
-        for (const e of index) {
-          if (e.type !== 'feat') continue;
-          feats.push({
-            uuid: `Compendium.${pack.collection}.${e._id}`,
-            name: e.name,
-            img:  e.img,
-            pack: pack.metadata.label,
-            prereq: e.system?.prerequisites?.value ?? e.system?.prerequisite ?? ''
-          });
-        }
-      } catch {}
+       This window had a loader of its own, and it found nothing — every time,
+       on every world — and then blamed the compendiums:
+         - it kept entries of type `feat`, a type a5e's packs never use. A feat
+           is a `feature` whose featureType is `feat`: 625 of the 640 entries
+           in a5e's feats pack, and 0 of them matched;
+         - it asked pack.getIndex to fold `system` into an index Foundry had
+           already built, which throws on a5e's packs, and the empty catch
+           skipped every pack before the type test was even reached.
+       FeatService had both of those fixed already; a second copy of the same
+       job had neither. One loader now. */
+    const esc = (s) => foundry.utils.escapeHTML(String(s ?? ''));
+    let feats = [];
+    try {
+      feats = await FeatService.optionsFor(this.actor);
+    } catch (err) {
+      AM.log(1, 'Feats could not be loaded:', err);
     }
 
     if (!feats.length) {
-      ui.notifications.warn('No feat compendiums found. Make sure your a5e compendiums are enabled.');
+      ui.notifications.warn('No feats found in the enabled item compendiums. Check that a5e’s Feats compendium is enabled for this world.');
       return;
     }
 
-    feats.sort((a, b) => a.name.localeCompare(b.name));
-
-    // Build dialog HTML
+    /* The prerequisite as FeatService judges it: met, not met (with why), or
+       prose it cannot judge — shown either way, never hidden. */
     const rows = feats.map(f => `
-      <div class="am-feat-picker-row" data-uuid="${f.uuid}">
-        <img src="${f.img}" width="24" height="24" style="border:none;border-radius:3px;float:none;margin:0" />
-        <span class="am-fp-name">${f.name}</span>
-        ${f.prereq ? `<span class="am-fp-req" title="Prerequisite">${f.prereq}</span>` : ''}
-        <span class="am-fp-pack">${f.pack}</span>
-        <button type="button" class="am-fp-add-btn" data-uuid="${f.uuid}">Add</button>
+      <div class="am-feat-picker-row${f.met ? '' : ' am-fp-unmet'}" data-uuid="${esc(f.uuid)}">
+        <img src="${esc(f.img)}" width="24" height="24" style="border:none;border-radius:3px;float:none;margin:0" />
+        <span class="am-fp-name">${esc(f.name)}</span>
+        ${f.preText ? `<span class="am-fp-req" title="${esc(f.why ? `Not met: ${f.why}` : 'Prerequisite')}">${esc(f.preText)}</span>` : ''}
+        <span class="am-fp-pack">${esc(f.packLabel)}</span>
+        <button type="button" class="am-fp-add-btn" data-uuid="${esc(f.uuid)}">Add</button>
       </div>
     `).join('');
 
@@ -4207,6 +4207,7 @@ export class A5eCharacterSheet extends ActorSheet {
         .am-feat-picker-row { display:flex; align-items:center; gap:0.4rem; padding:0.2rem 0.3rem; border-radius:3px; border:1px solid #eee; font-size:0.84rem; }
         .am-feat-picker-row:hover { background:rgba(200,160,32,0.07); }
         .am-fp-name { flex:1; font-weight:bold; }
+        .am-fp-unmet .am-fp-name, .am-fp-unmet .am-fp-req { opacity:0.55; }
         .am-fp-req { font-size:0.72rem; opacity:0.6; }
         .am-fp-pack { font-size:0.7rem; opacity:0.45; margin-inline-start:auto; white-space:nowrap; }
         .am-fp-add-btn { font-size:0.72rem; padding:0.1rem 0.5rem; border:1px solid #c8a020; border-radius:2px; background:rgba(200,160,32,0.12); cursor:pointer; color:#5a3a00; white-space:nowrap; }
@@ -4244,7 +4245,13 @@ export class A5eCharacterSheet extends ActorSheet {
             try {
               const item = await fromUuid(btn.dataset.uuid);
               if (item) {
-                await Item.create(item.toObject(), { parent: actor });
+                /* Created the way a5e creates a dropped item, so its own grant
+                   window handles any choices the feat carries — there is no
+                   builder here to have asked them. The source is recorded, as
+                   the other dialogs record it, so the feat is known later. */
+                const data = item.toObject();
+                data._stats = { ...(data._stats ?? {}), compendiumSource: btn.dataset.uuid };
+                await Item.create(data, { parent: actor });
                 btn.textContent = '✓ Added';
                 btn.classList.add('am-added');
               }
