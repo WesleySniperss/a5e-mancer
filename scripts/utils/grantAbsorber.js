@@ -36,7 +36,8 @@ export class GrantAbsorber {
 
     const out = [];
     for (const [id, grant] of prepared) {
-      if (grant?.grantType === 'feature') continue;  // described separately
+      // Features and items are described separately, as cards
+      if (grant?.grantType === 'feature' || grant?.grantType === 'item') continue;
       if (!this.#isSupported(grant, lv, doc?.type)) continue;
       if (!this.#needsConfig(grant)) continue;       // applied without asking
 
@@ -181,6 +182,7 @@ export class GrantAbsorber {
     // reach it too — otherwise a grant whose selection component is missing
     // would show an empty picker and still hand out its base set on apply.
     const bucket = grant.grantType === 'feature'     ? grant.features
+                 : grant.grantType === 'item'        ? grant.items
                  : grant.grantType === 'ability'     ? grant.abilities
                  : grant.grantType === 'proficiency' ? grant.keys
                  : grant.grantType === 'trait'       ? grant.traits
@@ -470,6 +472,26 @@ export class GrantAbsorber {
           applied++;
         } catch (err) {
           AM.log(2, `Feature grant ${id} on ${item.name} failed:`, err);
+        }
+        continue;
+      }
+
+      /* An item grant creates documents, which getApplyData does not do. a5e
+         splits the two: getApplyData writes the grant's record, and the items
+         themselves come from a separate list its routine creates afterwards.
+         This branch used to fall through to the generic path below, so the
+         record was written and nothing was made - every maneuver a class feature,
+         feat, culture feature or paragon gift hands out this way was lost, and
+         so was a heritage's granted weapon. 40 grants across a5e's packs. */
+      if (grant?.grantType === 'item') {
+        if (!this.#isSupported(grant, lv, item?.type)) continue;
+        try {
+          const { update: u, ids } = await this.#applyItemGrant(actor, grant, choices[id]);
+          update = foundry.utils.mergeObject(update, u, { inplace: false });
+          if (ids.length) documentIds[id] = ids;
+          applied++;
+        } catch (err) {
+          AM.log(2, `Item grant ${id} on ${item.name} failed:`, err);
         }
         continue;
       }
@@ -986,7 +1008,13 @@ export class GrantAbsorber {
     const name = async (uuid) => (await entryFor(uuid)).label;
 
     for (const [id, grant] of this.#preparedGrants(doc)) {
-      if (grant?.grantType !== 'feature') continue;
+      /* Item grants too: they hand out documents the same way - a maneuver from
+         a class feature or a culture's Charging Leap, a heritage's needle gun -
+         and a choice among them wants cards with names, not a row of uuids.
+         Starting equipment on a class or background stays with the Equipment
+         tab. */
+      if (grant?.grantType !== 'feature' && grant?.grantType !== 'item') continue;
+      if (grant.grantType === 'item' && this.#isOwnedElsewhere(grant, doc?.type)) continue;
       if (!this.#appliesAtLevel(grant, lv)) continue;   // a later level's feature
 
       const spec = this.#specOf(grant) ?? { base: [], options: [], total: 0 };
@@ -1011,6 +1039,54 @@ export class GrantAbsorber {
    * Create the features a feature-grant hands out and record them the way a5e
    * does, so the grant can still be removed cleanly later.
    */
+  /**
+   * Create the items an item grant hands out, the way a5e does after its own
+   * getApplyData: base items and the picked options, with the grant's quantity
+   * override. Anything the character already has from the same compendium entry
+   * is counted rather than created twice.
+   */
+  static async #applyItemGrant(actor, grant, chosenUuids) {
+    const baseList = grant.items?.base ?? [];
+    const options  = grant.items?.options ?? [];
+    const total  = this.#allowance(grant.items?.total, options.length);
+    const picked = (chosenUuids ?? [])
+      .filter(u => options.some(o => o.uuid === u))
+      .slice(0, total);
+    const uuids = [...new Set([...baseList.map(o => o.uuid).filter(Boolean), ...picked])];
+    const update = grant.getApplyData(actor, { uuids }) ?? {};
+    if (!uuids.length) return { update, ids: [] };
+
+    const quantityOf = new Map([...baseList, ...options].map(o => [o.uuid, o.quantityOverride]));
+    const datas = [];
+    for (const uuid of uuids) {
+      try {
+        const doc = await fromUuid(uuid);
+        if (!doc) continue;
+        const data = doc.toObject();
+        data._stats = data._stats || {};
+        data._stats.compendiumSource = uuid;
+        const qty = Number(quantityOf.get(uuid));
+        if (Number.isFinite(qty) && qty > 0 && data.system) data.system.quantity = qty;
+        datas.push(data);
+      } catch (err) { AM.log(2, `Item ${uuid} could not be read:`, err); }
+    }
+
+    const owned = datas.map(d => d._id).filter(id => id && actor.items.get(id));
+    const fresh = datas.filter(d => !owned.includes(d._id));
+    let ids = [...owned];
+    if (fresh.length) {
+      try {
+        const created = await actor.createEmbeddedDocuments('Item', fresh, { keepId: true });
+        ids = [...ids, ...created.map(i => i.id)];
+      } catch (err) {
+        AM.log(2, 'Item creation with keepId failed; retrying without it:', err);
+        const created = await actor.createEmbeddedDocuments('Item', fresh);
+        ids = [...ids, ...created.map(i => i.id)];
+      }
+    }
+    return { update, ids };
+  }
+
   static async #applyFeatureGrant(actor, grant, chosenUuids) {
     const base    = (grant.features?.base ?? []).map(f => f.uuid).filter(Boolean);
     const options = (grant.features?.options ?? []);
