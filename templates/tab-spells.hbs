@@ -21,6 +21,10 @@
       <hr />
     {{/if}}
 
+    {{!-- Spells the chosen features let the character pick. Before the class
+          block, because a feature can give one to any class. --}}
+    {{> am-bonus-spells choices=bonusSpellChoices}}
+
     {{!-- The browser opens on spellInfo, not on the class. An origin can owe a
           cantrip to a character whose class casts nothing at all, and gating on
           the class meant that cantrip was announced above and then had nowhere

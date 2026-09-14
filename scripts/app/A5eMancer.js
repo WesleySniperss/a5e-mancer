@@ -57,7 +57,8 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
       toggleManeuver:          A5eMancer.toggleManeuver,
       filterSpellLevel:        A5eMancer.filterSpellLevel,
       filterSpellSchool:       A5eMancer.filterSpellSchool,
-      toggleSpell:             A5eMancer.toggleSpell
+      toggleSpell:             A5eMancer.toggleSpell,
+      toggleBonusSpell:        A5eMancer.toggleBonusSpell
     },
     /* am-builder is what carries the two-column layout. It used to be on am-app,
        which all four of these windows wear — and only this one has the parts
@@ -153,9 +154,13 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     });
   }
 
-  _prepareContext(options) {
+  async _prepareContext(options) {
+    let bonusSpellChoices = [];
+    try { bonusSpellChoices = await A5eMancer.#bonusSpellChoices(); }
+    catch (err) { AM.log(2, 'Feature spell choices could not be read:', err); }
     try {
       return {
+        bonusSpellChoices,
         heritageDocs:   AM.documents.heritage   || [],
         cultureDocs:    AM.documents.culture     || [],
         backgroundDocs: AM.documents.background  || [],
@@ -1204,6 +1209,37 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
       }
     }
     return score;
+  }
+
+  static #bonusCache = { key: '', choices: [] };
+
+  /**
+   * Spell choices the features chosen so far owe - read from the class's, the
+   * archetype's and the origins' grant trees, all at 1st level.
+   */
+  static async #bonusSpellChoices() {
+    const { ProseSpells } = await import('../utils/proseSpells.js');
+    if (!ProseSpells.enabled) return [];
+    const docs = [];
+    for (const type of ['class', 'archetype', 'heritage', 'culture', 'background', 'destiny']) {
+      const store = AM.itemGrants?.[type];
+      if (!store?.absorb) continue;
+      docs.push(...await ProseSpells.docsFromGrantModels(store.features, store.choices));
+    }
+    const key = docs.map(d => d.uuid).sort().join('|');
+    if (A5eMancer.#bonusCache.key !== key) {
+      const lookup = await ProseSpells.lookup();
+      const choices = ProseSpells.owedChoices(docs.map(doc => ({ doc, isNew: true, level: 1 })), lookup);
+      A5eMancer.#bonusCache = { key, choices };
+    }
+    return ProseSpells.decorate(A5eMancer.#bonusCache.choices, AM.creationBonusSpells, 'toggleBonusSpell');
+  }
+
+  static async toggleBonusSpell(_event, btn) {
+    const { ProseSpells } = await import('../utils/proseSpells.js');
+    if (ProseSpells.toggle(AM.creationBonusSpells, A5eMancer.#bonusCache.choices, btn.dataset.choice, btn.dataset.uuid)) {
+      await AM.app?.render(false, { parts: ['spells'] });
+    }
   }
 
   /** Pick random valid cantrips + spells for the selected class (respecting quotas). */

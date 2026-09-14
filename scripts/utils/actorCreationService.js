@@ -48,6 +48,17 @@ export class ActorCreationService {
       if (ProseSpells.enabled) {
         try { await ProseSpells.ensure(actor); }
         catch (err) { AM.log(1, 'Spells from features could not be added:', err); }
+        /* And the ones picked on the spell tab. The choices are worked out again
+           from the features the character now has, so a pick left over from a
+           class or gift chosen and then changed is not applied. */
+        try {
+          const lookup = await ProseSpells.lookup();
+          const sources = actor.items.filter(i => ProseSpells.TYPES.has(i.type))
+            .map(doc => ({ doc, isNew: true, level: ProseSpells.levelFor(actor, doc) }));
+          const choices = ProseSpells.owedChoices(sources, lookup);
+          await ProseSpells.applyChoices(actor, AM.creationBonusSpells ?? {}, choices);
+        } catch (err) { AM.log(1, 'Chosen feature spells could not be added:', err); }
+        AM.creationBonusSpells = {};
       }
 
       // Apply biography

@@ -40,6 +40,8 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     // removed from the actor when the level-up is applied.
     this._replacedManeuverIds = [];
     this._replacedSpellIds    = [];
+    this._bonusSpellPicks     = {};
+    this._bonusSpellChoices   = [];
 
     // Inline browser state
     this._maneuverFilter   = { tradition: null };
@@ -62,6 +64,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       luFilterSpellLevel:        LevelUpDialog.luFilterSpellLevel,
       luFilterSpellSchool:       LevelUpDialog.luFilterSpellSchool,
       luToggleSpell:             LevelUpDialog.luToggleSpell,
+      luToggleBonusSpell:        LevelUpDialog.luToggleBonusSpell,
       toggleGrantOption:         LevelUpDialog.luToggleGrantOption,
       luToggleReplace:           LevelUpDialog.luToggleReplace,
       luReplaceManeuver:         LevelUpDialog.luReplaceManeuver,
@@ -299,6 +302,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
     this.#addManeuverBrowserContext(context, maneuverInfo);
     await this.#addLevelGrantContext(context, selectedClass, newClassLevel);
+    await this.#addBonusSpellContext(context, selectedClass, newClassLevel, newTotalLevel);
     return context;
   }
 
@@ -680,6 +684,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     this._selectedSpellUuids    = [];
     this._replacedManeuverIds   = [];
     this._replacedSpellIds      = [];
+    this._bonusSpellPicks       = {};
     this._allManeuversData  = null;
     this._allSpellsData     = null;
     this._loadingManeuvers  = false;
@@ -1659,10 +1664,57 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
    * domain's next row, "at 5th level you learn ...". After everything else,
    * so the features gained this level are on the actor to be read.
    */
+  /**
+   * Spell choices this level owes: a sorcerer archetype's next pick, and any
+   * feature gained at this level that offers named spells to choose from.
+   * Features gained now are read from this level's grant tree - they are not
+   * on the actor until the level is applied.
+   */
+  async #addBonusSpellContext(context, cls, newClassLevel, newTotalLevel) {
+    this._bonusSpellChoices = [];
+    const { ProseSpells } = await import('../utils/proseSpells.js');
+    if (!ProseSpells.enabled || !cls) return;
+
+    const classItem = this.actor.items.get(cls.id);
+    const classKey = String(classItem?.system?.slug || cls.name).toLowerCase().replace(/[^a-z]/g, '');
+    const next = { classKey, classLevel: newClassLevel, charLevel: newTotalLevel };
+    const grants = AM.levelUpGrants;
+    const newDocs = grants?.absorb ? await ProseSpells.docsFromGrantModels(grants.features, grants.choices) : [];
+
+    const cacheKey = `${cls.id}|${newClassLevel}|${newTotalLevel}|${newDocs.map(d => d.uuid).sort().join(',')}`;
+    if (this._bonusCache?.key !== cacheKey) {
+      const lookup = await ProseSpells.lookup();
+      const owned = this.actor.items.filter(i => ProseSpells.TYPES.has(i.type))
+        .map(doc => ({ doc, isNew: false, level: ProseSpells.levelFor(this.actor, doc, next) }));
+      const gained = newDocs.map(doc => ({ doc, isNew: true, level: ProseSpells.levelFor(this.actor, doc, next) }));
+      const choices = ProseSpells.owedChoices([...owned, ...gained], lookup, {
+        done:  new Set(this.actor.getFlag(AM.ID, ProseSpells.FLAG) ?? []),
+        known: new Set(this.actor.items.filter(i => i.type === 'spell').map(i => i.name.toLowerCase()))
+      });
+      this._bonusCache = { key: cacheKey, choices };
+    }
+    this._bonusSpellChoices = this._bonusCache.choices;
+    context.bonusSpellChoices = ProseSpells.decorate(this._bonusSpellChoices, this._bonusSpellPicks, 'luToggleBonusSpell');
+  }
+
+  static async luToggleBonusSpell(_event, btn) {
+    const dialog = AM.levelUpDialog;
+    if (!dialog) return;
+    const { ProseSpells } = await import('../utils/proseSpells.js');
+    if (ProseSpells.toggle(dialog._bonusSpellPicks, dialog._bonusSpellChoices, btn.dataset.choice, btn.dataset.uuid)) {
+      dialog.render(false);
+    }
+  }
+
   static async #featureSpells(actor) {
     const { ProseSpells } = await import('../utils/proseSpells.js');
     if (!ProseSpells.enabled) return;
     try { await ProseSpells.ensure(actor); }
     catch (err) { AM.log(1, 'Spells from features could not be added:', err); }
+    const dialog = AM.levelUpDialog;
+    if (dialog?.actor === actor) {
+      try { await ProseSpells.applyChoices(actor, dialog._bonusSpellPicks, dialog._bonusSpellChoices); }
+      catch (err) { AM.log(1, 'Chosen feature spells could not be added:', err); }
+    }
   }
 }

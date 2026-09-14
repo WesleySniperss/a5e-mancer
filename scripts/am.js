@@ -26,6 +26,8 @@ export class AM {
   static equipmentData     = null;
   static creationManeuvers = null;
   static creationSpells    = null;
+  /** Picks for spells a feature lets the character choose: { [choiceKey]: uuid[] } */
+  static creationBonusSpells = {};
   static allManeuversData  = null;   // Map<tradition, Map<degree, maneuver[]>>
   static allSpellsData     = null;   // Map<level, spell[]>
   static maneuverDescMap   = new Map();

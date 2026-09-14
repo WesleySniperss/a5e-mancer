@@ -717,6 +717,9 @@
   {{> am-spell-browser}}
   {{/if}}
 
+  {{!-- Spells this level's features let the character choose --}}
+  {{> am-bonus-spells choices=bonusSpellChoices}}
+
   {{!-- Maneuvers (level-up mode) --}}
   {{#if maneuverInfo.newManeuversToLearn}}
   <hr />

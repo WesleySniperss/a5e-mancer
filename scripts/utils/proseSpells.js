@@ -83,7 +83,7 @@ export class ProseSpells {
       try { index = await pack.getIndex(); } catch { continue; }
       for (const e of index) {
         if (e.type !== 'spell') continue;
-        entries.push({ id: e._id, name: e.name, uuid: `Compendium.${pack.collection}.Item.${e._id}` });
+        entries.push({ id: e._id, name: e.name, img: e.img ?? '', uuid: `Compendium.${pack.collection}.Item.${e._id}` });
       }
     }
     this.#lookup = this.buildLookup(entries);
@@ -360,14 +360,149 @@ export class ProseSpells {
     return String(item?.system?.classes ?? '').toLowerCase().replace(/[^a-z]/g, '');
   }
 
-  /** The level a feature's "at Nth level" counts against: its class's, or the character's. */
-  static levelFor(actor, item) {
+  /**
+   * The level a feature's "at Nth level" counts against: its class's, or the
+   * character's.
+   *
+   * @param {object} [next]  the levels about to be reached, for a level-up that
+   *   has not been applied yet: { classKey, classLevel, charLevel }
+   */
+  static levelFor(actor, item, next = null) {
     const classes = (actor?.items?.filter ? actor.items.filter(i => i.type === 'class') : []);
-    const charLevel = classes.reduce((n, c) => n + (Number(c.system?.classLevels) || 0), 0) || 1;
+    const charLevel = next?.charLevel
+      ?? (classes.reduce((n, c) => n + (Number(c.system?.classLevels) || 0), 0) || 1);
     const key = this.classKeyOf(item);
     if (!key) return charLevel;
+    if (next?.classKey && next.classKey === key) return next.classLevel;
     const cls = classes.find(c => String(c.system?.slug || c.name).toLowerCase().replace(/[^a-z]/g, '') === key);
     return cls ? (Number(cls.system?.classLevels) || 1) : charLevel;
+  }
+
+  static #sourceOf(doc) {
+    return doc?._stats?.compendiumSource || doc?.uuid || doc?.name || '';
+  }
+
+  /**
+   * Spell choices owed now.
+   *
+   *   - a sorcerer's archetype spells: one pick at each level the table names
+   *     (1st, 3rd, 5th, 7th, 9th), from the rows up to that level
+   *   - a feature that offers named spells to choose from ("two bonus cantrips
+   *     of your choice from Celestial Burst, Guidance, Light, and Sacred Flame"),
+   *     once, when the feature is gained
+   *
+   * A choice "from the wizard spell list" names no options and is not offered
+   * here; the class's own spell picker covers its list.
+   *
+   * @param {{doc, isNew: boolean, level: number}[]} sources
+   * @param {object} lookup
+   * @param {object} [opts]
+   * @param {Set<string>} [opts.done]   keys already answered - the actor flag
+   * @param {Set<string>} [opts.known]  lower-case names of spells already held
+   * @returns {{key, source, count, cantrip, options: {uuid, name, img}[]}[]}
+   */
+  static owedChoices(sources, lookup, { done = new Set(), known = new Set() } = {}) {
+    const out = [];
+    const seenKeys = new Set();
+    for (const { doc, isNew, level } of sources) {
+      if (!doc) continue;
+      const html = typeof doc.system?.description === 'string'
+        ? doc.system.description : (doc.system?.description?.value ?? '');
+      const source = this.#sourceOf(doc);
+      const { choices } = this.parse(html, lookup, { classKey: this.classKeyOf(doc), name: doc.name });
+      choices.forEach((c, i) => {
+        let key, count, options, cantrip = false;
+        if (c.kind === 'rowChoice') {
+          if (!c.rows.some(r => r.atLevel === level)) return;       // picks come at the table's own levels
+          key = `row::${source}::${level}`;
+          count = 1;
+          options = c.rows.filter(r => r.atLevel <= level).flatMap(r => r.options);
+        } else if (c.kind === 'pick') {
+          if (!isNew || (c.atLevel && c.atLevel > level)) return;
+          if (c.options.length <= c.count) return;                   // nothing to choose between
+          key = `pick::${source}::${i}`;
+          count = c.count;
+          cantrip = c.cantrip;
+          options = c.options;
+        } else return;
+        if (done.has(key) || seenKeys.has(key)) return;
+        seenKeys.add(key);
+        const unique = [...new Map(options.map(o => [o.uuid, o])).values()]
+          .filter(o => !known.has(String(o.name).toLowerCase()));
+        if (!unique.length) return;
+        out.push({ key, source: doc.name, count: Math.min(count, unique.length), cantrip, options: unique });
+      });
+    }
+    return out;
+  }
+
+  /** Choices shaped for the picker, with what has been picked marked. */
+  static decorate(choices, picks = {}, action = '') {
+    return choices.map(c => {
+      const picked = picks[c.key] ?? [];
+      return {
+        ...c, action,
+        chosen: picked.length,
+        complete: picked.length >= c.count,
+        options: c.options.map(o => ({ ...o, selected: picked.includes(o.uuid) }))
+      };
+    });
+  }
+
+  /** Toggle one option of one choice, within its count. @returns {boolean} changed */
+  static toggle(picks, choices, key, uuid) {
+    const choice = choices.find(c => c.key === key);
+    if (!choice || !choice.options.some(o => o.uuid === uuid)) return false;
+    const list = [...(picks[key] ?? [])];
+    const at = list.indexOf(uuid);
+    if (at >= 0) list.splice(at, 1);
+    else {
+      if (list.length >= choice.count) {
+        ui.notifications?.warn(game.i18n.format('am.spells.bonus-full', { n: choice.count, source: choice.source }));
+        return false;
+      }
+      list.push(uuid);
+    }
+    picks[key] = list;
+    return true;
+  }
+
+  /**
+   * Add the picked spells and record the choices as answered.
+   * @param {object} picks    { [key]: uuid[] }
+   * @param {object[]} choices  the choices the picks were made against
+   */
+  static async applyChoices(actor, picks, choices) {
+    const chosen = choices.filter(c => (picks?.[c.key] ?? []).length);
+    if (!chosen.length) return [];
+    const from = new Map();
+    for (const c of chosen) for (const u of picks[c.key].slice(0, c.count)) from.set(u, c.source);
+    const { SpellService } = await import('./spellService.js');
+    await SpellService.applySpellsToActor(actor, [...from.keys()], {
+      prepared: 2,
+      flags: (uuid) => ({ grantedBy: from.get(uuid) ?? '' })
+    });
+    const done = new Set(actor.getFlag?.(AM.ID, this.FLAG) ?? []);
+    for (const c of chosen) done.add(c.key);
+    await actor.setFlag?.(AM.ID, this.FLAG, [...done]);
+    return [...from.keys()];
+  }
+
+  /**
+   * The documents a set of grant models hands out: every base feature, and
+   * the options picked. Read from the builder's and the level-up's grant trees.
+   */
+  static async docsFromGrantModels(models, choices = {}) {
+    const uuids = new Set();
+    for (const m of models ?? []) {
+      for (const u of m.baseUuids ?? []) uuids.add(u);
+      for (const u of choices?.[m.id] ?? []) if (typeof u === 'string' && u.startsWith('Compendium.')) uuids.add(u);
+    }
+    const docs = [];
+    for (const u of uuids) {
+      try { const d = await fromUuid(u); if (d && this.TYPES.has(d.type)) docs.push(d); } catch { /* unreadable: skipped */ }
+    }
+    return docs;
   }
 
   /**

@@ -1,0 +1,38 @@
+{{!-- Spells a feature lets the character choose - a sorcerer's archetype spells,
+      "two bonus cantrips of your choice from ...". a5e records these nowhere,
+      so nothing else asks for them. Each choice carries the action of the
+      window it is drawn in. Right-click a card for the spell's text. --}}
+{{#if choices.length}}
+  <hr />
+  <section class="am-bonus-spells">
+    <h3><i class="fa-solid fa-hat-wizard"></i> {{localize 'am.spells.bonus-title'}}</h3>
+    <p class="am-hint">{{localize 'am.spells.bonus-hint'}}</p>
+    {{#each choices}}
+      <div class="am-grant-block">
+        <div class="am-grant-head">
+          <span class="am-grant-label">{{this.source}}</span>
+          <span class="am-counter-badge {{#if this.complete}}am-badge-success{{else}}am-badge-pending{{/if}}">
+            {{this.chosen}}/{{this.count}}
+          </span>
+        </div>
+        <div class="am-card-grid am-inline-card-grid" role="list">
+          {{#each this.options}}
+            <button type="button" role="listitem"
+              class="am-card {{#if this.selected}}am-card-selected{{/if}}"
+              data-action="{{../action}}"
+              data-choice="{{../key}}"
+              data-uuid="{{this.uuid}}"
+              data-name="{{this.name}}"
+              data-img="{{this.img}}">
+              <img class="am-card-img" src="{{this.img}}" alt="" loading="lazy">
+              <span class="am-card-name">{{this.name}}</span>
+              {{#if this.selected}}
+                <div class="am-card-meta"><span class="am-known-pip"><i class="fa-solid fa-check"></i></span></div>
+              {{/if}}
+            </button>
+          {{/each}}
+        </div>
+      </div>
+    {{/each}}
+  </section>
+{{/if}}
