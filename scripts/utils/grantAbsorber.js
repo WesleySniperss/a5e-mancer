@@ -929,7 +929,13 @@ export class GrantAbsorber {
    */
   static async canAbsorb(doc, lv = {}, depth = 0, seen = new Set()) {
     const prepared = this.#preparedGrants(doc);
-    if (!prepared.length) return depth > 0;          // leaf feature: fine
+    /* Nothing to model is nothing the builder cannot model. This returned
+       false for an item with no grants at all unless it was nested, which sent
+       it to a5e - harmless when a5e has nothing to ask, but the level-up now
+       checks the character's archetype before taking a level over, and an
+       archetype with no grants (an imported Oath of Redemption) handed every
+       level after it to a5e's own window. */
+    if (!prepared.length) return true;
 
     if (depth > this.#MAX_DEPTH) return false;
 
@@ -962,14 +968,21 @@ export class GrantAbsorber {
     for (const uuid of uuids) {
       if (seen.has(uuid)) continue;                  // already cleared (or cycling)
       seen.add(uuid);
-      try {
-        const doc = await fromUuid(uuid);
-        if (!doc) return false;
-        if (!this.#preparedGrants(doc).length) continue;   // flat feature
-        if (!await this.canAbsorb(doc, lv, depth + 1, seen)) return false;
-      } catch {
-        return false;                                // unreadable — do not gamble
+      /* A feature that cannot be read is left out, not the whole item. a5e's
+         own packs link to features that do not exist - one trait each on the
+         Carven, Mountain Dwarf, Deep Gnome, Deep Dwarf and Forsaken cultures, a
+         3rd-level feature on the Revoker herald - and declining over it sent
+         those five cultures to a5e's window at creation and the Revoker to it
+         on every level-up. a5e cannot grant a missing feature either; the rest
+         of the item is still the builder's to ask about. */
+      let doc = null;
+      try { doc = await fromUuid(uuid); } catch { doc = null; }
+      if (!doc) {
+        AM.log(2, `Grant on ${grant.label ?? 'a feature grant'} links a feature that cannot be read, skipped: ${uuid}`);
+        continue;
       }
+      if (!this.#preparedGrants(doc).length) continue;     // flat feature
+      if (!await this.canAbsorb(doc, lv, depth + 1, seen)) return false;
     }
     return true;
   }
@@ -989,10 +1002,11 @@ export class GrantAbsorber {
     // The document has to be read for the name anyway, so its description is
     // banked for the panel at the same time. Right-clicking a row then shows
     // text we already hold instead of resolving the uuid a second time.
+    // null for a link that cannot be read - such an entry is dropped below, not drawn as its uuid
     const entryFor = async (uuid) => {
       try {
         const d = await fromUuid(uuid);
-        if (!d) return { key: uuid, label: uuid, img: '' };
+        if (!d) return null;
         const html = await this.#enrich(d);
         ItemDescPanel.seeded.set(uuid, html);
         return {
@@ -1002,10 +1016,10 @@ export class GrantAbsorber {
           asksInProse: this.#asksInProse(d, html)
         };
       } catch {
-        return { key: uuid, label: uuid, img: '' };
+        return null;
       }
     };
-    const name = async (uuid) => (await entryFor(uuid)).label;
+    const readable = async (uuids) => (await Promise.all(uuids.map(entryFor))).filter(Boolean);
 
     for (const [id, grant] of this.#preparedGrants(doc)) {
       /* Item grants too: they hand out documents the same way - a maneuver from
@@ -1026,10 +1040,10 @@ export class GrantAbsorber {
         total: spec.total,
         base:      spec.base,
         baseUuids: spec.base,        // describeTree walks these for nested grants
-        baseLabels: await Promise.all(spec.base.map(name)),
+        baseLabels: (await readable(spec.base)).map(e => e.label),
         // Granted outright, but still the thing the player wants to read about
-        baseEntries: await Promise.all(spec.base.map(entryFor)),
-        options:     await Promise.all(spec.options.map(entryFor))
+        baseEntries: await readable(spec.base),
+        options:     await readable(spec.options)
       });
     }
     return out;
