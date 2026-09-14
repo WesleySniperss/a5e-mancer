@@ -552,7 +552,9 @@ export class ActorCreationService {
     const data = AM.creationSpells;
     if (!data) return;
     const all = [...(data.cantrips ?? []), ...(data.spells ?? [])];
-    if (all.length) await SpellService.applySpellsToActor(actor, all);
+    if (all.length) {
+      await SpellService.applySpellsToActor(actor, all, { prepareRoom: SpellService.preparedRoom(actor) });
+    }
     AM.creationSpells = null;
   }
 

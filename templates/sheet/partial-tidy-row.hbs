@@ -79,6 +79,16 @@
         {{#if ritual}}
           <span class="am-mark item-state-indicator" data-tooltip="Ritual">R</span>
         {{/if}}
+        {{!-- A spell's prepared state, as a5e's sheet shows it: a book, lit
+              when prepared, with sparkles when always prepared. Cycles on
+              click. --}}
+        {{#if preparable}}
+          <button type="button" data-action="item-prepare" data-id="{{id}}"
+            class="unbutton item-state-indicator"
+            aria-label="Prepared state: {{preparedLabel}}" data-tooltip="{{preparedLabel}}">
+            <i class="fa-solid {{preparedIcon}} {{#if prepared}}color-icon-theme-highlight highlighted{{else}}color-text-lightest{{/if}}"></i>
+          </button>
+        {{/if}}
         {{#if needsAttune}}
           <button type="button" data-action="item-attune" data-id="{{id}}"
             class="unbutton item-state-indicator"

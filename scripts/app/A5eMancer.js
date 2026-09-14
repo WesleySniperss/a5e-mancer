@@ -490,6 +490,15 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
   /* ── render lifecycle ─────────────────────────────────── */
 
   async _onFirstRender(_ctx, _opts) {
+    // Right-click a card to read it — the same panel the maneuver and spell
+    // cards use everywhere. Bound once, to the window element, which lives as
+    // long as the window: parts re-render inside it, it is never replaced.
+    // It was bound at the end of every _onRender instead, after four awaited
+    // steps, and again inside DOMManager.initialize - each render tore the
+    // binding down and closed any open panel before putting it back, and a
+    // render that stopped short of the end left right-click with nothing.
+    this.#detachDescPanel?.();
+    this.#detachDescPanel = ItemDescPanel.attach(this.element);
     await SavedOptions.restoreFormOptions(this.element);
     DOMManager.updateTabIndicators(this.element);
   }
@@ -504,14 +513,6 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
       DOMManager.updateTabIndicators(this.element);
       DOMManager.updateReviewTab(this.element);
       DOMManager.updateProgressBar(this.element);
-
-      // Right-click a grant option to read what it grants — the same panel the
-      // maneuver and spell cards use, so the gesture is the same everywhere.
-      this.#detachDescPanel?.();
-      this.#detachDescPanel = ItemDescPanel.attach(
-        this.element,
-        '.am-card[data-uuid], .am-maneuver-card[data-uuid], .am-spell-card[data-uuid], [data-lore]'
-      );
     } finally {
       this.#isRendering = false;
     }

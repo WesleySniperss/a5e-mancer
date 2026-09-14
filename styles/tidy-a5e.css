@@ -123,6 +123,15 @@
   flex: 1;
 }
 
+.tidy5e-sheet.application.a5e-mancer-sheet .am-prepared-count {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  color: var(--t5e-secondary-color);
+}
+.tidy5e-sheet.application.a5e-mancer-sheet .am-prepared-count.am-over {
+  color: var(--t5e-warning-accent-color, #d97706);
+}
+
 /* ── Notes ────────────────────────────────────────────────────────────────
    Origin write-ups are long-form prose, so they take Tidy's longform text
    colour rather than its data colour. */

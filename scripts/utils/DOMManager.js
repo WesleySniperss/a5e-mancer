@@ -4,7 +4,6 @@ import { EquipmentService } from './equipmentService.js';
 import { ManeuverService } from './maneuverService.js';
 import { SpellService } from './spellService.js';
 import { GrantAbsorber } from './grantAbsorber.js';
-import { ItemDescPanel } from './itemDescPanel.js';
 import { LoreTableService } from './loreTableService.js';
 import { LevelUpService } from './levelUpService.js';
 
@@ -180,13 +179,8 @@ export class DOMManager {
       this.#listeners.push({ el, type: 'input', fn });
     }
 
-    // ── Right-click a card for the full description + its costs ──
-    // Hover gives the short inline blurb; this is the "what does it cost me"
-    // popup (exertion, casting time, components, uses).
-    {
-      const detach = ItemDescPanel.attach(form);
-      this.#listeners.push({ el: form, type: '__cleanup', fn: detach });
-    }
+    // Right-click for the full description is bound once per window, in
+    // A5eMancer._onFirstRender - not here, where every render re-bound it.
 
     // ── Inline card description hover ────────────────────
     for (const grid of form.querySelectorAll('.am-inline-card-grid')) {

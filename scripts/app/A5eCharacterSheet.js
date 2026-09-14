@@ -1138,6 +1138,14 @@ export class A5eCharacterSheet extends ActorSheet {
       fatiguePips, strifePips, exertionPips,
       fatigueDesc, strifeDesc, statusConditions,
       attunementItems, attuneCount, passivePerception, passives, spellDC,
+      /* Prepared against the most it may hold, as a5e's spell footer counts
+         them. Only for a character with a class that prepares by count. */
+      spellsPrepared: (() => {
+        const cap = SpellService.preparedCap(actor);
+        if (cap === null) return null;
+        const held = SpellService.preparedHeld(actor);
+        return { held, cap, over: held > cap };
+      })(),
       showPassives, showMagicTab, showMartialTab, traitSections, charInfo, bio, details,
       hasWeapons:          weapons.length        > 0,
       hasManeuvers:        maneuvers.length      > 0,
@@ -1840,7 +1848,22 @@ export class A5eCharacterSheet extends ActorSheet {
       schoolLabel,
       ritual: sys.ritual ?? false,
       concentration: conc,
-      prepared: sys.prepared !== false,
+      /* a5e's three states, 0 unprepared, 1 prepared, 2 always prepared, drawn
+         as its own sheet draws them: a book, lit when prepared, with sparkles
+         when always. This read `sys.prepared !== false`, which is true for all
+         three numbers, and no template drew it at all. */
+      ...(() => {
+        const state = Number(sys.prepared ?? 0);
+        const key   = CONFIG?.A5E?.preparedStates?.[state];
+        return {
+          preparable:    true,
+          prepared:      state > 0,
+          preparedState: state,
+          preparedIcon:  state === 2 ? 'fa-book-sparkles' : 'fa-book',
+          preparedLabel: key ? game.i18n.localize(key)
+                             : (['Unprepared', 'Prepared', 'Always prepared'][state] ?? 'Unprepared')
+        };
+      })(),
       activation,
       range, duration, dmgFull,
       /* The saving throw comes from the action's prompts. saveDC, read off
@@ -2500,6 +2523,21 @@ export class A5eCharacterSheet extends ActorSheet {
         } else {
           const cur = item.system?.equippedState ?? 1;
           await item.update({ 'system.equippedState': (cur + 1) % 3 });
+        }
+      })
+    );
+
+    /* A spell's prepared state cycles 0 → 1 → 2, a5e's togglePrepared. */
+    el.querySelectorAll('[data-action="item-prepare"]').forEach(b =>
+      b.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const item = this.actor.items.get(b.dataset.id);
+        if (!item) return;
+        if (typeof item.togglePrepared === 'function') {
+          await item.togglePrepared();
+        } else {
+          const cur = Number(item.system?.prepared ?? 0);
+          await item.update({ 'system.prepared': (cur + 1) % 3 });
         }
       })
     );

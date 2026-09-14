@@ -792,14 +792,25 @@ export class SpellService {
    * @param {object} [opts]
    * @param {number} [opts.prepared]  a5e's prepared state to write (2 = always prepared)
    * @param {(uuid: string) => object} [opts.flags]  module flags for each created spell
+   * @param {number} [opts.prepareRoom]  how many of the new levelled spells to
+   *        mark prepared, in the order given - see preparedRoom. a5e's packs
+   *        ship spells unprepared, so a cleric made here held nothing prepared
+   *        and a wizard's sheet showed none. Given, it decides the state of
+   *        every new spell but an always-prepared one: twelve pack entries
+   *        arrive at 1 by accident, seven of them cantrips (Trick Shot, Arcing
+   *        Blow...), and a5e counts those against the total like any other.
+   * @param {string} [opts.spellBookId]  the book to file them in - the one the
+   *        sheet is showing. Without it, the actor's first book.
    */
-  static async applySpellsToActor(actor, spellUuids, { prepared = null, flags = null } = {}) {
+  static async applySpellsToActor(actor, spellUuids, { prepared = null, flags = null, prepareRoom = null, spellBookId: bookId = null } = {}) {
     if (!spellUuids.length) return;
 
     // A5e requires spells to reference a spellbook on the actor.
     // The spellbook is created by class grants when the class item is added.
-    const spellBookId = actor.spellBooks?.first()?._id
-      ?? Object.keys(actor.system?.spellBooks ?? {})[0]
+    const books = Object.keys(actor.system?.spellBooks ?? {});
+    const spellBookId = (bookId && books.includes(bookId) ? bookId : null)
+      ?? actor.spellBooks?.first()?._id
+      ?? books[0]
       ?? null;
 
     // Collect existing spell names + source UUIDs to prevent duplicates
@@ -837,6 +848,13 @@ export class SpellService {
         if (prepared !== null) {
           data.system = data.system || {};
           data.system.prepared = prepared;
+        } else if (prepareRoom !== null && Number(data.system?.prepared ?? 0) !== 2) {
+          // Cantrips are left unprepared: a5e counts anything at state 1
+          // against the prepared total, cantrips included.
+          data.system = data.system || {};
+          const levelled = Number(data.system.level ?? 0) > 0;
+          data.system.prepared = levelled && prepareRoom > 0 ? 1 : 0;
+          if (data.system.prepared) prepareRoom--;
         }
         if (flags) {
           data.flags = data.flags || {};
@@ -852,6 +870,39 @@ export class SpellService {
       await actor.createEmbeddedDocuments('Item', itemDatas);
       AM.log(3, `Added ${itemDatas.length} spells to spellbook ${spellBookId}`);
     }
+  }
+
+  /**
+   * How many spells the character may hold prepared.
+   *
+   * The number on the actor when one was entered - a5e's footer field - and
+   * otherwise each preparing class's rule, summed for a multiclass. a5e's own
+   * fallback to the class formulas never runs (its filter asks for an item that
+   * is a class and an archetype at once), so the rules are read here instead.
+   *
+   * @returns {number|null} null when nothing the character has prepares by count
+   */
+  static preparedCap(actor) {
+    const entered = Number(actor?.system?.spellResources?.maxPrepared ?? 0);
+    if (entered > 0) return entered;
+    let total = null;
+    for (const cls of actor?.items?.filter?.(i => i.type === 'class') ?? []) {
+      const n = this.preparedCount(actor, cls.name, cls.system?.classLevels ?? 1);
+      if (n !== null) total = (total ?? 0) + n;
+    }
+    return total;
+  }
+
+  /** Spells held prepared as a5e counts them: state 1. Always prepared (2) is free. */
+  static preparedHeld(actor) {
+    return actor?.items?.filter?.(i => i.type === 'spell'
+      && Number(i.system?.prepared ?? 0) === 1).length ?? 0;
+  }
+
+  /** Prepared places still free - what new spells may be marked prepared into. */
+  static preparedRoom(actor) {
+    const cap = this.preparedCap(actor);
+    return cap === null ? 0 : Math.max(0, cap - this.preparedHeld(actor));
   }
 
   /**

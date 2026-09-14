@@ -17,6 +17,13 @@ export class ItemDescPanel {
   static #el   = null;
   static #docs = new Map();   // uuid → { resources[], description }
 
+  /* The document the panel opens in: the one the clicked card is in. Foundry
+     v14 can move a window into a browser window of its own, and a panel put
+     on the main page's body is not on the screen the player is looking at.
+     Set by every open, so a caller that names none gets the main page. */
+  static #doc  = null;
+  static get #host() { return this.#doc ?? document; }
+
   /**
    * uuid → already-enriched description, filled by whoever built the row.
    *
@@ -38,11 +45,13 @@ export class ItemDescPanel {
    * @param {number} x       viewport coords of the click
    * @param {number} y
    * @param {object} [seed]  what the card already knows: name, img, and any
-   *                         badges the caller wants shown before the doc loads
+   *                         badges the caller wants shown before the doc loads;
+   *                         `doc`, the document the card is in
    */
   static async showForUuid(uuid, x, y, seed = {}) {
     if (!uuid) return;
     this.close();
+    this.#doc = seed.doc ?? null;
 
     // Render immediately from what the card knows, then fill in from the document
     const panel = this.#build({ ...seed, resources: seed.resources ?? [], description: '', loading: true });
@@ -85,9 +94,10 @@ export class ItemDescPanel {
    * Show text that belongs to no document — a tradition's or a school's own
    * description. Nothing to load, so the panel is built once and left.
    */
-  static showLore(name, html, x, y) {
+  static showLore(name, html, x, y, doc = null) {
     if (!html) return;
     this.close();
+    this.#doc = doc;
     const panel = this.#build({ name, description: html, resources: [], loading: false });
     this.#place(panel, x, y);
     this.#el = panel;
@@ -220,15 +230,16 @@ export class ItemDescPanel {
     // Clicks inside must not reach the card underneath (which would toggle it)
     panel.addEventListener('pointerdown', (e) => e.stopPropagation());
     panel.addEventListener('click',       (e) => e.stopPropagation());
-    document.body.appendChild(panel);
+    this.#host.body.appendChild(panel);
     return panel;
   }
 
   static #place(panel, x, y) {
+    const view = this.#host.defaultView ?? window;
     const pw = panel.offsetWidth  || 352;
     const ph = Math.min(panel.scrollHeight || 320, 512);
-    panel.style.left = `${Math.max(8, Math.min(x + 8, window.innerWidth  - pw - 8))}px`;
-    panel.style.top  = `${Math.max(8, Math.min(y + 8, window.innerHeight - ph - 8))}px`;
+    panel.style.left = `${Math.max(8, Math.min(x + 8, view.innerWidth  - pw - 8))}px`;
+    panel.style.top  = `${Math.max(8, Math.min(y + 8, view.innerHeight - ph - 8))}px`;
   }
 
   /* ── wiring ───────────────────────────────────────────── */
@@ -246,13 +257,16 @@ export class ItemDescPanel {
       event.preventDefault();
       event.stopPropagation();
 
+      const doc = card.ownerDocument ?? document;
+      listenAway(doc);
+
       // Narrative text carried on the element itself, for options that are not
       // documents at all — a combat tradition, a magic school. Those have no
       // uuid to resolve, so without this right-click would find nothing where
       // the sidebar happily shows a description.
       const lore = card.dataset.lore;
       if (lore && !card.dataset.uuid) {
-        ItemDescPanel.showLore(card.dataset.name ?? '', lore, event.clientX, event.clientY);
+        ItemDescPanel.showLore(card.dataset.name ?? '', lore, event.clientX, event.clientY, doc);
         return;
       }
 
@@ -260,19 +274,28 @@ export class ItemDescPanel {
         name: card.dataset.name || card.querySelector('.am-card-name, .am-maneuver-name')?.textContent?.trim() || '',
         img:  card.dataset.img  || card.querySelector('img')?.src || '',
         // Text the row already carries, so no second lookup is needed
-        description: lore || ItemDescPanel.seeded.get(card.dataset.uuid) || ''
+        description: lore || ItemDescPanel.seeded.get(card.dataset.uuid) || '',
+        doc
       });
     };
     const onAway = (event) => {
       if (!event.target.closest?.('.am-item-desc-panel')) ItemDescPanel.close();
     };
+    // Clicking away closes it in whichever document it was opened in.
+    const awayDocs = new Set();
+    const listenAway = (doc) => {
+      if (awayDocs.has(doc)) return;
+      doc.addEventListener('pointerdown', onAway, true);
+      awayDocs.add(doc);
+    };
 
     root.addEventListener('contextmenu', onContext);
-    document.addEventListener('pointerdown', onAway, true);
+    listenAway(root.ownerDocument ?? document);
 
     return () => {
       root.removeEventListener('contextmenu', onContext);
-      document.removeEventListener('pointerdown', onAway, true);
+      for (const doc of awayDocs) doc.removeEventListener('pointerdown', onAway, true);
+      awayDocs.clear();
       ItemDescPanel.close();
     };
   }

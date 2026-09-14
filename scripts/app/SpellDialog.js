@@ -24,6 +24,8 @@ export class SpellDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     this.spellsToChoose   = options.spellsToChoose ?? 0;
     this.maxSpellLevel    = options.maxSpellLevel ?? 1;
     this.onConfirm        = options.onConfirm ?? null;
+    // The spell book new spells are filed in: the one the sheet is showing.
+    this.spellBookId      = options.spellBookId ?? null;
 
     this._allSpells        = new Map(); // level → spell[]
 
@@ -445,7 +447,8 @@ export class SpellDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       await this.actor.deleteEmbeddedDocuments('Item', removing.map(i => i.id));
     }
 
-    await SpellService.applySpellsToActor(this.actor, [...selected]);
+    await SpellService.applySpellsToActor(this.actor, [...selected],
+      { prepareRoom: SpellService.preparedRoom(this.actor), spellBookId: this.spellBookId });
     this.close();
   }
 }

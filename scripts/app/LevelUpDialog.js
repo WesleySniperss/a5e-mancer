@@ -1608,7 +1608,8 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       }
       if (dialog._selectedCantripUuids.length || dialog._selectedSpellUuids.length) {
         await SpellService.applySpellsToActor(
-          dialog.actor, [...dialog._selectedCantripUuids, ...dialog._selectedSpellUuids]
+          dialog.actor, [...dialog._selectedCantripUuids, ...dialog._selectedSpellUuids],
+          { prepareRoom: SpellService.preparedRoom(dialog.actor) }
         );
       }
       await LevelUpDialog.#featureSpells(dialog.actor);
@@ -1648,8 +1649,11 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       );
     }
     if (dialog._selectedCantripUuids.length || dialog._selectedSpellUuids.length) {
+      // Room is read after the level is applied and the trade-ins removed: the
+      // new level raises the cap, and a swapped-out prepared spell frees a place.
       await SpellService.applySpellsToActor(
-        dialog.actor, [...dialog._selectedCantripUuids, ...dialog._selectedSpellUuids]
+        dialog.actor, [...dialog._selectedCantripUuids, ...dialog._selectedSpellUuids],
+        { prepareRoom: SpellService.preparedRoom(dialog.actor) }
       );
     }
 

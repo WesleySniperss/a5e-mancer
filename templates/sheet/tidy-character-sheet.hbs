@@ -1106,6 +1106,12 @@
         <button type="button" class="button button-secondary" data-action="manage-spells">
           <i class="fa-solid fa-book-sparkles"></i> Manage Spells
         </button>
+        {{#if spellsPrepared}}
+          <span class="am-prepared-count{{#if spellsPrepared.over}} am-over{{/if}}"
+            data-tooltip="Prepared spells, against the most you can hold prepared. Always-prepared spells are not counted.">
+            <i class="fa-solid fa-book"></i> Prepared {{spellsPrepared.held}} / {{spellsPrepared.cap}}
+          </span>
+        {{/if}}
       </div>
 
       {{!-- The row of nine tracker cards that stood here is gone. It said what
