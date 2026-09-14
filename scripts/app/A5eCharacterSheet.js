@@ -304,9 +304,13 @@ export class A5eCharacterSheet extends ActorSheet {
     /* Items categorised — A5e uses type='object' + system.objectType for all physical items */
     const weapons   = items.filter(i => i.type === 'object' && i.system?.objectType === 'weapon')
                             .map(i => this.#weapon(i));
-    // Magic maneuvers are maneuver items as well, but they have their own
-    // section further down; listing them here too would show each one twice.
-    const maneuvers = items.filter(i => ManeuverService.isCombatManeuver(i)).map(i => this.#maneuver(i));
+    /* Every maneuver, magic ones included. Magic maneuvers had a section of their
+       own once, and this filter kept them out of the list so they would not show
+       twice. That section was removed on 2026-08-13 - their school is a
+       tradition now, grouped here like any other - but the filter came back on
+       2026-09-02 with the method it called, and from then on a caster's magic
+       maneuvers were listed nowhere on the sheet. */
+    const maneuvers = items.filter(i => ManeuverService.isManeuver(i)).map(i => this.#maneuver(i));
     const spells    = items.filter(i => i.type === 'spell').map(i => this.#spell(i));
     const features  = items.filter(i => ['feature','background','heritage','culture','destiny'].includes(i.type))
                             .map(i => this.#feature(i));
@@ -4075,6 +4079,13 @@ export class A5eCharacterSheet extends ActorSheet {
   }
 
   #normTrad(raw) {
+    /* The system's own label first. The keys are camelCase (adamantMountain) and
+       the magic schools are transliterations (probiy, stykhia), so capitalising
+       the key gave "AdamantMountain" and "Probiy" where the book says Adamant
+       Mountain and Breach. registerMagicSchools puts the schools in the same
+       table. */
+    const label = CONFIG?.A5E?.maneuverTraditions?.[raw];
+    if (label) return game.i18n.localize(label);
     return raw.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   }
 
