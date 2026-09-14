@@ -160,6 +160,23 @@
     background: none;
 }
 
+/* Except where the colour means something. With "Damage roll colours" on, a5e
+ * sets --a5e-roll-color to the damage or healing type - fire orange, cold blue -
+ * and paints the square's border and its overlay with it. The two rules above
+ * turned every one of those squares the theme's grey. So the colour comes back
+ * on both wherever a5e set one, and a square with none keeps the themed look.
+ *
+ * The :not()s are what make this win: they lift it over the two rules above and
+ * over the same two rules in Your Flavor's own a5e stylesheet, whichever loads
+ * last, while --max and --min keep Your Flavor's outcome accents. */
+.chat-message.yf-card.a5e-chat-card.yf-message-roll-surfaces-enabled .roll:not(.roll--max):not(.roll--min) {
+    border-color: var(--a5e-roll-color, var(--yf-roll-total-border, var(--yf-chat-outer-border-color, var(--yf-border-color))));
+}
+
+.chat-message.yf-card.a5e-chat-card.yf-message-roll-surfaces-enabled .roll:not(.roll--max):not(.roll--min)::after {
+    background: var(--a5e-roll-color, none);
+}
+
 .chat-message.yf-card.a5e-chat-card.yf-message-roll-surfaces-enabled .roll--max {
     color: var(--yf-roll-critical-text, #8ff0a4);
     border-color: var(--yf-roll-critical-accent, #36b85f);
