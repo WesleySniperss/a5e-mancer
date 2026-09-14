@@ -1810,7 +1810,19 @@
       data-tab="settings" data-group="primary" data-tab-contents-for="settings"
       role="tabpanel">
 
+      {{!-- Why nothing on this sheet can be changed, when that is so. Foundry
+           itself disables every field, box and button of a sheet the viewer
+           may not edit — a monster in a locked compendium, a character they
+           do not own — and says nothing about it, so every switch here
+           simply refuses to move. --}}
+      {{#if readOnly}}
+        <p class="am-settings-hint am-read-only">
+          <i class="fa-solid fa-lock"></i> {{readOnly}}
+        </p>
+      {{/if}}
+
       {{#*inline "settingRows"}}
+        {{#if rows.length}}
         <section class="tidy-table am-settings-table">
           <header class="tidy-table-header-row theme-dark">
             <div class="tidy-table-header-cell primary header-label-cell">
@@ -1834,6 +1846,7 @@
             {{/each}}
           </div>
         </section>
+        {{/if}}
       {{/inline}}
 
       {{> settingRows heading="Sheet" rows=settings.sheet
@@ -1844,6 +1857,7 @@
                       hint="Weight and carrying capacity, worked out by a5e."}}
       {{> settingRows heading="Rest and recovery" rows=settings.rest}}
       {{> settingRows heading="Rolls" rows=settings.rolls}}
+      {{> settingRows heading="NPC" rows=settings.npc}}
 
       <section class="tidy-table am-settings-table">
         <header class="tidy-table-header-row theme-dark">

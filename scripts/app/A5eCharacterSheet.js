@@ -412,25 +412,31 @@ export class A5eCharacterSheet extends ActorSheet {
        ticking it changed nothing on screen, and the box then looked like
        something that would not come off. That is the report.
 
-       The defaults are a5e's, read from its own settings page:
+       The defaults are a5e's, read from ActorGeneralSettingsTab.svelte and
+       from where its sheet reads each flag:
 
          showFavoritesSection  ?? true
+         showManeuverTab       ?? true   (ActorSheet.svelte: display ?? true)
+         showSpellTab          ?? true
          showPassiveScores     ?? true
-         showXP                ?? true    (always on for an NPC)
+         showXP                ?? true   (a character only — see below)
          hideGenericResources  ?? true for an NPC, false for a character
 
-       The two tabs keep the rule this sheet already had, for the reason
-       written beside it further down: the flag decides once it has been
-       set, and whether the character has any spells or maneuvers decides
-       until then. */
+       The two tabs used to default to "has the character any spells or
+       maneuvers", on the belief that a5e writes those flags when it grants
+       the first one. It does not: nothing in a5e writes them but its settings
+       page, and its sheet shows both tabs until they are turned off.
+
+       showXP was forced on for an NPC, because a5e's header always shows a
+       monster's XP. But the box was drawn for an NPC too, so on a monster it
+       was a box that could never be unticked. a5e does not offer it for an
+       NPC at all, and neither does this now. */
     const _fl = actor.flags?.a5e ?? {};
     const _set = (v) => v !== undefined && v !== null;
     const decided = {
       showFavoritesSection: _set(_fl.showFavoritesSection) ? !!_fl.showFavoritesSection : true,
-      showManeuverTab: _set(_fl.showManeuverTab) ? !!_fl.showManeuverTab
-                       : items.some((i) => i.type === 'maneuver'),
-      showSpellTab:    _set(_fl.showSpellTab) ? !!_fl.showSpellTab
-                       : items.some((i) => i.type === 'spell'),
+      showManeuverTab: _set(_fl.showManeuverTab) ? !!_fl.showManeuverTab : true,
+      showSpellTab:    _set(_fl.showSpellTab) ? !!_fl.showSpellTab : true,
       showPassiveScores: _set(_fl.showPassiveScores) ? !!_fl.showPassiveScores : true,
       showXP: actor.type === 'npc' ? true
               : (_set(_fl.showXP) ? !!_fl.showXP : true),
@@ -503,6 +509,37 @@ export class A5eCharacterSheet extends ActorSheet {
     }));
     const withSelected = (sel) => abilityOptions.map(o => ({ ...o, selected: o.key === sel }));
 
+    /* Which boxes appear, and what an unset flag reads as, are a5e's — taken
+       line by line from its settings sub-pages (ActorGeneralSettingsTab,
+       …InventorySettingsTab, …ManeuverSettingsTab, …SpellSettingsTab,
+       …RollSettingsTab, …NpcSettingsTab), not written from memory.
+
+       Written from memory they were wrong in two ways. Eight boxes read an
+       unset flag as `!!flag`, unticked, where a5e reads it as on — so the box
+       said off while a5e went on spending hit dice and running macros. And
+       the character-only pages (automation, rolls, exertion, experience) were
+       drawn for a monster too, where one of them — experience — was forced on
+       and so could never be unticked at all.
+
+       Two defaults come from a5e's world settings rather than a constant, as
+       they do in a5e. */
+    /* Said out loud when Foundry has made the sheet read-only. It disables
+       every input, box and button itself (FormApplication._disableFields)
+       and gives no reason, so every switch on this page just refuses to
+       move — a report that has come back more than once. */
+    const readOnly = this.isEditable ? null
+      : (actor.pack && game.packs?.get(actor.pack)?.locked)
+        ? 'This sheet is in a locked compendium, so Foundry lets nothing on it change. Import it into the world, or unlock the compendium.'
+        : !actor.isOwner
+          ? 'You can view this sheet but do not own it, so nothing on it can change.'
+          : 'Foundry has made this sheet read-only, so nothing on it can change.';
+
+    const isChar = actor.type === 'character';
+    const worldSetting = (key, fallback) => {
+      try { const v = game.settings.get('a5e', key); return v ?? fallback; } catch { return fallback; }
+    };
+    const tracksWeight = fl.trackInventoryWeight ?? true;
+
     const settings = {
       sheet: [
         /* Each box shows what the sheet is actually doing — see `decided`. */
@@ -510,42 +547,42 @@ export class A5eCharacterSheet extends ActorSheet {
         { path: 'flags.a5e.showManeuverTab',               label: 'Show the maneuver tab',      on: decided.showManeuverTab },
         { path: 'flags.a5e.showSpellTab',                  label: 'Show the spell tab',         on: decided.showSpellTab },
         { path: 'flags.a5e.showPassiveScores',             label: 'Show passive scores',        on: decided.showPassiveScores },
-        { path: 'flags.a5e.showXP',                        label: 'Show experience',            on: decided.showXP },
+        isChar && { path: 'flags.a5e.showXP',              label: 'Show experience',            on: decided.showXP },
         { path: 'flags.a5e.hideGenericResources',          label: 'Hide the generic resources', on: decided.hideGenericResources },
-        /* Read since the stars went onto the level headings, and offered
-           nowhere until now — a switch a5e has, that this sheet obeyed and
-           gave you no way to set. */
+        /* Not on a5e's settings pages, but a flag its SpellBook reads — see
+           spellGroups for what it governs. */
         { path: 'flags.a5e.showSpellSlots',                label: 'Show spell slots',           on: fl.showSpellSlots ?? true },
-      ],
+      ].filter(Boolean),
       automation: [
-        /* These two sat under Sheet, whose heading says "What this sheet
-           draws". Neither draws anything: the first changes how a5e works
-           out a skill modifier, the second resizes the prototype token. */
-        { path: 'flags.a5e.includeAbilityModifiersForSkills', label: 'Include ability modifiers for skills', on: !!fl.includeAbilityModifiersForSkills },
-        { path: 'flags.a5e.automatePrototypeTokenSize',    label: 'Keep the prototype token sized to the character', on: !!fl.automatePrototypeTokenSize },
-        { path: 'flags.a5e.automateHitDice',       label: 'Spend hit dice automatically',   on: !!fl.automateHitDice },
-        { path: 'flags.a5e.automateSpellResources', label: 'Spend spell resources automatically', on: !!fl.automateSpellResources },
-        { path: 'flags.a5e.automaticallyExecuteAvailableMacros', label: 'Run item macros automatically', on: !!fl.automaticallyExecuteAvailableMacros }
-      ],
+        { path: 'flags.a5e.includeAbilityModifiersForSkills', label: 'Include ability modifiers for skills', on: fl.includeAbilityModifiersForSkills ?? true },
+        { path: 'flags.a5e.automatePrototypeTokenSize',    label: 'Keep the prototype token sized to the character',
+          on: fl.automatePrototypeTokenSize ?? worldSetting('automatePrototypeTokenSize', true) },
+        isChar && { path: 'flags.a5e.automateHitDice',       label: 'Spend hit dice automatically',        on: fl.automateHitDice ?? true },
+        isChar && { path: 'flags.a5e.automateSpellResources', label: 'Spend spell resources automatically', on: fl.automateSpellResources ?? true },
+        isChar && { path: 'flags.a5e.automaticallyExecuteAvailableMacros', label: 'Run item macros automatically', on: fl.automaticallyExecuteAvailableMacros ?? true }
+      ].filter(Boolean),
       inventory: [
-        /* a5e hides the carried figure altogether when this is off. This
-           sheet offered the switch and then read it nowhere, so ticking it
-           did nothing — which is the complaint, and a fair one. */
-        { path: 'flags.a5e.trackInventoryWeight', label: 'Track the weight of what is carried', on: fl.trackInventoryWeight ?? true },
-        { path: 'flags.a5e.trackCurrencyWeight',  label: 'Count coins toward that weight',      on: !!fl.trackCurrencyWeight },
-
-        { path: 'flags.a5e.doubleCarryCapacity',  label: 'Double carrying capacity',            on: !!fl.doubleCarryCapacity }
-      ],
+        /* a5e hides the carried figure altogether when this is off, and hides
+           the three settings below it with it. */
+        { path: 'flags.a5e.trackInventoryWeight', label: 'Track the weight of what is carried', on: tracksWeight },
+        tracksWeight && { path: 'flags.a5e.doubleCarryCapacity', label: 'Double carrying capacity', on: fl.doubleCarryCapacity ?? false },
+        tracksWeight && { path: 'flags.a5e.trackCurrencyWeight', label: 'Count coins toward that weight',
+          on: !!(fl.trackCurrencyWeight ?? worldSetting('currencyWeight', false)) }
+      ].filter(Boolean),
       rest: [
-        { path: 'system.attributes.exertion.recoverOnRest', label: 'Exertion returns on a rest', on: !!sys.attributes?.exertion?.recoverOnRest },
-        { path: 'flags.a5e.restoreSpellSlotsOnShortRest',   label: 'Spell slots return on a short rest',  on: !!fl.restoreSpellSlotsOnShortRest },
-        { path: 'flags.a5e.restoreSpellPointsOnShortRest',  label: 'Spell points return on a short rest', on: !!fl.restoreSpellPointsOnShortRest }
+        isChar && { path: 'system.attributes.exertion.recoverOnRest', label: 'Exertion returns on a rest', on: !!sys.attributes?.exertion?.recoverOnRest },
+        { path: 'flags.a5e.restoreSpellSlotsOnShortRest',   label: 'Spell slots return on a short rest',  on: fl.restoreSpellSlotsOnShortRest ?? false },
+        { path: 'flags.a5e.restoreSpellPointsOnShortRest',  label: 'Spell points return on a short rest', on: fl.restoreSpellPointsOnShortRest ?? true }
+      ].filter(Boolean),
+      rolls: !isChar ? [] : [
+        { path: 'flags.a5e.halflingLuck',    label: 'Halfling luck',      on: fl.halflingLuck ?? false },
+        { path: 'flags.a5e.jackOfAllTrades', label: 'Jack of all trades', on: fl.jackOfAllTrades ?? false }
       ],
-      rolls: [
-        { path: 'flags.a5e.halflingLuck',    label: 'Halfling luck',      on: !!fl.halflingLuck },
-        { path: 'flags.a5e.jackOfAllTrades', label: 'Jack of all trades', on: !!fl.jackOfAllTrades }
+      /* a5e's NPC Options page: a monster only. */
+      npc: isChar ? [] : [
+        { path: 'flags.a5e.disableRandomizedHP', label: 'Disable randomized HP rolls', on: fl.disableRandomizedHP ?? false }
       ],
-      numbers: [
+      numbers: !isChar ? [] : [
         { path: 'flags.a5e.deathSaveThreshold',        label: 'Death save threshold',   value: fl.deathSaveThreshold ?? 10 },
         { path: 'flags.a5e.criticalHitThresholdWeapon', label: 'Critical on a weapon',  value: fl.criticalHitThresholdWeapon ?? 20 },
         { path: 'flags.a5e.criticalHitThresholdSpell',  label: 'Critical on a spell',   value: fl.criticalHitThresholdSpell ?? 20 }
@@ -556,7 +593,7 @@ export class A5eCharacterSheet extends ActorSheet {
            to learn its shape — so a key present on the third row alone reads
            as a key nothing supplies. */
         { path: 'system.attributes.spellcasting',   label: 'Spellcasting ability', numeric: false, options: withSelected(sys.attributes?.spellcasting) },
-        { path: 'flags.a5e.carryCapacityAbility',   label: 'Carrying capacity from', numeric: false, options: withSelected(fl.carryCapacityAbility ?? 'str') },
+        tracksWeight && { path: 'flags.a5e.carryCapacityAbility', label: 'Carrying capacity from', numeric: false, options: withSelected(fl.carryCapacityAbility ?? 'str') },
         /* a5e draws this as three buttons, and stores a number. As a checkbox
            it wrote true or false over a setting that has three values, and
            could never choose the third. `numeric` tells the handler to write
@@ -567,7 +604,7 @@ export class A5eCharacterSheet extends ActorSheet {
             { key: '1', label: 'Shown',             selected: decided.showWeightColumn === 1 },
             { key: '2', label: 'With containers',   selected: decided.showWeightColumn === 2 }
           ] }
-      ]
+      ].filter(Boolean)
     };
 
     /* ── Active effects, as a5e's own Effects tab lists them ──────────────
@@ -814,27 +851,12 @@ export class A5eCharacterSheet extends ActorSheet {
        recovery, the spellcasting ability — is read by a5e own code and always
        worked; it simply has nothing to show here.
 
-       A tab is shown when its flag says so OR when the character has the
-       things in it. On the flag alone the maneuver and spell tabs would vanish
-       for anyone whose flag was never set, which is most characters: a5e sets
-       it when it grants the first spell or maneuver, not before. */
+       The two tabs were `flag || hasItems` once, which let a flag add a tab
+       and never take one away; then "the items decide until the flag is set".
+       Both rested on a5e writing those flags when it grants a first spell,
+       which it does not. Its sheet shows both tabs until they are switched
+       off, and so does this — see `decided`. */
     const showPassives = decided.showPassiveScores;
-    const hasSpellItems    = items.some(i => i.type === 'spell');
-    const hasManeuverItems = items.some(i => i.type === 'maneuver');
-    /* These were `flag || hasItems`, which lets the flag ADD a tab and never
-       take one away: anybody carrying a spell had the Magic tab whatever the
-       switch said, so unticking it did nothing and the switch was a lie.
-
-       The reason behind the || was real — a5e only writes these flags when it
-       grants a first spell or maneuver, so reading the flag alone would hide
-       both tabs from most characters. So the flag decides when it has been
-       SET, and the items decide when it has not. Unticking now hides the tab;
-       a character who never touched the setting still gets it. */
-    const setOr = (flag, fallback) => (flag === undefined || flag === null)
-      ? fallback : !!flag;
-    /* Both read `decided`, which applies exactly this rule. setOr stays for
-       anything else that needs it. */
-    void setOr; void hasSpellItems; void hasManeuverItems;
     const showMagicTab   = decided.showSpellTab;
     const showMartialTab = decided.showManeuverTab;
 
@@ -1109,7 +1131,7 @@ export class A5eCharacterSheet extends ActorSheet {
         return { appearance: on === 'appearance', bio: on === 'bio',
                  notes: on === 'notes', privateNotes: on === 'privateNotes' };
       })(),
-      unlocked, actorResources, equipment, currency,
+      unlocked, readOnly, actorResources, equipment, currency,
       showFavorites, showXP, hideGenericRes,
       xp: sys.details?.xp?.value ?? sys.details?.xp ?? 0,
       fatiguePips, strifePips, exertionPips,

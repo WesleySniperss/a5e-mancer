@@ -339,6 +339,17 @@ acted on:
 Timing is the least trustworthy thing in this directory. Prefer a number that
 cannot drift.
 
+## `settingsa5e.mjs`
+
+The Settings tab against a5e's own settings pages, read out of `a5e.js.map`:
+which boxes a character and a monster are offered, and how each is ticked for
+an actor that has never set anything. The list had been written from memory,
+and against the released code this check reported it wrong three ways —
+eight boxes unticked where a5e reads them as on, seven character-only boxes
+drawn on a monster (one of them, experience, forced on and so impossible to
+untick), and a5e's one NPC option missing. `settingsflip.mjs` passed through
+all of it, because it only ever flipped boxes on a character.
+
 ## `slotroom.mjs` and `lib/browser.mjs`
 
 The only checks here that look at the sheet the way a person does: laid out in
