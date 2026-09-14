@@ -1,5 +1,5 @@
 import { AM } from '../am.js';
-import { MAGIC_MANEUVERS, MM_SCHOOLS, MM_SCHOOL_LORE } from '../data/magicManeuvers.js';
+import { MAGIC_MANEUVERS } from '../data/magicManeuvers.js';
 
 /**
  * Builds a world compendium of the magic maneuvers so they can be browsed,
@@ -19,7 +19,7 @@ import { MAGIC_MANEUVERS, MM_SCHOOLS, MM_SCHOOL_LORE } from '../data/magicManeuv
 export class MagicManeuverPack {
 
   static PACK_NAME = 'a5e-mancer-magic-maneuvers';
-  static VERSION   = 6;          // bump to force a rebuild after data changes
+  static VERSION   = 7;          // bump to force a rebuild after data changes
   // Where the built version is recorded. A world setting, because a compendium
   // has no flag storage of its own — see #builtVersion.
   static SETTING   = 'magicManeuverPackVersion';
@@ -135,7 +135,6 @@ export class MagicManeuverPack {
    * whole automation these need: the effects are narrated and applied by hand.
    */
   static itemData(m) {
-    const schoolLabel = MM_SCHOOLS[m.school] ?? m.school;
     const actionId    = foundry.utils.randomID();
     const consumerId  = foundry.utils.randomID();
 
@@ -144,7 +143,7 @@ export class MagicManeuverPack {
       type: 'maneuver',
       img:  'icons/magic/symbols/runes-star-blue.webp',
       system: {
-        description:  this.#describe(m, schoolLabel),
+        description:  this.#describe(m),
         degree:       m.degree,
         exertionCost: m.cost,
         tradition:    m.school,
@@ -192,25 +191,18 @@ export class MagicManeuverPack {
   }
 
   /**
-   * Item description: italic flavour first, then the mechanical text, as the
-   * specification asks. The school's own text belongs to the school and is not
-   * repeated onto every maneuver.
+   * Item description, in the shape a5e's own maneuvers use: the flavour line as
+   * a plain first paragraph, then the mechanical text. Nothing else - no icon,
+   * rule or summary line. Degree, exertion and tradition are item fields the
+   * sheet and the pickers already show, and a card that repeated them with a
+   * bolt, a degree sign and a bold school name stood out from every other
+   * maneuver beside it. The school's own text belongs to the school.
    */
-  static #describe(m, schoolLabel) {
-    const when = {
-      cast:      'When you cast a spell or cantrip',
-      reaction:  'Reaction',
-      triggered: 'On its trigger',
-      special:   'Special condition'
-    }[m.activation] ?? '';
-
+  static #describe(m) {
     return [
-      m.flavor ? `<p><em>${m.flavor}</em></p>` : '',
-      `<p>${m.effect}</p>`,
-      `<hr>`,
-      `<p class="am-mm-meta"><strong>${schoolLabel}</strong> · ${m.degree}° · `
-        + `<i class="fa-solid fa-bolt"></i> ${m.cost} exertion · ${when}</p>`
-    ].filter(Boolean).join('\n');
+      m.flavor ? `<p>${m.flavor}</p>` : '',
+      `<p>${m.effect}</p>`
+    ].filter(Boolean).join('');
   }
 
   /** Is this item one of ours? Used to keep them out of combat-maneuver lists. */
