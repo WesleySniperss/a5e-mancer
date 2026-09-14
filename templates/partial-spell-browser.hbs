@@ -16,27 +16,28 @@
           {{localize 'am.app.spells.cantrips'}}: {{selectedCantripCount}}/{{spellInfo.cantrips}}
         </div>
       {{/if}}
-      {{#if (gt spellInfo.spellsKnown 0)}}
+      {{!-- Zero included: a level that adds no spell - a sorcerer's 12th, a
+            herald's odd levels - says so as 0/0 rather than showing nothing
+            while every click is refused. Marking a spell to replace raises it. --}}
+      {{#if (gte spellInfo.spellsKnown 0)}}
         <div class="am-counter-badge {{#if (gte selectedSpellCount spellInfo.spellsKnown)}}am-badge-success{{else}}am-badge-pending{{/if}}">
           <i class="fa-solid fa-book-sparkles"></i>
           {{localize 'am.app.spells.spells-label'}}: {{selectedSpellCount}}/{{spellInfo.spellsKnown}}
         </div>
       {{/if}}
-      {{!-- A prepared caster has no learning quota, so the useful number is how
-            many it can hold prepared at this level. --}}
-      {{#if (lt spellInfo.spellsKnown 0)}}
-        {{#if spellInfo.prepared}}
-          <div class="am-counter-badge am-badge-success"
-               data-tooltip="{{localize 'am.levelup.prepared-hint'}}">
-            <i class="fa-solid fa-book-sparkles"></i>
-            {{localize 'am.levelup.spells-prepared' n=spellInfo.prepared}}
-          </div>
-        {{else}}
-          <div class="am-counter-badge am-badge-success">
-            <i class="fa-solid fa-book-sparkles"></i>
-            {{localize 'am.levelup.spells-picked' n=selectedSpellCount}}
-          </div>
-        {{/if}}
+      {{!-- For a caster who prepares, how many it can hold prepared at this level
+            is the useful total beside what this level adds. --}}
+      {{#if spellInfo.prepared}}
+        <div class="am-counter-badge am-badge-success"
+             data-tooltip="{{localize 'am.levelup.prepared-hint'}}">
+          <i class="fa-solid fa-book-sparkles"></i>
+          {{localize 'am.levelup.spells-prepared' n=spellInfo.prepared}}
+        </div>
+      {{else if (lt spellInfo.spellsKnown 0)}}
+        <div class="am-counter-badge am-badge-success">
+          <i class="fa-solid fa-book-sparkles"></i>
+          {{localize 'am.levelup.spells-picked' n=selectedSpellCount}}
+        </div>
       {{/if}}
     </div>
 

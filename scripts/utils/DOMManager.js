@@ -400,6 +400,14 @@ export class DOMManager {
     // Extract hit die from class item (needed for HP picker in class tab detail view)
     try {
       const classItem = await fromUuid(uuid);
+      /* The class NAME, which everything below and the tab checks read as
+         AM.SELECTED.class.name - and nothing ever set. The selection holds
+         value, id and uuid only, so every one of those reads got '' - and
+         loadSpells('') applies no class filter at all. That is how a cleric's
+         spell tab offered every spell in every compendium, each description
+         naming other classes, and how the spell and maneuver tabs showed as
+         finished however many had been picked. */
+      if (classItem && AM.SELECTED.class) AM.SELECTED.class.name = classItem.name ?? '';
       if (classItem && AM.SELECTED.class) {
         /* a5e keeps the hit die at system.hp.hitDiceSize, as a NUMBER. There is
          * no system.hitDice field at all — ClassItemA5e.hitDice is a computed
@@ -454,11 +462,21 @@ export class DOMManager {
       AM.allManeuversData = data;
       AM.app?.render(false, { parts: ['maneuvers'] });
     });
-    const spellInfo = SpellService.getClassSpellInfo(AM.SELECTED.class?.name ?? '');
-    SpellService.loadSpells(AM.SELECTED.class?.name ?? '', spellInfo?.maxLevel ?? 1).then(data => {
-      AM.allSpellsData = data;
-      AM.app?.render(false, { parts: ['spells'] });
-    });
+    const className = AM.SELECTED.class?.name ?? '';
+    const spellInfo = SpellService.getClassSpellInfo(className);
+    /* Expanded lists belong to an actor. The set is static and the level-up
+       and spell windows fill it from whichever character they last opened, so
+       a warlock's patron spells stayed admitted for the next character built
+       here. The builder has no actor, so it has none. */
+    SpellService.collectExpandedLists(null);
+    // No name means the class could not be read; an unfiltered list is never
+    // the right answer to that, so nothing is offered until it can be.
+    if (className) {
+      SpellService.loadSpells(className, spellInfo?.maxLevel ?? 1).then(data => {
+        AM.allSpellsData = data;
+        AM.app?.render(false, { parts: ['spells'] });
+      });
+    }
 
     if (AM.app) {
       await AM.app.render(false, { parts: ['equipment', 'maneuvers', 'spells'] });
@@ -761,7 +779,8 @@ export class DOMManager {
       },
       spells:      () => {
         const className = AM.SELECTED.class?.name ?? '';
-        const info = className ? SpellService.getClassSpellInfo(className) : null;
+        // The same quota the tab counts against and the picker enforces
+        const info = className ? (AM.app?.constructor?.spellQuota?.(className) ?? SpellService.getClassSpellInfo(className)) : null;
         if (!info) return true; // no spells for this class
         const cantripsDone = (AM.creationSpells?.cantrips?.length ?? 0) >= (info.cantrips ?? 0);
         /* A class with a real count is only done once it has them all — the

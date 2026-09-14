@@ -376,6 +376,7 @@
   "am.app.spells.cantrips-label": "cantrip(s) to choose",
   "am.app.spells.spells-known-label": "spell(s) known at level 1",
   "am.app.spells.prepared-note": "Prepared caster: you can prepare spells equal to your spellcasting modifier + your level each long rest.",
+  "am.app.spells.prepared-count-label": "spell(s) prepared at level 1 (spellcasting modifier + level)",
   "am.app.spells.max-level-label": "Max spell level",
   "am.app.spells.cantrips-only": "Cantrips only — no spell slots until 2nd level",
   "am.app.spells.cantrips": "Cantrips",

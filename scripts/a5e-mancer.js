@@ -134,6 +134,11 @@ Hooks.once('ready', () => {
      sheet or level-up asks for one. See ManeuverService.loadClassProgressions:
      the tables are in the class descriptions, so hand-copying them was never
      necessary and never covered enough classes. */
+  /* The same for spells: the tables and swap rules of the casters SPELLS_KNOWN
+     does not list are in their Spellcasting features. */
+  import('./utils/spellService.js')
+    .then(({ SpellService }) => SpellService.loadSpellcastingFeatures())
+    .catch(err => AM.log(1, 'Spellcasting features could not be read from the compendia:', err));
   ManeuverService.loadClassProgressions().catch(err =>
     AM.log(1, 'Class progressions could not be read from the compendia:', err));
   Beyond20Service.init();

@@ -238,6 +238,9 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     };
 
     this.#maneuverReplacementContext(context, selectedClass, newClassLevel);
+    // Rebuilt below for the class now selected; a class with no spells must not
+    // inherit the quota of the one selected before it.
+    this._spellInfo = null;
     this.#spellReplacementContext(context, selectedClass, newClassLevel);
 
     // A caster gets the spell browser on every level-up, not only when a swap is
@@ -278,9 +281,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         context.spellInfo = {
           ...info,
           maxLevel:    SpellService.maxSpellLevelFor?.(selectedClass?.name ?? '', newClassLevel) ?? info.maxLevel,
-          // null spells = prepared rather than known, so no learning quota; -1 is
-          // the open-ended marker the picker and its counter both read.
-          spellsKnown: owed?.spells ?? -1,
+          spellsKnown: LevelUpDialog.#spellsOwed(this, selectedClass?.name ?? '', newClassLevel, owed),
           cantrips:    owed?.cantrips ?? -1,
           // What a prepared caster can actually hold at this level, from the
           // class rules. Shown instead of an open count, so "how many do I get"
@@ -288,6 +289,8 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
           prepared:    SpellService.preparedCount(this.actor, selectedClass?.name ?? '', newClassLevel)
         };
         context.spellFreeform = !context.spellReplaceLimit;
+        // Kept for the click handlers, so what they enforce is what is shown
+        this._spellInfo = context.spellInfo;
         this.#addSpellBrowserContext(context, context.spellInfo);
       }
     }
@@ -1013,19 +1016,36 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       const cls = (dialog._compendiumClasses ?? []).find(c => c.uuid === dialog._newClassUuid);
       return cls ? (CLASS_SPELL_TABLES[cls.name.toLowerCase()] ?? null) : null;
     }
-    const classes = LevelUpService.getActorClasses(dialog.actor);
-    const cls = classes.find(c => c.id === dialog._selectedClassId) ?? classes[0];
-    const info = cls ? SpellService.getClassSpellInfo(cls.name) : null;
-    if (!info) return null;
+    /* Exactly what the section displayed at its last render. This used to be
+       worked out a second time here, through getClassSpellInfo - which knows
+       eight classes and falls back to whichever class was last looked up - so
+       for every other caster the click enforced a different number from the
+       one on screen, or none. */
+    return dialog._spellInfo ?? null;
+  }
 
-    // Must agree with the count the section displays, or the counter promises a
-    // limit the click does not enforce, or refuses one it does not show.
-    const owed = SpellService.newAtLevel(cls.name, (cls.level ?? 0) + 1);
-    return {
-      ...info,
-      spellsKnown: owed?.spells ?? -1,
-      cantrips:    owed?.cantrips ?? -1
-    };
+  /**
+   * How many spells of 1st level or higher this level-up may add.
+   *
+   *   - a caster who learns spells: what the table adds at this level
+   *   - a caster who prepares from the whole list: what the preparation count
+   *     grows by - a cleric or druid one a level, a herald one every other
+   *     level. This was open-ended, so any number could be taken at once.
+   *   - either way, plus one for each known spell marked to be replaced, since
+   *     swapping one out has to leave room to take its replacement. It did not,
+   *     so at a level that adds nothing - a sorcerer's 12th - marking a spell
+   *     only deleted it.
+   *
+   * -1 means the count is unknown (a class with no table), which leaves it open.
+   */
+  static #spellsOwed(dialog, className, newClassLevel, owed) {
+    let n = owed?.spells ?? -1;
+    if (owed && owed.spells === null) {
+      const now    = SpellService.preparedCount(dialog.actor, className, newClassLevel);
+      const before = SpellService.preparedCount(dialog.actor, className, newClassLevel - 1);
+      n = (now !== null && before !== null) ? Math.max(0, now - before) : -1;
+    }
+    return n < 0 ? n : n + (dialog._replacedSpellIds?.length ?? 0);
   }
 
   static luToggleSpell(_event, btn) {
@@ -1135,7 +1155,14 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
     if (at >= 0) {
       list.splice(at, 1);
-      while (dialog._selectedSpellUuids.length > list.length) dialog._selectedSpellUuids.pop();
+      /* Taking a mark back takes back the pick it made room for - that pick
+         only. This trimmed the selection down to the number of marks left,
+         which assumed every picked spell was a replacement, so unmarking one
+         also threw away the spells the level itself had given. */
+      const cap = dialog._spellInfo?.spellsKnown ?? -1;
+      if (cap >= 0) {
+        while (dialog._selectedSpellUuids.length > Math.max(0, cap - 1)) dialog._selectedSpellUuids.pop();
+      }
     } else {
       const cls = LevelUpService.getActorClasses(dialog.actor)
         .find(c => c.id === dialog._selectedClassId);

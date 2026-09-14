@@ -205,7 +205,10 @@ export class SpellService {
     // Prepared casters: no spells known, but the cantrip column is still real
     cleric:   { cantrips: [0,3,3,3,4,4,4,4,4,4,5,5,5,5,5,5,5,5,5,5,5], prepared: true },
     druid:    { cantrips: [0,2,2,2,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4], prepared: true },
-    herald:   { cantrips: [0,2,2,2,2,2,2,2,2,4,4,4,4,4,4,4,4,4,4,4,4], prepared: true },
+    // 2 to 4th, 3 from 5th, 4 from 9th. This read 2 until 9th, so a herald
+    // gaining 5th was never offered its third cantrip. The book's Herald Spells
+    // table and a5e's own Spellcasting (Herald) feature agree, row by row.
+    herald:   { cantrips: [0,2,2,2,2,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4,4], prepared: true },
     // Absent until now, and absent is not neutral: `newAtLevel` returns null for
     // a class it does not list, so the level-up dialog offered a levelling
     // artificer nothing at all — no new cantrip at 4th, none at 10th. It was in
@@ -213,6 +216,112 @@ export class SpellService {
     // silent. Counts from its own progression table: 2 / 3 from 4th / 4 from 10th.
     artificer: { cantrips: [0,2,2,2,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4], prepared: true }
   };
+
+  /**
+   * Spell tables and the replacement rule, read from a class's own
+   * Spellcasting feature - for the classes SPELLS_KNOWN does not list.
+   *
+   * a5e's class items carry no spells-known table, but its "Spellcasting
+   * (Witch)", "Spellcasting (Elementalist)", "Pact Magic" and the rest do: the
+   * table is in the description, and so is the sentence that says whether a
+   * spell may be swapped on a level-up. For the classes checked against the
+   * book the two agree row for row, so for the others this is the data rather
+   * than a guess. Without it a witch was given two cantrips at creation where
+   * her table says three, and offered a swap her rules do not have.
+   *
+   * SPELLS_KNOWN stays first: it is the book-checked copy, and a table read
+   * from some third-party pack should not quietly overrule it.
+   *
+   * key: the class name reduced to lowercase letters, which is also the shape
+   * of `system.classes` on these features ("fireLord" -> "firelord").
+   * value: { cantrips: number[]|null, known: number[]|null, replaceable: boolean }
+   */
+  static featureTables = new Map();
+
+  static tableKey(name) {
+    return String(name ?? '').toLowerCase().replace(/[^a-z]/g, '');
+  }
+
+  /**
+   * Read one Spellcasting feature. Returns null when it has neither a table nor
+   * a replacement rule, so a feature that says nothing is not mistaken for one
+   * that says "none".
+   */
+  static parseSpellcastingFeature(doc) {
+    const html = String(doc?.system?.description?.value ?? doc?.system?.description ?? '');
+    const text = html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ');
+    const replaceable = /when you gain a[^.]*?level[^.]*?\b(?:replace|swap)\b[^.]*?spells?\b/i.test(text);
+
+    const cell = (c) => c.replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+    let cantrips = null, known = null;
+    for (const table of html.match(/<table[\s\S]*?<\/table>/gi) ?? []) {
+      const rows = table.match(/<tr[\s\S]*?<\/tr>/gi) ?? [];
+      const head = [...(rows[0] ?? '').matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map(m => cell(m[1]));
+      const iL = head.findIndex(h => /^level$/i.test(h));
+      const iC = head.findIndex(h => /cantrips?\s*known/i.test(h));
+      const iK = head.findIndex(h => /spells\s*known/i.test(h));
+      if (iL === -1 || (iC === -1 && iK === -1)) continue;
+      const C = new Array(21).fill(0), K = new Array(21).fill(0);
+      for (const row of rows.slice(1)) {
+        const c = [...row.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map(m => cell(m[1]));
+        const lvl = parseInt(c[iL], 10);
+        if (!(lvl >= 1 && lvl <= 20)) continue;
+        if (iC !== -1) C[lvl] = parseInt(c[iC], 10) || 0;
+        if (iK !== -1) K[lvl] = parseInt(c[iK], 10) || 0;
+      }
+      if (iC !== -1) cantrips = C;
+      if (iK !== -1) known = K;
+      break;
+    }
+    if (!cantrips && !known && !replaceable) return null;
+    return { cantrips, known, replaceable };
+  }
+
+  /**
+   * Collect the Spellcasting features once per session.
+   *
+   * Names first, from the plain index, then only the matching documents are
+   * read - about two dozen, not the four thousand features in a5e's pack. A
+   * class with more than one feature that could be its own ("Spellcasting"
+   * beside an archetype's) is left out rather than guessed at, unless one of
+   * them names the class in brackets.
+   */
+  static async loadSpellcastingFeatures() {
+    const byClass = new Map();   // key -> [{ named, parsed }]
+    const packs = PackFilter.itemPacks()
+      .sort((a, b) => (a.metadata?.packageType === 'system' ? 0 : 1) - (b.metadata?.packageType === 'system' ? 0 : 1));
+
+    for (const pack of packs) {
+      let index;
+      try { index = await pack.getIndex(); } catch { continue; }
+      for (const entry of index) {
+        if (entry.type && entry.type !== 'feature') continue;
+        const m = /^(?:Spellcasting|Pact Magic)(?:\s*\((.+)\))?$/.exec(entry.name ?? '');
+        if (!m) continue;
+        let doc;
+        try { doc = await pack.getDocument(entry._id); } catch { continue; }
+        const classes = doc?.system?.classes;
+        const key = this.tableKey(typeof classes === 'string' ? classes : '');
+        if (!key) continue;
+        const parsed = this.parseSpellcastingFeature(doc);
+        if (!parsed) continue;
+        const list = byClass.get(key) ?? [];
+        list.push({ named: m[1] ? this.tableKey(m[1]) === key : false, bare: !m[1], parsed });
+        byClass.set(key, list);
+      }
+    }
+
+    this.featureTables = new Map();
+    for (const [key, list] of byClass) {
+      const named = list.find(x => x.named);
+      const bare  = list.filter(x => x.bare);
+      const pick  = named ?? (bare.length === 1 ? bare[0] : null);
+      if (pick) this.featureTables.set(key, pick.parsed);
+    }
+    AM.log(3, `Spellcasting features read for ${this.featureTables.size} class(es)`);
+    return this.featureTables;
+  }
 
   /**
    * How many spells and cantrips this level brings.
@@ -227,8 +336,12 @@ export class SpellService {
    */
   static newAtLevel(className, classLevel) {
     const key = String(className ?? '').toLowerCase();
-    const t = this.SPELLS_KNOWN[key];
-    if (!t) return null;
+    let t = this.SPELLS_KNOWN[key];
+    if (!t) {
+      const f = this.featureTables.get(this.tableKey(className));
+      if (!f?.cantrips && !f?.known) return null;
+      t = { cantrips: f.cantrips ?? [], known: f.known ?? undefined, prepared: !f.known };
+    }
 
     const lvl  = Math.max(1, Math.min(20, Number(classLevel) || 1));
     const prev = lvl - 1;
@@ -257,19 +370,42 @@ export class SpellService {
    *
    * @returns {number|null} null when the class does not prepare this way
    */
+  /* The witch prepares by the ability she chose, which is a5e's
+     `@spellcasting.mod + @classes.witch.level`. */
+  static PREPARED_RULES = {
+    cleric: { ability: 'wis', per: 1 },
+    druid:  { ability: 'wis', per: 1 },
+    wizard: { ability: 'int', per: 1 },
+    herald: { ability: 'cha', per: 0.5 },
+    witch:  { ability: 'spellcasting', per: 1 }
+  };
+
   static preparedCount(actor, className, classLevel) {
     const key = String(className ?? '').toLowerCase();
-    const rule = {
-      cleric: { ability: 'wis', per: 1 },
-      druid:  { ability: 'wis', per: 1 },
-      wizard: { ability: 'int', per: 1 },
-      herald: { ability: 'cha', per: 0.5 }
-    }[key];
-    if (!rule) return null;
+    return this.preparedCountFor(className, classLevel, (ability) => {
+      if (ability === 'spellcasting') {
+        const cls = actor?.items?.find?.(i => i.type === 'class' && i.name?.toLowerCase() === key);
+        ability = cls?.system?.spellcasting?.ability?.value || cls?.system?.spellcasting?.ability?.base;
+        if (!ability || ability === 'none') return null;
+      }
+      return actor?.system?.abilities?.[ability]?.value ?? 10;
+    });
+  }
 
-    const score = actor?.system?.abilities?.[rule.ability]?.value ?? 10;
-    const mod   = Math.floor((score - 10) / 2);
-    const lvl   = Math.max(1, Math.min(20, Number(classLevel) || 1));
+  /**
+   * The same count, from whatever knows the ability score. The builder has no
+   * actor yet, so it passes a function reading its own form.
+   *
+   * @param {(ability: string) => number|null} scoreOf  null when unknown
+   * @returns {number|null}
+   */
+  static preparedCountFor(className, classLevel, scoreOf) {
+    const rule = this.PREPARED_RULES[String(className ?? '').toLowerCase()];
+    if (!rule) return null;
+    const score = scoreOf(rule.ability);
+    if (score === null || score === undefined) return null;
+    const mod = Math.floor((Number(score) - 10) / 2);
+    const lvl = Math.max(1, Math.min(20, Number(classLevel) || 1));
     return Math.max(1, mod + Math.floor(lvl * rule.per));
   }
 
@@ -309,8 +445,15 @@ export class SpellService {
   }
 
   static replaceableOnLevelUp(className) {
-    const info = this.getClassSpellInfo(className);
-    return info?.type === 'known' ? 1 : 0;
+    /* By what the class's rules say, not by caster type. "Known" was right for
+       the bard, sorcerer and warlock, but it was read through
+       getClassSpellInfo, whose fallback is whichever class was last looked up
+       - so a witch, who prepares and has no swap, was offered one, and an
+       elementalist, who has one, got it only by luck. The rule is written in
+       each class's Spellcasting feature; see featureTables. */
+    const core = CLASS_SPELL_TABLES[String(className ?? '').toLowerCase()];
+    if (core) return core.type === 'known' ? 1 : 0;
+    return this.featureTables.get(this.tableKey(className))?.replaceable ? 1 : 0;
   }
 
   /**
@@ -361,12 +504,24 @@ export class SpellService {
       // the builder must not show it a spell tab. At level-up it is wrong — a
       // half caster at 5th certainly casts — so the caller can turn it off.
       const isPrepared = ['halfCaster', 'halfCasterWithFirstLevel'].includes(casterType) && !isFullCaster;
-      const info = {
-        type: isPrepared ? 'prepared' : 'known',
-        cantrips: isFullCaster ? 2 : 0,
-        spellsKnown: isPrepared ? -1 : (isFullCaster ? 2 : 1),
-        maxLevel: 1
-      };
+      /* The class's own table when its Spellcasting feature has one. The
+         numbers below were a guess - two cantrips and two spells for any full
+         caster - and the witch's table says three cantrips and no spells known,
+         because she prepares. */
+      const table = this.featureTables.get(this.tableKey(item.name));
+      const info = (table?.cantrips || table?.known)
+        ? {
+            type: table.known ? 'known' : 'prepared',
+            cantrips: table.cantrips?.[1] ?? 0,
+            spellsKnown: table.known ? (table.known[1] ?? 0) : -1,
+            maxLevel: 1
+          }
+        : {
+            type: isPrepared ? 'prepared' : 'known',
+            cantrips: isFullCaster ? 2 : 0,
+            spellsKnown: isPrepared ? -1 : (isFullCaster ? 2 : 1),
+            maxLevel: 1
+          };
 
       this._dynamicSpellInfo = info;
       return info;

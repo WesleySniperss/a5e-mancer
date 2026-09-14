@@ -281,7 +281,8 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
           const className = A5eMancer.#getSelectedClassName();
           const classKey  = className?.toLowerCase() ?? '';
           context.classSelected        = !!AM.SELECTED.class?.uuid;
-          context.spellInfo            = classKey ? SpellService.getClassSpellInfo(className) : null;
+          // The quota, computed once for the counter, the picker and the tab check
+          context.spellInfo            = A5eMancer.spellQuota(className);
           context.isSpellcaster        = classKey ? (!!CLASS_SPELL_TABLES[classKey] || SpellService._dynamicIsSpellcaster) : false;
           context.selectedCantripUuids = AM.creationSpells?.cantrips ?? [];
           context.selectedSpellUuids   = AM.creationSpells?.spells ?? [];
@@ -312,39 +313,9 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
             // to be chosen: the whole browser sits behind the class's own
             // spellInfo, so a non-caster saw a promise and no list, and a caster
             // saw a quota that did not include the extra.
-            const extraCantrips = origin.reduce((n, o) =>
-              n + o.rows.filter(r => r.level === 0).reduce((m, r) => m + r.count, 0), 0);
-            const extraSpells = origin.reduce((n, o) =>
-              n + o.rows.filter(r => r.level > 0).reduce((m, r) => m + r.count, 0), 0);
-            const topLevel = origin.reduce((lv, o) =>
-              Math.max(lv, ...o.rows.map(r => r.level)), 0);
-
-            if (context.spellInfo) {
-              context.spellInfo = {
-                ...context.spellInfo,
-                cantrips:    (context.spellInfo.cantrips ?? 0) + extraCantrips,
-                spellsKnown: context.spellInfo.spellsKnown < 0
-                  ? context.spellInfo.spellsKnown
-                  : (context.spellInfo.spellsKnown ?? 0) + extraSpells,
-                // No floor of 1: a half caster tops out at cantrips until 2nd
-                // level, and an origin that grants only a cantrip must not
-                // raise that ceiling.
-                maxLevel:    Math.max(context.spellInfo.maxLevel ?? 0, topLevel)
-              };
-            } else {
-              // No caster class, but the origin still owes spells — so the
-              // browser opens on its own terms. The list is left unrestricted:
-              // the text names a list in prose ("the cleric or wizard lists")
-              // and reading that reliably is beyond what the sentence supports.
-              context.spellInfo = {
-                type: 'known',
-                cantrips: extraCantrips,
-                spellsKnown: extraSpells,
-                maxLevel: Math.max(1, topLevel),
-                fromOriginOnly: true
-              };
-              context.isSpellcaster = true;
-            }
+            // The extras themselves are added in spellQuota, so the click that
+            // enforces the count and this counter cannot disagree.
+            if (context.spellInfo?.fromOriginOnly) context.isSpellcaster = true;
             context.originOnlySpells = !classKey || !CLASS_SPELL_TABLES[classKey];
           }
 
@@ -1148,10 +1119,97 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     };
   }
 
+  /**
+   * What the spell tab may hold, for the class chosen and the character as built
+   * so far. One answer for the counter, the click that enforces it, the
+   * randomiser and the tab check - they used to compute it separately, and the
+   * counter added origin spells the click did not.
+   *
+   *   - the class's own numbers at 1st level
+   *   - a caster who prepares from the whole list (cleric, druid, herald, witch)
+   *     is capped at what they can prepare: the ability modifier + level, from
+   *     the score on the abilities tab plus the ability increases already
+   *     chosen on the origin tabs. It was open-ended, so any number could be
+   *     taken. When the score cannot be read the cap is left off rather than
+   *     guessed low.
+   *   - spells an origin grants in its text, on top
+   */
+  static spellQuota(className) {
+    const classKey = String(className ?? '').toLowerCase();
+    let info = classKey ? SpellService.getClassSpellInfo(className) : null;
+
+    if (info && (info.spellsKnown ?? 0) < 0) {
+      const cap = SpellService.preparedCountFor(className, 1, (ability) => A5eMancer.#projectedScore(ability));
+      if (cap !== null) info = { ...info, spellsKnown: cap, preparedCap: true };
+    }
+
+    const origin = ['heritage', 'culture', 'background']
+      .map(t => AM.originSpells?.[t]).filter(Boolean);
+    if (!origin.length) return info;
+
+    const extraCantrips = origin.reduce((n, o) =>
+      n + o.rows.filter(r => r.level === 0).reduce((m, r) => m + r.count, 0), 0);
+    const extraSpells = origin.reduce((n, o) =>
+      n + o.rows.filter(r => r.level > 0).reduce((m, r) => m + r.count, 0), 0);
+    const topLevel = origin.reduce((lv, o) =>
+      Math.max(lv, ...o.rows.map(r => r.level)), 0);
+
+    if (info) {
+      return {
+        ...info,
+        cantrips:    (info.cantrips ?? 0) + extraCantrips,
+        spellsKnown: info.spellsKnown < 0 ? info.spellsKnown : (info.spellsKnown ?? 0) + extraSpells,
+        // No floor of 1: a half caster tops out at cantrips until 2nd level, and
+        // an origin that grants only a cantrip must not raise that ceiling.
+        maxLevel:    Math.max(info.maxLevel ?? 0, topLevel)
+      };
+    }
+    // No caster class, but the origin still owes spells - so the browser opens
+    // on its own terms. The list is left unrestricted: the text names a list in
+    // prose ("the cleric or wizard lists") and reading that reliably is beyond
+    // what the sentence supports.
+    return {
+      type: 'known',
+      cantrips: extraCantrips,
+      spellsKnown: extraSpells,
+      maxLevel: Math.max(1, topLevel),
+      fromOriginOnly: true
+    };
+  }
+
+  /**
+   * An ability score as it will be once the character is made: the abilities
+   * tab, plus every ability increase an absorbed origin grant carries - its
+   * fixed ones and the ones picked. a5e's backgrounds give theirs this way, a
+   * point to a named ability and one of the player's choice.
+   * @returns {number|null} null when the tab's input cannot be found
+   */
+  static #projectedScore(ability) {
+    if (!ability || ability === 'spellcasting') {
+      ability = AM.itemGrants?.class?.spellcastingAbility || null;
+      if (!ability || ability === 'none') return null;
+    }
+    const input = AM.app?.element?.querySelector?.(`[name="abilities[${ability}]"]`);
+    const base = parseInt(input?.value, 10);
+    if (!Number.isFinite(base)) return null;
+
+    let score = base;
+    for (const store of Object.values(AM.itemGrants ?? {})) {
+      if (!store?.absorb) continue;
+      for (const g of store.grants ?? []) {
+        if (g.type !== 'ability') continue;
+        const bonus = parseInt(g.grant?.bonus ?? 1, 10) || 1;
+        const keys = [...(g.base ?? []), ...(store.choices?.[g.id] ?? [])];
+        score += keys.filter(k => k === ability).length * bonus;
+      }
+    }
+    return score;
+  }
+
   /** Pick random valid cantrips + spells for the selected class (respecting quotas). */
   static async #randomizeSpells() {
     const className = A5eMancer.#getSelectedClassName();
-    const info = className ? SpellService.getClassSpellInfo(className) : null;
+    const info = className ? A5eMancer.spellQuota(className) : null;
     if (!info) return;
 
     const maxLevel = info.maxLevel ?? 1;
@@ -1434,7 +1492,8 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!uuid) return;
 
     const className = A5eMancer.#getSelectedClassName();
-    const info      = SpellService.getClassSpellInfo(className);
+    // The same quota the counter shows, origin spells and preparation cap included
+    const info      = A5eMancer.spellQuota(className);
     if (!info) return;
 
     const isCantrip = level === 0;

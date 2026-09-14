@@ -45,6 +45,15 @@
                 <strong>{{spellInfo.spellsKnown}}</strong> {{localize 'am.app.spells.spells-known-label'}}
               </span>
             </div>
+          {{else if spellInfo.preparedCap}}
+            {{!-- The number, not only the rule: modifier + level, read from the
+                  abilities tab and the increases picked on the origin tabs. --}}
+            <div class="am-info-row">
+              <i class="fa-solid fa-book-open" style="color:var(--am-accent)"></i>
+              <span>
+                <strong>{{spellInfo.spellsKnown}}</strong> {{localize 'am.app.spells.prepared-count-label'}}
+              </span>
+            </div>
           {{else}}
             <div class="am-info-row">
               <i class="fa-solid fa-book-open" style="color:var(--am-accent)"></i>
@@ -73,7 +82,10 @@
               {{localize 'am.app.spells.cantrips'}}: {{selectedCantripCount}}/{{spellInfo.cantrips}}
             </div>
           {{/if}}
-          {{#if (eq spellInfo.type 'known')}}
+          {{!-- Whenever there is a number to count against. On the caster type
+                this left out the wizard, whose six spellbook spells are a real
+                count, and every caster that prepares. --}}
+          {{#if (gt spellInfo.spellsKnown 0)}}
             <div class="am-counter-badge {{#if (gte selectedSpellCount spellInfo.spellsKnown)}}am-badge-success{{else}}am-badge-pending{{/if}}">
               <i class="fa-solid fa-book-sparkles"></i>
               {{localize 'am.app.spells.spells-label'}}: {{selectedSpellCount}}/{{spellInfo.spellsKnown}}
