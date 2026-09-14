@@ -153,7 +153,7 @@ export class MagicManeuverPack {
             id:      actionId,
             name:    m.name,
             default: true,
-            activation: { cost: 1, type: this.#activationType(m), reactionTrigger: '' },
+            activation: { cost: 1, type: this.#activationType(m), reactionTrigger: m.reactionTrigger ?? '' },
             consumers: {
               [consumerId]: {
                 type:            'resource',

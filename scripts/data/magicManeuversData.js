@@ -59,6 +59,8 @@ export const MM_PROGRESSION = [
  *   cost        exertion spent on activation
  *   trigger     what the cast must be for this to be offered
  *   activation  'cast' | 'reaction' | 'triggered' | 'special'
+ *   reactionTrigger  for a reaction, the trigger a5e shows on the action:
+ *               "Reaction (When ...)", as its own maneuvers do
  *   consumesState  true for the shared "next attack on the target" state; false
  *               when the maneuver carries a duration of its own
  */
@@ -67,146 +69,145 @@ export const MAGIC_MANEUVERS = [
   { id: 'ice', name: 'Ice', school: 'stykhia', degree: 1, cost: 1,
     trigger: 'damageType', damageType: 'cold', activation: 'cast', consumesState: true,
     flavor: `The chill binds the joints; flesh turns brittle.`,
-    effect: `The next attack against the target: vulnerability to bludgeoning damage. The target's speed is reduced by 10 ft until the start of your next turn.` },
+    effect: `When a spell or cantrip you cast deals cold damage to a creature, the next attack made against that creature treats it as vulnerable to bludgeoning damage.` },
 
   { id: 'acid', name: 'Acid', school: 'stykhia', degree: 1, cost: 1,
     trigger: 'damageType', damageType: 'acid', activation: 'cast', consumesState: true,
     flavor: `Eaten-through hide parts under the blade.`,
-    effect: `The next attack against the target: vulnerability to slashing damage.` },
+    effect: `When a spell or cantrip you cast deals acid damage to a creature, the next attack made against that creature treats it as vulnerable to slashing damage.` },
 
   { id: 'fire', name: 'Fire', school: 'stykhia', degree: 1, cost: 1,
     trigger: 'damageType', damageType: 'fire', activation: 'cast', consumesState: false,
     flavor: `Flame catches hold and finishes the meal.`,
-    effect: `When you cast a fire spell or cantrip at a target that has already taken fire damage, it takes that fire damage a second time.` },
+    effect: `When a spell or cantrip you cast deals fire damage to a creature that already took fire damage since the start of your previous turn, the creature takes that earlier fire damage again.` },
 
   { id: 'thunder', name: 'Thunder', school: 'stykhia', degree: 2, cost: 2,
     trigger: 'damageType', damageType: 'thunder', activation: 'cast', consumesState: false,
     flavor: `The blow deafens the world.`,
-    effect: `The target is deafened and cannot cast spells with a verbal component, until the start of your next turn.` },
+    effect: `When a spell or cantrip you cast deals thunder damage to a creature, it is deafened until the start of your next turn. Until then, whenever it casts a spell with a verbal component, it must first succeed on a Constitution saving throw against your spell save DC or the spell fails.` },
 
   { id: 'lightning', name: 'Lightning', school: 'stykhia', degree: 2, cost: 2,
     trigger: 'damageType', damageType: 'lightning', activation: 'cast', consumesState: false,
     flavor: `Across water the charge finds everyone.`,
-    effect: `If the target is on a wet surface, in water, or in the rain, the damage spreads to every enemy within 15 ft of the target.` },
+    effect: `When a spell or cantrip you cast deals lightning damage to a creature standing on a wet surface, in water, or in the rain, the damage also spreads to each hostile creature within 15 feet of it.` },
 
   { id: 'poison', name: 'Poison', school: 'stykhia', degree: 3, cost: 3,
     trigger: 'damageType', damageType: 'poison', activation: 'cast', consumesState: false,
     flavor: `The venom smoulders until the body beats it.`,
-    effect: `For up to 1 minute: at the start of each of its turns the target makes a saving throw (maneuver DC, ability from the spell). On a failure it remains poisoned and takes −1 to its d20 rolls; on a success the effect ends.` },
+    effect: `When a spell or cantrip you cast deals poison damage to a creature, the venom lingers for up to 1 minute. At the start of each of its turns, the creature makes a saving throw against your maneuver DC, using the ability the spell calls for. On a failure, it takes a -1 penalty to its d20 rolls, and the penalty grows by 1 with each further failure. On a success, the effect and the penalty end.` },
 
   /* ── Essence ──────────────────────────────────────────── */
   { id: 'force', name: 'Force', school: 'esentsia', degree: 1, cost: 1,
     trigger: 'damageType', damageType: 'force', activation: 'cast', consumesState: true,
     flavor: `The kinetic blow leaves the body open to the point.`,
-    effect: `The next attack against the target: vulnerability to piercing damage.` },
+    effect: `When a spell or cantrip you cast deals force damage to a creature, the next attack made against that creature treats it as vulnerable to piercing damage.` },
 
   { id: 'psychic', name: 'Psychic', school: 'esentsia', degree: 1, cost: 1,
     trigger: 'damageType', damageType: 'psychic', activation: 'cast', consumesState: false,
     flavor: `The mind is cracked open and defenceless.`,
-    effect: `The target's next mental saving throw (Int/Wis/Cha) is made with disadvantage, until the start of your next turn.` },
+    effect: `When a spell or cantrip you cast deals psychic damage to a creature, it has disadvantage on its next Intelligence, Wisdom, or Charisma saving throw made before the start of your next turn.` },
 
   { id: 'necrotic', name: 'Necrotic', school: 'esentsia', degree: 2, cost: 3,
     trigger: 'damageType', damageType: 'necrotic', activation: 'cast', consumesState: false,
     flavor: `The next wound will feed you.`,
-    effect: `While the owner is conscious: the next attack against an enemy within 30 ft of the owner heals the owner for half the damage it deals (once).` },
+    effect: `When a spell or cantrip you cast deals necrotic damage to a creature, the next attack made against a hostile creature within 30 feet of you heals you for half the damage it deals. This happens once, and only while you are conscious.` },
 
   { id: 'radiant', name: 'Radiant', school: 'esentsia', degree: 2, cost: 2,
     trigger: 'damageType', damageType: 'radiant', activation: 'cast', consumesState: false,
     flavor: `A second light finds what hid from the first.`,
-    effect: `If the owner struck this target with radiant damage in the previous round, this radiant spell is rolled with advantage (or the target has disadvantage on its saving throw against it).` },
+    effect: `When you make a spell attack roll with a spell or cantrip that deals radiant damage against a creature you dealt radiant damage to in the previous round, you make the attack roll with advantage.` },
 
   { id: 'peak', name: 'Peak', school: 'esentsia', degree: 3, cost: 3,
     trigger: 'damageType', damageType: 'any', activation: 'cast', consumesState: false,
-    maxSpellLevel: 5,
     flavor: `Magic carried to its limit.`,
-    effect: `Maximize every damage die of this spell (each die counts as its highest face). Spells of 5th level and lower only. Not a reaction — applied as part of the cast.` },
+    effect: `When you cast a spell or cantrip that deals damage, each of its damage dice counts as its highest number. You use this maneuver as part of casting the spell.` },
 
   /* ── Breach ───────────────────────────────────────────── */
   { id: 'bypass', name: 'Bypass', school: 'probiy', degree: 1, cost: 1,
     trigger: 'spellAttack', activation: 'cast', consumesState: false,
     flavor: `Neither shield nor wall will serve.`,
-    effect: `The spell attack of this cast ignores the target's AC bonus from a shield and from cover.` },
+    effect: `When you make a spell attack roll with a spell or cantrip, the attack ignores the target's bonus to AC from a shield and from cover.` },
 
   { id: 'reflection', name: 'Reflection', school: 'probiy', degree: 2, cost: 2,
     trigger: 'touchRange', activation: 'cast', consumesState: false,
     flavor: `A touch through glass and water.`,
-    effect: `A spell with a range of Touch gains a range equal to line of sight, provided the target is visible through something transparent or reflective (glass, water, a mirror).` },
+    effect: `When you cast a spell or cantrip with a range of Touch, its range becomes as far as you can see, provided you can see the target through something transparent or reflective, such as glass, water, or a mirror.` },
 
   { id: 'bend', name: 'Bend', school: 'probiy', degree: 2, cost: 2,
     trigger: 'lineOrRay', activation: 'cast', consumesState: false,
     flavor: `The beam turns the corner.`,
-    effect: `A ray or line may be bent once at an angle, to get around cover or a corner.` },
+    effect: `When you cast a spell or cantrip that creates a line or a ray, you can bend it once at an angle to go around cover or a corner. You don't need to see the target: you can instead choose a 10-foot cube the target is in, and the spell affects the target there.` },
 
   { id: 'pressure', name: 'Pressure', school: 'probiy', degree: 1, cost: 1,
     trigger: 'damagingSpell', activation: 'cast', consumesState: false,
     flavor: `The magic grazes even as it passes by.`,
-    effect: `If the spell attack missed OR the target succeeded on its saving throw, the target still takes half the spell's damage.` },
+    effect: `When a spell or cantrip you cast misses a creature, or the creature succeeds on its saving throw against it, the creature still takes half the spell's damage.` },
 
   { id: 'resonance', name: 'Resonance', school: 'probiy', degree: 2, cost: 2,
     trigger: 'savingThrow', activation: 'cast', consumesState: false,
     flavor: `The second blow lands where the first is still ringing.`,
-    effect: `If a spell or cantrip of the same school as this one has already been cast at the target earlier this round, the target makes its saving throw against this spell with disadvantage.` },
+    effect: `When you cast a spell or cantrip that forces a saving throw, a creature makes that saving throw with disadvantage if a spell or cantrip of the same school was already cast at it earlier this round.` },
 
   /* ── Dominion ─────────────────────────────────────────── */
   { id: 'suggestion', name: 'Suggestion', school: 'vlada', degree: 1, cost: 2,
     trigger: 'enchantment', activation: 'cast', consumesState: false,
     flavor: `The thought settles, and the trace is wiped away.`,
-    effect: `The enchantment spell has no visible source; on a success the target does not realise it was charmed.` },
+    effect: `When you cast an enchantment spell or cantrip, it has no visible source, and a creature that succeeds on its saving throw against it does not realize it was charmed.` },
 
   { id: 'countercast', name: 'Countercast', school: 'vlada', degree: 3, cost: 3,
-    trigger: 'enemyCast', activation: 'reaction', consumesState: false,
+    trigger: 'enemyCast', activation: 'reaction', reactionTrigger: 'When a hostile creature you can see casts a spell or cantrip', consumesState: false,
     flavor: `Another's charm turns on its owner.`,
-    effect: `Reaction to an enemy cast in sight: you turn that spell against its own source for half its cost, provided the owner has that same spell prepared or known. Contest of spellcasting ability (owner against enemy).` },
+    effect: `When a hostile creature you can see casts a spell or cantrip, you can turn it back on its caster for half its cost, provided you have that same spell or cantrip prepared or known. Make a spellcasting ability check contested by the caster's spellcasting ability check. On a success, the spell targets its caster instead.` },
 
   { id: 'generous-hand', name: 'Open Hand', school: 'vlada', degree: 2, cost: 2,
     trigger: 'healing', activation: 'cast', consumesState: false,
     flavor: `Mercy poured out in full.`,
-    effect: `This spell's healing dice count as maximum.` },
+    effect: `When you cast a spell or cantrip that restores hit points, each of its healing dice counts as its highest number.` },
 
   { id: 'cleansing', name: 'Cleansing', school: 'vlada', degree: 2, cost: 2,
     trigger: 'healing', activation: 'cast', consumesState: false,
     flavor: `Where the grace is whole, the taint flees.`,
-    effect: `If this spell's healing dice came up at their natural maximum, the spell additionally removes one negative condition from the target.` },
+    effect: `When you cast a spell or cantrip that restores hit points, choose one negative condition or effect on the target. Its remaining duration is reduced by 1 round for each healing die that rolled its highest number.` },
 
   /* ── Hold ─────────────────────────────────────────────── */
   { id: 'recall', name: 'Recall', school: 'utrymannia', degree: 1, cost: 1,
     trigger: 'readiedSpell', activation: 'special', consumesState: false,
     flavor: `You call back the raised spell before it is too late.`,
-    effect: `You may remove a spell from your readied actions — the spell slot is not spent.` },
+    effect: `When you have readied a spell or cantrip, you can release it without casting it, and the spell slot is not expended.` },
 
   { id: 'harvest', name: 'Harvest', school: 'utrymannia', degree: 2, cost: 1,
-    trigger: 'onKill', activation: 'reaction', consumesState: false,
+    trigger: 'onKill', activation: 'reaction', reactionTrigger: 'When your spell or cantrip reduces a hostile creature to 0 hit points', consumesState: false,
     flavor: `One death feeds the next blow.`,
-    effect: `When your spell kills an enemy, the excess damage (beyond its current HP) carries to another enemy within 15 ft.` },
+    effect: `When a spell or cantrip you cast reduces a hostile creature to 0 hit points, the damage beyond what it needed carries over to another hostile creature within 15 feet of it.` },
 
   { id: 'ricochet', name: 'Ricochet', school: 'utrymannia', degree: 2, cost: 1,
-    trigger: 'savingThrow', activation: 'reaction', consumesState: false,
+    trigger: 'savingThrow', activation: 'reaction', reactionTrigger: 'When a creature succeeds on a saving throw against your spell or cantrip', consumesState: false,
     flavor: `It was not the spell that missed. It was the mark.`,
-    effect: `When the target succeeds on its saving throw against your spell, the spell does not end: it passes to the creature hostile to you nearest that target within 20 ft, which makes the same saving throw against it at the same DC. If two are equally near, you choose. The spell passes once — a success by the new target ends it, and a target may not be passed the same spell twice.` },
+    effect: `When a creature succeeds on its saving throw against a spell or cantrip you cast, the spell does not end. It passes to the hostile creature nearest that creature within 20 feet, which makes the same saving throw against the same DC. If two creatures are equally near, you choose. The spell passes only once: it ends if the new creature succeeds, and it can't pass to a creature it has already targeted.` },
 
   { id: 'riposte', name: 'Riposte', school: 'utrymannia', degree: 2, cost: 4,
-    trigger: 'shield', activation: 'reaction', consumesState: false,
+    trigger: 'shield', activation: 'reaction', reactionTrigger: 'When your ward or shield absorbs damage from a melee attack', consumesState: false,
     flavor: `The shield strikes back.`,
-    effect: `When your ward or shield effect absorbs damage from a melee attack, it returns half of what it absorbed to the attacker.` },
+    effect: `When a ward or shield effect from a spell or cantrip you cast absorbs damage from a melee attack, the attacker takes damage equal to half the damage absorbed.` },
 
   { id: 'steadfast', name: 'Steadfast', school: 'utrymannia', degree: 3, cost: 4,
     trigger: 'concentration', activation: 'triggered', consumesState: false,
     flavor: `Rooted, you will not be moved — and the charm will not fall.`,
-    effect: `When the owner fails a concentration save, the spell does not end: it holds for one more round despite the failure. While this effect lasts, the owner's speed is halved.` },
+    effect: `When you fail a saving throw to maintain concentration on a spell, you keep concentrating on it until the end of your next turn, and your speed is halved for the same time. When that time ends, you can spend this maneuver's exertion again to extend both by another round in the same way.` },
 
   /* ── Foresight ────────────────────────────────────────── */
   { id: 'insight', name: 'Insight', school: 'provydinnia', degree: 1, cost: 1,
     trigger: 'any', activation: 'cast', consumesState: false,
     flavor: `You see what the target is warded against.`,
-    effect: `On casting their own spell, the owner learns the resistances and immunities of that spell's target.` },
+    effect: `When you cast a spell or cantrip at a creature, you learn its damage resistances and immunities.` },
 
   { id: 'premonition', name: 'Premonition', school: 'provydinnia', degree: 2, cost: 1,
     trigger: 'any', activation: 'cast', consumesState: false,
     flavor: `You feel where it is thin.`,
-    effect: `On casting, the owner learns the weakest saving throw of their spell's target.` },
+    effect: `When you cast a spell or cantrip at a creature, you learn which of its saving throws is the weakest.` },
 
   { id: 'farsight', name: 'Farsight', school: 'provydinnia', degree: 3, cost: 3,
     trigger: 'any', activation: 'cast', consumesState: false,
     flavor: `You look a turn ahead.`,
-    effect: `On casting, the owner learns the specific spell or action one enemy in sight will take next round.` }
+    effect: `When you cast a spell or cantrip, choose one hostile creature you can see. You learn the specific spell or action it will take on its next turn.` }
 ];
