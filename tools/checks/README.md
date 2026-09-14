@@ -339,6 +339,17 @@ acted on:
 Timing is the least trustworthy thing in this directory. Prefer a number that
 cannot drift.
 
+## `dropspell.mjs`
+
+Drops a5e's Fireball on the sheet. On Magic it must go into a spell book
+through that book's own `addSpell`; on Inventory it must become a Spell Scroll
+with the scroll's save DC and consumers pointing at itself — both as a5e's own
+drop does. The sheet had ported only the object branch of that drop, so a spell
+fell through to Foundry's plain create and a5e refused it: *"You must select a
+spell book to create a spell."* The stand-in actor's create refuses the same
+way, which is how the check printed that exact message against the released
+code.
+
 ## `featpicker.mjs`
 
 Opens **Add Feat** on the Features tab against a5e's real feats pack

@@ -37,6 +37,11 @@ globalThis.ActorSheet = class {
   activateListeners() {}
   _onDragStart() {}
   _onDrop() {}
+  /* Foundry's own: create what was dropped, as it is. */
+  async _onDropItem(_event, data) {
+    const item = await Item.implementation.fromDropData(data);
+    return this.actor.createEmbeddedDocuments('Item', [item.toObject()]);
+  }
   /* The real ActorSheet grants this for an owned, unlocked document. Without
      it activateListeners returned at its editable gate and every listener past
      that line — most of the sheet — went untested. */

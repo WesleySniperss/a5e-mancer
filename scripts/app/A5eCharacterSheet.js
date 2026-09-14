@@ -2156,7 +2156,99 @@ export class A5eCharacterSheet extends ActorSheet {
       return created;
     }
 
+    /* Spells and destinies have branches of their own in a5e's drop, and this
+       one had ported neither. A spell went on to Foundry's plain create, which
+       a5e refuses — SpellItemA5e._preCreate: "You must select a spell book to
+       create a spell." — because nothing had said which book it belongs in. */
+    if (item.type === 'spell')   return this.#onDropSpell(item);
+    if (item.type === 'destiny') return this.#onDropDestiny(item);
+
     return super._onDropItem(event, data);
+  }
+
+  /* a5e's #onDropSpell. Dropped on Inventory, a spell becomes a Spell Scroll
+     of it; anywhere else it goes into a spell book, through that book's own
+     addSpell, which is what writes system.spellBook.
+
+     a5e picks the book the sheet is showing, or the actor's first. This sheet
+     shows one list for all of them, so it is the first — the one a5e gives
+     every character, and the one the spell dialogs here add to. */
+  async #onDropSpell(item) {
+    const actor = this.actor;
+    const tab = this._tabs?.[0]?.active;
+
+    if (tab === 'inventory') {
+      const level = item.system?.level ?? 0;
+      const table = CONFIG.A5E?.scrollData?.[level];
+      if (!table) return null;
+      const { attackBonus, cost, craftingComponent, saveDC, rarity } = table;
+
+      const actionList = item.actions?.values ? [...item.actions.values()]
+                       : Object.values(item.system?.actions ?? {});
+      const actions = {};
+      for (const original of actionList) {
+        const action = foundry.utils.deepClone(original?.toObject?.() ?? original);
+        for (const prompt of Object.values(action.prompts ?? {})) {
+          if (prompt.type !== 'savingThrow') continue;
+          prompt.saveDC = { ...(prompt.saveDC ?? {}), type: 'custom', bonus: saveDC };
+        }
+        for (const roll of Object.values(action.rolls ?? {})) {
+          if (roll.type === 'attack') { roll.ability = 'none'; roll.bonus = String(attackBonus); }
+          delete roll.scaling;
+        }
+        action.consumers = { [foundry.utils.randomID()]: { itemId: '', quantity: 1, type: 'quantity' } };
+        actions[foundry.utils.randomID()] = action;
+      }
+
+      const [scroll] = await actor.createEmbeddedDocuments('Item', [{
+        name: `Spell Scroll (${item.name})`,
+        img: 'icons/sundries/scrolls/scroll-writing-brown-gold.webp',
+        type: 'object',
+        system: {
+          actions,
+          craftingComponents: craftingComponent,
+          description: item.system?.description,
+          price: { value: cost?.value, denomination: cost?.denomination, special: '' },
+          objectType: 'consumable',
+          rarity
+        }
+      }]) ?? [];
+      if (!scroll) return null;
+
+      /* The scroll spends itself: each consumer points at the scroll. */
+      const update = {};
+      for (const [actionId, action] of Object.entries(scroll.system?.actions ?? {})) {
+        for (const consumerId of Object.keys(action?.consumers ?? {}))
+          update[`system.actions.${actionId}.consumers.${consumerId}.itemId`] = scroll.id;
+      }
+      if (Object.keys(update).length) await scroll.update(update);
+      return scroll;
+    }
+
+    const bookId = actor.spellBooks?.first?.()?._id
+                ?? Object.keys(actor.system?.spellBooks ?? {})[0];
+    const book = bookId ? actor.spellBooks?.get?.(bookId) : null;
+    if (!book) {
+      ui.notifications.warn(`${actor.name} has no spell book to put ${item.name} in. a5e makes one when a class that casts is added.`);
+      return null;
+    }
+    return book.addSpell(item);
+  }
+
+  /* a5e's #onDropDestiny: a character only, and the destiny brings its
+     source of inspiration and its inspiration feature with it. */
+  async #onDropDestiny(item) {
+    const actor = this.actor;
+    if (actor.type !== 'character') {
+      ui.notifications.warn('Destiny documents can only be added to Characters.');
+      return null;
+    }
+    await actor.setFlag('a5e', 'destinyFulfilled', false);
+    const features = (await Promise.all(
+      [item.system?.sourceOfInspiration, item.system?.inspirationFeature]
+        .filter(Boolean).map((uuid) => fromUuid(uuid).catch(() => null))
+    )).filter(Boolean);
+    return actor.createEmbeddedDocuments('Item', [item.toObject(), ...features.map((f) => f.toObject())]);
   }
 
   /* ── Listeners ────────────────────────────────────── */
