@@ -108,7 +108,7 @@
     {{!-- Locked, a row has two buttons, not four; the column is sized for
          what is there. --}}
     <div class="tidy-table-header-cell header-cell-actions"
-      style="--tidy-table-column-width: {{#if @root.unlocked}}var(--am-col-actions){{else}}var(--am-col-actions-locked){{/if}}"></div>
+      style="--tidy-table-column-width: {{#if prepCol}}calc({{#if @root.unlocked}}var(--am-col-actions){{else}}var(--am-col-actions-locked){{/if}} + var(--am-col-prep)){{else}}{{#if @root.unlocked}}var(--am-col-actions){{else}}var(--am-col-actions-locked){{/if}}{{/if}}"></div>
   </header>
 
   <div class="expandable expanded" role="presentation">

@@ -339,14 +339,29 @@ acted on:
 Timing is the least trustworthy thing in this directory. Prefer a number that
 cannot drift.
 
-## `spellrowlook.mjs`
+## `spellrowlook.mjs` and `lib/png.mjs`
 
-A spell row in the browser: the C and R marks must be circles, and a prepared
-or always-prepared spell must carry a5e's own green or purple. Those colours are
-read back from a5e's custom properties as its stylesheet resolves them on the
-sheet, not copied into the check. Against the released code the marks measured
-20 x 28 — Tidy's state-indicator box, drawn round — and no prepared row had any
-colour at all.
+A spell row in the browser: C and R as coloured letters with no ring, readable
+at 4.5:1 or better on a plain, prepared and always-prepared row; those rows in
+a5e's own green and purple; and the prepare button among the row's buttons,
+reachable, in a5e's active colours. Colours are read back from a5e's custom
+properties; legibility from the screenshot's pixels, which `lib/png.mjs` decodes
+— a computed style cannot say what is behind a letter once a gradient and a
+textured window are stacked there.
+
+Two things this check got wrong before it got them right, both worth knowing:
+sampling the pixels *beside* a letter read the other letter (C and R sit
+together), and every button in a row read as unreachable until the row was
+scrolled to — Tidy gives row containers `content-visibility: auto`, and headless
+Edge hit-tests straight through one that has not been. Neither was the sheet.
+
+## `exertion.mjs`
+
+Where exertion can be typed in. A character's pool size is a5e's figure while
+it has a class to work it out from, and a field when it has none — a5e's own
+rule. A monster has no `attributes.exertion` in a5e's data model at all, so its
+exertion is kept on this module's flag, both fields and the steps writing there.
+Against the released code all seven cases failed.
 
 ## `spellbooks.mjs`
 

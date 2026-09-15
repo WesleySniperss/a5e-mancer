@@ -66,7 +66,7 @@
              name reads faster than a glyph and takes less room, and beside
              the name it stays when narrow columns are hidden. --}}
         {{#if concentration}}
-          <span class="am-mark item-state-indicator" data-tooltip="Concentration">C</span>
+          <span class="am-mark am-mark-conc item-state-indicator" data-tooltip="Concentration">C</span>
         {{/if}}
         {{!-- Magic. a5e says so through rarity, and the rarity is worth
              naming in the tooltip because "legendary" and "common" are not
@@ -77,18 +77,21 @@
         {{/if}}
 
         {{#if ritual}}
-          <span class="am-mark item-state-indicator" data-tooltip="Ritual">R</span>
+          <span class="am-mark am-mark-ritual item-state-indicator" data-tooltip="Ritual">R</span>
         {{/if}}
         {{!-- A spell's prepared state, as a5e's sheet shows it: a book, lit
               when prepared, with sparkles when always prepared. Cycles on
-              click. --}}
-        {{#if preparable}}
+              click. In a spell table it is a button among the row's own,
+              where a5e puts it (prepCol); elsewhere — a starred spell on
+              Favorites — it stays a state icon, so that table's columns
+              keep their widths. --}}
+        {{#if preparable}}{{#unless prepCol}}
           <button type="button" data-action="item-prepare" data-id="{{id}}"
             class="unbutton item-state-indicator"
             aria-label="Prepared state: {{preparedLabel}}" data-tooltip="{{preparedLabel}}">
             <i class="fa-solid {{preparedIcon}} {{#if prepared}}color-icon-theme-highlight highlighted{{else}}color-text-lightest{{/if}}"></i>
           </button>
-        {{/if}}
+        {{/unless}}{{/if}}
         {{#if needsAttune}}
           <button type="button" data-action="item-attune" data-id="{{id}}"
             class="unbutton item-state-indicator"
@@ -172,7 +175,15 @@
     {{/if}}
 
     <div class="tidy-table-cell header-cell-actions row-actions"
-      style="--tidy-table-column-width: {{#if @root.unlocked}}var(--am-col-actions){{else}}var(--am-col-actions-locked){{/if}}">
+      style="--tidy-table-column-width: {{#if prepCol}}calc({{#if @root.unlocked}}var(--am-col-actions){{else}}var(--am-col-actions-locked){{/if}} + var(--am-col-prep)){{else}}{{#if @root.unlocked}}var(--am-col-actions){{else}}var(--am-col-actions-locked){{/if}}{{/if}}">
+      {{#if prepCol}}{{#if preparable}}
+        <button type="button" class="button button-borderless button-icon-only am-prepare am-prepare-{{preparedState}}"
+          data-action="item-prepare" data-id="{{id}}"
+          aria-label="Prepared state: {{preparedLabel}}"
+          data-tooltip="{{preparedLabel}} — click to change">
+          <i class="fa-solid {{preparedIcon}}"></i>
+        </button>
+      {{/if}}{{/if}}
       <button type="button" class="button button-borderless button-icon-only"
         data-action="item-star" data-id="{{id}}"
         data-tooltip="{{#if starred}}Remove from favorites{{else}}Add to favorites{{/if}}">

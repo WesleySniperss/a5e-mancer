@@ -283,7 +283,20 @@ export class A5eCharacterSheet extends ActorSheet {
 
     /* Resources */
     const hp  = sys.attributes?.hp ?? {};
-    const ex  = sys.attributes?.exertion ?? {};
+    /* Exertion. A character keeps it where a5e does, system.attributes.
+       exertion; its pool size is a5e's to work out from the character's
+       classes, and is typed in only when there is none to work it out from
+       (automationAvailable false) — ActorManueverFooter's own rule.
+
+       A monster has nowhere in a5e to keep it: NPCDataModel.ts has no
+       exertion field, so Foundry drops any write to system.attributes.
+       exertion on an NPC, and a5e draws no exertion for one. Reported as:
+       an NPC given maneuvers has no exertion to spend. It is kept on this
+       module's flag instead, current and max, both typed in. */
+    const npcExertion = actor.type === 'npc';
+    const exBase = npcExertion ? `flags.${MODULE_ID}.exertion` : 'system.attributes.exertion';
+    const ex  = (npcExertion ? actor.flags?.[MODULE_ID]?.exertion : sys.attributes?.exertion) ?? {};
+    const exMaxEditable = npcExertion || !actor.automationAvailable;
     const pct01 = (v, max) => Math.round(Math.min(Math.max(v / max, 0), 1) * 100);
     const hpPct = hp.max ? pct01(hp.value ?? 0, hp.max) : 0;
     const exPct = ex.max ? pct01(ex.current ?? 0, ex.max) : 0;
@@ -294,7 +307,9 @@ export class A5eCharacterSheet extends ActorSheet {
       ac: sys.attributes?.ac?.value ?? sys.attributes?.ac ?? 10,
       initiative: sign(sys.attributes?.initiative?.value ?? sys.attributes?.initiative?.mod ?? 0),
       speed: sys.attributes?.movement?.walk?.distance ?? sys.attributes?.movement?.walk ?? sys.attributes?.speed?.value ?? 30,
-      exertion: { current: ex.current ?? ex.value ?? 0, max: ex.max ?? 0, pct: exPct },
+      exertion: { current: ex.current ?? ex.value ?? 0, max: ex.max ?? 0, pct: exPct,
+                  currentPath: `${exBase}.current`, maxPath: `${exBase}.max`,
+                  maxEditable: exMaxEditable },
       fatigue: sys.attributes?.fatigue ?? 0,
       strife:  sys.attributes?.strife  ?? 0,
       profBonus: sign(profBonus),
@@ -2880,8 +2895,14 @@ export class A5eCharacterSheet extends ActorSheet {
        there is no `value`. Writing one alongside `current` made the data
        model reject the WHOLE update, so exertion could never be changed;
        the catch below swallowed the complaint, so nothing said why. */
+    /* The path is on the input: a character's lives in system, a monster's
+       in this module's flag — see exertion in getData. */
     this.#bindNumericInput(el, '#am-exertion-current',
-      v => ({ 'system.attributes.exertion.current': v }));
+      v => ({ [el.querySelector('#am-exertion-current')?.dataset.path
+              || 'system.attributes.exertion.current']: Math.max(0, v) }));
+    this.#bindNumericInput(el, '#am-exertion-max',
+      v => ({ [el.querySelector('#am-exertion-max')?.dataset.path
+              || 'system.attributes.exertion.max']: Math.max(0, v) }));
 
     /* AC / Initiative / Speed */
     [
@@ -3736,7 +3757,7 @@ export class A5eCharacterSheet extends ActorSheet {
        binding to the same buttons for a moment; this is the older one. */
 
     el.querySelectorAll('[data-action="exertion-step"]').forEach(b =>
-      b.addEventListener('click', stepCounter('system.attributes.exertion.current',
+      b.addEventListener('click', stepCounter(b.dataset.path || 'system.attributes.exertion.current',
         Number(b.dataset.delta) || 0)));
 
     /* ══ Inventory utility bar ═════════════════════════════════════════

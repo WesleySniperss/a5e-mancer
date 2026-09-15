@@ -269,6 +269,7 @@
   --am-col-narrow:  3.5rem;   /* quantity                                */
   --am-col-actions: 7rem;     /* star, chat, edit, delete                */
   --am-col-actions-locked: 3.75rem; /* star and chat: all a locked row has */
+  --am-col-prep:    1.75rem;   /* a spell's prepared toggle, before those */
 
   /* The spell table, in short forms — see #spellColumns. Sized to the
      longest value a5e's pack gives each: "10 min", "120 ft", "20" and
@@ -1883,8 +1884,11 @@
 .tidy5e-sheet.application.a5e-mancer-sheet .am-slots {
   display: inline-flex;
   align-items: center;
-  gap: 0.3125rem;
-  margin-inline-start: var(--t5e-size-2x);
+  /* A quarter-rem between stars and one size-step before them: the prepare
+     button took 1.75rem from the heading, and a level of four stars left
+     "Level 1" 7px short of its own width at 820px. Measured in slotroom.mjs. */
+  gap: 0.25rem;
+  margin-inline-start: var(--t5e-size-1x);
   flex: 0 0 auto;
 }
 
@@ -1893,6 +1897,9 @@
 .tidy5e-sheet.application.a5e-mancer-sheet .header-label-cell:has(.am-slots) > h3,
 .tidy5e-sheet.application.a5e-mancer-sheet .header-label-cell:has(.am-slots) > .table-header-count {
   flex-shrink: 0;
+  /* flex-shrink alone lost to Tidy: the h3 still measured 27px for 34px
+     of "Level 1". Its own width is the least it may have. */
+  min-width: max-content;
 }
 
 .tidy5e-sheet.application.a5e-mancer-sheet .am-slot {
@@ -2038,30 +2045,68 @@
   color: inherit;
 }
 
-/* A spell's C and R, beside its name. Small capitals in a ring, the way a
-   printed spell list marks them, so they read as marks and not as text. */
+/* A spell's C and R, beside its name: a5e's own abbreviations, told apart by
+   colour rather than drawn in a ring. The ring was reported twice as looking
+   wrong — first as an oval, then still as crooked once it was round — and at
+   ten pixels a letter inside a circle is mostly circle.
+
+   a5e itself sets V, S, M, C and R as letters on a small grey tile. Here the
+   letter stands alone in a colour of its own: concentration in Tidy's gold,
+   which it already uses for concentration; ritual in a cool blue, so the two
+   are told apart without reading them. Both are held above 4.5:1 against
+   the plain row and a5e's green and purple prepared rows — measured, see
+   tools/checks/spellrowlook.mjs.
+
+   Tidy's .item-state-indicator gives every state icon a 20 by 28 box; the
+   letter keeps its own width and the row's line. */
 .tidy5e-sheet.application.a5e-mancer-sheet .am-mark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* Tidy's .item-state-indicator gives every state icon a 20 by 28 pixel
-     box, which a ring drawn with border-radius turns into an upright oval.
-     Measured in a browser: 20 x 28. Held square, and a circle, here. */
-  box-sizing: border-box;
   flex: 0 0 auto;
-  width: 1rem;
-  height: 1rem;
   min-width: 0;
   min-height: 0;
-  aspect-ratio: 1;
-  padding: 0;
-  border: 0.0625rem solid currentColor;
-  border-radius: 50%;
-  font-size: 0.625rem;
-  font-weight: 700;
+  padding: 0 0.0625rem;
+  border: 0;
+  background: none;
+  font-size: 0.8125rem;
+  font-weight: 800;
   line-height: 1;
-  color: var(--t5e-color-text-lighter);
+  letter-spacing: 0;
   cursor: help;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-mark.am-mark-conc {
+  color: #f0c75e;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-mark.am-mark-ritual {
+  color: #7cc4ff;
+}
+
+/* A spell's prepared toggle, among the row's buttons where a5e puts it.
+   It was a 15px grey book beside the name, read as decoration rather than
+   as something to press. Unprepared it is the row's text colour, dimmed;
+   prepared and always prepared it is a5e's own active green and purple. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-prepare {
+  opacity: 0.6;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-prepare:hover {
+  opacity: 1;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-prepare.am-prepare-1,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-prepare.am-prepare-2 {
+  opacity: 1;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-prepare.am-prepare-1 i {
+  color: var(--a5e-item-list-item-icon-color-active-highlight, #b3ffd2bf);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-prepare.am-prepare-2 i {
+  color: var(--a5e-item-list-item-icon-color-active-highlight-purple, #e6b3ffbf);
 }
 
 /* ── Prepared spells, in a5e's colours ────────────────────────────────────

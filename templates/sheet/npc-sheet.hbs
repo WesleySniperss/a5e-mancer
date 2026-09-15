@@ -435,6 +435,7 @@
       </span>
       <button type="button" class="button button-borderless button-icon-only"
         data-action="exertion-step" data-delta="-1" data-max="{{resources.exertion.max}}"
+        data-path="{{resources.exertion.currentPath}}"
         aria-label="Spend exertion" data-tooltip="Spend one">
         <i class="fa-solid fa-minus"></i>
       </button>
@@ -442,13 +443,25 @@
         style="--bar-percentage: {{resources.exertion.pct}}%">
         <div class="label">
           <input type="number" class="value uninput am-tracker-value" id="am-exertion-current"
+            data-path="{{resources.exertion.currentPath}}"
             value="{{resources.exertion.current}}" min="0" aria-label="Current exertion" />
           <span class="separator">/</span>
-          <span class="max">{{resources.exertion.max}}</span>
+          {{!-- The pool size: typed in where a5e lets it be — a monster, or a
+               character with no class to work it out from — and a5e's own
+               figure otherwise. --}}
+          {{#if resources.exertion.maxEditable}}
+            <input type="number" class="value uninput am-tracker-value am-exertion-max" id="am-exertion-max"
+              data-path="{{resources.exertion.maxPath}}"
+              value="{{resources.exertion.max}}" min="0" aria-label="Exertion pool"
+              data-tooltip="Exertion pool — type the size" />
+          {{else}}
+            <span class="max" data-tooltip="Worked out by a5e from the character’s classes">{{resources.exertion.max}}</span>
+          {{/if}}
         </div>
       </div>
       <button type="button" class="button button-borderless button-icon-only"
         data-action="exertion-step" data-delta="1" data-max="{{resources.exertion.max}}"
+        data-path="{{resources.exertion.currentPath}}"
         aria-label="Regain exertion" data-tooltip="Regain one">
         <i class="fa-solid fa-plus"></i>
       </button>
@@ -1175,14 +1188,14 @@
                and roll always stay — so the heading never has less than
                180px for its name and its stars. --}}
           {{~#> tidy-table key=@key label=@key count=this.length items=this
-                          slots=(lookup @root.spellSlots @key)
+                          slots=(lookup @root.spellSlots @key) prepCol=true
                           c1=true col1="Time"     w1="var(--am-col-time)"   h1="hide-under-450"
                           c2=true col2="Range"    w2="var(--am-col-range)"  h2="am-keep"
                           c3=true col3="Target"   w3="var(--am-col-target)" h3="hide-under-500"
                           c4=true col4="Duration" w4="var(--am-col-dur)"    h4="am-keep"
                           c5=true col5="Roll"     w5="var(--am-col-roll)"   h5="am-keep"}}
             {{#each items}}
-              {{~> tidy-row subtitle=this.schoolLabel dash=true
+              {{~> tidy-row subtitle=this.schoolLabel dash=true prepCol=true
                            c1=true cell1=this.col.time   tip1=this.col.timeTip   w1="var(--am-col-time)"   h1="hide-under-450"
                            c2=true cell2=this.col.range  tip2=this.col.rangeTip  w2="var(--am-col-range)"  h2="am-keep"
                            c3=true cell3=this.col.target tip3=this.col.targetTip w3="var(--am-col-target)" h3="hide-under-500" icon3=this.col.targetIcon

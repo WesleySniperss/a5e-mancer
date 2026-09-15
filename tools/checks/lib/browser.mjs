@@ -29,7 +29,12 @@ export const EDGE = [
 
 /* Foundry's own public folder, for foundry2.css and Font Awesome. Read from
    the server's log rather than written in, since it moves with the install. */
-const DATA = R.replace(/modules\/a5e-mancer\/$/, '');
+/* Foundry's Data folder, for systems/a5e/a5e.css. Derived from where the
+   module sits; a copy of the module elsewhere (a checkout of one commit, say)
+   falls back to the real install, or a5e's stylesheet silently fails to load
+   and every one of its colours reads as transparent. */
+const DATA = [R.replace(/modules\/a5e-mancer\/$/, ''), 'c:/Users/Jonkm/AppData/Local/FoundryVTT/Data/']
+  .find((d) => existsSync(d + 'systems/a5e/a5e.css')) ?? R.replace(/modules\/a5e-mancer\/$/, '');
 export const CORE = (() => {
   const logs = join(DATA, '..', 'Logs');
   const guesses = ['D:/Games/FVTT/Foundry Virtual Tabletop/resources/app/public/'];
