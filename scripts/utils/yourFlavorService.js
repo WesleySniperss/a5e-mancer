@@ -88,6 +88,8 @@ export class YourFlavorService {
   static _renderHook = null;
   /** Re-sweep on log re-render; see _watchChatLog. */
   static _logHook = null;
+  /** Empties the style cache when a Your Flavor setting changes; see _applyStyles. */
+  static _settingHook = null;
   /** Chat lists being watched for style loss; see _watchStyleLoss. */
   static _lossObservers = new Map();
   /** Messages waiting for the next frame's look, with why they were queued. */
@@ -179,6 +181,14 @@ export class YourFlavorService {
       });
     }
 
+    /* The style cache is keyed on a config's contents, which covers a user
+       changing theirs. A world setting of Your Flavor's can change what the
+       same contents normalise to - a factory reset does - so any of those
+       empties it, as Your Flavor empties its own. */
+    this._settingHook = Hooks.on('updateSetting', (setting) => {
+      if (String(setting?.key ?? '').startsWith(`${this.YF_ID}.`)) this._scopeCache.clear();
+    });
+
     this._sweepWhenReady();
     this._watchChatLog();
     this._observeChatLists();
@@ -194,6 +204,11 @@ export class YourFlavorService {
       Hooks.off('renderChatLog', this._logHook);
       this._logHook = null;
     }
+    if (this._settingHook !== null) {
+      Hooks.off('updateSetting', this._settingHook);
+      this._settingHook = null;
+    }
+    this._scopeCache.clear();
     for (const observer of this._lossObservers.values()) observer.disconnect();
     this._lossObservers.clear();
     this._lossQueue.clear();
@@ -530,7 +545,7 @@ export class YourFlavorService {
 
     this._applyClassification(element, classification, config);
 
-    styles.applyFlavorStyles(element, config.customizations, layout.defaults, {
+    this._applyStyles(element, config.customizations, layout.defaults, {
       rolls: config.rolls,
       cards: config.cards
     });
@@ -538,6 +553,47 @@ export class YourFlavorService {
     this._resolveAvatar(message, element);
     element.classList.add('yf-processed');
     return 'styled';
+  }
+
+  /** Built style declarations by config; see _applyStyles. */
+  static _scopeCache = new Map();
+  static SCOPE_CACHE_LIMIT = 24;
+
+  /**
+   * applyFlavorStyles, without rebuilding the same 96 properties per message.
+   *
+   * Your Flavor turns a config into custom properties by normalising it and
+   * building a token tree, and 5.0.1 - the released build - does that from
+   * scratch every call: 3.7 ms a message, measured in Node against its own
+   * modules. One user's config is the same for every message it styles, so a
+   * sweep over a hundred-message log paid ~370 ms of blocking work to compute
+   * one answer a hundred times. Local builds with a cache of their own measure
+   * 0.002 ms; this gives the bridge the same on any build.
+   *
+   * Keyed on the inputs themselves, as that cache is; the built declarations
+   * are only read. Falls back to applyFlavorStyles if a future Your Flavor
+   * stops exporting the two pieces this needs.
+   */
+  static _applyStyles(element, customizations, layoutDefaults, sections) {
+    const styles = this._styles;
+    if (typeof styles?.createFlavorStyleScope !== 'function' || typeof styles?.applyCssDeclarations !== 'function') {
+      styles.applyFlavorStyles(element, customizations, layoutDefaults, sections);
+      return;
+    }
+
+    let key = null;
+    try { key = JSON.stringify([customizations ?? null, layoutDefaults ?? null, sections ?? null]); }
+    catch { key = null; }   // unserialisable: build it uncached rather than fail
+
+    let declarations = key !== null ? this._scopeCache.get(key) : null;
+    if (!declarations) {
+      declarations = styles.createFlavorStyleScope(customizations, layoutDefaults, sections).declarations;
+      if (key !== null) {
+        if (this._scopeCache.size >= this.SCOPE_CACHE_LIMIT) this._scopeCache.delete(this._scopeCache.keys().next().value);
+        this._scopeCache.set(key, declarations);
+      }
+    }
+    styles.applyCssDeclarations(element, declarations);
   }
 
   /**
