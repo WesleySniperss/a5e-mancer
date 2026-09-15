@@ -372,6 +372,13 @@ points shown with it; unlocked, the plus adding a book through
 `SpellBookManager.add` and opening its settings, the cog opening a5e's fields,
 the bin asking — naming the spells that go with the book — before `remove`.
 
+And moving a spell between books, which a5e has no control for: dropped on a
+book in the strip, picked in the spell's summary, or — for every spell that
+names no book — filed as the actor's own copy in a5e's compendium keeps it.
+Run over the pack-imported monsters in this world, that last sorts Archfey
+Enchanter's 42 loose spells 12 into Innate Spellcasting and 30 into
+Spellcasting, exactly as a5e's pack has them, with none left unmatched.
+
 A spell naming no book is listed under the first book. a5e files those under
 "none" and never draws them; in the saved copy of this world's characters 74 of
 92 spells name no book, so copying that would empty most spell lists.

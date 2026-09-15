@@ -2008,6 +2008,45 @@
   cursor: pointer;
 }
 
+/* A book lights while a spell is dragged over it. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-spellbook.am-drop-over {
+  border-color: var(--t5e-color-text-gold-emphasis, #e9d7a1);
+  box-shadow: 0 0 0 0.0625rem var(--t5e-color-text-gold-emphasis, #e9d7a1);
+}
+
+/* Spells in no book: a line under the strip, and the button that files them. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-spellbook-unsorted {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--t5e-size-2x);
+  margin: 0;
+  padding-block: 0 var(--t5e-size-1x);
+  font-size: 0.8125rem;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-spellbook-sort {
+  min-height: 1.5rem;
+  padding: 0 0.5rem;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-spellbook-hint {
+  opacity: 0.75;
+}
+
+/* The book picker in a spell's summary. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-move-book {
+  display: flex;
+  align-items: center;
+  gap: var(--t5e-size-2x);
+  padding: var(--t5e-size-1x) var(--t5e-size-2x);
+  font-size: 0.8125rem;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-move-book select {
+  min-width: 10rem;
+}
+
 /* The book's points, inventions and charges, in a row under the strip. */
 .tidy5e-sheet.application.a5e-mancer-sheet .am-spell-resources {
   display: flex;

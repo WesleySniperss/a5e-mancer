@@ -1139,7 +1139,7 @@
       {{#if spellBookNav}}
         <nav class="am-spellbooks" aria-label="Spell books">
           {{#each spellBooks}}
-            <span class="am-spellbook{{#if this.active}} active{{/if}}">
+            <span class="am-spellbook{{#if this.active}} active{{/if}}" data-book-drop="{{this.id}}">
               <button type="button" class="am-spellbook-pick" data-action="spellbook-pick"
                 data-book="{{this.id}}" aria-pressed="{{#if this.active}}true{{else}}false{{/if}}"
                 {{#if this.tip}}data-tooltip="{{this.tip}}"{{/if}}>
@@ -1164,6 +1164,19 @@
             </button>
           {{/if}}
         </nav>
+      {{/if}}
+
+      {{!-- Spells that name none of the actor's books: listed under the first,
+           and one click to file them — see "Moving a spell between books". --}}
+      {{#if spellBookUnsorted}}
+        <p class="am-spellbook-unsorted color-text-lighter">
+          <i class="fa-solid fa-circle-info"></i>
+          {{spellBookUnsorted}} spell{{#unless (eq spellBookUnsorted 1)}}s{{/unless}} in no spell book, shown under the first.
+          <button type="button" class="button button-secondary am-spellbook-sort" data-action="spellbook-sort">
+            <i class="fa-solid fa-book-bookmark"></i> Sort into books
+          </button>
+          {{#if spellBookNav}}<span class="am-spellbook-hint">or drag a spell onto a book</span>{{/if}}
+        </p>
       {{/if}}
 
       {{!-- The book's own resources, as a5e's spell footer shows them for the

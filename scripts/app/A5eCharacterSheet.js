@@ -741,6 +741,27 @@ export class A5eCharacterSheet extends ActorSheet {
       || (currentBook === bookIds[0] && !bookIds.includes(s.spellBook)));
     const book = currentBook ? bookOf(currentBook) : {};
 
+    /* Moving a spell between books. a5e has no control for it — dropping a
+       spell the actor already owns only re-sorts it — so a spell stays in
+       whatever book it arrived in. Reported as: we must be able to keep
+       spells in different books, as a5e does.
+
+       Three ways, here: drag the spell onto a book in the strip; pick its
+       book in the spell's own summary; or sort every spell that names no
+       book at once. The last matters because a monster brought over from
+       a5e's pack can arrive with its books and not its spells in them —
+       Archfey Enchanter in this world has Innate Spellcasting and
+       Spellcasting, and 42 spells that name neither — and on a5e's own
+       sheet those simply do not show. */
+    const unbooked = spells.filter((s) => !bookIds.includes(s.spellBook));
+    const spellBookUnsorted = bookIds.length && unbooked.length ? unbooked.length : 0;
+    if (bookIds.length > 1) {
+      for (const s of spells) {
+        s.inBook = bookIds.includes(s.spellBook);
+        s.bookChoices = bookIds.map((id) => ({ id, name: bookOf(id).name || 'Spell Book', selected: id === s.spellBook }));
+      }
+    }
+
     /* The book's own resources, as a5e's spell footer shows them for the book
        being looked at: spell points and artifact charges, left and total;
        inventions, a total only. A character's total is derived, so unlocked
@@ -1195,7 +1216,7 @@ export class A5eCharacterSheet extends ActorSheet {
       abilities, skills, resources, classes,
       savingThrows, maneuverDC, proficiencies,
       weapons, maneuvers, maneuverGroups, spells, spellGroups, spellSlots,
-      spellBooks, spellBookNav, spellBookResources,
+      spellBooks, spellBookNav, spellBookResources, spellBookUnsorted,
       features, feats, allFeatures, featuresBySource, featureFilters,
       customCounters, freeCounter,
       effectGroups, bonuses, hasBonuses, interactionGroups, settings,
@@ -2245,6 +2266,20 @@ export class A5eCharacterSheet extends ActorSheet {
     const item = await Item.implementation.fromDropData(data);
     if (!item) return false;
 
+    /* A spell dropped on a book in the Magic tab's strip goes into that book:
+       one of the actor's own is moved there, one from elsewhere is added
+       there. a5e's drop has no such target; see "Moving a spell between
+       books" in getData. */
+    const bookDrop = event?.target?.closest?.('[data-book-drop]')?.dataset?.bookDrop;
+    if (item.type === 'spell' && bookDrop && Object.keys(this.actor.system?.spellBooks ?? {}).includes(bookDrop)) {
+      if (item.parent?.uuid === this.actor.uuid) {
+        if (item.system?.spellBook !== bookDrop) await item.update({ 'system.spellBook': bookDrop });
+        return item;
+      }
+      this._spellBook = bookDrop;
+      return this.#onDropSpell(item);
+    }
+
     const options = await this.#dropTargetOptions(event, item);
 
     /* Already ours and not changing container: reorder, do not duplicate. */
@@ -2560,6 +2595,15 @@ export class A5eCharacterSheet extends ActorSheet {
         this.render(false);
       })
     );
+
+    /* A book lights while something is dragged over it, so a drop onto it is
+       a thing one can see is about to happen. The drop itself goes through
+       Foundry's DragDrop to _onDropItem, which reads data-book-drop. */
+    el.querySelectorAll('[data-book-drop]').forEach(pill => {
+      pill.addEventListener('dragover', () => pill.classList.add('am-drop-over'));
+      for (const type of ['dragleave', 'drop'])
+        pill.addEventListener(type, () => pill.classList.remove('am-drop-over'));
+    });
 
     el.querySelectorAll('a[data-notes-tab]').forEach(node =>
       node.addEventListener('click', (e) => {
@@ -4031,6 +4075,22 @@ export class A5eCharacterSheet extends ActorSheet {
       })
     );
 
+    /* A spell's book, picked in its summary. */
+    el.querySelectorAll('[data-action="spell-move-book"]').forEach(sel =>
+      sel.addEventListener('change', async (e) => {
+        e.stopPropagation();
+        const item = this.actor.items.get(sel.dataset.id);
+        const to = sel.value;
+        if (!item || !to || !Object.keys(this.actor.system?.spellBooks ?? {}).includes(to)) return;
+        await item.update({ 'system.spellBook': to });
+      })
+    );
+
+    el.querySelector('[data-action="spellbook-sort"]')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      this.#sortUnbookedSpells();
+    });
+
     /* A book's resources: spell points, inventions, artifact charges. */
     el.querySelectorAll('[data-action="spell-resource"]').forEach(inp =>
       inp.addEventListener('change', async (e) => {
@@ -4450,6 +4510,52 @@ export class A5eCharacterSheet extends ActorSheet {
         }
       }
     });
+  }
+
+  /* Every spell that names no book of this actor's, filed at once.
+
+     Where the actor came from a5e's compendium, a spell goes into the book
+     that compendium's copy of the actor keeps it in — matched by name, since
+     the ids of embedded items change on import, and only into a book this
+     actor still has. Everything else goes into the book on screen. The
+     question says how many go which way before anything is written. */
+  async #sortUnbookedSpells() {
+    const actor = this.actor;
+    const ids = Object.keys(actor.system?.spellBooks ?? {});
+    if (!ids.length) return;
+    const loose = actor.items.filter((i) => i.type === 'spell' && !ids.includes(i.system?.spellBook));
+    if (!loose.length) return;
+
+    const fromPack = new Map();
+    const origin = actor._stats?.compendiumSource ?? actor.flags?.core?.sourceId ?? null;
+    if (origin) {
+      try {
+        const source = await fromUuid(origin);
+        for (const it of source?.items ?? []) {
+          if (it.type === 'spell' && ids.includes(it.system?.spellBook)) fromPack.set(it.name.toLowerCase(), it.system.spellBook);
+        }
+      } catch (err) {
+        AM.log(2, `Could not read ${origin} to sort spells into books:`, err);
+      }
+    }
+
+    const here = ids.includes(this._spellBook) ? this._spellBook : ids[0];
+    const bookName = (id) => (actor.spellBooks?.get?.(id) ?? actor.system.spellBooks[id])?.name || 'Spell Book';
+    const updates = loose.map((i) => ({ _id: i.id, 'system.spellBook': fromPack.get(i.name.toLowerCase()) ?? here }));
+    const counts = new Map();
+    for (const u of updates) counts.set(u['system.spellBook'], (counts.get(u['system.spellBook']) ?? 0) + 1);
+    const matched = loose.filter((i) => fromPack.has(i.name.toLowerCase())).length;
+    const esc = (s) => foundry.utils.escapeHTML(String(s ?? ''));
+
+    const ok = await foundry.applications.api.DialogV2.confirm({
+      window: { title: 'Sort spells into books' },
+      content: `<p>${loose.length} spell${loose.length === 1 ? '' : 's'} name${loose.length === 1 ? 's' : ''} no spell book.`
+        + (matched ? ` ${matched} go${matched === 1 ? 'es' : ''} where a5e\u2019s compendium keeps ${matched === 1 ? 'it' : 'them'}.` : '')
+        + `</p><ul>${[...counts].map(([id, n]) => `<li><strong>${esc(bookName(id))}</strong>: ${n}</li>`).join('')}</ul>`,
+      rejectClose: false
+    });
+    if (!ok) return;
+    await actor.updateEmbeddedDocuments('Item', updates);
   }
 
   /* a5e's SpellBookConfig: the book's name, the ability its spells cast with,

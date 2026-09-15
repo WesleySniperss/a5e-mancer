@@ -35,9 +35,12 @@ async function setup({ books, locked = true, bookData = {} }) {
                   spell('s3', 'Gamma Ray', 1, 'b2'), spell('s4', 'Stray Spark', 1, '')];
   for (const s of spells) actor.items.set(s._id, {
     id: s._id, uuid: 'Item.' + s._id, name: s.name, type: 'spell', img: s.img, system: s.system,
-    flags: {}, effects: new Collection(), actions: new Collection(), getFlag: () => undefined, _stats: {} });
+    flags: {}, effects: new Collection(), actions: new Collection(), getFlag: () => undefined, _stats: {},
+    parent: null, update: async (d) => { writes.push({ item: s._id, ...d }); } });
+  for (const s of spells) actor.items.get(s._id).parent = actor;
 
   const writes = [];
+  actor.updateEmbeddedDocuments = async (_t, rows) => { writes.push({ embedded: rows }); return rows; };
   actor.update = async (data) => { writes.push(data); return actor; };
   actor.flags.a5e = { ...(actor.flags.a5e ?? {}), sheetIsLocked: locked };
   actor.system.spellBooks = Object.fromEntries(books.map((id, n) => [id,
@@ -126,6 +129,47 @@ const namesIn = (root) => [...new Set(q(magic(root), '.cell-name').map((n) => n.
   check('the bin asks first, names the spells going with it, then removes the book',
     /2 spells/.test(confirmed?.content ?? '') && writes.some((w) => w.remove === 'b1'),
     `${(confirmed?.content ?? '').replace(/<[^>]+>/g, '')} → ${JSON.stringify(writes.find((w) => w.remove))}`);
+}
+
+/* Moving a spell between books: a5e has no control for it at all. */
+{
+  const { sheet, actor, render, writes } = await setup({ books: ['b1', 'b2'], locked: false });
+  let root = await render();
+
+  /* Dropped on a book in the strip. */
+  globalThis.Item = globalThis.Item ?? {};
+  Item.implementation = { fromDropData: async () => actor.items.get('s1') };
+  const pill = q(root, '[data-book-drop="b2"]')[0];
+  writes.length = 0;
+  await sheet._onDropItem({ target: { closest: (sel) => sel === '[data-book-drop]' ? pill : null } }, { type: 'Item', uuid: 'Item.s1' });
+  check('a spell of the actor’s dropped on another book moves into it',
+    writes.some((w) => w.item === 's1' && w['system.spellBook'] === 'b2'), JSON.stringify(writes));
+
+  /* Picked in its summary, unlocked. */
+  const pickers = q(root, '[data-action="spell-move-book"]');
+  const forAlpha = pickers.find((s) => s.dataset.id === 's1');
+  check('unlocked, with two books: each spell’s summary offers its book',
+    !!forAlpha && pickers.length >= 3, `${pickers.length} pickers`);
+  writes.length = 0;
+  if (forAlpha) { forAlpha.value = 'b2'; await fire(forAlpha, 'change'); }
+  check('picking a book there moves the spell', writes.some((w) => w.item === 's1' && w['system.spellBook'] === 'b2'),
+    JSON.stringify(writes));
+
+  /* The spell in no book: counted, and filed as a5e’s compendium keeps it. */
+  const note = q(root, '[data-action="spellbook-sort"]');
+  check('a spell in no book is counted, with a button to file it', note.length === 1,
+    q(root, '.am-spellbook-unsorted')[0]?.textContent?.replace(/\s+/g, ' ').trim() ?? 'no line');
+  actor._stats = { compendiumSource: 'Compendium.a5e.a5e-monsters.Actor.x' };
+  globalThis.fromUuid = async (uuid) => uuid === actor._stats.compendiumSource
+    ? { items: [{ type: 'spell', name: 'Stray Spark', system: { spellBook: 'b2' } }] } : null;
+  let asked = null;
+  foundry.applications.api.DialogV2.confirm = async (cfg) => { asked = cfg; return true; };
+  writes.length = 0;
+  if (note[0]) await fire(note[0]);
+  const rows = writes.find((w) => w.embedded)?.embedded ?? [];
+  check('sorting files it where a5e’s compendium copy of the actor keeps it, after asking',
+    rows.length === 1 && rows[0]._id === 's4' && rows[0]['system.spellBook'] === 'b2' && /compendium/.test(asked?.content ?? ''),
+    `${JSON.stringify(rows)}; ${(asked?.content ?? '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()}`);
 }
 
 let bad = 0;

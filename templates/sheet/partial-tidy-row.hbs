@@ -219,6 +219,20 @@
   <div class="expandable" role="presentation">
     <div class="expandable-child-animation-wrapper" role="presentation">
 
+      {{!-- Which spell book this spell is in, when there is more than one to
+           choose from and the sheet is unlocked. First in the summary, where it is
+           seen without scrolling past the description and the actions. --}}
+      {{#if bookChoices}}{{#if @root.unlocked}}
+        <label class="am-move-book">
+          <span class="color-text-lighter">Spell book</span>
+          <select data-action="spell-move-book" data-id="{{id}}" aria-label="Spell book for {{name}}">
+            {{#unless inBook}}<option value="" selected disabled>No book</option>{{/unless}}
+            {{#each bookChoices}}
+              <option value="{{this.id}}"{{#if this.selected}} selected{{/if}}>{{this.name}}</option>
+            {{/each}}
+          </select>
+        </label>
+      {{/if}}{{/if}}
       {{#if desc}}
         <div class="editor-rendered-content">
           <div class="user-select-text">{{{desc}}}</div>
@@ -339,6 +353,7 @@
           </div>
         </section>
       {{/if}}
+
 
       {{!-- Costs and requirements a5e keeps and dnd5e has no column for. --}}
       {{#if summaryTags.length}}
