@@ -244,7 +244,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     // Rebuilt below for the class now selected; a class with no spells must not
     // inherit the quota of the one selected before it.
     this._spellInfo = null;
-    this.#spellReplacementContext(context, selectedClass, newClassLevel);
+    this._spellCasting = null;
 
     // A caster gets the spell browser on every level-up, not only when a swap is
     // in play. It used to open solely off spellReplaceLimit, so a wizard gaining
@@ -254,8 +254,13 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     // The count is left open rather than quota'd: a5e ships no spells-known-per-
     // level table, and inventing one would be worse than trusting the player,
     // which is what the sheet's Manage Spells already does.
+    let classInfo = null;
     if (!context.spellInfo) {
-      let info = SpellService.getClassSpellInfo(selectedClass?.name ?? '');
+      /* The static table, then the class item - not getClassSpellInfo, whose
+         fallback is whatever class was looked up last. For a class that casts
+         nothing that fallback was usually another class's info, so a rogue
+         could open a spell section with a witch's numbers and an empty list. */
+      classInfo = CLASS_SPELL_TABLES[(selectedClass?.name ?? '').toLowerCase()] ?? null;
 
       // A caster the tables do not name got no spell section at all, because
       // this whole block is gated on `info`. CLASS_SPELL_TABLES lists eight
@@ -267,23 +272,38 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       // Asking the item is not a guess: the class states its own caster type.
       // `requireSpellsAtFirst: false` because the level-1 rule that suppresses
       // a half caster's tab at creation must not suppress it at 5th.
-      if (!info && selectedClass?.id) {
+      if (!classInfo && selectedClass?.id) {
         const item = this.actor.items.get(selectedClass.id);
         if (item) {
-          info = await SpellService.loadClassSpellInfo(item.uuid, { requireSpellsAtFirst: false });
-          if (info) AM.log(3, `${selectedClass.name}: spell info read from the class item`);
+          classInfo = await SpellService.loadClassSpellInfo(item.uuid, { requireSpellsAtFirst: false });
+          if (classInfo) AM.log(3, `${selectedClass.name}: spell info read from the class item`);
         }
       }
+    }
 
-      if (info) {
+    /* A class with no magic of its own can still be given some by its
+       archetype - a5e's tertiary casters. Owned, or picked in this dialog at
+       the level that brings it. */
+    const casting = (!context.spellInfo && !classInfo)
+      ? await this.#archetypeCasting(selectedClass, newClassLevel)
+      : null;
+
+    // The swap is the class's rule, or the archetype's - and nothing for a class
+    // that casts neither way, whatever a stray table said.
+    this.#spellReplacementContext(context, selectedClass, newClassLevel,
+      casting ? ((casting.replaceable && newClassLevel > casting.fromLevel) ? 1 : 0)
+              : (classInfo ? SpellService.replaceableOnLevelUp(selectedClass?.name ?? '') : 0));
+
+    if (!context.spellInfo) {
+      if (classInfo) {
         // What this level actually brings. a5e ships no spells-known table, so
         // it comes from SpellService.SPELLS_KNOWN; a class that learns nothing
         // at level-up (a cleric or druid prepares from the whole list) gets an
         // open count rather than an invented quota.
         const owed = SpellService.newAtLevel(selectedClass?.name ?? '', newClassLevel);
         context.spellInfo = {
-          ...info,
-          maxLevel:    SpellService.maxSpellLevelFor?.(selectedClass?.name ?? '', newClassLevel) ?? info.maxLevel,
+          ...classInfo,
+          maxLevel:    SpellService.maxSpellLevelFor?.(selectedClass?.name ?? '', newClassLevel) ?? classInfo.maxLevel,
           spellsKnown: LevelUpDialog.#spellsOwed(this, selectedClass?.name ?? '', newClassLevel, owed),
           cantrips:    owed?.cantrips ?? -1,
           // What a prepared caster can actually hold at this level, from the
@@ -295,7 +315,41 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         // Kept for the click handlers, so what they enforce is what is shown
         this._spellInfo = context.spellInfo;
         this.#addSpellBrowserContext(context, context.spellInfo);
+      } else if (casting) {
+        /* The archetype's own table: what this level adds to its Cantrips
+           Known and Spells Known, its slot columns for the highest level, and
+           a picker limited to its list or its schools. */
+        const n = newClassLevel;
+        /* No Spells Known column: the sentence's number at the level the
+           feature arrives, and an open count after it (-1) rather than a guess. */
+        const spells = casting.known
+          ? Math.max(0, (casting.known[n] ?? 0) - (casting.known[n - 1] ?? 0))
+          : (n === casting.fromLevel && casting.firstSpells ? casting.firstSpells : -1);
+        const owed = {
+          cantrips: Math.max(0, (casting.cantrips?.[n] ?? 0) - (casting.cantrips?.[n - 1] ?? 0)),
+          spells
+        };
+        context.spellInfo = {
+          type:        'known',
+          cantrips:    owed.cantrips,
+          spellsKnown: LevelUpDialog.#spellsOwed(this, selectedClass?.name ?? '', n, owed),
+          maxLevel:    casting.slotMax?.[n] || 1,
+          prepared:    null,
+          archetype:   casting.archetype
+        };
+        context.spellFreeform = !context.spellReplaceLimit;
+        this._spellInfo = context.spellInfo;
+        this._spellCasting = casting;
+        this.#addSpellBrowserContext(context, context.spellInfo);
       }
+    }
+
+    /* No section, nothing to pick: an archetype deselected, or switched for one
+       that casts nothing, must not leave its picks behind to be applied. */
+    if (!context.spellInfo) {
+      this._selectedCantripUuids = [];
+      this._selectedSpellUuids   = [];
+      this._spellsSource         = null;
     }
     context.selectedCantripCount = this._selectedCantripUuids.length;
     context.selectedSpellCount   = this._selectedSpellUuids.length;
@@ -521,8 +575,46 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     }
   }
 
+  /**
+   * The archetype spellcasting that applies to this level, or null: the
+   * character's own archetype for the class, or the one picked in this dialog,
+   * once the class level reaches the feature that brings it.
+   */
+  async #archetypeCasting(cls, newClassLevel) {
+    if (!cls?.id) return null;
+    const classItem = this.actor.items.get(cls.id);
+    let doc = classItem ? GrantAbsorber.archetypeOf(this.actor, classItem) : null;
+    if (!doc && this._archetypeUuid) {
+      try { doc = await fromUuid(this._archetypeUuid); } catch { doc = null; }
+    }
+    const casting = doc ? await SpellService.archetypeCasting(doc) : null;
+    return casting && newClassLevel >= casting.fromLevel ? casting : null;
+  }
+
   #addSpellBrowserContext(context, spellInfo) {
     if (!spellInfo) return;
+
+    /* What the list was loaded for. A class's list, or an archetype's rule -
+       and picking a different archetype in this dialog changes the rule, so the
+       spells loaded for the last one, and anything picked from them, go. */
+    const casterName = this._mode === 'multiclass'
+      ? ((this._compendiumClasses ?? []).find(c => c.uuid === this._newClassUuid)?.name ?? '')
+      : (LevelUpService.getActorClasses(this.actor)
+           .find(c => c.id === this._selectedClassId)?.name ?? '');
+    const casting = this._mode === 'multiclass' ? null : this._spellCasting;
+    const source = casting
+      ? `archetype:${casting.archetype}:${spellInfo.maxLevel ?? 1}`
+      : `class:${casterName}:${spellInfo.maxLevel ?? 1}`;
+    if (this._spellsSource !== source) {
+      if (this._spellsSource) {
+        this._selectedCantripUuids = [];
+        this._selectedSpellUuids   = [];
+      }
+      this._spellsSource  = source;
+      this._allSpellsData = null;
+      this._loadingSpells = false;
+    }
+
     context.spellsLoaded = !!this._allSpellsData;
     if (this._allSpellsData) {
       const result = LevelUpDialog.#filterSpells(this._allSpellsData, spellInfo, this._spellFilter, this._selectedCantripUuids, this._selectedSpellUuids);
@@ -535,14 +627,12 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       this._loadingSpells = true;
       // Restrict to the caster's own spell list — a null class shows every spell
       // in every compendium, which is what made "all schools" available.
-      const casterName = this._mode === 'multiclass'
-        ? ((this._compendiumClasses ?? []).find(c => c.uuid === this._newClassUuid)?.name ?? '')
-        : (LevelUpService.getActorClasses(this.actor)
-             .find(c => c.id === this._selectedClassId)?.name ?? '');
       // Expanded lists first: they decide which non-class spells the filter
       // below must let through, and the load applies the filter as it indexes.
       SpellService.collectExpandedLists(this.actor);
-      SpellService.loadSpells(casterName, spellInfo.maxLevel ?? 1).then(data => {
+      const filter = casting ? SpellService.archetypeSpellFilter(casting) : casterName;
+      SpellService.loadSpells(filter, spellInfo.maxLevel ?? 1).then(data => {
+        if (this._spellsSource !== source) return;   // loaded for a rule no longer shown
         this._allSpellsData = data;
         this._loadingSpells = false;
         this.render(false);
@@ -604,11 +694,15 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     }));
   }
 
-  /** Known spells offered for replacement — known casters only. */
-  #spellReplacementContext(context, cls, newClassLevel) {
+  /**
+   * Known spells offered for replacement — known casters only.
+   * @param {number} limit  swaps this level allows, by the class's rule or its archetype's
+   */
+  #spellReplacementContext(context, cls, newClassLevel, limit) {
+    this._spellReplaceLimit = 0;
     if (!cls || newClassLevel <= 1) return;
-    const limit = SpellService.replaceableOnLevelUp(cls.name);
     if (!limit) return;
+    this._spellReplaceLimit = limit;
 
     const known = SpellService.getActorSpells(this.actor).filter(s => s.level > 0);
     if (!known.length) return;
@@ -687,6 +781,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     this._bonusSpellPicks       = {};
     this._allManeuversData  = null;
     this._allSpellsData     = null;
+    this._spellsSource      = null;
     this._loadingManeuvers  = false;
     this._loadingSpells     = false;
     this._maneuverFilter    = { tradition: null };
@@ -1169,9 +1264,8 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         while (dialog._selectedSpellUuids.length > Math.max(0, cap - 1)) dialog._selectedSpellUuids.pop();
       }
     } else {
-      const cls = LevelUpService.getActorClasses(dialog.actor)
-        .find(c => c.id === dialog._selectedClassId);
-      const limit = SpellService.replaceableOnLevelUp(cls?.name ?? '');
+      // The number the section was drawn with - an archetype's swap as much as a class's
+      const limit = dialog._spellReplaceLimit ?? 0;
       if (list.length >= limit) {
         ui.notifications.warn(game.i18n.format('am.levelup.replace-limit', { n: limit }));
         return;

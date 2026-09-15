@@ -254,7 +254,7 @@ export class SpellService {
 
     const cell = (c) => c.replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, '')
       .replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
-    let cantrips = null, known = null;
+    let cantrips = null, known = null, slotMax = null;
     for (const table of html.match(/<table[\s\S]*?<\/table>/gi) ?? []) {
       const rows = table.match(/<tr[\s\S]*?<\/tr>/gi) ?? [];
       const head = [...(rows[0] ?? '').matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map(m => cell(m[1]));
@@ -262,20 +262,27 @@ export class SpellService {
       const iC = head.findIndex(h => /cantrips?\s*known/i.test(h));
       const iK = head.findIndex(h => /spells\s*known/i.test(h));
       if (iL === -1 || (iC === -1 && iK === -1)) continue;
-      const C = new Array(21).fill(0), K = new Array(21).fill(0);
+      /* The slot columns, "1st" to "9th", say the highest spell level each
+         class level can take - which an archetype's table is the only record
+         of, since its class has no caster type to work it out from. */
+      const slotCols = head.map((h, i) => [i, /^([1-9])(?:st|nd|rd|th)$/i.exec(h)?.[1]])
+        .filter(([, lv]) => lv).map(([i, lv]) => [i, Number(lv)]);
+      const C = new Array(21).fill(0), K = new Array(21).fill(0), S = new Array(21).fill(0);
       for (const row of rows.slice(1)) {
         const c = [...row.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map(m => cell(m[1]));
         const lvl = parseInt(c[iL], 10);
         if (!(lvl >= 1 && lvl <= 20)) continue;
         if (iC !== -1) C[lvl] = parseInt(c[iC], 10) || 0;
         if (iK !== -1) K[lvl] = parseInt(c[iK], 10) || 0;
+        for (const [i, lv] of slotCols) if ((parseInt(c[i], 10) || 0) > 0) S[lvl] = Math.max(S[lvl], lv);
       }
       if (iC !== -1) cantrips = C;
       if (iK !== -1) known = K;
+      if (slotCols.length) slotMax = S;
       break;
     }
     if (!cantrips && !known && !replaceable) return null;
-    return { cantrips, known, replaceable };
+    return { cantrips, known, replaceable, slotMax };
   }
 
   /**
@@ -312,10 +319,29 @@ export class SpellService {
       }
     }
 
+    /* A class that casts nothing has no Spellcasting feature of its own, so a
+       bare "Spellcasting" naming it belongs to one of its archetypes. a5e's
+       Arcane Sniper, Curseweaver, Forbidden Fist, Hedge Mage, Wrathburner and
+       Arcane Showoff are all written that way, and each was taken as its whole
+       class's table: every ranger had the Arcane Sniper's cantrip counts and
+       its spell swap, every fighter the Arcane Showoff's. Those tables are read
+       per archetype instead - see archetypeCasting. */
+    const nonCasters = new Set(), casters = new Set();
+    for (const pack of packs) {
+      let index;
+      try { index = await PackFilter.indexOf(pack, ['name', 'type', 'system'], { types: ['class'] }); } catch { continue; }
+      for (const entry of index) {
+        if (entry.type !== 'class') continue;
+        const type = entry.system?.spellcasting?.casterType;
+        if (type === undefined) continue;                  // not read: decide nothing
+        (type && type !== 'none' ? casters : nonCasters).add(this.tableKey(entry.name));
+      }
+    }
+
     this.featureTables = new Map();
     for (const [key, list] of byClass) {
       const named = list.find(x => x.named);
-      const bare  = list.filter(x => x.bare);
+      const bare  = (nonCasters.has(key) && !casters.has(key)) ? [] : list.filter(x => x.bare);
       const pick  = named ?? (bare.length === 1 ? bare[0] : null);
       if (pick) this.featureTables.set(key, pick.parsed);
     }
@@ -442,6 +468,168 @@ export class SpellService {
     if (spell) out.push({ level: Number(spell[2]) || 1, count: NUM[spell[1].toLowerCase()] ?? 1 });
 
     return out;
+  }
+
+  /* ── Archetype spellcasting ───────────────────────────────────────────── */
+
+  /** archetype uuid -> parsed casting, or null when it brings none */
+  static archetypeCastingCache = new Map();
+
+  /**
+   * The spellcasting an archetype brings to a class that has none of its own -
+   * a5e's "tertiary casters": the Dark Eye and Sacred Agent rogue, the
+   * Wildborn and Arcane Sniper ranger, the Ecclesiarch and Curseweaver
+   * marshal, and the rest.
+   *
+   * Nothing on the archetype item says how many spells it gives or from where.
+   * It is all in one of the features it grants, as a table and three sentences,
+   * and every one found follows the same shape: cantrips "of your choice" from a
+   * list or from schools, spells of 1st level and up the same way, the table's
+   * Cantrips Known and Spells Known columns for the counts and its slot columns
+   * for the highest level, and a sentence allowing one swap a level.
+   *
+   * @param {Item} archetypeDoc
+   * @returns {Promise<object|null>} { cantrips, known, slotMax, replaceable,
+   *          cantripRule, spellRule, fromLevel, feature, archetype }
+   */
+  static async archetypeCasting(archetypeDoc) {
+    if (!archetypeDoc) return null;
+    const key = archetypeDoc.uuid ?? archetypeDoc._id ?? archetypeDoc.name;
+    if (this.archetypeCastingCache.has(key)) return this.archetypeCastingCache.get(key);
+
+    let found = null;
+    // The source record: a plain object keyed by grant id, on a pack document and an owned one alike
+    const grants = archetypeDoc._source?.system?.grants ?? archetypeDoc.system?.grants ?? {};
+    const list = grants instanceof Map ? [...grants.values()] : Object.values(grants);
+    const ordered = list.filter(g => g?.grantType === 'feature')
+      .sort((a, b) => (Number(a.level) || 1) - (Number(b.level) || 1));
+    outer:
+    for (const grant of ordered) {
+      for (const entry of grant.features?.base ?? []) {
+        const uuid = entry?.uuid ?? entry;
+        if (typeof uuid !== 'string') continue;
+        let doc = null;
+        try { doc = await fromUuid(uuid); } catch { doc = null; }
+        const parsed = doc ? this.parseArchetypeCasting(doc) : null;
+        if (!parsed) continue;
+        found = { ...parsed, fromLevel: Number(grant.level) || 1, feature: doc.name, archetype: archetypeDoc.name };
+        break outer;
+      }
+    }
+    this.archetypeCastingCache.set(key, found);
+    return found;
+  }
+
+  /**
+   * Read one archetype spellcasting feature. Null unless it has a count to
+   * give and a rule saying where the spells come from - offering spells with no
+   * rule behind them would be inventing one.
+   */
+  static parseArchetypeCasting(doc) {
+    const table = this.parseSpellcastingFeature(doc);
+    if (!table?.cantrips && !table?.known) return null;
+
+    const html = String(doc?.system?.description?.value ?? doc?.system?.description ?? '');
+    /* Blocks end a sentence too. Without that a heading ran into the sentence
+       after it - "Table: Arcane Sniper Spellcasting ... You know one 1st-level
+       spell" - and "Arcane" was read as the arcane school. */
+    const text = html.replace(/<table[\s\S]*?<\/table>/gi, '\n')
+      .replace(/<\/(?:p|h[1-6]|li|div|tr)>|<br\s*\/?>/gi, '\n')
+      .replace(/<[^>]+>/g, ' ').replace(/&nbsp;|&rsquo;|&lsquo;|&ldquo;|&rdquo;/g, ' ')
+      .replace(/[ \t]+/g, ' ');
+    const sentences = text.split(/\n+|(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean);
+
+    const choice = /\bof your choice\b|\byour choice of\b/i;
+    const cantripSentence = sentences.find(s => /\bcantrips?\b/i.test(s) && choice.test(s));
+    const spellSentence = sentences.find(s => !/\bcantrips?\b/i.test(s) && choice.test(s)
+      && /\b(?:[1-9](?:st|nd|rd|th)|first)-level spells?\b|\bspells?\b/i.test(s));
+
+    const cantripRule = this.#spellRuleFrom(cantripSentence);
+    const spellRule = this.#spellRuleFrom(spellSentence);
+    if (!cantripRule && !spellRule) return null;
+
+    /* Where the table and its own text disagree, the text. Every one of these
+       says "You learn an additional cantrip at 10th level"; the Hedge Mage's
+       table still reads 2 there. */
+    let cantrips = table.cantrips;
+    const extra = /\badditional cantrip at (\d+)(?:st|nd|rd|th) level\b/i.exec(text);
+    if (cantrips && extra) {
+      const at = Number(extra[1]);
+      if (at >= 2 && at <= 20 && cantrips[at] <= cantrips[at - 1]) {
+        cantrips = cantrips.map((c, lv) => (lv >= at ? c + 1 : c));
+      }
+    }
+
+    /* A table with no Spells Known column - the Hedge Mage's - still has the
+       sentence giving the first ones. That number, and nothing invented after
+       it: `known` stays null, and the level-up leaves later counts open. */
+    const NUM = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6 };
+    const first = /\b(one|two|three|four|five|six)\s+(?:1st|first)-level spells?\b/i.exec(spellSentence ?? '');
+
+    return {
+      cantrips,
+      known: table.known,
+      firstSpells: first ? NUM[first[1].toLowerCase()] : null,
+      slotMax: table.slotMax,
+      replaceable: table.replaceable,
+      // A feature that states one rule means it for both
+      cantripRule: cantripRule ?? spellRule,
+      spellRule: spellRule ?? cantripRule
+    };
+  }
+
+  /**
+   * "from the wizard spell list", "from the warlock list or the unarmed school",
+   * "from the following schools: obscurement, scrying, senses, and shadow".
+   * Lists are matched against a5e's own list keys, schools against its own
+   * school keys, so a word that is neither is not mistaken for one.
+   */
+  static #spellRuleFrom(sentence) {
+    if (!sentence) return null;
+    const lists = new Set();
+    for (const m of sentence.matchAll(/\b([A-Za-z]+)\s+(?:spell\s+)?list\b/gi)) {
+      const k = this.classSpellListKey(m[1]);
+      if (k) lists.add(k);
+    }
+    const schools = new Set();
+    if (/\bschools?\b/i.test(sentence)) {
+      const known = [
+        ...Object.keys(CONFIG?.A5E?.spellSchools?.secondary ?? {}),
+        ...Object.keys(CONFIG?.A5E?.spellSchools?.primary ?? {})
+      ];
+      for (const s of known) {
+        if (new RegExp(`\\b${s.replace(/[^a-z]/gi, '')}\\b`, 'i').test(sentence)) schools.add(s.toLowerCase());
+      }
+    }
+    if (!lists.size && !schools.size) return null;
+    return { lists: [...lists], schools: [...schools] };
+  }
+
+  /**
+   * Whether a spell can be chosen under an archetype's rule: on one of its
+   * lists, or in one of its schools. A rare spell is never offered through a
+   * school - a5e's rare spells are found or granted, not chosen - which is the
+   * same line the class lists already draw.
+   */
+  static spellFitsRule(sys, rule, uuid = '') {
+    if (!rule) return false;
+    if (uuid && this.extraAllowed.has(uuid)) return true;
+    if (rule.lists.some(k => this.spellAllowsClass(sys, k, uuid))) return true;
+    if (!rule.schools.length || sys?.rare) return false;
+    const raw = sys?.schools?.secondary ?? [];
+    const mine = [
+      SpellService.normalizeSchool(sys?.schools?.primary ?? sys?.school ?? ''),
+      ...(Array.isArray(raw) ? raw : Object.keys(raw))
+    ].map(s => String(s ?? '').toLowerCase());
+    return rule.schools.some(s => mine.includes(s));
+  }
+
+  /** The loadSpells predicate for an archetype: its cantrip rule for cantrips, its spell rule above. */
+  static archetypeSpellFilter(casting) {
+    const fn = (sys, uuid) => this.spellFitsRule(sys,
+      Number(sys?.level ?? sys?.spellLevel ?? 0) === 0 ? casting.cantripRule : casting.spellRule, uuid);
+    fn.label = `${casting.archetype} (${casting.feature})`;
+    return fn;
   }
 
   static replaceableOnLevelUp(className) {
@@ -701,6 +889,11 @@ export class SpellService {
     return hit.length === 1 ? hit[0] : key;   // ambiguous prefixes stay as they are
   }
 
+  /**
+   * @param {string|Function|null} filterClass  a class name to filter to its
+   *        list; or a predicate (system, uuid) => boolean for a list that is
+   *        not a class's - an archetype's, which may be a school; or null
+   */
   static async loadSpells(filterClass = null, maxLevel = 9) {
     const byLevel = new Map();
     for (let i = 0; i <= 9; i++) byLevel.set(i, []);
@@ -712,7 +905,10 @@ export class SpellService {
 
     const packs = PackFilter.itemPacks();
     report.packs = packs.length;
-    report.filteredBy = filterClass || '';
+    report.filteredBy = typeof filterClass === 'function' ? (filterClass.label ?? 'a custom list') : (filterClass || '');
+    const allows = typeof filterClass === 'function'
+      ? filterClass
+      : (sys, uuid) => this.spellAllowsClass(sys, filterClass, uuid);
 
     for (const pack of packs) {
       try {
@@ -732,7 +928,7 @@ export class SpellService {
           // an expanded list is admitted even though it is not a class spell —
           // which is exactly what an expanded list is for.
           const uuid = entry.uuid ?? `Compendium.${pack.collection}.Item.${entry._id}`;
-          if (filterClass && !this.spellAllowsClass(entry.system, filterClass, uuid)) continue;
+          if (filterClass && !allows(entry.system, uuid)) continue;
 
           const school = SpellService.normalizeSchool(
             entry.system?.schools?.primary ?? entry.system?.school ?? '');

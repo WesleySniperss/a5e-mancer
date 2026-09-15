@@ -325,6 +325,7 @@
   "am.levelup.mc-prof-kind-savingThrow-other": "saving throws",
   "am.levelup.spells-title": "Starting Spells",
   "am.levelup.spells-hint": "Your new class grants you starting spells. Choose them now.",
+  "am.levelup.archetype-spells": "These spells come from your archetype, {archetype}: its own table sets the counts, and the list shows only what its rules let you choose.",
   "am.levelup.spells-open-picker": "Choose Spells…",
   "am.levelup.spells-change-selection": "Change Spell Selection",
   "am.levelup.spells-selected": "{n} spell(s) selected",

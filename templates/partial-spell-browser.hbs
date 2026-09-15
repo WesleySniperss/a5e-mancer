@@ -5,6 +5,12 @@
   <section class="lu-section">
     <h3><i class="fa-solid fa-sparkles"></i> {{localize 'am.levelup.spells-title'}}</h3>
     <p class="am-hint">{{localize 'am.levelup.spells-hint'}}</p>
+    {{!-- A class that casts nothing, given spells by its archetype: say where
+          the numbers and the list come from, since it is not the class. --}}
+    {{#if spellInfo.archetype}}
+      <p class="am-hint"><i class="fa-solid fa-hat-wizard"></i>
+        {{localize 'am.levelup.archetype-spells' archetype=spellInfo.archetype}}</p>
+    {{/if}}
 
     {{!-- A count of -1 means "open-ended": the level-up cannot know how many are
           owed, because a5e ships no spells-known-per-level table. Showing a
