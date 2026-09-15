@@ -35,6 +35,18 @@ import { AM } from '../am.js';
  * (an update, scrolling up into older messages, a popped-out log) the card is
  * refused. See _adoptPreview for how the bridge decides instead.
  *
+ * ── 4. Styled messages going bare mid-session  (either setting) ───────────
+ *
+ * Reported twice after 2 and 3 were fixed: the style is saved, and messages
+ * still lose it some time later. Every path that re-renders a message was
+ * traced - Foundry's re-render, the log's batches, notifications, a5e's
+ * Svelte mount, Your Flavor's preview, save and revert, both 5.0.1 and 5.0.2 -
+ * and each one passes through the render hook and comes out styled. So the
+ * cause is not in any of them, and nothing to be read off the code says what
+ * it is. _watchStyleLoss watches instead: a message that arrives in a chat list
+ * unstyled, or loses the classes or custom properties it was given, is styled
+ * again, and what happened is kept for yfDiag() to show.
+ *
  * ── Why the bridge lives here ─────────────────────────────────────────────
  *
  * Both are fixable inside Your Flavor, but Your Flavor is a module we do not
@@ -76,6 +88,14 @@ export class YourFlavorService {
   static _renderHook = null;
   /** Re-sweep on log re-render; see _watchChatLog. */
   static _logHook = null;
+  /** Chat lists being watched for style loss; see _watchStyleLoss. */
+  static _lossObservers = new Map();
+  /** Messages waiting for the next frame's look, with why they were queued. */
+  static _lossQueue = new Map();
+  static _lossFrame = null;
+  /** What the watcher saw, newest last. */
+  static _lossEvents = [];
+  static LOSS_EVENT_LIMIT = 50;
   /** How the one-shot sweep ended, so diagnose() can say so. */
   static _sweepState = 'not started';
   /** Your Flavor's style pipeline; required by both features. */
@@ -157,6 +177,7 @@ export class YourFlavorService {
 
     this._sweepWhenReady();
     this._watchChatLog();
+    this._observeChatLists();
     AM.log(3, 'Your Flavor bridge installed');
   }
 
@@ -169,6 +190,11 @@ export class YourFlavorService {
       Hooks.off('renderChatLog', this._logHook);
       this._logHook = null;
     }
+    for (const observer of this._lossObservers.values()) observer.disconnect();
+    this._lossObservers.clear();
+    this._lossQueue.clear();
+    if (this._lossFrame !== null) cancelAnimationFrame(this._lossFrame);
+    this._lossFrame = null;
   }
 
   /**
@@ -263,8 +289,145 @@ export class YourFlavorService {
       requestAnimationFrame(() => {
         try { this._sweepChatLog(); }
         catch (err) { AM.log(2, 'Your Flavor bridge: re-sweep failed', err); }
+        this._observeChatLists();
       });
     });
+  }
+
+  /* ============================================================
+     Style loss
+     ============================================================ */
+
+  /**
+   * Watch every chat list - the log, the notification stack, a popped-out log -
+   * for a message that is bare when it should not be. See header section 4.
+   *
+   * Called at install and after each log render, since that is when a list can
+   * appear (the notification stack and a popout are built by the log's render).
+   * Lists that have left the document are let go.
+   *
+   * Three things are watched for, each on the message <li> itself:
+   *   - inserted:     a message put in a list with no yf-processed on it. Your
+   *                   Flavor's hook, and ours for a5e, run before insertion, so
+   *                   a bare arrival is one they refused or never saw.
+   *   - lost-class:   yf-processed taken away, by anything.
+   *   - lost-vars:    still marked, but its --yf-* custom properties gone, which
+   *                   leaves a card with Your Flavor's classes and no colours.
+   * Plus preview-ended: Your Flavor's live preview finishing on a message it had
+   * left bare (a5e cards, on a build without a5e support).
+   *
+   * A message inside a live preview is never touched - the draft being shown is
+   * not a config this bridge can see. Everything else goes through the same
+   * gates as the render hook and the sweep, so a message Your Flavor's settings
+   * say to leave alone is left alone here too, and the reason is recorded.
+   */
+  static _observeChatLists() {
+    if (typeof MutationObserver !== 'function') return;
+    for (const [list, observer] of this._lossObservers) {
+      if (!list.isConnected) { observer.disconnect(); this._lossObservers.delete(list); }
+    }
+    for (const list of document.querySelectorAll('.chat-log')) {
+      if (this._lossObservers.has(list)) continue;
+      const observer = new MutationObserver(records => this._onChatMutations(list, records));
+      observer.observe(list, {
+        childList: true, subtree: true,
+        attributes: true, attributeFilter: ['class', 'style'], attributeOldValue: true
+      });
+      this._lossObservers.set(list, observer);
+    }
+  }
+
+  static _onChatMutations(list, records) {
+    for (const record of records) {
+      if (record.type === 'childList') {
+        for (const node of record.addedNodes) {
+          if (node.nodeType === 1 && node.parentElement === list && node.classList.contains('chat-message')) {
+            this._queueLoss(node, 'inserted');
+          }
+        }
+        continue;
+      }
+
+      /* Attribute changes: only on a message <li>, not the Svelte-owned
+         interior of an a5e card, which rewrites its own classes constantly. */
+      const el = record.target;
+      const old = record.oldValue ?? '';
+      if (el.parentElement !== list) continue;
+      if (!el.classList?.contains('chat-message')
+        && !(record.attributeName === 'class' && /(^|\s)chat-message(\s|$)/.test(old))) continue;
+
+      if (record.attributeName === 'class') {
+        const had = /(^|\s)yf-processed(\s|$)/.test(old);
+        const wasPreview = /(^|\s)yf-live-preview(\s|$)/.test(old);
+        if (had && !el.classList.contains('yf-processed')) this._queueLoss(el, 'lost-class', old);
+        else if (wasPreview && !el.classList.contains('yf-live-preview') && !el.classList.contains('yf-processed')) {
+          this._queueLoss(el, 'preview-ended');
+        }
+      } else if (old.includes('--yf-') && el.classList.contains('yf-processed') && !this._hasYfVars(el)) {
+        this._queueLoss(el, 'lost-vars', old.length > 120 ? `${old.slice(0, 120)}…` : old);
+      }
+    }
+  }
+
+  static _hasYfVars(el) {
+    for (let i = 0; i < el.style.length; i++) {
+      if (el.style[i].startsWith('--yf-')) return true;
+    }
+    return false;
+  }
+
+  /* Looked at a frame later, not now: an insertion can be followed in the
+     same task by whatever styles it, and a class rewrite by whatever puts the
+     classes back. Only what is still wrong once all of that has run counts. */
+  static _queueLoss(el, cause, detail = '') {
+    if (!this._lossQueue.has(el)) this._lossQueue.set(el, { cause, detail });
+    if (this._lossFrame !== null) return;
+    this._lossFrame = requestAnimationFrame(() => {
+      this._lossFrame = null;
+      const queued = [...this._lossQueue];
+      this._lossQueue.clear();
+      for (const [element, why] of queued) {
+        try { this._healLoss(element, why); }
+        catch (err) { AM.log(2, 'Your Flavor bridge: restyling a bare message failed', err); }
+      }
+    });
+  }
+
+  static _healLoss(el, { cause, detail }) {
+    if (!el.isConnected || el.classList.contains('yf-live-preview')) return;
+
+    // Styled, with its properties: either it always was, or something put it back meanwhile.
+    const bareVars = el.classList.contains('yf-processed') && !this._hasYfVars(el);
+    if (el.classList.contains('yf-processed') && !bareVars) return;
+
+    const message = game.messages?.get(el.dataset?.messageId);
+    if (!message) return;
+    const isA5e = this._isA5eCard(message, el);
+    const allowed = isA5e ? (this.enabled && game.system?.id === 'a5e') : this.restyleEnabled;
+
+    let verdict = 'bridge setting off for this kind of message';
+    if (allowed) {
+      if (bareVars) el.classList.remove('yf-processed');
+      verdict = this._styleVerdict(message, el);
+    }
+
+    /* A message Your Flavor was told to leave bare arrives bare every time it
+       renders. That is not news, so it is not recorded - only losses, and
+       arrivals that this pass did style. */
+    if (cause === 'inserted' && verdict !== 'styled') return;
+
+    this._lossEvents.push({
+      time: new Date().toLocaleTimeString(),
+      message: el.dataset.messageId,
+      kind: isA5e ? `a5e ${message.type}` : String(message.type ?? 'base'),
+      where: el.closest('#chat-notifications') ? 'notifications'
+        : el.closest('.chat-popout, #chat-popout') ? 'popout' : 'log',
+      cause,
+      result: verdict,
+      detail
+    });
+    if (this._lossEvents.length > this.LOSS_EVENT_LIMIT) this._lossEvents.shift();
+    if (verdict === 'styled') AM.log(3, `Your Flavor bridge: message ${el.dataset.messageId} had gone bare (${cause}), styled again`);
   }
 
   /**
@@ -309,11 +472,21 @@ export class YourFlavorService {
    * @returns {boolean} whether the message was styled.
    */
   static _styleMessage(message, element) {
-    if (!this.available || !element?.classList) return false;
+    return this._styleVerdict(message, element) === 'styled';
+  }
+
+  /**
+   * Style one message, saying why not when it does not - the style-loss record
+   * keeps that, so a message left bare can be told apart from one lost.
+   * @returns {string} 'styled', or the step that declined
+   */
+  static _styleVerdict(message, element) {
+    if (!this.available) return 'Your Flavor API not up';
+    if (!element?.classList) return 'no element';
 
     /* Your Flavor already handled it - either a build with native a5e support,
      * or its hook simply ran first. Re-applying would fight what it decided. */
-    if (element.classList.contains('yf-processed')) return false;
+    if (element.classList.contains('yf-processed')) return 'already styled';
 
     /* Test cards reach this only after Your Flavor has passed on them - from
      * _adoptPreview or the sweep - so a live draft is never painted over. On
@@ -322,17 +495,18 @@ export class YourFlavorService {
      * out of here. */
 
     const styles = this._styles;
-    if (!styles) return false;
+    if (!styles) return this._importFailed ? 'Your Flavor modules failed to load' : 'Your Flavor modules not loaded yet';
 
     const classification = this._classify(message, element);
-    if (!classification) return false;
-    if (!this._shouldStyle(message, classification)) return false;
+    if (!classification) return 'not classified';
+    if (!this._shouldStyle(message, classification)) return `Your Flavor policy declines (${classification.type})`;
 
     const config = this._effectiveConfig(message);
-    if (!config?.enabled || config.layout === 'none') return false;
+    if (!config) return 'no config for the author';
+    if (!config.enabled || config.layout === 'none') return 'author has styling off';
 
     const layout = game.modules.get(this.YF_ID)?.api?.getLayouts?.()?.[config.layout];
-    if (!layout) return false;
+    if (!layout) return `layout "${config.layout}" not found`;
 
     element.classList.add('yf-card', `yf-card-${config.layout}`, `yf-message-${classification.type}`);
     element.dataset.yfMessageType = classification.type;
@@ -346,7 +520,7 @@ export class YourFlavorService {
 
     this._resolveAvatar(message, element);
     element.classList.add('yf-processed');
-    return true;
+    return 'styled';
   }
 
   /**
@@ -625,6 +799,9 @@ export class YourFlavorService {
       'bridge: hook attached': this._renderHook !== null,
       'bridge: log watcher': this._logHook !== null,
       'bridge: initial sweep': this._sweepState,
+      'bridge: chat lists watched': [...this._lossObservers.keys()].filter(l => l.isConnected).length,
+      'bridge: bare messages restyled': this._lossEvents.filter(e => e.result === 'styled').length,
+      'bridge: bare messages left bare': this._lossEvents.filter(e => e.result !== 'styled').length,
       'bridge: YF modules loaded': Boolean(this._styles && this._classifier),
       'bridge: import failed': this._importFailed,
 
@@ -656,6 +833,32 @@ export class YourFlavorService {
     };
 
     console.table(report);
+    /* The watcher's record: every message that went bare, how, and what came of
+       it. This is the part worth sending when the style has gone. */
+    if (this._lossEvents.length) {
+      console.log(`Your Flavor bridge: ${this._lossEvents.length} message(s) went bare this session:`);
+      console.table(this._lossEvents);
+    }
+    /* A message can also look unstyled with every marker in place, if a
+       stylesheet outranks the card's. Say which, for the marked ones. */
+    const looks = [...rows].filter(el => el.classList.contains('yf-processed')).slice(-5).map(el => {
+      const cs = getComputedStyle(el);
+      return {
+        message: el.dataset?.messageId,
+        'yf vars inline': this._hasYfVars(el),
+        '--yf-bg-color': el.style.getPropertyValue('--yf-bg-color') || '(none)',
+        background: cs.backgroundColor,
+        border: cs.borderTopColor,
+        color: cs.color,
+        'body overlay class': document.body.classList.contains('yf-foundry-customized')
+      };
+    });
+    if (looks.length) {
+      console.log('Your Flavor bridge: how the last styled messages actually render:');
+      console.table(looks);
+    }
+    report['bare-message events'] = this._lossEvents;
+    report['last styled messages'] = looks;
     if (unstyled.length) {
       console.warn(`${unstyled.length} message(s) carry no yf-processed marker:`,
         unstyled.slice(0, 10).map(el => el.dataset?.messageId));
