@@ -214,6 +214,7 @@ export class DOMManager {
     this.updateTabIndicators(form);
     this.updateReviewTab(form);
     this.updateProgressBar(form);
+    this.updateAbilityIncreases(form);
   }
 
   static cleanup() {
@@ -611,6 +612,7 @@ export class DOMManager {
       const tree = await GrantAbsorber.describeTree(doc, lv, { choices: store.choices ?? {} });
       store.grants   = tree.grants;
       store.features = tree.features;
+      store.fixedAbilities = tree.fixedAbilities ?? [];
 
       // A choice that no longer has a row — its parent option was deselected —
       // must not stay in the answers, or it would be applied for a gift the
@@ -649,6 +651,7 @@ export class DOMManager {
         uuid,                      // kept so the tree can be rebuilt on a change
         grants:   tree.grants,
         features: tree.features,
+        fixedAbilities: tree.fixedAbilities ?? [],
         choices:  {}
       };
       if (type === 'class') {
@@ -742,10 +745,47 @@ export class DOMManager {
       const m = el.name.match(/abilities\[(\w+)\]/);
       if (m) scores[m[1]] = el.value || AM.ABILITY_SCORES.DEFAULT;
     });
+    /* The score the character will have, not the one typed: background and
+       feat increases on top, with the increase shown beside it. The summary
+       used to print the raw input, so a +1 Wisdom background read as if it
+       gave nothing. */
+    const increases = this.#abilityIncreases();
     const labels = { str:'STR', dex:'DEX', con:'CON', int:'INT', wis:'WIS', cha:'CHA' };
-    grid.innerHTML = Object.entries(labels).map(([key, abbr]) =>
-      `<div class="ability-review-item"><span class="abbr">${abbr}</span><span class="score">${scores[key] ?? AM.ABILITY_SCORES.DEFAULT}</span></div>`
-    ).join('');
+    grid.innerHTML = Object.entries(labels).map(([key, abbr]) => {
+      const raw = scores[key] ?? AM.ABILITY_SCORES.DEFAULT;
+      const inc = increases[key];
+      const n = parseInt(raw, 10);
+      const shown = inc && Number.isFinite(n) ? n + inc.bonus : raw;
+      const note = inc
+        ? ` <small class="am-ability-increase-note" data-tooltip="${foundry.utils.escapeHTML(inc.sources.join('; '))}">(+${inc.bonus})</small>`
+        : '';
+      return `<div class="ability-review-item"><span class="abbr">${abbr}</span><span class="score">${shown}${note}</span></div>`;
+    }).join('');
+  }
+
+  /** The builder's own reckoning of the increases its chosen items give; see A5eMancer.originAbilityIncreases. */
+  static #abilityIncreases() {
+    try { return AM.app?.constructor?.originAbilityIncreases?.() ?? {}; }
+    catch (err) { AM.log(2, 'Ability increases could not be read:', err); return {}; }
+  }
+
+  /**
+   * "+1" under each ability the chosen background, feats and features raise,
+   * with where it comes from on hover. Written into the tab in place: re-rendering
+   * the abilities part would throw away the scores picked in its dropdowns, which
+   * carry no selected state of their own.
+   */
+  static updateAbilityIncreases(form) {
+    if (!form) return;
+    const increases = this.#abilityIncreases();
+    for (const el of form.querySelectorAll('.am-ability-increase[data-ability]')) {
+      const inc = increases[el.dataset.ability];
+      el.hidden = !inc;
+      el.textContent = inc ? `+${inc.bonus}` : '';
+      if (inc) el.dataset.tooltip = inc.sources.join('; ');
+      else delete el.dataset.tooltip;
+    }
+    this.updateAbilitiesSummary(form);
   }
 
   static updateTabIndicators(form) {

@@ -1199,17 +1199,33 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     const base = parseInt(input?.value, 10);
     if (!Number.isFinite(base)) return null;
 
-    let score = base;
+    return base + (A5eMancer.originAbilityIncreases()[ability]?.bonus ?? 0);
+  }
+
+  /**
+   * The ability increases the chosen origins, class and archetype will give,
+   * per ability, with where each comes from - the same numbers creation will
+   * write through a5e's grants, read off the same trees.
+   *
+   * Only for items whose grants the builder asks for itself. One a5e still
+   * handles asks in its own window at creation, and its picks cannot be known
+   * here.
+   *
+   * @returns {Object<string, {bonus: number, sources: string[]}>}
+   */
+  static originAbilityIncreases() {
+    const total = {};
     for (const store of Object.values(AM.itemGrants ?? {})) {
       if (!store?.absorb) continue;
-      for (const g of store.grants ?? []) {
-        if (g.type !== 'ability') continue;
-        const bonus = parseInt(g.grant?.bonus ?? 1, 10) || 1;
-        const keys = [...(g.base ?? []), ...(store.choices?.[g.id] ?? [])];
-        score += keys.filter(k => k === ability).length * bonus;
+      const each = GrantAbsorber.abilityIncreases(
+        [...(store.grants ?? []), ...(store.fixedAbilities ?? [])], store.choices ?? {});
+      for (const [key, v] of Object.entries(each)) {
+        total[key] ??= { bonus: 0, sources: [] };
+        total[key].bonus += v.bonus;
+        total[key].sources.push(...v.sources);
       }
     }
-    return score;
+    return total;
   }
 
   static #bonusCache = { key: '', choices: [] };

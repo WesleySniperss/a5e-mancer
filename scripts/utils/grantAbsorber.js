@@ -43,7 +43,16 @@ export class GrantAbsorber {
 
       const spec    = this.#specOf(grant);
       if (!spec) continue;
-      const options = spec.options.map(key => ({ key, label: this.#labelFor(grant, key) }));
+      /* An ability increase's choice is "one OTHER ability score" - the wording
+         of every a5e background that states it. 22 of the 72 background grants
+         still list their fixed ability among the options, and picking it gained
+         nothing: base and pick are one set, so +1 Charisma and +1 Charisma came
+         out as a single +1, and the point was gone. a5e's own window shows the
+         fixed one as already taken; so does this. */
+      const offered = grant.grantType === 'ability'
+        ? spec.options.filter(key => !spec.base.includes(key))
+        : spec.options;
+      const options = offered.map(key => ({ key, label: this.#labelFor(grant, key) }));
       if (!options.length) continue;   // nothing to choose — a5e applies the base set
 
       out.push({
@@ -60,6 +69,56 @@ export class GrantAbsorber {
         baseLabels: spec.base.map(key => this.#labelFor(grant, key)),
         options
       });
+    }
+    return out;
+  }
+
+  /**
+   * Ability increases with nothing to choose - "+1 Constitution" on a feat.
+   *
+   * describe() leaves them out because there is no question to ask, and a5e
+   * applies them as they are. But the builder has to know them to show the
+   * scores the character will actually have: 29 feats and five class features
+   * give their increase this way.
+   */
+  static describeFixedAbilities(doc, lv = {}) {
+    const out = [];
+    for (const [id, grant] of this.#preparedGrants(doc)) {
+      if (grant?.grantType !== 'ability') continue;
+      if (!this.#isSupported(grant, lv, doc?.type) || this.#needsConfig(grant)) continue;
+      const base = this.#specOf(grant)?.base ?? [];
+      if (!base.length) continue;
+      out.push({ id, grant, type: 'ability', label: grant.label || this.#defaultLabel(grant), base });
+    }
+    return out;
+  }
+
+  /**
+   * What the ability increases in a described tree come to, per ability.
+   *
+   * Only increases to the score itself count - a5e's `base` context; one that
+   * adds to checks or saves changes no score. And only a plain number: a
+   * formula like "@con.mod" has no value until there is a character.
+   *
+   * @param {object[]} models   grant models (describe) and fixed ones (describeFixedAbilities)
+   * @param {object} choices    picks by model id
+   * @returns {Object<string, {bonus: number, sources: string[]}>}
+   */
+  static abilityIncreases(models, choices = {}) {
+    const out = {};
+    for (const m of models ?? []) {
+      // Every one counts: at creation all of a tree is applied, whatever level it names
+      if (m?.type !== 'ability') continue;
+      const types = m.grant?.context?.types;
+      if (Array.isArray(types) && types.length && !types.includes('base')) continue;
+      const bonus = Number(String(m.grant?.bonus ?? '').trim());
+      if (!Number.isInteger(bonus) || bonus === 0) continue;
+      const picked = (choices?.[m.id] ?? []).filter(k => !(m.base ?? []).includes(k));
+      for (const key of new Set([...(m.base ?? []), ...picked])) {
+        out[key] ??= { bonus: 0, sources: [] };
+        out[key].bonus += bonus;
+        out[key].sources.push(m.source ? `${m.source}: ${m.label}` : m.label);
+      }
     }
     return out;
   }
@@ -338,7 +397,7 @@ export class GrantAbsorber {
               ? opts : { choices: opts ?? {} };
     const { depth = 0, prefix = '', seen = new Set(), choices = {}, fresh = false } = bag;
 
-    const out = { grants: [], features: [] };
+    const out = { grants: [], features: [], fixedAbilities: [] };
     if (!doc || depth > this.#MAX_DEPTH) return out;
 
     /* Whether a grant fires at this level, which is what a level-up has to ask.
@@ -351,6 +410,7 @@ export class GrantAbsorber {
     const firesNow = (g) => fresh || this.#isExactlyAtLevel(g.grant, lv);
     const tag = (g) => ({ ...g, id: `${prefix}${g.id}`, source: doc.name ?? '', firesNow: firesNow(g) });
     out.grants.push(...this.describe(doc, lv).map(tag));
+    out.fixedAbilities.push(...this.describeFixedAbilities(doc, lv).map(tag));
 
     const features = (await this.describeFeatures(doc, lv)).map(tag);
     out.features.push(...features);
@@ -386,6 +446,7 @@ export class GrantAbsorber {
           });
           out.grants.push(...nested.grants);
           out.features.push(...nested.features);
+          out.fixedAbilities.push(...nested.fixedAbilities);
         } catch (err) {
           AM.log(2, `Could not read nested grants of ${uuid}:`, err);
         }
@@ -500,7 +561,11 @@ export class GrantAbsorber {
       const spec = this.#specOf(grant) ?? { base: [], options: [], total: 0 };
 
       // Chosen keys, capped at what the grant allows; base is always included.
-      const picked = (choices[id] ?? []).filter(k => spec.options.includes(k)).slice(0, spec.total);
+      // An ability pick of the fixed ability is not a pick - see describe().
+      const picked = (choices[id] ?? [])
+        .filter(k => spec.options.includes(k))
+        .filter(k => grant.grantType !== 'ability' || !spec.base.includes(k))
+        .slice(0, spec.total);
       const selected = [...new Set([...spec.base, ...picked])];
 
       try {

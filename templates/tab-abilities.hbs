@@ -61,6 +61,10 @@
             </div>
             <input type="hidden" id="ability-{{@index}}-input"
               name="abilities[{{this.key}}]" value="{{this.currentScore}}" data-dtype="Number" />
+            {{!-- What the chosen background, feats and features add. Filled in from the
+                  picks by DOMManager.updateAbilityIncreases, not by re-rendering this tab,
+                  which would drop the scores already assigned in the dropdowns. --}}
+            <small class="am-ability-increase" data-ability="{{this.key}}" hidden></small>
           </div>
         {{/each}}
       </div>
@@ -84,6 +88,10 @@
               {{/each}}
             </select>
             <small class="ability-full-label">{{this.label}}</small>
+            {{!-- What the chosen background, feats and features add. Filled in from the
+                  picks by DOMManager.updateAbilityIncreases, not by re-rendering this tab,
+                  which would drop the scores already assigned in the dropdowns. --}}
+            <small class="am-ability-increase" data-ability="{{this.key}}" hidden></small>
           </div>
         {{/each}}
       </div>
@@ -130,6 +138,10 @@
                 {{/each}}
               </select>
               <small class="ability-full-label">{{this.label}}</small>
+              {{!-- What the chosen background, feats and features add. Filled in from the
+                    picks by DOMManager.updateAbilityIncreases, not by re-rendering this tab,
+                    which would drop the scores already assigned in the dropdowns. --}}
+              <small class="am-ability-increase" data-ability="{{this.key}}" hidden></small>
             </div>
           {{/each}}
         </div>
@@ -150,6 +162,10 @@
                 <i class="fa-solid fa-dice"></i>
               </button>
               <small class="ability-full-label">{{this.label}}</small>
+              {{!-- What the chosen background, feats and features add. Filled in from the
+                    picks by DOMManager.updateAbilityIncreases, not by re-rendering this tab,
+                    which would drop the scores already assigned in the dropdowns. --}}
+              <small class="am-ability-increase" data-ability="{{this.key}}" hidden></small>
             </div>
           {{/each}}
         </div>
