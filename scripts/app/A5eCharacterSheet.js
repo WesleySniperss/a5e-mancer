@@ -1925,6 +1925,10 @@ export class A5eCharacterSheet extends ActorSheet {
           preparable:    true,
           prepared:      state > 0,
           preparedState: state,
+          /* For the row's colour, as a5e's ItemList.svelte gives it: prepared
+             a5e-item--highlight, always prepared a5e-item--purple-highlight. */
+          preparedOnly:   state === 1,
+          alwaysPrepared: state === 2,
           preparedIcon:  state === 2 ? 'fa-book-sparkles' : 'fa-book',
           preparedLabel: key ? game.i18n.localize(key)
                              : (['Unprepared', 'Prepared', 'Always prepared'][state] ?? 'Unprepared')

@@ -339,6 +339,15 @@ acted on:
 Timing is the least trustworthy thing in this directory. Prefer a number that
 cannot drift.
 
+## `spellrowlook.mjs`
+
+A spell row in the browser: the C and R marks must be circles, and a prepared
+or always-prepared spell must carry a5e's own green or purple. Those colours are
+read back from a5e's custom properties as its stylesheet resolves them on the
+sheet, not copied into the check. Against the released code the marks measured
+20 x 28 — Tidy's state-indicator box, drawn round — and no prepared row had any
+colour at all.
+
 ## `spellbooks.mjs`
 
 The Magic tab's spell books against a5e's Spells page: the strip drawn when

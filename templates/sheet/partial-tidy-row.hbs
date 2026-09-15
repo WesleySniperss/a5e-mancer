@@ -28,7 +28,7 @@
 <div class="tidy-table-row-container" data-item-id="{{id}}"
   data-document-uuid="{{uuid}}"{{#if activation}} data-activation="{{activation}}"{{/if}}>
   <div
-    class="tidy-table-row tidy-table-row-v2{{#if equipped}} equipped{{/if}}{{#if attuneProblem}} attunement-problem{{/if}}"
+    class="tidy-table-row tidy-table-row-v2{{#if equipped}} equipped{{/if}}{{#if attuneProblem}} attunement-problem{{/if}}{{#if alwaysPrepared}} am-always-prepared{{else if preparedOnly}} am-prepared{{/if}}"
     data-tidy-table-row data-tidy-draggable data-tidy-item-type="{{type}}">
 
     <div class="highlight"></div>
