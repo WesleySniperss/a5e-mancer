@@ -103,6 +103,10 @@ export class YourFlavorService {
   /** Your Flavor's classifier + surface renderer; required by the log sweep. */
   static _classifier = null;
   static _importFailed = false;
+  /** Where the modules were imported from, and how long they took; for diagnose(). */
+  static _modulesFrom = null;
+  static _modulesLoadedIn = null;
+  static _styledOnModuleLoad = null;
 
   /* ============================================================
      Settings
@@ -217,8 +221,20 @@ export class YourFlavorService {
      *
      * game.messages.size guards the legitimate empty case, so a world with no
      * chat history stops immediately instead of waiting out the budget. */
+    /* And a third: Your Flavor's own modules, which _styleMessage cannot work
+     * without. They arrive by a dynamic import, and this used not to wait for
+     * it - on a host slow enough for the import to lose the race, the sweep
+     * found no style pipeline, styled nothing, reported "styled 0" and never
+     * came back. Every a5e card already in the log then stayed in a5e's own
+     * look until something happened to re-render it - a token selected, with
+     * Polyglot on. That fits "sometimes back to the standard style, on the
+     * cloud host only" (2026-09-15) better than anything else found: locally
+     * the patched Your Flavor styles a5e itself and the bridge is never needed,
+     * and a local import resolves before any sweep could run.
+     * A failed import ends the wait too; there is nothing more to wait for. */
     const logPainted = document.querySelector('.chat-message') !== null;
-    if (this.available && (logPainted || !game.messages?.size)) {
+    const modulesSettled = Boolean(this._styles) || this._importFailed;
+    if (this.available && modulesSettled && (logPainted || !game.messages?.size)) {
       try {
         const styled = this._sweepChatLog();
         this._sweepState = `swept on attempt ${attempt}, styled ${styled}`;
@@ -232,13 +248,14 @@ export class YourFlavorService {
     /* 10s, not the 2s this had. The budget has to cover a remote host painting
      * a long backlog, and the cost of waiting is nothing - we are idle. */
     if (attempt >= 100) {
-      this._sweepState = `gave up after 10s (API up: ${this.available}, log painted: ${logPainted})`;
+      /* Not the end of it when the modules are what is late: their arrival
+         sweeps by itself - see _loadYourFlavorModules. */
+      this._sweepState = `gave up after 10s (API up: ${this.available}, modules: ${modulesSettled}, log painted: ${logPainted})`;
       AM.log(2, 'Your Flavor bridge: gave up waiting - '
-        + `API up: ${this.available}, chat log painted: ${logPainted}. `
-        + 'Existing messages left unstyled.');
+        + `API up: ${this.available}, modules loaded: ${modulesSettled}, chat log painted: ${logPainted}.`);
       return;
     }
-    this._sweepState = `waiting (attempt ${attempt}, API up: ${this.available}, log painted: ${logPainted})`;
+    this._sweepState = `waiting (attempt ${attempt}, API up: ${this.available}, modules: ${modulesSettled}, log painted: ${logPainted})`;
     setTimeout(() => this._sweepWhenReady(attempt + 1), 100);
   }
 
@@ -735,12 +752,9 @@ export class YourFlavorService {
   static _loadYourFlavorModules() {
     if (this._importFailed || (this._styles && this._classifier)) return;
 
-    /* getRoute applies Foundry's route prefix. A bare "/modules/..." is correct
-     * on a default install and wrong on every server hosted under a subpath -
-     * The Forge, or any world started with routePrefix - where it would 404 and
-     * silently disable the bridge. */
-    const route = (file) => foundry.utils?.getRoute?.(`/modules/${this.YF_ID}/scripts/${file}`)
-      ?? `/modules/${this.YF_ID}/scripts/${file}`;
+    const route = (file) => this._yfScriptUrl(file);
+    const started = performance.now();
+    this._modulesFrom = route('style-utils.js');
 
     Promise.all([
       import(route('style-utils.js')),
@@ -756,10 +770,48 @@ export class YourFlavorService {
         renderMessageSurfaces: surfaces.renderMessageSurfaces,
         clearMessageSurfaces: surfaces.clearMessageSurfaces
       };
+      this._modulesLoadedIn = Math.round(performance.now() - started);
+
+      /* Anything rendered while the modules were on their way was refused -
+         the hook had no pipeline to style it with. Sweep once they are here.
+         Idempotent, and a no-op when the initial sweep has not run yet: that
+         one waits for the modules now, and will find them. */
+      if (this.available) {
+        requestAnimationFrame(() => {
+          try {
+            this._styledOnModuleLoad = this._sweepChatLog();
+          } catch (err) { AM.log(2, 'Your Flavor bridge: sweep after module load failed', err); }
+        });
+      }
     }).catch(err => {
       this._importFailed = true;
       AM.log(2, 'Your Flavor bridge: could not load its modules, standing down', err);
     });
+  }
+
+  /**
+   * Where one of Your Flavor's scripts lives, as the page loaded it.
+   *
+   * The same file imported from a different URL is a different module to the
+   * browser: a second fetch, and a second instance. Foundry writes a module's
+   * scripts into the page as <script type="module">, and a host that serves
+   * packages from elsewhere - The Forge's asset CDN - rewrites that src. So the
+   * sibling of Your Flavor's own entry script is asked for first, which is
+   * exactly the URL its own relative imports resolved to, already in the
+   * module map, and free.
+   *
+   * getRoute is the fallback: it applies Foundry's route prefix, which a bare
+   * "/modules/..." would miss on any server hosted under a subpath.
+   */
+  static _yfScriptUrl(file) {
+    const entry = [...document.querySelectorAll('script[type="module"][src]')]
+      // Any segments between the package and scripts/: a CDN adds the version there.
+      .find(s => new RegExp(`/${this.YF_ID}/(?:[^/?#]+/)*scripts/your-flavor\\.js(?:[?#]|$)`).test(s.src));
+    if (entry) {
+      try { return new URL(file, entry.src).href; } catch { /* fall through */ }
+    }
+    return foundry.utils?.getRoute?.(`/modules/${this.YF_ID}/scripts/${file}`)
+      ?? `/modules/${this.YF_ID}/scripts/${file}`;
   }
 
   /* ============================================================
@@ -803,6 +855,9 @@ export class YourFlavorService {
       'bridge: bare messages restyled': this._lossEvents.filter(e => e.result === 'styled').length,
       'bridge: bare messages left bare': this._lossEvents.filter(e => e.result !== 'styled').length,
       'bridge: YF modules loaded': Boolean(this._styles && this._classifier),
+      'bridge: YF modules took (ms)': this._modulesLoadedIn ?? '(not yet)',
+      'bridge: YF modules from': this._modulesFrom ?? '(not requested)',
+      'bridge: styled once modules arrived': this._styledOnModuleLoad ?? '(not run)',
       'bridge: import failed': this._importFailed,
 
       /* Your Flavor's side */
