@@ -1199,6 +1199,12 @@
         </div>
       {{/if}}
 
+      {{!-- Foundry disables every button on a sheet the viewer may not edit
+           and says nothing; the stars then simply refuse to move. --}}
+      {{#if readOnly}}
+        <p class="am-settings-hint am-read-only"><i class="fa-solid fa-lock"></i> {{readOnly}}</p>
+      {{/if}}
+
       {{#if hasSpells}}
         {{#each spellGroups}}
           {{!-- Five short columns rather than four wide ones, so the heading

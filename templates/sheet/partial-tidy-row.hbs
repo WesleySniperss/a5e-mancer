@@ -65,6 +65,9 @@
              (A5E.spells.concentrationAbbr, ritualAbbr): a letter beside the
              name reads faster than a glyph and takes less room, and beside
              the name it stays when narrow columns are hidden. --}}
+        {{#if components.length}}
+          <span class="am-comps item-state-indicator" data-tooltip="{{componentsTip}}">{{#each components}}<span class="am-comp">{{this.abbr}}</span>{{/each}}</span>
+        {{/if}}
         {{#if concentration}}
           <span class="am-mark am-mark-conc item-state-indicator" data-tooltip="Concentration">C</span>
         {{/if}}

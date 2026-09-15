@@ -1949,6 +1949,23 @@ export class A5eCharacterSheet extends ActorSheet {
       ].filter(Boolean),
       schoolLabel,
       ritual: sys.ritual ?? false,
+      /* Components, as a5e's sheet sets them beside the name: V, S and M,
+         its own abbreviations (A5E.spells.components.*Abbr), with what the
+         material is in the tooltip. */
+      ...(() => {
+        const c = sys.components ?? {};
+        const say = (key, fallback) => {
+          const v = game.i18n.localize(key);
+          return v && v !== key ? v : fallback;
+        };
+        const list = [
+          c.vocalized && { abbr: say('A5E.spells.components.vocalizedAbbr', 'V'), name: say('A5E.spells.components.vocalized', 'Vocalized') },
+          c.seen      && { abbr: say('A5E.spells.components.seenAbbr', 'S'),      name: say('A5E.spells.components.seen', 'Seen') },
+          c.material  && { abbr: say('A5E.spells.components.materialAbbr', 'M'),  name: say('A5E.spells.components.material', 'Material')
+            + (sys.materials ? ` (${sys.materials}${sys.materialsConsumed ? ', consumed' : ''})` : '') }
+        ].filter(Boolean);
+        return { components: list, componentsTip: list.map((x) => x.name).join(', ') };
+      })(),
       concentration: conc,
       /* a5e's three states, 0 unprepared, 1 prepared, 2 always prepared, drawn
          as its own sheet draws them: a book, lit when prepared, with sparkles
@@ -4022,7 +4039,31 @@ export class A5eCharacterSheet extends ActorSheet {
         const now  = Number(slots.current ?? 0) || 0;
         const next = n <= now ? n - 1 : n;
         if (next === now) return;
-        await this.actor.update({ [`system.spellResources.slots.${level}.current`]: next });
+
+        /* Drawn at once, as a5e's reactive store draws it, and put back —
+           with the reason — if the write fails or does not stick. Reported
+           as: the stars neither spend nor restore. Clicked in a real browser
+           with this script bound, they write exactly what a5e writes; what
+           goes wrong in a world is then something between the click and the
+           saved document, and the sheet should say what, not stay silent. */
+        const levelStars = [...el.querySelectorAll('[data-action="slot-pip"]')]
+          .filter((s) => s.dataset.level === level);
+        const paint = (value) => levelStars.forEach((s) =>
+          s.classList.toggle('am-slot-spent', Number(s.dataset.n) > value));
+        paint(next);
+        try {
+          await this.actor.update({ [`system.spellResources.slots.${level}.current`]: next });
+        } catch (err) {
+          paint(now);
+          AM.log(1, `Level ${level} spell slots could not be changed:`, err);
+          ui.notifications.error(`Level ${level} spell slots could not be changed: ${err?.message ?? err}`);
+          return;
+        }
+        const saved = Number(this.actor.system?.spellResources?.slots?.[level]?.current);
+        if (Number.isFinite(saved) && saved !== next) {
+          paint(saved);
+          ui.notifications.warn(`Level ${level} spell slots: ${next} was sent, but the actor kept ${saved}.`);
+        }
       })
     );
 

@@ -355,6 +355,22 @@ together), and every button in a row read as unreachable until the row was
 scrolled to — Tidy gives row containers `content-visibility: auto`, and headless
 Edge hit-tests straight through one that has not been. Neither was the sheet.
 
+## `livecontrols.mjs` and `lib/livebrowser.mjs`
+
+The sheet's own script, running in headless Edge on a real DOM. The module is
+served over HTTP, `A5eCharacterSheet` loads with the stand-ins from
+`stubs.mjs` (which leave a real `document` and `window` alone),
+`activateListeners` is called with the jQuery-shaped wrapper Foundry v1 passes,
+and the probe dispatches real pointer events.
+
+It answers what neither of the other two harnesses can: does every listener
+bind in a real browser, and does a real click reach its handler and write?
+Reported as "the stars neither spend nor restore", it found both do — 2 → 1 on
+a lit star, 2 → 4 on a spent one, a Settings box writing its flag — so what
+fails in a world lies between the click and the saved document. The stars now
+say so: drawn at once, put back with the reason when a write is refused, which
+this also checks.
+
 ## `exertion.mjs`
 
 Where exertion can be typed in. A character's pool size is a5e's figure while

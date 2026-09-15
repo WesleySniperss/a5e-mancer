@@ -2115,6 +2115,24 @@
   cursor: help;
 }
 
+/* V S M, the spell's components, beside C and R: quieter than either, since
+   nearly every spell has some and they are read less often in play. One
+   tooltip names them all and the material. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-comps {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+  min-width: 0;
+  min-height: 0;
+  padding: 0 0.125rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--t5e-color-text-lighter, #b3b3b3);
+  cursor: help;
+}
+
 .tidy5e-sheet.application.a5e-mancer-sheet .am-mark.am-mark-conc {
   color: #f0c75e;
 }

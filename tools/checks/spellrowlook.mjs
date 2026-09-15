@@ -86,7 +86,10 @@ function probe(doc) {
         hit: hit ? `${hit.tagName.toLowerCase()}.${String(hit.className).trim().split(/\s+/).join('.')}` : null,
         color: getComputedStyle(prep.querySelector('i')).color, opacity: getComputedStyle(prep).opacity };
     }
-    rows.push({ name, bg: getComputedStyle(r).backgroundImage, marks, prep: prepInfo,
+    const compsEl = r.querySelector('.am-comps');
+    const comps = compsEl ? { t: compsEl.textContent.trim(), ...box(compsEl), color: getComputedStyle(compsEl).color,
+      tip: compsEl.dataset.tooltip } : null;
+    rows.push({ name, bg: getComputedStyle(r).backgroundImage, marks, comps, prep: prepInfo,
       nameIcons: r.querySelectorAll('.am-state-icons [data-action="item-prepare"]').length,
       actionsW: actions ? box(actions).w : 0 });
   }
@@ -124,6 +127,20 @@ check('every C and R reads at 4.5:1 or better on plain, prepared and always rows
   readings.length === 6 && readings.every((r) => r.ratio >= 4.5),
   readings.map((r) => `${r.row.split(' ')[0]} ${r.t} ${r.ratio.toFixed(1)}`).join(', ')
     + (worst ? `; worst ${worst.ratio.toFixed(1)}` : ''));
+
+/* Components: V S M, as a5e's sheet sets them, quieter than C and R and still
+   readable. Detect Magic is vocalized and seen. */
+const compRows = out.rows.map((r) => r.comps).filter(Boolean);
+check('each spell shows its components, V and S for Detect Magic',
+  compRows.length === 3 && compRows.every((c) => c.t.replace(/\s/g, '') === 'VS') && compRows.every((c) => /Vocalized/.test(c.tip ?? '')),
+  compRows.map((c) => `${c.t.replace(/\s/g, '')} "${c.tip}"`).slice(0, 1).join(''));
+const compReadings = compRows.map((c) => {
+  const s = [[c.x + c.w / 2, c.y - 3], [c.x + c.w / 2, c.y + c.h + 3]].map(([x, y]) => png.pixel(x, y));
+  const bg = s.reduce((a, p) => a.map((v, i) => v + p[i] / s.length), [0, 0, 0]);
+  return contrast(rgb(c.color), bg);
+});
+check('the components read at 4.5:1 or better on every row colour', compReadings.length === 3 && compReadings.every((r) => r >= 4.5),
+  compReadings.map((r) => r.toFixed(1)).join(', '));
 
 /* Prepared colours. */
 const transparent = (c) => !c || /rgba\(0, 0, 0, 0\)/.test(c) || c === 'transparent';

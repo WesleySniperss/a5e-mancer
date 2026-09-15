@@ -97,7 +97,11 @@ globalThis.CONFIG = {
 
 /* Enough of a browser for activateListeners to run its full length. Each gap
    here used to end the run early with a bare "x is not defined", which read as
-   a passing test because nothing after the throw was ever reached. */
+   a passing test because nothing after the throw was ever reached.
+
+   Only where there is no browser: lib/livebrowser.mjs loads these stand-ins
+   into a real one, whose document and window are its own and must stay so. */
+if (typeof globalThis.document === 'undefined') {
 const _node = () => {
   const n = {
     querySelector: () => _node(), querySelectorAll: () => [],
@@ -126,4 +130,5 @@ globalThis.window = {
 };
 globalThis.getComputedStyle = globalThis.window.getComputedStyle;
 globalThis.ResizeObserver = class { observe(){} unobserve(){} disconnect(){} };
+}
 globalThis.ActiveEffect = class {};
