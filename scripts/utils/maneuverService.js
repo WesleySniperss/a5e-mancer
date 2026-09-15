@@ -72,6 +72,11 @@ export const CORE_TRADITIONS = [
  * tradition if the world has one installed.
  */
 export function traditionAllowed(key, allowed) {
+  /* A magic school only where it is named. Everywhere else the rule below lets
+     a key the core book never mentions through - and the six schools are
+     exactly such keys, so a fighter, a scout or any class with "any tradition"
+     was offered magic maneuvers. */
+  if (isMagicSchool(key)) return Array.isArray(allowed) && allowed.includes(key);
   if (!Array.isArray(allowed)) return true;
   if (allowed.includes(key)) return true;
   return !CORE_TRADITIONS.includes(key);
@@ -554,6 +559,191 @@ export class ManeuverService {
       // Only when a level is actually being gained — not at character creation
       replaceable: lvl > 1 ? this.MANEUVER_REPLACEMENTS_PER_LEVEL : 0
     };
+  }
+
+  /* ── Where a character's maneuvers come from ─────────────────────────── */
+
+  /**
+   * A class's maneuver table: its own printed one when the class on the actor
+   * has it, else the module's copy. The magic schools' table belongs to the
+   * module and is never replaced by a printed one.
+   */
+  static tableFor(className, classItem = null) {
+    const key = String(className ?? '').toLowerCase();
+    let table = CLASS_MANEUVER_TABLES[key] ?? null;
+    if (classItem && !MM_KEYS.has(mmKey(key))) {
+      const own = this.#progressionOf(classItem);
+      if (own) {
+        table = {
+          maneuversKnown:    own.maneuversKnown,
+          maxDegree:         own.maxDegree,
+          traditions:        table?.traditions ?? 0,
+          allowedTraditions: table?.allowedTraditions ?? null
+        };
+      }
+    }
+    return table;
+  }
+
+  /** archetype uuid -> its maneuver table, or null */
+  static archetypeManeuverCache = new Map();
+
+  /**
+   * Combat maneuvers an archetype brings to its class - with a table of its
+   * own, the way a maneuver class has one.
+   *
+   * Six archetypes in a5e's packs give maneuvers to classes that have none:
+   * the Spellguard wizard from 2nd level, the Steel Blooded sorcerer and the
+   * Martialist warlock from 1st, the Field Engineer and Combat Engineer
+   * artificer and the Myrmidon elementalist from 3rd. Each does it through a
+   * feature granted by the archetype - once, through a feature granted by that
+   * feature - which carries a Maneuvers Known and Maneuver Degree table, and a
+   * grant naming its combat traditions.
+   *
+   * @returns {Promise<object|null>} { maneuversKnown, maxDegree, fromLevel,
+   *   feature, archetype, allowedTraditions, traditions }
+   */
+  static async archetypeManeuvers(archetypeDoc) {
+    if (!archetypeDoc) return null;
+    const key = archetypeDoc.uuid ?? archetypeDoc._id ?? archetypeDoc.name;
+    if (this.archetypeManeuverCache.has(key)) return this.archetypeManeuverCache.get(key);
+
+    const grantsOf = (doc) => {
+      const g = doc?._source?.system?.grants ?? doc?.system?.grants ?? {};
+      return g instanceof Map ? [...g.values()] : Object.values(g);
+    };
+    const featureUuids = (doc) => grantsOf(doc)
+      .filter(g => g?.grantType === 'feature')
+      .sort((a, b) => (Number(a.level) || 1) - (Number(b.level) || 1))
+      .flatMap(g => (g.features?.base ?? []).map(e => ({ uuid: e?.uuid ?? e, level: Number(g.level) || 1 })))
+      .filter(e => typeof e.uuid === 'string');
+
+    const read = async (uuid) => { try { return await fromUuid(uuid); } catch { return null; } };
+    let found = null;
+    const visit = async (entries, depth) => {
+      for (const { uuid, level } of entries) {
+        if (found) return;
+        const doc = await read(uuid);
+        if (!doc) continue;
+        const table = this.parseClassProgression(doc.system?.description?.value ?? doc.system?.description);
+        if (table) {
+          const trad = grantsOf(doc).find(g => g?.traits?.traitType === 'maneuverTraditions' || g?.proficiencyType === 'tradition');
+          const spec = trad?.traits ?? trad?.keys ?? null;
+          const base = spec?.base ?? [], options = spec?.options ?? [], total = Number(spec?.total) || 0;
+          found = {
+            ...table,
+            fromLevel: level,
+            feature: doc.name,
+            archetype: archetypeDoc.name,
+            allowedTraditions: spec ? [...new Set([...base, ...options])] : null,
+            /* How many traditions the feature gives. Its grant is not written
+               one way: the Spellguard's says total 2 for "Cutting Omen and one
+               more", counting the fixed one in. A total above the fixed count is
+               read as including it; otherwise it is on top. */
+            traditions: spec ? (total > base.length ? total : base.length + (options.length ? Math.max(1, total) : 0)) : 0
+          };
+          return;
+        }
+        if (depth < 1) await visit(featureUuids(doc).map(e => ({ ...e, level: Math.max(level, e.level) })), depth + 1);
+      }
+    };
+    await visit(featureUuids(archetypeDoc), 0);
+    this.archetypeManeuverCache.set(key, found);
+    return found;
+  }
+
+  /** How many magic schools may be open at a level of the schools' progression. */
+  static magicSchoolsAt(level) {
+    let schools = 0;
+    for (const row of MM_PROGRESSION) if (row.level <= level) schools = row.schools ?? schools;
+    return schools;
+  }
+
+  /**
+   * Everything a character learns maneuvers from, and what a level brings -
+   * combat and magic apart.
+   *
+   *   sources  every class table, magic-school table and archetype table the
+   *            character has, each at its class's level after this level-up
+   *   kinds    per kind ('combat', 'magic'):
+   *     gained            maneuvers this level adds - from the class being levelled only
+   *     known             maneuvers known in total at the new levels
+   *     maxDegree         highest degree, by the multiclassing rule
+   *     prevMaxDegree     the same before the level, to say a degree opened
+   *     allowedTraditions keys, or null for any combat tradition
+   *     traditionLimit    traditions (or schools) that may be open
+   *
+   * The degree rule is the Adventurer's Guide's (Multiclassing, Combat
+   * Maneuvers): "You use your class levels in every class that grants combat
+   * maneuvers to determine the highest degree of combat maneuvers you can
+   * learn, determined by the class with the greatest access" - 3 fighter and 10
+   * herald learn as a 13th-level fighter. Maneuvers known and traditions add up
+   * across the features. The magic schools are this module's own rules and say
+   * nothing about multiclassing, so they are read the same way.
+   *
+   * @param {Actor} actor
+   * @param {object} [opts]
+   * @param {string} [opts.classId]        the class gaining a level
+   * @param {number} [opts.newLevel]       its level after
+   * @param {string} [opts.archetypeUuid]  an archetype picked for that class in this dialog
+   * @param {{name: string}} [opts.newClass]  a class being taken at 1st level
+   */
+  static async maneuverBudget(actor, { classId = null, newLevel = null, archetypeUuid = null, newClass = null } = {}) {
+    const classes = [];
+    for (const item of actor?.items ?? []) {
+      if (item?.type !== 'class') continue;
+      const cur = Number(item.system?.classLevels) || 1;
+      const levelling = !newClass && item.id === classId;
+      classes.push({ id: item.id, name: item.name, item, level: levelling ? newLevel : cur, prev: levelling ? newLevel - 1 : cur });
+    }
+    const levellingId = newClass ? '__new' : classId;
+    if (newClass) classes.push({ id: '__new', name: newClass.name, item: null, level: 1, prev: 0 });
+
+    const sources = [];
+    for (const c of classes) {
+      const table = this.tableFor(c.name, c.item);
+      if (table) {
+        sources.push({ kind: table.magic ? 'magic' : 'combat', label: c.name, classId: c.id, level: c.level, prev: c.prev,
+                       table, allowedTraditions: table.allowedTraditions ?? null, traditions: table.traditions ?? 0 });
+      }
+      const slug = c.item ? (c.item.slug || c.item.system?.slug || String(c.name).slugify?.({ strict: true }) || '') : '';
+      let arch = slug ? (actor.items.find?.(i => i?.type === 'archetype' && i.system?.class === slug) ?? null) : null;
+      if (!arch && c.id === levellingId && archetypeUuid) {
+        try { arch = await fromUuid(archetypeUuid); } catch { arch = null; }
+      }
+      const am = arch ? await this.archetypeManeuvers(arch) : null;
+      if (am && c.level >= am.fromLevel) {
+        sources.push({ kind: 'combat', label: `${am.archetype} (${c.name})`, classId: c.id, level: c.level, prev: c.prev,
+                       table: am, allowedTraditions: am.allowedTraditions, traditions: am.traditions, archetype: true });
+      }
+    }
+
+    const at = (table, field, lvl) => Number(table?.[field]?.[Math.max(0, Math.min(20, lvl))] ?? 0) || 0;
+    const kinds = {};
+    for (const kind of ['combat', 'magic']) {
+      const ks = sources.filter(s => s.kind === kind);
+      if (!ks.length) continue;
+      const summed = (field) => {
+        const byClass = new Map();
+        for (const s of ks) byClass.set(s.classId, Math.max(byClass.get(s.classId) ?? 0, s[field]));
+        return Math.min(20, [...byClass.values()].reduce((a, b) => a + b, 0));
+      };
+      const now = summed('level'), before = summed('prev');
+      const allowed = ks.some(s => !s.allowedTraditions) ? null
+        : [...new Set(ks.flatMap(s => s.allowedTraditions))];
+      kinds[kind] = {
+        gained: ks.filter(s => s.classId === levellingId)
+          .reduce((n, s) => n + Math.max(0, at(s.table, 'maneuversKnown', s.level) - at(s.table, 'maneuversKnown', s.prev)), 0),
+        known: ks.reduce((n, s) => n + at(s.table, 'maneuversKnown', s.level), 0),
+        maxDegree: Math.max(0, ...ks.map(s => at(s.table, 'maxDegree', now))),
+        prevMaxDegree: Math.max(0, ...ks.map(s => at(s.table, 'maxDegree', before))),
+        allowedTraditions: kind === 'magic' ? Object.keys(MM_SCHOOLS) : allowed,
+        traditionLimit: kind === 'magic' ? this.magicSchoolsAt(now) : ks.reduce((n, s) => n + (s.traditions || 0), 0),
+        sources: ks.map(s => s.label),
+        levelling: ks.some(s => s.classId === levellingId)
+      };
+    }
+    return { sources, kinds };
   }
 
   /**

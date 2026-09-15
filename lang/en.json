@@ -346,6 +346,8 @@
   "am.maneuvers.section-title": "Combat Maneuvers",
   "am.maneuvers.pick-prompt": "You can learn {n} new maneuver(s) at this level.",
   "am.maneuvers.max-degree": "max degree {degree}",
+  "am.maneuvers.kind-combat": "Combat maneuvers",
+  "am.maneuvers.kind-magic": "Magic maneuvers",
   "am.maneuvers.degree-unlocked": "You can now learn {degree}° maneuvers!",
   "am.maneuvers.open-picker": "Choose Maneuvers…",
   "am.maneuvers.selected-count": "{n} selected",

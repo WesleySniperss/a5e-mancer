@@ -1,7 +1,7 @@
 import { AM } from '../am.js';
 import { LevelUpService } from '../utils/levelUpService.js';
 import { DocumentService } from '../utils/documentService.js';
-import { ManeuverService, CLASS_MANEUVER_TABLES, getTraditions, traditionAllowed } from '../utils/maneuverService.js';
+import { ManeuverService, CLASS_MANEUVER_TABLES, getTraditions, traditionAllowed, isMagicSchool } from '../utils/maneuverService.js';
 import { SpellService, CLASS_SPELL_TABLES } from '../utils/spellService.js';
 import { ItemDescPanel } from '../utils/itemDescPanel.js';
 import { GrantAbsorber } from '../utils/grantAbsorber.js';
@@ -33,6 +33,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     // Shared maneuver/spell selection state
     this._selectedManeuverUuids = [];
     this._selectedTraditions    = [];
+    this._selectedManeuverTraditions = {};
     this._selectedCantripUuids  = [];
     this._selectedSpellUuids    = [];
 
@@ -155,7 +156,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
       const newTotalLevel = total + 1;
       const maneuverInfo = newClass
-        ? this.#getManeuverInfo({ name: newClass.name }, 1, newTotalLevel)
+        ? await this.#getManeuverInfo(null, 1, { newClass: { name: newClass.name } })
         : null;
       const spellInfo = newClass
         ? (CLASS_SPELL_TABLES[newClass.name.toLowerCase()] ?? await SpellService.loadClassSpellInfo(newClass.uuid))
@@ -205,7 +206,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       : { gainsASI: false, gainsKnack: false, avgHP: 5, hitDie: 8 };
 
     const avgHP       = info.avgHP + this.#getConMod();
-    const maneuverInfo = this.#getManeuverInfo(selectedClass, newClassLevel, newTotalLevel);
+    const maneuverInfo = await this.#getManeuverInfo(selectedClass, newClassLevel);
 
     // The class's knack, features and ASI/feat are granted by a5e itself when the
     // level changes, so we only surface a heads-up that its dialog will appear.
@@ -557,11 +558,16 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     if (this._allManeuversData) {
       const actorTraditions = ManeuverService.getActorTraditions?.(this.actor) ?? [];
       const allUsed = [...new Set([...actorTraditions, ...this._selectedTraditions])];
+      /* Each tradition answers to its own kind: a school to the magic budget and
+         degree, anything else to the combat one - and only a kind this level has
+         picks left in is offered at all. */
+      const kindFor = (key) => maneuverInfo.kinds?.[isMagicSchool(key) ? 'magic' : 'combat'];
+      const offered = (key) => { const k = kindFor(key); return !!k?.newToLearn && traditionAllowed(key, k.allowedTraditions); };
+      const degreeFor = (key) => kindFor(key)?.maxDegree ?? 0;
       context.inlineTraditions      = LevelUpDialog.#buildTraditionPills(
-        this._allManeuversData, allUsed, this._maneuverFilter.tradition,
-        maneuverInfo.allowedTraditions, maneuverInfo.maxDegree);
+        this._allManeuversData, allUsed, this._maneuverFilter.tradition, offered, degreeFor);
       context.visibleManeuvers      = LevelUpDialog.#filterManeuvers(
-        this._allManeuversData, maneuverInfo.maxDegree, this._maneuverFilter.tradition,
+        this._allManeuversData, degreeFor(this._maneuverFilter.tradition), this._maneuverFilter.tradition,
         this._selectedManeuverUuids, ManeuverService.getActorManeuverKeys(this.actor)
       );
       context.maneuverFilterTradition = this._maneuverFilter.tradition ?? '';
@@ -640,28 +646,68 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     }
   }
 
-  #getManeuverInfo(cls, newClassLevel, newTotalLevel) {
-    if (!cls) return null;
-    const info = ManeuverService.getClassManeuverInfo(cls.name, newClassLevel);
-    if (!info || info.maneuversKnown === 0) return null;
+  /**
+   * What this level lets the character learn, combat and magic maneuvers apart.
+   *
+   * This read one table, the levelled class's, and nothing else. So a
+   * Spellguard wizard - combat maneuvers from its archetype at 2nd, magic ones
+   * from the class at 3rd - was offered its magic maneuvers and never a combat
+   * one; an archetype that gives maneuvers to a class with none (Steel Blooded,
+   * Martialist, the Engineers, the Myrmidon) gave nothing; and a multiclass took
+   * its degree from one class alone, so 3 fighter and 10 herald were held to
+   * 2nd degree where the Adventurer's Guide gives 4th. ManeuverService.maneuverBudget
+   * gathers every source; this adds the trade-ins, which free a pick of their
+   * own kind.
+   */
+  async #getManeuverInfo(cls, newClassLevel, { newClass = null } = {}) {
+    this._maneuverBudget = null;
+    if (!cls && !newClass) return null;
+    const budget = await ManeuverService.maneuverBudget(this.actor, newClass
+      ? { newClass }
+      : { classId: cls.id, newLevel: newClassLevel, archetypeUuid: this._archetypeUuid ?? null });
 
-    const prevInfo = ManeuverService.getClassManeuverInfo(cls.name, newClassLevel - 1) ?? { maneuversKnown: 0, maxDegree: 0 };
-    const gained             = Math.max(0, info.maneuversKnown - prevInfo.maneuversKnown);
-    const degreeUnlocked     = info.maxDegree > prevInfo.maxDegree ? info.maxDegree : null;
+    const kindOf = (tradition) => (isMagicSchool(tradition) ? 'magic' : 'combat');
+    const replaced = { combat: 0, magic: 0 };
+    for (const id of this._replacedManeuverIds) {
+      const item = this.actor.items.get(id);
+      replaced[kindOf(item?.system?.tradition ?? item?.system?.combatTradition ?? '')]++;
+    }
 
-    // Each maneuver swapped out frees one pick on top of the level's gain. This
-    // is what makes levels that grant nothing new still worth opening: the class
-    // may still let one known maneuver be traded for another.
-    const replaced = this._replacedManeuverIds.length;
-    const newManeuversToLearn = gained + replaced;
+    const kinds = {};
+    for (const [kind, k] of Object.entries(budget.kinds)) {
+      // A kind this class does not learn is not reopened by a level in another class
+      if (!k.levelling) continue;
+      kinds[kind] = { ...k, newToLearn: k.gained + replaced[kind] };
+    }
+    const list = Object.entries(kinds).map(([kind, k]) => ({ kind, ...k }));
+    if (!list.length) return null;
 
-    return {
-      ...info,
-      gained,
-      newManeuversToLearn,
-      degreeUnlocked,
-      hasManeuvers: info.maneuversKnown > 0
+    const selectedOf = (kind) => Object.entries(this._selectedManeuverTraditions ?? {})
+      .filter(([uuid, t]) => this._selectedManeuverUuids.includes(uuid) && kindOf(t) === kind).length;
+    const open = list.filter(k => k.newToLearn > 0);
+    const unlocked = list.filter(k => k.maxDegree > k.prevMaxDegree).map(k => k.maxDegree);
+    const info = {
+      kinds,
+      kindList: open.map(k => ({
+        kind: k.kind,
+        label: game.i18n.localize(`am.maneuvers.kind-${k.kind}`),
+        selected: selectedOf(k.kind),
+        newToLearn: k.newToLearn,
+        maxDegree: k.maxDegree,
+        sources: k.sources.join(', ')
+      })),
+      multipleKinds: open.length > 1,
+      gained: list.reduce((n, k) => n + k.gained, 0),
+      newManeuversToLearn: list.reduce((n, k) => n + k.newToLearn, 0),
+      maneuversKnown: list.reduce((n, k) => n + k.known, 0),
+      maxDegree: Math.max(...list.map(k => k.maxDegree)),
+      degreeUnlocked: unlocked.length ? Math.max(...unlocked) : null,
+      traditions: list.reduce((n, k) => n + k.traditionLimit, 0),
+      hasManeuvers: true,
+      replaceable: (!newClass && newClassLevel > 1) ? ManeuverService.MANEUVER_REPLACEMENTS_PER_LEVEL : 0
     };
+    this._maneuverBudget = info;
+    return info;
   }
 
   /**
@@ -670,8 +716,9 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
    */
   #maneuverReplacementContext(context, cls, newClassLevel) {
     if (!cls || newClassLevel <= 1) return;
-    const info = ManeuverService.getClassManeuverInfo(cls.name, newClassLevel);
+    const info = this._maneuverBudget;
     if (!info?.replaceable) return;
+    const teaches = new Set(Object.keys(info.kinds ?? {}));
 
     // Only the ones the player chose. A maneuver handed out by a class feature is
     // part of that feature, not a pick, so trading it away would quietly delete a
@@ -680,7 +727,9 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     // are degree 0 with no tradition and belong to every character always. They
     // were never a pick, so trading one away is not a thing that can happen.
     const known = ManeuverService.getActorManeuvers(this.actor)
-      .filter(m => !m.basic && !ManeuverService.isGrantedManeuver(this.actor, m.id));
+      .filter(m => !m.basic && !ManeuverService.isGrantedManeuver(this.actor, m.id))
+      // A wizard levelling trades a magic maneuver, not the fighter's it also knows
+      .filter(m => teaches.has(isMagicSchool(m.tradition) ? 'magic' : 'combat'));
     if (!known.length) return;
 
     context.maneuverReplaceLimit = info.replaceable;
@@ -774,6 +823,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   #resetSelections() {
     this._selectedManeuverUuids = [];
     this._selectedTraditions    = [];
+    this._selectedManeuverTraditions = {};
     this._selectedCantripUuids  = [];
     this._selectedSpellUuids    = [];
     this._replacedManeuverIds   = [];
@@ -806,17 +856,21 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
   static #buildTraditionPills(allData, usedTraditions, activeTradition,
                               allowedTraditions = null, maxDegree = Infinity) {
+    // Either may be given per tradition, now that a school and a combat tradition
+    // can sit in one picker under different rules.
+    const allowed  = typeof allowedTraditions === 'function' ? allowedTraditions : (key) => traditionAllowed(key, allowedTraditions);
+    const degreeOf = typeof maxDegree === 'function' ? maxDegree : () => maxDegree;
     const reachable = (key) => {
       const tradMap = allData?.get(key);
       if (!tradMap) return 0;
       let n = 0;
-      for (const [degree, arr] of tradMap) if (degree <= maxDegree) n += arr.length;
+      for (const [degree, arr] of tradMap) if (degree <= degreeOf(key)) n += arr.length;
       return n;
     };
 
     return getTraditions()
       // Restrict to the traditions this class may choose from (null = any).
-      .filter(t => traditionAllowed(t.key, allowedTraditions))
+      .filter(t => allowed(t.key))
       // Drop traditions whose maneuvers all sit above the degree this level
       // allows — the pill opened an empty list.
       .filter(t => reachable(t.key) > 0)
@@ -1019,28 +1073,17 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       return;
     }
 
-    // Resolve slot limit and tradition limit from current class context
-    let limit = 0;
-    let totalTraditionLimit = 0;
-    const classes = LevelUpService.getActorClasses(dialog.actor);
-
-    if (dialog._mode === 'multiclass') {
-      const newClass = (dialog._compendiumClasses ?? []).find(c => c.uuid === dialog._newClassUuid);
-      if (!newClass) return;
-      const info = ManeuverService.getClassManeuverInfo(newClass.name, 1);
-      if (!info) return;
-      limit = info.maneuversKnown;
-      totalTraditionLimit = info.traditions;
-    } else {
-      const cls = classes.find(c => c.id === dialog._selectedClassId) ?? classes[0];
-      if (!cls) return;
-      const newLevel = cls.level + 1;
-      const curr = ManeuverService.getClassManeuverInfo(cls.name, newLevel);
-      const prev = ManeuverService.getClassManeuverInfo(cls.name, newLevel - 1) ?? { maneuversKnown: 0 };
-      if (!curr) return;
-      limit = Math.max(0, curr.maneuversKnown - prev.maneuversKnown);
-      totalTraditionLimit = curr.traditions;
-    }
+    /* The limits the section was drawn with, for this maneuver's kind. These
+       were worked out again here from the class table alone - so a trade-in
+       never freed a pick (the gain was all it counted), a wizard's combat
+       traditions used up its magic schools, and an archetype's maneuvers had
+       no limit to be checked against at all. */
+    const kindOf = (t) => (isMagicSchool(t) ? 'magic' : 'combat');
+    const kind = kindOf(tradition);
+    const k = dialog._maneuverBudget?.kinds?.[kind];
+    const limit = k?.newToLearn ?? 0;
+    const totalTraditionLimit = k?.traditionLimit ?? 0;
+    const picked = dialog._selectedManeuverTraditions ??= {};
 
     const uuids      = [...dialog._selectedManeuverUuids];
     const traditions = [...dialog._selectedTraditions];
@@ -1064,13 +1107,14 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       }
     } else {
       // Select
-      if (uuids.length >= limit) {
+      if (uuids.filter(u => kindOf(picked[u]) === kind).length >= limit) {
         ui.notifications.warn(game.i18n.format('am.maneuvers.slots-full', { n: limit }));
         return;
       }
       if (tradition) {
         const actorTraditions = ManeuverService.getActorTraditions?.(dialog.actor) ?? [];
-        const allUsed = new Set([...actorTraditions, ...traditions]);
+        // Schools against schools, combat traditions against combat traditions
+        const allUsed = new Set([...actorTraditions, ...traditions].filter(t => kindOf(t) === kind));
         if (!allUsed.has(tradition) && allUsed.size >= totalTraditionLimit) {
           ui.notifications.warn(game.i18n.format('am.app.maneuvers.tradition-limit', { n: totalTraditionLimit }));
           return;
@@ -1080,6 +1124,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         }
       }
       uuids.push(uuid);
+      picked[uuid] = tradition;
     }
 
     dialog._selectedManeuverUuids = uuids;
@@ -1222,19 +1267,25 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
     if (at >= 0) {
       list.splice(at, 1);
-      // The freed pick is gone — give back the most recent maneuver chosen
-      const cls = LevelUpService.getActorClasses(dialog.actor)
-        .find(c => c.id === dialog._selectedClassId);
-      const info = cls ? ManeuverService.getClassManeuverInfo(cls.name, cls.level + 1) : null;
-      const prev = cls ? ManeuverService.getClassManeuverInfo(cls.name, cls.level) : null;
-      const budget = Math.max(0, (info?.maneuversKnown ?? 0) - (prev?.maneuversKnown ?? 0)) + list.length;
-      while (dialog._selectedManeuverUuids.length > budget) dialog._selectedManeuverUuids.pop();
+      /* The freed pick is gone - give back the most recent maneuver chosen of
+         the same kind, and only as many as that kind is now over by. */
+      const kindOf = (t) => (isMagicSchool(t) ? 'magic' : 'combat');
+      const item = dialog.actor.items.get(id);
+      const kind = kindOf(item?.system?.tradition ?? item?.system?.combatTradition ?? '');
+      const stillMarked = list.filter(x => {
+        const it = dialog.actor.items.get(x);
+        return kindOf(it?.system?.tradition ?? it?.system?.combatTradition ?? '') === kind;
+      }).length;
+      const budget = (dialog._maneuverBudget?.kinds?.[kind]?.gained ?? 0) + stillMarked;
+      const picked = dialog._selectedManeuverTraditions ?? {};
+      const ofKind = () => dialog._selectedManeuverUuids.filter(u => kindOf(picked[u]) === kind);
+      while (ofKind().length > budget) {
+        const last = ofKind().pop();
+        dialog._selectedManeuverUuids = dialog._selectedManeuverUuids.filter(u => u !== last);
+        delete picked[last];
+      }
     } else {
-      const cls = LevelUpService.getActorClasses(dialog.actor)
-        .find(c => c.id === dialog._selectedClassId);
-      const limit = cls
-        ? (ManeuverService.getClassManeuverInfo(cls.name, cls.level + 1)?.replaceable ?? 0)
-        : 0;
+      const limit = dialog._maneuverBudget?.replaceable ?? 0;
       if (list.length >= limit) {
         ui.notifications.warn(game.i18n.format('am.levelup.replace-limit', { n: limit }));
         return;

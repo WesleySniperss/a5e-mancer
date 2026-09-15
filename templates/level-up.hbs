@@ -740,6 +740,16 @@
         <i class="fa-solid fa-swords"></i>
         {{selectedManeuverCount}}/{{maneuverInfo.newManeuversToLearn}}
       </div>
+      {{!-- A level that teaches both kinds - a Spellguard wizard's - says how
+            many of each, and to what degree, since they are chosen apart. --}}
+      {{#if maneuverInfo.multipleKinds}}
+        {{#each maneuverInfo.kindList}}
+          <div class="am-counter-badge {{#if (gte this.selected this.newToLearn)}}am-badge-success{{else}}am-badge-pending{{/if}}"
+               data-tooltip="{{this.sources}}">
+            {{this.label}}: {{this.selected}}/{{this.newToLearn}} · {{localize 'am.maneuvers.max-degree' degree=this.maxDegree}}
+          </div>
+        {{/each}}
+      {{/if}}
       {{#if selectedTraditions.length}}
         <div class="am-counter-badge am-badge-info">
           <i class="fa-solid fa-book"></i>
