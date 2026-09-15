@@ -355,6 +355,16 @@ together), and every button in a row read as unreachable until the row was
 scrolled to — Tidy gives row containers `content-visibility: auto`, and headless
 Edge hit-tests straight through one that has not been. Neither was the sheet.
 
+## `notesdup.mjs`
+
+Every character in the world, rendered locked, with the text of every block on
+the Details, Backstory and Notes pages compared: a block whose text another
+block already holds is shown twice. The builder writes what it asked for into
+a5e's fields and again onto its own flag, and the sheet drew both — against the
+released code, 49 doubled blocks. It also turned up bonds, flaws and ideals that
+hold the literal text "[object Object]", written by an earlier builder, shown
+three times on one page; those now read as empty.
+
 ## `livecontrols.mjs` and `lib/livebrowser.mjs`
 
 The sheet's own script, running in headless Edge on a real DOM. The module is

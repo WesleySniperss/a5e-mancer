@@ -1120,6 +1120,11 @@ export class A5eCharacterSheet extends ActorSheet {
 
     for (const key of ['appearance', 'bio', 'notes', 'privateNotes',
                        'ideals', 'bonds', 'flaws', 'goals']) {
+      /* "[object Object]", stored as the text itself: an earlier builder wrote
+         an object where a string belonged, and in this world's saved
+         characters bonds, flaws and ideals hold exactly that. It says nothing,
+         and on the Backstory page it was said three times. */
+      if (/^\s*(<p>)?\s*\[object Object\]\s*(<\/p>)?\s*$/i.test(String(details[key] ?? ''))) details[key] = '';
       details[`${key}Text`]  = htmlToText(details[key]);
       details[`${key}Shown`] = unlocked || !!details[key];
     }
@@ -1160,6 +1165,31 @@ export class A5eCharacterSheet extends ActorSheet {
     };
     // Rolled lore-table results, each with the heading it came from
     bio.lore = Array.isArray(bioFlag.lore) ? bioFlag.lore.filter(l => l?.text) : [];
+
+    /* Reported as: Notes and Backstory show the same things twice.
+
+       The builder keeps what it asked for twice on purpose: composed into
+       a5e's own fields — backstory, traits, mementos, motivation, inspiration
+       and the lore rolls into system.details.notes; connections into bonds;
+       destiny goals and fulfilment into goals — so a5e's sheet shows them; and
+       each piece verbatim on this module's flag. This sheet drew both: the
+       flag as cards under Backstory, and the same text again on the Notes
+       page and in Bonds and Goals.
+
+       a5e's fields are the ones a person can edit, and edits land there, so
+       they are what is shown. A flag piece is drawn only when none of a5e's
+       fields already holds its text — a character made before the builder
+       wrote them, or one whose notes were since rewritten. */
+    const flat = (html) => htmlToText(html).replace(/\s+/g, ' ').trim().toLowerCase();
+    const inNative = flat([det.bio, det.notes, det.appearance, det.bonds, det.goals,
+                           det.ideals, det.flaws].join('\n'));
+    const already = (html) => { const t = flat(html); return !!t && inNative.includes(t); };
+    for (const key of ['backstory', 'traits', 'connections', 'mementos',
+                       'motivation', 'goals', 'connection', 'fulfillment', 'inspiration']) {
+      if (already(bio[key])) bio[key] = '';
+    }
+    bio.lore = bio.lore.filter((l) => !already(l.text));
+
     bio.hasDestiny = !!(bio.motivation || bio.goals || bio.connection
                         || bio.fulfillment || bio.inspiration || bio.lore.length);
 
