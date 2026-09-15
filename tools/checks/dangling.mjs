@@ -148,7 +148,11 @@ const NOT_OURS = new Set([
   /* a5e's own condition palette is a Svelte component:
      button.condition-container[data-status-id]. We decorate it; we do not
      draw it. */
-  'status-id'
+  'status-id',
+  /* Foundry's templates/sidebar/chat-message.hbs: every chat message <li>
+     carries data-message-id="{{message._id}}". The Your Flavor bridge reads it
+     off messages it styles; it never draws one. */
+  'message-id'
 ]);
 
 /* Elements someone else draws and we only reach into: Foundry's own sidebar,
