@@ -327,6 +327,15 @@ export class A5eCharacterSheet extends ActorSheet {
        2026-09-02 with the method it called, and from then on a caster's magic
        maneuvers were listed nowhere on the sheet. */
     const maneuvers = items.filter(i => ManeuverService.isManeuver(i)).map(i => this.#maneuver(i));
+    /* Components for spells that do not carry their own. Reported as: no
+       components on spells. In this world 190 of the 211 spells on actors are
+       stubs — their actions and nothing else — so there were no components
+       to show, on this sheet or on a5e's. 172 of them still record the
+       compendium entry they came from, which has them. Read from there for
+       display, cached for the session, and never written to the actor: the
+       header's repair button is what fills a stub in for good. */
+    this._componentsFrom = await A5eCharacterSheet.#componentsFromSource(
+      items.filter((i) => i.type === 'spell'));
     const spells    = items.filter(i => i.type === 'spell').map(i => this.#spell(i));
     const features  = items.filter(i => ['feature','background','heritage','culture','destiny'].includes(i.type))
                             .map(i => this.#feature(i));
@@ -1946,6 +1955,47 @@ export class A5eCharacterSheet extends ActorSheet {
     };
   }
 
+  /* Whether a spell's own data marks any component.
+
+     Not whether the field is there: in Foundry a stub's missing components are
+     filled in with the schema's defaults when it loads, so a stub reads as a
+     spell with none — all three false. That is also what a spell with truly no
+     components holds, 14 of a5e's 895; for one of those the source entry has
+     none either and nothing is added. The one case read differently is a copy
+     whose owner unticked every component the book gives it, which then shows
+     the book's. */
+  static #hasComponents(c) {
+    return !!(c && (c.vocalized || c.seen || c.material));
+  }
+
+  /* uuid -> the source entry's components, or null where there is none. */
+  static #componentSourceCache = new Map();
+
+  /* For each spell with no components of its own and a compendium source,
+     the source's components, materials and whether they are consumed. */
+  static async #componentsFromSource(spells) {
+    const out = new Map();
+    const wanted = spells.filter((i) => !A5eCharacterSheet.#hasComponents((i._source?.system ?? i.system)?.components));
+    await Promise.all(wanted.map(async (i) => {
+      const uuid = i._stats?.compendiumSource ?? i.flags?.core?.sourceId;
+      if (!uuid || typeof fromUuid !== 'function') return;
+      const cache = A5eCharacterSheet.#componentSourceCache;
+      if (!cache.has(uuid)) {
+        cache.set(uuid, (async () => {
+          try {
+            const doc = await fromUuid(uuid);
+            const s = doc?.type === 'spell' ? doc.system : null;
+            return s?.components ? { components: s.components, materials: s.materials ?? '',
+                                     materialsConsumed: !!s.materialsConsumed } : null;
+          } catch { return null; }
+        })());
+      }
+      const found = await cache.get(uuid);
+      if (found) out.set(i.id, found);
+    }));
+    return out;
+  }
+
   #spell(item) {
     const sys = item.system;
     const { activation, dmgFull, saveDC } = this.#parseActions(item);
@@ -1983,7 +2033,11 @@ export class A5eCharacterSheet extends ActorSheet {
          its own abbreviations (A5E.spells.components.*Abbr), with what the
          material is in the tooltip. */
       ...(() => {
-        const c = sys.components ?? {};
+        const own = A5eCharacterSheet.#hasComponents((item._source?.system ?? item.system)?.components);
+        const from = own ? null : this._componentsFrom?.get(item.id);
+        const c = from?.components ?? sys.components ?? {};
+        const materials = from ? from.materials : sys.materials;
+        const consumed  = from ? from.materialsConsumed : sys.materialsConsumed;
         const say = (key, fallback) => {
           const v = game.i18n.localize(key);
           return v && v !== key ? v : fallback;
@@ -1992,7 +2046,7 @@ export class A5eCharacterSheet extends ActorSheet {
           c.vocalized && { abbr: say('A5E.spells.components.vocalizedAbbr', 'V'), name: say('A5E.spells.components.vocalized', 'Vocalized') },
           c.seen      && { abbr: say('A5E.spells.components.seenAbbr', 'S'),      name: say('A5E.spells.components.seen', 'Seen') },
           c.material  && { abbr: say('A5E.spells.components.materialAbbr', 'M'),  name: say('A5E.spells.components.material', 'Material')
-            + (sys.materials ? ` (${sys.materials}${sys.materialsConsumed ? ', consumed' : ''})` : '') }
+            + (materials ? ` (${materials}${consumed ? ', consumed' : ''})` : '') }
         ].filter(Boolean);
         return { components: list, componentsTip: list.map((x) => x.name).join(', ') };
       })(),

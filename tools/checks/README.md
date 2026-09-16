@@ -355,6 +355,20 @@ together), and every button in a row read as unreachable until the row was
 scrolled to — Tidy gives row containers `content-visibility: auto`, and headless
 Edge hit-tests straight through one that has not been. Neither was the sheet.
 
+## `components.mjs`
+
+V S M on the spells this world's actors actually carry. `spellrowlook.mjs`
+passed the whole time components were reported missing, because it drew spells
+straight from a5e's pack. Most spells on actors are stubs — 190 of 211, their
+actions and nothing else — so there was nothing to draw. Components now come
+from the compendium entry a stub records, for display only; this renders the
+world's characters with `fromUuid` resolving the pack copy and counts. Against
+the released code, 0 of 49 such spells showed components; now 49 of 49.
+
+A stub is judged by its components being all unset, not absent: Foundry fills a
+stub's missing fields with the schema's defaults when it loads, so the check's
+close case is built that way.
+
 ## `notesdup.mjs`
 
 Every character in the world, rendered locked, with the text of every block on
