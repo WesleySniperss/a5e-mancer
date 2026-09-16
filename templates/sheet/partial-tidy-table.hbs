@@ -34,7 +34,8 @@
         <i class="fa-solid fa-chevron-right"></i>
       </div>
       <h3>{{label}}</h3>
-      <span class="table-header-count">{{count}}</span>
+      {{!-- Only where the caller gives one: the spell levels do not. --}}
+      {{#if count includeZero=true}}<span class="table-header-count">{{count}}</span>{{/if}}
       {{!-- Slots, where the section has them: one star per slot, on the line
            that is already there. a5e draws them exactly so, and they are what
            is clicked to spend and recover — there is no second place to do

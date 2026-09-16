@@ -1221,8 +1221,12 @@
                wide in an 820px window and 422px at the 700px minimum. The
                target goes under 500, the time under 450, and range, duration
                and roll always stay — so the heading never has less than
-               180px for its name and its stars. --}}
-          {{~#> tidy-table key=@key label=@key count=this.length items=this
+               180px for its name and its stars.
+
+               No count: reported as the spell count on these headings getting
+               in the way — beside the stars it read as one more figure among
+               the slots. --}}
+          {{~#> tidy-table key=@key label=@key items=this
                           slots=(lookup @root.spellSlots @key) prepCol=true
                           c1=true col1="Time"     w1="var(--am-col-time)"   h1="hide-under-450"
                           c2=true col2="Range"    w2="var(--am-col-range)"  h2="am-keep"
