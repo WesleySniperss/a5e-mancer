@@ -189,8 +189,13 @@ export const CLASS_MANEUVER_TABLES = {
 export const mmKey = (name) => String(name ?? '').toLowerCase().replace(/[^a-z]/g, '');
 export const MM_KEYS = new Set();
 
-/** Classes this module gave a magic-school table to, so a later change can take it back. */
-const MM_INSTALLED = new Set();
+/** The schools' one progression, shared by every class that learns them. */
+export const MAGIC_MANEUVER_TABLE = magicManeuverTable();
+
+/** Does this class learn magic maneuvers? */
+export function hasMagicManeuvers(className) {
+  return MM_KEYS.has(mmKey(className));
+}
 
 /**
  * Decide who gets magic maneuvers, from the world setting when there is one.
@@ -212,23 +217,18 @@ export function applyMagicManeuverClasses() {
     if (typeof raw === 'string' && raw.trim()) names = raw.split(',');
   } catch { /* before init there is no setting; the default stands */ }
 
-  /* Take back only what a previous list put there, so a class dropped from the
-     setting stops getting magic maneuvers — while a class that has a combat
-     progression of its own is never touched, in either direction. */
-  for (const key of MM_INSTALLED) delete CLASS_MANEUVER_TABLES[key];
-  MM_INSTALLED.clear();
+  /* Only the list. The schools' table used to be installed in
+     CLASS_MANEUVER_TABLES under the class name, which made magic and combat
+     maneuvers exclusive: a class in this list with combat maneuvers of its own
+     (a herald, a homebrew caster with a printed table) was skipped with a
+     warning and learned no magic maneuvers at all. Magic maneuvers come on top
+     of combat ones, so the two tables are kept apart - CLASS_MANEUVER_TABLES
+     holds combat progressions only, and ManeuverService.magicTableFor gives the
+     schools to whoever is listed here. */
   MM_KEYS.clear();
-
   for (const name of names) {
     const key = mmKey(name);
-    if (!key) continue;
-    MM_KEYS.add(key);
-    if (CLASS_MANEUVER_TABLES[key]) {
-      AM.log(2, `Magic maneuvers: "${key}" already has a maneuver progression of its own — left as it is`);
-      continue;
-    }
-    CLASS_MANEUVER_TABLES[key] = magicManeuverTable();
-    MM_INSTALLED.add(key);
+    if (key) MM_KEYS.add(key);
   }
 }
 
@@ -249,9 +249,33 @@ export function registerMagicSchools() {
     // The config holds i18n keys elsewhere; a literal label localizes to itself
     CONFIG.A5E.maneuverTraditions[key] ??= label;
   }
+  /* In among the combat traditions by name, as a5e lists its own. Added at the
+     end, the schools came after Viper's Fangs in every list read from here -
+     the compendium browser's tradition filter, the sheet's tradition picker. */
+  sortByLabel(CONFIG.A5E.maneuverTraditions, (label) => label);
+  /* The character sheet's maneuver filter is copied from the traditions when
+     a5e loads, long before this runs, so the schools were never in it. */
+  const sheetFilter = CONFIG.A5E.filters?.maneuvers?.traditions?.filters;
+  if (sheetFilter) {
+    for (const [key, label] of Object.entries(MM_SCHOOLS)) {
+      sheetFilter[key] ??= { label, key: 'system.tradition', type: 'value', truthValue: 'or' };
+    }
+    sortByLabel(sheetFilter, (entry) => entry?.label);
+  }
   /* Now that settings exist, redo the class list — at module load it could only
      see the built-in default. */
   applyMagicManeuverClasses();
+}
+
+/**
+ * Put an object's keys in the order of their localized labels, in place - so
+ * anything already holding the object sees the new order.
+ */
+function sortByLabel(obj, labelOf) {
+  const text = (v) => String(game.i18n?.localize?.(String(labelOf(v) ?? '')) ?? labelOf(v) ?? '');
+  const entries = Object.entries(obj).sort(([, a], [, b]) => text(a).localeCompare(text(b)));
+  for (const [key] of entries) delete obj[key];
+  for (const [key, value] of entries) obj[key] = value;
 }
 
 /** Is this tradition key one of the magic schools? */
@@ -495,11 +519,8 @@ export class ManeuverService {
       for (const entry of index) {
         if (entry.type !== 'class') continue;
         const key = entry.name.toLowerCase();
-        /* The four magic-maneuver classes run on this module's own progression,
-           not the book's. None of them prints a maneuver column today, so this
-           changes nothing now — it is here so a later printing that gave one to,
-           say, the wizard could not quietly replace the magic school layer. */
-        if (MM_KEYS.has(mmKey(key))) continue;
+        // A printed table is a combat progression. The schools are kept apart
+        // (magicTableFor), so a caster's combat table can no longer replace them.
 
         const parsed = this.parseClassProgression(entry.system?.description);
         if (!parsed) continue;
@@ -534,7 +555,7 @@ export class ManeuverService {
     const key = className.toLowerCase();
     let table = CLASS_MANEUVER_TABLES[key];
 
-    if (classItem && !MM_KEYS.has(mmKey(key))) {
+    if (classItem) {
       const own = this.#progressionOf(classItem);
       if (own) {
         table = {
@@ -545,6 +566,9 @@ export class ManeuverService {
         };
       }
     }
+    // A class with combat maneuvers answers with those; a caster with only the
+    // schools answers with theirs. Both at once is maneuverBudget's to count.
+    table ??= this.magicTableFor(key);
     if (!table) return null;
 
     const lvl          = Math.max(1, Math.min(20, level));
@@ -564,14 +588,14 @@ export class ManeuverService {
   /* ── Where a character's maneuvers come from ─────────────────────────── */
 
   /**
-   * A class's maneuver table: its own printed one when the class on the actor
-   * has it, else the module's copy. The magic schools' table belongs to the
-   * module and is never replaced by a printed one.
+   * A class's combat maneuver table: its own printed one when the class on the
+   * actor has it, else the module's copy. Combat only - the magic schools are
+   * magicTableFor's, and a class can have both.
    */
   static tableFor(className, classItem = null) {
     const key = String(className ?? '').toLowerCase();
     let table = CLASS_MANEUVER_TABLES[key] ?? null;
-    if (classItem && !MM_KEYS.has(mmKey(key))) {
+    if (classItem) {
       const own = this.#progressionOf(classItem);
       if (own) {
         table = {
@@ -583,6 +607,11 @@ export class ManeuverService {
       }
     }
     return table;
+  }
+
+  /** The magic schools' table for a class that learns them, else null. */
+  static magicTableFor(className) {
+    return hasMagicManeuvers(className) ? MAGIC_MANEUVER_TABLE : null;
   }
 
   /** archetype uuid -> its maneuver table, or null */
@@ -678,8 +707,13 @@ export class ManeuverService {
    * maneuvers to determine the highest degree of combat maneuvers you can
    * learn, determined by the class with the greatest access" - 3 fighter and 10
    * herald learn as a 13th-level fighter. Maneuvers known and traditions add up
-   * across the features. The magic schools are this module's own rules and say
-   * nothing about multiclassing, so they are read the same way.
+   * across the features.
+   *
+   * Magic maneuvers are on top of all that, never part of it. Only the classes
+   * that learn them count, their levels summed on the schools' one progression -
+   * how many, the degree and the schools alike - and those levels never count
+   * toward combat maneuvers, nor a fighter's toward magic ones. A class with
+   * both has two sources.
    *
    * @param {Actor} actor
    * @param {object} [opts]
@@ -703,8 +737,13 @@ export class ManeuverService {
     for (const c of classes) {
       const table = this.tableFor(c.name, c.item);
       if (table) {
-        sources.push({ kind: table.magic ? 'magic' : 'combat', label: c.name, classId: c.id, level: c.level, prev: c.prev,
+        sources.push({ kind: 'combat', label: c.name, classId: c.id, level: c.level, prev: c.prev,
                        table, allowedTraditions: table.allowedTraditions ?? null, traditions: table.traditions ?? 0 });
+      }
+      const magic = this.magicTableFor(c.name);
+      if (magic) {
+        sources.push({ kind: 'magic', label: c.name, classId: c.id, level: c.level, prev: c.prev,
+                       table: magic, allowedTraditions: magic.allowedTraditions, traditions: magic.traditions });
       }
       const slug = c.item ? (c.item.slug || c.item.system?.slug || String(c.name).slugify?.({ strict: true }) || '') : '';
       let arch = slug ? (actor.items.find?.(i => i?.type === 'archetype' && i.system?.class === slug) ?? null) : null;
@@ -736,7 +775,7 @@ export class ManeuverService {
          and cleric 10 know what a 20th-level caster knows, not two 10th-level
          casters' worth (12). Read at the summed levels, like the degree. */
       const levelling = ks.some(s => s.classId === levellingId);
-      const magicTable = kind === 'magic' ? ks[0].table : null;
+      const magicTable = kind === 'magic' ? MAGIC_MANEUVER_TABLE : null;
       kinds[kind] = {
         gained: magicTable
           ? (levelling ? Math.max(0, at(magicTable, 'maneuversKnown', now) - at(magicTable, 'maneuversKnown', before)) : 0)
@@ -868,37 +907,68 @@ export class ManeuverService {
   static getActorEntitlement(actor) {
     if (!actor) return null;
 
-    let maneuversKnown = 0, traditions = 0, maxDegree = 0;
-    let allowedTraditions = [];
-    let anyClassAllowsAll = false;
-    let found = false;
+    /* Combat and magic apart, the way maneuverBudget counts them. Added into one
+       pool, a wizard 5 / fighter 5 had the wizard's magic maneuvers covering
+       for missing combat ones and the other way round, and two casters' tables
+       added up past the ten the schools allow. */
+    const at = (t, f, l) => Number(t?.[f]?.[Math.max(0, Math.min(20, l))] ?? 0) || 0;
+    const combat = { known: 0, traditions: 0, levels: 0, tables: [], allowed: [], any: false };
+    let magicLevels = 0;
 
     for (const item of actor.items) {
       if (item.type !== 'class') continue;
-      const level = item.system?.classLevels ?? item.system?.levels ?? item.system?.level ?? 1;
-      const info  = this.getClassManeuverInfo(item.name, level, item);
-      if (!info) continue;
-      found = true;
-      maneuversKnown += info.maneuversKnown;
-      traditions     += info.traditions;
-      maxDegree       = Math.max(maxDegree, info.maxDegree);
-      if (info.allowedTraditions === null) anyClassAllowsAll = true;
-      else allowedTraditions.push(...info.allowedTraditions);
+      const level = Math.max(1, Math.min(20,
+        Number(item.system?.classLevels ?? item.system?.levels ?? item.system?.level ?? 1) || 1));
+      const table = this.tableFor(item.name, item);
+      if (table && at(table, 'maneuversKnown', level) > 0) {
+        combat.known      += at(table, 'maneuversKnown', level);
+        combat.traditions += table.traditions ?? 0;
+        combat.levels     += level;
+        combat.tables.push(table);
+        if (!Array.isArray(table.allowedTraditions)) combat.any = true;
+        else combat.allowed.push(...table.allowedTraditions);
+      }
+      if (this.magicTableFor(item.name)) magicLevels += level;
     }
-    if (!found) return null;
+    magicLevels = Math.min(20, magicLevels);
 
-    const knownCount      = actor.items.filter(i => this.isChosenManeuver(i)).length;
-    const knownTraditions = this.getActorTraditions(actor).length;
+    const magicKnown = at(MAGIC_MANEUVER_TABLE, 'maneuversKnown', magicLevels);
+    if (!combat.tables.length && !magicKnown) return null;
+
+    const kindOf = (i) => (isMagicSchool(i.system?.tradition ?? i.system?.combatTradition ?? '') ? 'magic' : 'combat');
+    const chosen = actor.items.filter(i => this.isChosenManeuver(i));
+    const traditionsKnown = this.getActorTraditions(actor);
+    const kinds = {
+      combat: {
+        maneuversKnown: combat.known,
+        traditions: combat.traditions,
+        maxDegree: Math.max(0, ...combat.tables.map(t => at(t, 'maxDegree', Math.min(20, combat.levels)))),
+        knownCount: chosen.filter(i => kindOf(i) === 'combat').length,
+        knownTraditions: traditionsKnown.filter(t => !isMagicSchool(t)).length
+      },
+      magic: {
+        maneuversKnown: magicKnown,
+        traditions: magicKnown ? this.magicSchoolsAt(magicLevels) : 0,
+        maxDegree: magicKnown ? at(MAGIC_MANEUVER_TABLE, 'maxDegree', magicLevels) : 0,
+        knownCount: chosen.filter(i => kindOf(i) === 'magic').length,
+        knownTraditions: traditionsKnown.filter(t => isMagicSchool(t)).length
+      }
+    };
+    const both = Object.values(kinds);
+    const sum = (f) => both.reduce((n, k) => n + k[f], 0);
+    const allowed = combat.any ? null : [...new Set(combat.allowed)];
 
     return {
-      maneuversKnown,
-      traditions,
-      maxDegree,
-      allowedTraditions: anyClassAllowsAll ? null : [...new Set(allowedTraditions)],
-      knownCount,
-      knownTraditions,
-      remainingManeuvers:  Math.max(0, maneuversKnown - knownCount),
-      remainingTraditions: Math.max(0, traditions - knownTraditions)
+      kinds,
+      maneuversKnown: sum('maneuversKnown'),
+      traditions: sum('traditions'),
+      maxDegree: Math.max(...both.map(k => k.maxDegree)),
+      // null means any combat tradition; the schools are added by name
+      allowedTraditions: allowed && magicKnown ? [...allowed, ...MAGIC_MANEUVER_TABLE.allowedTraditions] : allowed,
+      knownCount: chosen.length,
+      knownTraditions: traditionsKnown.length,
+      remainingManeuvers:  both.reduce((n, k) => n + Math.max(0, k.maneuversKnown - k.knownCount), 0),
+      remainingTraditions: both.reduce((n, k) => n + Math.max(0, k.traditions - k.knownTraditions), 0)
     };
   }
 

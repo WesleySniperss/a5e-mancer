@@ -263,7 +263,8 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
           const classKey  = className?.toLowerCase() ?? '';
           context.classSelected         = !!AM.SELECTED.class?.uuid;
           context.maneuverInfo          = classKey ? ManeuverService.getClassManeuverInfo(className, 1) : null;
-          context.isManeuverClass       = classKey ? !!CLASS_MANEUVER_TABLES[classKey] : false;
+          // Combat maneuvers, or the magic schools from a later level
+          context.isManeuverClass       = classKey ? (!!CLASS_MANEUVER_TABLES[classKey] || !!ManeuverService.magicTableFor(classKey)) : false;
           context.selectedManeuverUuids = AM.creationManeuvers?.uuids ?? [];
           context.selectedTraditions    = AM.creationManeuvers?.traditions ?? [];
           context.selectedManeuverNames = AM.creationManeuvers?.names ?? [];

@@ -1,5 +1,42 @@
 import { AM } from '../am.js';
 import { MAGIC_MANEUVERS } from '../data/magicManeuvers.js';
+import { indexFieldsFor } from './compendiumIndexFix.js';
+
+/* One icon each, from Foundry's own set as a5e's maneuvers are. All of them
+   shared one rune before, so in the compendium browser and the sidebar the
+   whole catalogue read as one repeated entry among a5e's pictures. */
+const ICON = 'icons/magic/';
+const MM_ICONS = {
+  ice:             'water/snowflake-ice-blue.webp',
+  acid:            'acid/dissolve-drip-droplet-smoke.webp',
+  fire:            'fire/beam-jet-stream-embers.webp',
+  thunder:         'sonic/explosion-shock-sound-wave.webp',
+  lightning:       'lightning/bolt-forked-blue.webp',
+  poison:          'death/skull-poison-green.webp',
+  force:           'sonic/explosion-impact-shock-wave.webp',
+  psychic:         'control/hypnosis-mesmerism-swirl.webp',
+  necrotic:        'unholy/strike-body-life-soul-purple.webp',
+  radiant:         'light/beam-rays-yellow.webp',
+  peak:            'symbols/star-rising-purple.webp',
+  bypass:          'movement/trail-streak-impact-blue.webp',
+  reflection:      'light/beam-impact-deflect-teal.webp',
+  bend:            'light/beam-deflect-path-yellow.webp',
+  seeking:         'perception/shadow-stealth-eyes-purple.webp',
+  pressure:        'sonic/projectile-shock-wave-blue.webp',
+  resonance:       'sonic/projectile-sound-rings-wave.webp',
+  suggestion:      'control/hypnosis-mesmerism-pendulum.webp',
+  countercast:     'defensive/shield-barrier-deflect-gold.webp',
+  'generous-hand': 'life/heart-hand-gold-green.webp',
+  cleansing:       'life/cross-beam-green.webp',
+  recall:          'time/arrows-circling-green.webp',
+  harvest:         'death/skeleton-skull-soul-blue.webp',
+  ricochet:        'movement/trail-streak-zigzag-teal.webp',
+  riposte:         'defensive/shield-barrier-blades-teal.webp',
+  steadfast:       'defensive/armor-stone-skin.webp',
+  insight:         'perception/third-eye-blue-red.webp',
+  premonition:     'perception/orb-crystal-ball-scrying-blue.webp',
+  farsight:        'time/hourglass-tilted-glowing-gold.webp'
+};
 
 /**
  * Builds a world compendium of the magic maneuvers so they can be browsed,
@@ -19,7 +56,11 @@ import { MAGIC_MANEUVERS } from '../data/magicManeuvers.js';
 export class MagicManeuverPack {
 
   static PACK_NAME = 'a5e-mancer-magic-maneuvers';
-  static VERSION   = 10;         // bump to force a rebuild after data changes
+  static VERSION   = 11;         // bump to force a rebuild after data changes
+  /* The source every item names, registered as an a5e product (registerSource)
+     so the browser shows it the way it shows AG beside a5e's own - and a5e's
+     own setting for hiding a source from the browser can hide these too. */
+  static SOURCE    = 'a5eMancerMagicManeuvers';
   // Where the built version is recorded. A world setting, because a compendium
   // has no flag storage of its own — see #builtVersion.
   static SETTING   = 'magicManeuverPackVersion';
@@ -47,6 +88,7 @@ export class MagicManeuverPack {
     if (pack && !force && built === this.VERSION) return pack;
 
     try {
+      const created = !pack;
       if (!pack) {
         // The namespaced class in v13+, the bare global before it. Reaching for
         // the global alone meant the pack was never created where that global is
@@ -68,6 +110,10 @@ export class MagicManeuverPack {
       }
 
       await this.#populate(pack);
+      /* Beside a5e's maneuvers in the sidebar - once: when the pack is made, or
+         the first time a world built before this rebuilds it. A GM who moves it
+         afterwards keeps it where they put it. */
+      if (created || (Number(built) || 0) < 11) await this.#placeBesideSystemManeuvers(pack);
       await this.#rememberVersion(this.VERSION);
       ui.notifications.info(`${AM.NAME}: magic maneuver compendium ready (${MAGIC_MANEUVERS.length} entries).`);
       return pack;
@@ -99,6 +145,35 @@ export class MagicManeuverPack {
     }
   }
 
+  /** Into the compendium folder that holds a5e's own maneuvers, if it has one. */
+  static async #placeBesideSystemManeuvers(pack) {
+    try {
+      if (pack.folder) return;
+      const folder = game.packs.get('a5e.a5e-maneuvers')?.folder ?? null;
+      if (folder) await pack.setFolder(folder);
+    } catch (err) {
+      AM.log(2, 'Could not put the magic maneuver compendium beside a5e\'s maneuvers:', err);
+    }
+  }
+
+  /**
+   * Register the source as an a5e product. a5e reads CONFIG.A5E.products for
+   * the source mark on a browser row and an item sheet, and for its own
+   * setting that hides a source from the browser.
+   */
+  static registerSource() {
+    const products = CONFIG.A5E?.products;
+    if (!products || products[this.SOURCE]) return;
+    products[this.SOURCE] = {
+      abbreviation: 'MM',
+      affiliate: false,
+      publisher: '',
+      systems: ['a5e'],
+      title: 'A5e Mancer: Magic Maneuvers',
+      url: 'https://github.com/WesleySniperss/a5e-mancer'
+    };
+  }
+
   /** Replace the pack's contents with the current catalogue. */
   static async #populate(pack) {
     const wasLocked = pack.locked;
@@ -113,6 +188,11 @@ export class MagicManeuverPack {
 
       await Item.createDocuments(MAGIC_MANEUVERS.map(m => this.itemData(m)),
                                  { pack: pack.collection, keepId: false });
+      /* The index a5e's browser filters and labels from. The system builds it
+         at setup, before this pack is filled - without the system fields a
+         rebuilt entry has no degree, school or exertion to filter on, and its
+         row carries no "1st degree Elements (1 exertion point)" line. */
+      await pack.getIndex({ fields: [...indexFieldsFor('maneuver'), 'flags'] });
       AM.log(3, `Magic maneuver compendium filled with ${MAGIC_MANEUVERS.length} entries`);
     } finally {
       if (wasLocked) await pack.configure({ locked: true });
@@ -141,13 +221,13 @@ export class MagicManeuverPack {
     return {
       name: m.name,
       type: 'maneuver',
-      img:  'icons/magic/symbols/runes-star-blue.webp',
+      img:  ICON + (MM_ICONS[m.id] ?? 'symbols/runes-star-blue.webp'),
       system: {
         description:  this.#describe(m),
         degree:       m.degree,
         exertionCost: m.cost,
         tradition:    m.school,
-        source:       'A5e Mancer — Magic Maneuvers',
+        source:       this.SOURCE,
         actions: {
           [actionId]: {
             id:      actionId,

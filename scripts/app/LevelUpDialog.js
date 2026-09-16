@@ -704,7 +704,11 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       degreeUnlocked: unlocked.length ? Math.max(...unlocked) : null,
       traditions: list.reduce((n, k) => n + k.traditionLimit, 0),
       hasManeuvers: true,
-      replaceable: (!newClass && newClassLevel > 1) ? ManeuverService.MANEUVER_REPLACEMENTS_PER_LEVEL : 0
+      /* A trade-in per kind: magic maneuvers are on top of combat ones, so a
+         Spellguard wizard's level may swap one of each rather than one of
+         either. #maneuverReplacementContext counts the kinds with something
+         to trade. */
+      replaceablePerKind: (!newClass && newClassLevel > 1) ? ManeuverService.MANEUVER_REPLACEMENTS_PER_LEVEL : 0
     };
     this._maneuverBudget = info;
     return info;
@@ -717,7 +721,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   #maneuverReplacementContext(context, cls, newClassLevel) {
     if (!cls || newClassLevel <= 1) return;
     const info = this._maneuverBudget;
-    if (!info?.replaceable) return;
+    if (!info?.replaceablePerKind) return;
     const teaches = new Set(Object.keys(info.kinds ?? {}));
 
     // Only the ones the player chose. A maneuver handed out by a class feature is
@@ -732,7 +736,8 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       .filter(m => teaches.has(isMagicSchool(m.tradition) ? 'magic' : 'combat'));
     if (!known.length) return;
 
-    context.maneuverReplaceLimit = info.replaceable;
+    const kindsKnown = new Set(known.map(m => (isMagicSchool(m.tradition) ? 'magic' : 'combat')));
+    context.maneuverReplaceLimit = info.replaceablePerKind * kindsKnown.size;
     context.maneuverReplaceUsed  = this._replacedManeuverIds.length;
     // Opened once something is marked, so a swap in progress is never hidden
     context.showReplaceManeuver  = !!this._showReplaceManeuver || this._replacedManeuverIds.length > 0;
@@ -1285,9 +1290,17 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         delete picked[last];
       }
     } else {
-      const limit = dialog._maneuverBudget?.replaceable ?? 0;
-      if (list.length >= limit) {
-        ui.notifications.warn(game.i18n.format('am.levelup.replace-limit', { n: limit }));
+      // One of each kind, not one in all - see replaceablePerKind
+      const kindOf = (t) => (isMagicSchool(t) ? 'magic' : 'combat');
+      const kindOfItem = (x) => {
+        const it = dialog.actor.items.get(x);
+        return kindOf(it?.system?.tradition ?? it?.system?.combatTradition ?? '');
+      };
+      const limit = dialog._maneuverBudget?.replaceablePerKind ?? 0;
+      const kind = kindOfItem(id);
+      if (list.filter(x => kindOfItem(x) === kind).length >= limit) {
+        ui.notifications.warn(game.i18n.format('am.levelup.replace-limit-kind',
+          { n: limit, kind: game.i18n.localize(`am.maneuvers.kind-${kind}`) }));
         return;
       }
       list.push(id);

@@ -93,6 +93,11 @@ const FIELD_MAPPINGS = {
   generic: ['system.source', 'system.description']
 };
 
+/** The index fields a5e's browser reads for one item type. */
+export function indexFieldsFor(type) {
+  return [...(FIELD_MAPPINGS[type] ?? FIELD_MAPPINGS.generic)];
+}
+
 /**
  * Enrich every compendium pack's index with the fields the a5e compendium
  * browser filters on. Safe to run repeatedly (merge is idempotent).

@@ -157,6 +157,7 @@ Hooks.once('ready', () => {
   // grantDialogEnhancer.js. Registered here so it is live before any level-up.
   GrantDialogEnhancer.register();
   // Homebrew compendium, built from inside Foundry — see magicManeuverPack.js
+  MagicManeuverPack.registerSource();
   MagicManeuverPack.ensure().catch(err => AM.log(1, 'Magic maneuver pack:', err));
 });
 
