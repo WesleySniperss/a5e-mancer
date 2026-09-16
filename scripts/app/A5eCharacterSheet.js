@@ -110,8 +110,21 @@ export class A5eCharacterSheet extends ActorSheet {
          land. 'application' is what ApplicationV2 adds by itself; this is still
          a v1 ActorSheet, so we add it by hand. 'themed' + 'theme-dark' pick
          Tidy's dark palette. 'a5e-mancer-sheet' stays last so our own rules
-         still have somewhere to hang. See tidy/README.md. */
-      classes: ['tidy5e-sheet', 'application', 'sheet', 'actor', 'character',
+         still have somewhere to hang. See tidy/README.md.
+
+         'default' takes the sheet out of Carolingian UI's rule for buttons in
+         old-style windows, the one rule of theirs that excludes anything:
+
+           body.crlngn-ui .app:not(.default.sheet):not(.pokerole) form button
+             { background-color; border; color; margin }
+
+         It weighs (0,5,3), more than any of Tidy's button rules or ours, so
+         every button here wore its wash — the spell-slot stars included, lit
+         and spent then drawn identically. Reported, three times, as stars
+         that do not work: in the world's own log each click wrote the right
+         count (1 → 2 → 1 on a cleric), and nothing on the sheet changed. No
+         other stylesheet in this world reads .default on a window. */
+      classes: ['tidy5e-sheet', 'application', 'sheet', 'default', 'actor', 'character',
                 'quadrone', 'themed', 'theme-dark', 'a5e-mancer-sheet'],
       template: `modules/${MODULE_ID}/templates/sheet/tidy-character-sheet.hbs`,
       /* Tidy's own character sheet opens at 740x810; a5e needs a little more
@@ -5143,7 +5156,8 @@ export class A5eNPCSheet extends A5eCharacterSheet {
          `character`. Tidy scopes a handful of its own rules to
          :where(.quadrone.actor):where(.npc) — the vitals block chiefly — so the
          class earns its place rather than just naming the thing. */
-      classes: ['tidy5e-sheet', 'application', 'sheet', 'actor', 'npc',
+      /* 'default': see the character sheet — Carolingian UI's button rule. */
+      classes: ['tidy5e-sheet', 'application', 'sheet', 'default', 'actor', 'npc',
                 'quadrone', 'themed', 'theme-dark',
                 'a5e-mancer-sheet', 'a5e-mancer-npc-sheet'],
       template: `modules/${MODULE_ID}/templates/sheet/npc-sheet.hbs`,

@@ -517,7 +517,11 @@
    the wash darkened all of the green but its last 28px, which then read as a
    lighter block. Measured along the bar in headless Edge with Carolingian's
    stylesheet: a step of 39 in brightness at +147px; with this, 3, the same as
-   without Carolingian at all. That selector weighs (0,5,3); this one (0,6,1). */
+   without Carolingian at all. That selector weighs (0,5,3); this one (0,6,1).
+
+   Since then the sheet carries 'default', which takes it out of that rule
+   altogether — see defaultOptions in A5eCharacterSheet.js. This stays, so the
+   bar holds if their selector ever changes. */
 .tidy5e-sheet.application.a5e-mancer-sheet .meter.progress.hit-points > button.label {
   background: none;
   border: 0;
@@ -1983,6 +1987,13 @@
   padding: 0;
   font-size: 0.6875rem;
   line-height: 1;
+}
+
+/* The glyph takes the pip's colour. Tidy colours a button's icon itself, so
+   the fade below reached the pip and never the star: measured in Edge, the
+   star was rgb(223, 226, 235) lit and spent alike. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-slots > .am-slot > i {
+  color: inherit;
 }
 
 /* Spent. a5e fades both the star and the ground behind it rather than

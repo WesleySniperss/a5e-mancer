@@ -470,6 +470,16 @@ of 39 at +147px, against 3 for a clean gradient. And Tidy's initiative column is
 of the hexagon on both sheets. With the two rules taken out, five of six cases
 fail.
 
+Then the slot stars, reported a third time as not working. The world's own
+actor log (read from the LevelDB `.log` in write order) had every click writing
+the right count — 1 → 2 → 1 on a cleric — and nothing on the sheet changing:
+the same Carolingian rule outweighed the lit and spent styles and drew both
+alike, and even without it the star glyph kept Tidy's icon colour in both
+states. The sheet now carries the class `default`, which that rule excludes,
+and the glyph takes the pip's colour. The check compares a lit and a spent
+star, and every button on both sheets with and without Carolingian: before,
+180 of 211 on the character sheet differed.
+
 ## `spellbooks.mjs`
 
 The Magic tab's spell books against a5e's Spells page: the strip drawn when
