@@ -440,6 +440,36 @@ rule. A monster has no `attributes.exertion` in a5e's data model at all, so its
 exertion is kept on this module's flag, both fields and the steps writing there.
 Against the released code all seven cases failed.
 
+Then reported: unlocked, it still cannot be corrected. Unlocked, the pool size
+is a field on every sheet now. Where a5e works the pool out, a stored max is
+overwritten on every prepare (`prepareMaxExertion` in `character.ts`), so a
+typed size becomes one exertion bonus of this sheet's (`amSheetExertion1`),
+counted from a5e's own figure, which a5e adds itself and lists under Bonuses —
+and is removed, not left at 0, when the size is set back.
+
+## `hpedit.mjs`
+
+Hit points, locked and unlocked. Locked, clicking the figure offers only the
+current value, to be replaced or healed and hurt by `+N`/`-N`; unlocked, the
+maximum and temporary pool as well. A sign goes to a5e's `applyHealing` and
+`applyDamage`, the latter taking temporary hit points first.
+
+It also checks that a starred item's star is lit on every tab it is drawn on,
+on two characters so Inventory, Magic, Martial and Features are all covered.
+Only the Favorites tab's rows used to carry `starred`; with that taken out
+again, both star cases fail.
+
+## `vitals.mjs`
+
+The HP bar and the initiative badge in headless Edge, with and without
+Carolingian UI's stylesheet. Carolingian gives every button in an old-style
+window's form a 15% black wash; the HP figure is a button over 148px of the
+176px bar, which left its last 28px reading as a pale square — a brightness step
+of 39 at +147px, against 3 for a clean gradient. And Tidy's initiative column is
+3rem with `overflow: hidden` around a 3.25rem badge, which cut 2px off each side
+of the hexagon on both sheets. With the two rules taken out, five of six cases
+fail.
+
 ## `spellbooks.mjs`
 
 The Magic tab's spell books against a5e's Spells page: the strip drawn when

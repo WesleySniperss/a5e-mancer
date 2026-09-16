@@ -164,13 +164,62 @@ export class A5eCharacterSheet extends ActorSheet {
     return player ? `var(--user-color-${player.id}, var(--user-color))` : 'var(--user-color)';
   }
 
+  /* The exertion bonus this sheet keeps for a corrected pool. A5e's bonuses
+     are keyed by document id, so it is one: sixteen letters and digits. */
+  static EXERTION_BONUS_ID = 'amSheetExertion1';
+
+  /**
+   * The update that makes an actor's exertion pool `want`.
+   *
+   * Where the pool is typed in (a monster, or a5e's automation off) that is the
+   * field itself. Where a5e works it out — proficiency, or twice it, from the
+   * classes' exertion grants, plus exertion bonuses — a stored max is read only
+   * when no grant sets the pool, and is overwritten on every prepare otherwise.
+   * So the difference goes into one exertion bonus of this sheet's, which a5e
+   * adds on its own terms: its rest restores to it, and it is listed, labelled,
+   * under Bonuses where it can be seen and removed. Back to what a5e would give,
+   * the bonus is removed rather than left at 0.
+   *
+   * @param {Actor} actor
+   * @param {HTMLInputElement|null} input  carries data-path and data-derived
+   * @param {number} want
+   */
+  static exertionMaxUpdate(actor, input, want) {
+    const path = input?.dataset?.path || 'system.attributes.exertion.max';
+    if (input?.dataset?.derived !== 'true') return { [path]: want };
+
+    const id = A5eCharacterSheet.EXERTION_BONUS_ID;
+    const key = `system.bonuses.exertion.${id}`;
+    const ours = Number(actor.system?.bonuses?.exertion?.[id]?.formula) || 0;
+    const without = (Number(actor.system?.attributes?.exertion?.max) || 0) - ours;
+    const delta = want - without;
+    if (!delta) {
+      const Del = foundry.data?.operators?.ForcedDeletion;
+      return Del ? { [key]: new Del() } : { [`system.bonuses.exertion.-=${id}`]: null };
+    }
+    return { [key]: { formula: String(delta), label: 'Sheet correction', img: 'icons/svg/upgrade.svg' } };
+  }
+
   /** Nothing should keep observing an element that has been torn down. */
+
+  /**
+   * Whether a row's star is lit: a5e's own field, or the flag this sheet
+   * wrote before it used that field.
+   *
+   * Only the Favorites tab's rows used to carry this, so a star clicked on
+   * Inventory, Magic, Martial or Features did star the item — it appeared
+   * under Favorites — while the star that was clicked stayed hollow.
+   */
+  #starred(item) {
+    return !!item?.system?.favorite || !!this._legacyFavorites?.has(item?.id);
+  }
 
   /* ── Data ─────────────────────────────────────────── */
   async getData() {
     const actor  = this.actor;
     const sys    = actor.system;
     const items  = actor.items.contents;
+    this._legacyFavorites = new Set(actor.getFlag?.(MODULE_ID, 'favorites') ?? []);
 
     const profBonus = sys.attributes?.prof ?? sys.proficiencyBonus ?? this.#calcProf(actor);
 
@@ -309,7 +358,13 @@ export class A5eCharacterSheet extends ActorSheet {
     const npcExertion = actor.type === 'npc';
     const exBase = npcExertion ? `flags.${MODULE_ID}.exertion` : 'system.attributes.exertion';
     const ex  = (npcExertion ? actor.flags?.[MODULE_ID]?.exertion : sys.attributes?.exertion) ?? {};
-    const exMaxEditable = npcExertion || !actor.automationAvailable;
+    /* Where a5e takes the pool from what it is told, the pool is typed in.
+       Where it works the pool out, the padlock opens it too: reported as
+       exertion not correctable even unlocked. Stored there it would be
+       overwritten on the next prepare, so that change goes in as an exertion
+       bonus instead — see exertionMaxUpdate. */
+    const exDerived = !npcExertion && !!actor.automationAvailable;
+    const exMaxEditable = !exDerived || (actor.isOwner && !(actor.flags?.a5e?.sheetIsLocked ?? true));
     const pct01 = (v, max) => Math.round(Math.min(Math.max(v / max, 0), 1) * 100);
     const hpPct = hp.max ? pct01(hp.value ?? 0, hp.max) : 0;
     const exPct = ex.max ? pct01(ex.current ?? 0, ex.max) : 0;
@@ -322,7 +377,7 @@ export class A5eCharacterSheet extends ActorSheet {
       speed: sys.attributes?.movement?.walk?.distance ?? sys.attributes?.movement?.walk ?? sys.attributes?.speed?.value ?? 30,
       exertion: { current: ex.current ?? ex.value ?? 0, max: ex.max ?? 0, pct: exPct,
                   currentPath: `${exBase}.current`, maxPath: `${exBase}.max`,
-                  maxEditable: exMaxEditable },
+                  maxEditable: exMaxEditable, maxDerived: exDerived },
       fatigue: sys.attributes?.fatigue ?? 0,
       strife:  sys.attributes?.strife  ?? 0,
       profBonus: sign(profBonus),
@@ -1927,6 +1982,7 @@ export class A5eCharacterSheet extends ActorSheet {
       ? sign(Number(atkBonus)) : null;
     return {
       id: item.id, uuid: item.uuid, name: item.name, img: item.img,
+      starred: this.#starred(item),
       atkBonus: atkBonusFmt,      // null → tag hidden; signed string → tag shown
       atkBonusCell: atkBonusFmt ?? '—',  // for inventory table column
       dmg: dmg ?? '—', dmgFull,
@@ -1953,6 +2009,7 @@ export class A5eCharacterSheet extends ActorSheet {
     const range    = rangeVal ? `${rangeVal} ${sys.range?.units ?? 'ft'}` : null;
     return {
       id: item.id, uuid: item.uuid, name: item.name, img: item.img,
+      starred: this.#starred(item),
       tradition: tradition || 'Other',
       degree, exertion, activation,
       // Degree and exertion are the cost of a maneuver, and dnd5e has no
@@ -2063,6 +2120,7 @@ export class A5eCharacterSheet extends ActorSheet {
 
     return {
       id: item.id, uuid: item.uuid, name: item.name, img: item.img,
+      starred: this.#starred(item),
       level,
       levelLabel: level === 0 ? 'Cantrip' : `Level ${level}`,
       school: schoolKey,
@@ -2267,6 +2325,7 @@ export class A5eCharacterSheet extends ActorSheet {
 
     return {
       id: item.id, uuid: item.uuid, name: item.name, img: item.img,
+      starred: this.#starred(item),
       type: item.type,
       featureType: sys.featureType ?? (item.type !== 'feature' ? item.type : 'other'),
       source: ({ class:'Class', heritage:'Heritage', culture:'Culture', background:'Background',
@@ -2290,6 +2349,7 @@ export class A5eCharacterSheet extends ActorSheet {
     const prereq = sys.prerequisites?.value ?? sys.prerequisite ?? '';
     return {
       id: item.id, uuid: item.uuid, name: item.name, img: item.img,
+      starred: this.#starred(item),
       source: this.#normFeatSource(source),
       prereq,
       desc: this.#itemDesc(item)
@@ -2322,6 +2382,7 @@ export class A5eCharacterSheet extends ActorSheet {
     const needsAttune   = sys.requiresAttunement ?? false;
     return {
       id: item.id, uuid: item.uuid, name: item.name, img: item.img,
+      starred: this.#starred(item),
       qty:    sys.quantity ?? 1,
       weight: sys.weight?.value ?? sys.weight ?? 0,
       equipped:     equippedState === 2,
@@ -2337,6 +2398,7 @@ export class A5eCharacterSheet extends ActorSheet {
   #classItem(item) {
     return {
       id: item.id, uuid: item.uuid, name: item.name, img: item.img,
+      starred: this.#starred(item),
       // A5e stores these as system.classLevels and system.hp.hitDiceSize — the
       // 5e-style paths below are fallbacks for imported data. Reading only those
       // meant every class showed as level 1, which also made the header's total
@@ -3098,8 +3160,7 @@ export class A5eCharacterSheet extends ActorSheet {
       v => ({ [el.querySelector('#am-exertion-current')?.dataset.path
               || 'system.attributes.exertion.current']: Math.max(0, v) }));
     this.#bindNumericInput(el, '#am-exertion-max',
-      v => ({ [el.querySelector('#am-exertion-max')?.dataset.path
-              || 'system.attributes.exertion.max']: Math.max(0, v) }));
+      v => A5eCharacterSheet.exertionMaxUpdate(this.actor, el.querySelector('#am-exertion-max'), Math.max(0, v)));
 
     /* AC / Initiative / Speed */
     [
@@ -4080,7 +4141,9 @@ export class A5eCharacterSheet extends ActorSheet {
       const showEditor = (show) => {
         hpLabel.hidden = show;
         hpEdit.hidden = !show;
-        if (show) hpEdit.querySelector('input')?.focus();
+        /* Selected, so what is typed replaces the figure rather than being
+           appended to it. */
+        if (show) { const first = hpEdit.querySelector('input'); first?.focus(); first?.select?.(); }
       };
       el.querySelectorAll('[data-action="hp-edit"]').forEach(b =>
         b.addEventListener('click', (e) => { e.preventDefault(); showEditor(true); }));
@@ -4509,6 +4572,7 @@ export class A5eCharacterSheet extends ActorSheet {
     const primary       = actions[0] ?? {};
     return {
       id: item.id, uuid: item.uuid, name: item.name, img: item.img,
+      starred: this.#starred(item),
       type: item.type,
       isEquippable,
       equipped:   equippedState === 2,

@@ -300,16 +300,23 @@
               <div class="max">{{resources.hp.max}}</div>
             </button>
 
-            <div class="am-hp-edit" hidden>
+            {{!-- Locked, this is the one field play needs: the current figure,
+                 selected, so a number typed replaces it and +4 or -7 heals or
+                 hurts — damage through temporary hit points first, by a5e's
+                 own applyDamage. The maximum and the temporary pool are
+                 corrections, so they are offered only with the padlock open. --}}
+            <div class="am-hp-edit{{#unless unlocked}} am-hp-edit-locked{{/unless}}" hidden>
               <input type="text" class="hp-input uninput" id="am-hp-current"
                 value="{{resources.hp.value}}" aria-label="Current Hit Points"
-                data-tooltip="12 sets it, +4 heals, -7 takes damage" />
-              <span class="separator">/</span>
-              <input type="text" class="hp-input uninput" id="am-hp-max"
-                value="{{resources.hp.max}}" aria-label="Maximum Hit Points" />
-              <span class="separator">tmp</span>
-              <input type="text" class="hp-input uninput" id="am-hp-temp"
-                value="{{resources.hp.temp}}" aria-label="Temporary Hit Points" />
+                data-tooltip="12 sets it, +4 heals, -7 takes damage — temporary hit points first" />
+              {{#if unlocked}}
+                <span class="separator">/</span>
+                <input type="text" class="hp-input uninput" id="am-hp-max"
+                  value="{{resources.hp.max}}" aria-label="Maximum Hit Points" />
+                <span class="separator">tmp</span>
+                <input type="text" class="hp-input uninput" id="am-hp-temp"
+                  value="{{resources.hp.temp}}" aria-label="Temporary Hit Points" />
+              {{/if}}
             </div>
           </div>
 
@@ -452,8 +459,9 @@
           {{#if resources.exertion.maxEditable}}
             <input type="number" class="value uninput am-tracker-value am-exertion-max" id="am-exertion-max"
               data-path="{{resources.exertion.maxPath}}"
+              data-derived="{{#if resources.exertion.maxDerived}}true{{else}}false{{/if}}"
               value="{{resources.exertion.max}}" min="0" aria-label="Exertion pool"
-              data-tooltip="Exertion pool — type the size" />
+              data-tooltip="{{#if resources.exertion.maxDerived}}Worked out by a5e — a change is kept as an exertion bonus, listed under Bonuses{{else}}Exertion pool — type the size{{/if}}" />
           {{else}}
             <span class="max" data-tooltip="Worked out by a5e from the character’s classes">{{resources.exertion.max}}</span>
           {{/if}}

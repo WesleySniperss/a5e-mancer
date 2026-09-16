@@ -7,6 +7,9 @@
  * class to work it out from. A monster it shows nothing for, and could not:
  * NPCDataModel.ts has no attributes.exertion, so Foundry drops a write there.
  * A monster's exertion is kept on this module's flag instead.
+ *
+ * Then: unlocked, it still could not be corrected. It can now, and where a5e
+ * works the pool out the correction is an exertion bonus a5e adds itself.
  */
 import { buildSheet, listeners, q } from './lib/sheetdom.mjs';
 import { buildNPCSheet } from './lib/npcdom.mjs';
@@ -23,11 +26,61 @@ const byId = (root, id) => q(root, `#${id}`)[0] ?? null;
 {
   const { actor, render, writes } = await buildSheet();
   actor.automationAvailable = true;
+  actor.flags.a5e = { ...(actor.flags.a5e ?? {}), sheetIsLocked: true };
   actor.system.attributes.exertion = { current: 2, max: 4, recoverOnRest: true };
   const root = await render();
-  check('a character with classes: the pool size is a5e’s figure, not a field',
+  check('locked, a character with classes: the pool size is a5e’s figure, not a field',
     !byId(root, 'am-exertion-max') && byId(root, 'am-exertion-current')?.dataset.path === 'system.attributes.exertion.current',
     byId(root, 'am-exertion-max') ? 'a field was drawn' : 'figure shown, current editable');
+}
+
+/* The same character, unlocked. Reported as: with the padlock open exertion
+   still cannot be corrected. a5e overwrites a stored max on every prepare when
+   a class grant sets the pool (character.ts prepareMaxExertion), so a typed
+   size goes in as an exertion bonus of this sheet's, which a5e adds itself. */
+{
+  const { actor, render, writes } = await buildSheet();
+  actor.automationAvailable = true;
+  actor.flags.a5e = { ...(actor.flags.a5e ?? {}), sheetIsLocked: false };
+  actor.system.attributes.exertion = { current: 2, max: 4, recoverOnRest: true };
+  actor.system.bonuses = { ...(actor.system.bonuses ?? {}), exertion: {} };
+  let root = await render();
+  let max = byId(root, 'am-exertion-max');
+  check('unlocked, a character with classes: the pool size is a field',
+    max?.dataset.derived === 'true', max ? `data-derived=${max.dataset.derived}` : 'no field');
+
+  writes.length = 0;
+  if (max) { max.value = '6'; await fire(max, 'change'); }
+  const bonusKey = 'system.bonuses.exertion.amSheetExertion1';
+  check('typing 6 over a5e’s 4 adds an exertion bonus of 2, not a stored max',
+    writes.some((w) => w[bonusKey]?.formula === '2') && !writes.some((w) => 'system.attributes.exertion.max' in w),
+    JSON.stringify(writes));
+
+  /* As a5e would prepare it with that bonus in place. */
+  actor.system.bonuses.exertion.amSheetExertion1 = { formula: '2', label: 'Sheet correction', img: '' };
+  actor.system.attributes.exertion.max = 6;
+  root = await render();
+  max = byId(root, 'am-exertion-max');
+  writes.length = 0;
+  if (max) { max.value = '5'; await fire(max, 'change'); }
+  check('and 5 afterwards makes it 1, counted from a5e’s own 4',
+    writes.some((w) => w[bonusKey]?.formula === '1'), JSON.stringify(writes));
+
+  writes.length = 0;
+  if (max) { max.value = '4'; await fire(max, 'change'); }
+  const removed = writes.some((w) => `system.bonuses.exertion.-=amSheetExertion1` in w
+    || (w[bonusKey] && typeof w[bonusKey] === 'object' && !('formula' in w[bonusKey])));
+  check('back to a5e’s own figure, the bonus is removed rather than left at 0', removed, JSON.stringify(writes));
+
+  /* Foundry 14's way of removing a key, where it exists. */
+  const saved = foundry.data;
+  class ForcedDeletion {}
+  foundry.data = { operators: { ForcedDeletion } };
+  writes.length = 0;
+  if (max) { max.value = '4'; await fire(max, 'change'); }
+  foundry.data = saved;
+  check('with Foundry’s ForcedDeletion, that is what removes it',
+    writes.some((w) => w[bonusKey] instanceof ForcedDeletion), JSON.stringify(writes));
 }
 
 /* A character with nothing to work it out from: both fields, in system. */

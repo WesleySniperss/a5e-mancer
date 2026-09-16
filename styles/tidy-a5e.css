@@ -505,6 +505,25 @@
    and the buttons sit inside it normally. */
 
 
+/* ── The light block at the end of the HP bar ─────────────────────────────
+   Reported more than once as a pale square on the right of the bar. It is
+   not ours and not Tidy's: Carolingian UI styles every button in an old-style
+   window's form —
+
+     body.crlngn-ui .app:not(.default.sheet):not(.pokerole) form button
+       { background-color: var(--crlngn-button-bg); border: 1px solid transparent; margin: 2px 0 }
+
+   — a 15% black wash. The HP figure is a button, 148px of the bar's 176, so
+   the wash darkened all of the green but its last 28px, which then read as a
+   lighter block. Measured along the bar in headless Edge with Carolingian's
+   stylesheet: a step of 39 in brightness at +147px; with this, 3, the same as
+   without Carolingian at all. That selector weighs (0,5,3); this one (0,6,1). */
+.tidy5e-sheet.application.a5e-mancer-sheet .meter.progress.hit-points > button.label {
+  background: none;
+  border: 0;
+  margin: 0;
+}
+
 /* The inline editor that replaces the label. [hidden] has to be restated,
    because a display rule of our own would otherwise beat it. */
 .tidy5e-sheet.application.a5e-mancer-sheet .am-hp-edit {
@@ -531,6 +550,15 @@
 .tidy5e-sheet.application.a5e-mancer-sheet .am-hp-edit .separator {
   color: var(--t5e-color-text-lighter);
   flex: 0 0 auto;
+}
+
+/* Locked: the one field, centred where the label was, with room for "-12". */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-hp-edit.am-hp-edit-locked {
+  justify-content: center;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-hp-edit.am-hp-edit-locked .hp-input {
+  width: 5rem;
 }
 
 /* Temp HP only appears when there is any — see the template. The value sits
@@ -1373,6 +1401,12 @@
   align-items: center;
   justify-content: flex-start;
   gap: var(--t5e-size-halfx);
+  /* Tidy makes this column 3rem with overflow:hidden and the badge in it
+     3.25rem, so the hexagon's two side points were cut off — 2px each side,
+     measured in headless Edge on both sheets (column 48px, badge 52px).
+     Reported on a monster's sheet. The column takes the badge's width. */
+  width: 3.25rem;
+  min-width: 3.25rem;
 }
 
 .tidy5e-sheet.application.a5e-mancer-sheet .ability.initiative > * {
