@@ -151,6 +151,19 @@ export class A5eCharacterSheet extends ActorSheet {
     return buttons;
   }
 
+  /**
+   * Whose colour tints the banner: the player who owns this actor — the one
+   * whose character it is, where several own it — or, for an actor no player
+   * owns, whoever is looking. Returned as a reference to the custom property
+   * Foundry keeps on :root for each user, so a change of colour shows without
+   * a render. See "The colour under the banner" in tidy-a5e.css.
+   */
+  static playerColorVar(actor) {
+    const players = game.users?.filter?.((u) => !u.isGM && actor?.testUserPermission?.(u, 'OWNER')) ?? [];
+    const player = players.find((u) => u.character?.id === actor?.id) ?? players[0];
+    return player ? `var(--user-color-${player.id}, var(--user-color))` : 'var(--user-color)';
+  }
+
   /** Nothing should keep observing an element that has been torn down. */
 
   /* ── Data ─────────────────────────────────────────── */
@@ -1972,28 +1985,62 @@ export class A5eCharacterSheet extends ActorSheet {
   static #componentSourceCache = new Map();
 
   /* For each spell with no components of its own and a compendium source,
-     the source's components, materials and whether they are consumed. */
+     the source's components, materials and whether they are consumed.
+
+     One request per pack, not one per spell. This first shipped reading each
+     source through fromUuid, and for a compendium entry that is a trip to the
+     server of its own and a whole Item built from it: a character with 49
+     stubs opened its sheet only after 49 of them. The ids are gathered by pack
+     and asked for together; each uuid still has its own cache entry, so a
+     second render, or a second sheet sharing sources, asks for nothing. */
   static async #componentsFromSource(spells) {
     const out = new Map();
-    const wanted = spells.filter((i) => !A5eCharacterSheet.#hasComponents((i._source?.system ?? i.system)?.components));
-    await Promise.all(wanted.map(async (i) => {
+    const cache = A5eCharacterSheet.#componentSourceCache;
+    const wanted = [];
+    const byPack = new Map();   // pack -> Map(id -> resolve)
+    for (const i of spells) {
+      if (A5eCharacterSheet.#hasComponents((i._source?.system ?? i.system)?.components)) continue;
       const uuid = i._stats?.compendiumSource ?? i.flags?.core?.sourceId;
-      if (!uuid || typeof fromUuid !== 'function') return;
-      const cache = A5eCharacterSheet.#componentSourceCache;
-      if (!cache.has(uuid)) {
+      if (!uuid) continue;
+      wanted.push([i.id, uuid]);
+      if (cache.has(uuid)) continue;
+      const m = /^Compendium\.([^.]+\.[^.]+)\.(?:Item\.)?([^.]+)$/.exec(uuid);
+      const pack = m ? game.packs?.get?.(m[1]) : null;
+      if (!pack?.getDocuments) {
+        /* Not a pack this world has by that name: the one-at-a-time route. */
         cache.set(uuid, (async () => {
-          try {
-            const doc = await fromUuid(uuid);
-            const s = doc?.type === 'spell' ? doc.system : null;
-            return s?.components ? { components: s.components, materials: s.materials ?? '',
-                                     materialsConsumed: !!s.materialsConsumed } : null;
-          } catch { return null; }
+          try { return typeof fromUuid === 'function' ? A5eCharacterSheet.#componentsOf(await fromUuid(uuid)) : null; }
+          catch { return null; }
         })());
+        continue;
       }
+      let ids = byPack.get(pack);
+      if (!ids) byPack.set(pack, ids = new Map());
+      cache.set(uuid, new Promise((resolve) => ids.set(m[2], { resolve, uuid })));
+    }
+    for (const [pack, ids] of byPack) {
+      pack.getDocuments({ _id__in: [...ids.keys()] })
+        .catch(() => null)
+        .then((docs) => {
+          const byId = new Map((docs ?? []).map((d) => [d.id ?? d._id, d]));
+          for (const [id, { resolve, uuid }] of ids) {
+            /* A failed read is not remembered, so the next render tries again. */
+            if (!docs) cache.delete(uuid);
+            resolve(A5eCharacterSheet.#componentsOf(byId.get(id)));
+          }
+        });
+    }
+    await Promise.all(wanted.map(async ([id, uuid]) => {
       const found = await cache.get(uuid);
-      if (found) out.set(i.id, found);
+      if (found) out.set(id, found);
     }));
     return out;
+  }
+
+  static #componentsOf(doc) {
+    const s = doc?.type === 'spell' ? doc.system : null;
+    return s?.components ? { components: s.components, materials: s.materials ?? '',
+                             materialsConsumed: !!s.materialsConsumed } : null;
   }
 
   #spell(item) {
@@ -2502,6 +2549,11 @@ export class A5eCharacterSheet extends ActorSheet {
   activateListeners(html) {
     super.activateListeners(html);
     const el = html?.jquery ? html[0] : html;
+
+    /* The player's colour under the banner. On the window, not the form: the
+       root is what paints it, and a custom property only reaches down. */
+    (el?.closest?.('.a5e-mancer-sheet') ?? this.element?.[0])?.style?.setProperty(
+      '--am-player-color', A5eCharacterSheet.playerColorVar(this.actor));
 
     /* ── Roll listeners (work for all viewers, not just owners) ── */
 

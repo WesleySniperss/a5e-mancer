@@ -254,6 +254,28 @@
   background: none;
 }
 
+/* ── The colour under the banner ──────────────────────────────────────────
+   The art is greyscale and blended as luminosity, so its colour is whatever
+   the sheet root is painted. Tidy paints it --t5e-theme-color-default, which
+   is its red, #741b2b, unless a Tidy theme setting says otherwise; Tidy's
+   settings do not run in an a5e world, so it was always red here.
+
+   Except under Carolingian UI's glass effect, a client setting: its
+   `.window-app` rule outranks Tidy's and paints every old-style window its own
+   near-black. That was the grey the banner had, and it went red again the day
+   the setting was off.
+
+   So the colour is set here, and outranks both: Tidy's own grey — what its
+   basic theme puts under the banner — with a fifth of the player's colour in
+   it. --am-player-color is set on the window by the sheet, to Foundry's
+   --user-color-<id> of the player who owns the actor, which Foundry keeps in
+   step when that player changes colour. Unset or unresolvable, the grey
+   stands alone. */
+.tidy5e-sheet.application.a5e-mancer-sheet.quadrone.actor {
+  --am-banner-grey: var(--t5e-component-card-darker, #1a1b20);
+  background: color-mix(in srgb, var(--am-player-color, var(--am-banner-grey)) 15%, var(--am-banner-grey));
+}
+
 /* ── Table column widths ──────────────────────────────────────────────────
    Tidy sizes every fixed column by writing --tidy-table-column-width inline
    from its column definitions. We have no such definitions, so the widths

@@ -362,12 +362,49 @@ passed the whole time components were reported missing, because it drew spells
 straight from a5e's pack. Most spells on actors are stubs — 190 of 211, their
 actions and nothing else — so there was nothing to draw. Components now come
 from the compendium entry a stub records, for display only; this renders the
-world's characters with `fromUuid` resolving the pack copy and counts. Against
+world's characters with the pack copy behind `game.packs` and counts. Against
 the released code, 0 of 49 such spells showed components; now 49 of 49.
 
 A stub is judged by its components being all unset, not absent: Foundry fills a
 stub's missing fields with the schema's defaults when it loads, so the check's
 close case is built that way.
+
+It also counts what the sheet asks the server for. The first release read each
+source through `fromUuid`, which for a compendium entry is a request and a whole
+Item apiece, all before the sheet could draw — 52 across these sheets, 21 on
+one. Now: 15 requests, one per pack a sheet's stubs name, none on a redraw.
+
+## `worldload.mjs`
+
+What the module asks the server for while a world loads — reported as
+"something takes long to load". Two loaders run at `ready` for every user. The
+check runs both over copies of a5e's 21 Item packs (`packcopy2/`, copied from
+`systems/a5e/packs`) behind a pack that does what Foundry's
+`CompendiumCollection.getIndex` does, including not sharing a request still in
+flight, and counts requests and the JSON they would carry.
+
+- `DocumentService`, the builder's origin lists, asked every Item pack for its
+  index with `system` — every field of every item — for five types side by side,
+  so each pack about five times: 105 requests, 119.2 MB of JSON, kept in memory
+  for the session, when it reads only `_id`, name, type and img. Now it takes the
+  index Foundry already holds: no requests.
+- `SpellService.loadSpellcastingFeatures` read its 31 features one request at a
+  time. Now one request per pack: 2.
+
+The lists and the spell tables it reads are hashed and must match what the
+released code read. `AM_SCRIPTS=<dir> node tools/checks/worldload.mjs --digest`
+runs another tree's `scripts/` and prints its numbers.
+
+## `bannercolor.mjs`
+
+The colour under the sheet's banner, in headless Edge. Reported as "it was grey
+and is red now", then "let it follow the player's colour, 10–20% over the grey".
+Nothing of ours had changed: Tidy paints the root its red, and the grey was
+Carolingian UI's glass effect (a client setting), whose `.window-app` rule
+outranks Tidy's. Measured before: rgb(116, 27, 43) without the glass, rgba(11,
+10, 19, 0.95) with it. Now Tidy's own basic-theme grey, #1a1b20, with 15% of the
+owning player's `--user-color-<id>` (the viewer's when no player owns the
+actor), the same with the glass on or off. `--shots` writes a PNG per case.
 
 ## `notesdup.mjs`
 

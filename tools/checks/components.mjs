@@ -8,8 +8,14 @@
  * actions and nothing else, so there was nothing to draw. 172 still record the
  * compendium entry they came from.
  *
- * This renders the world's characters with fromUuid resolving a5e's spell pack
- * (packcopy2/spells), and counts the spells that show components.
+ * This renders the world's characters with a5e's spell pack (packcopy2/spells)
+ * behind game.packs, and counts the spells that show components.
+ *
+ * Reported next as: something takes long to load. The first release read each
+ * source through fromUuid — for a compendium entry, a server request and a
+ * whole Item apiece — before the sheet could draw: 52 of them across these
+ * sheets, 21 on one. They are asked for a pack at a time now, and this counts
+ * the requests: 15 in all, one per pack a sheet's stubs name, none on a redraw.
  */
 import { readFileSync } from 'fs';
 import { ClassicLevel } from 'classic-level';
@@ -23,27 +29,63 @@ const pack = new Map();
 for await (const [k, v] of db.iterator()) if (k.startsWith('!items!')) pack.set(v._id, v);
 await db.close();
 
-globalThis.fromUuid = async (uuid) => {
+const source = (uuid) => {
   const m = String(uuid ?? '').match(/^Compendium\.a5e\.a5e-spells\.(?:Item\.)?(\w+)$/);
   const d = m ? pack.get(m[1]) : null;
   return d ? { type: 'spell', system: d.system } : null;
 };
 
+/* The sheet reads sources a pack at a time; count what it asks for. The first
+   release of this read each through fromUuid, one server trip per spell. */
+let singleReads = 0;
+const batches = [];
+globalThis.fromUuid = async (uuid) => { singleReads++; return source(uuid); };
+/* Every pack a source names answers, as it would in the world: stubs here also
+   come from a5e's dnd5e-spells and a module's features pack. Only a5e-spells
+   has its documents copied; the others answer with nothing. */
+const packsSeen = new Map();
+const packFor = (collection) => {
+  if (!packsSeen.has(collection)) packsSeen.set(collection, {
+    collection,
+    async getDocuments({ _id__in } = {}) {
+      batches.push(_id__in?.length ?? Infinity);
+      await new Promise((r) => setTimeout(r, 1));
+      if (collection !== 'a5e.a5e-spells') return [];
+      return (_id__in ?? []).map((id) => pack.get(id)).filter(Boolean)
+        .map((d) => ({ id: d._id, type: 'spell', system: d.system }));
+    }
+  });
+  return packsSeen.get(collection);
+};
+
 const chars = JSON.parse(readFileSync(R + 'world-chars.json', 'utf8'));
-let stubs = 0, sourced = 0, shown = 0, packHas = 0;
+let stubs = 0, sourced = 0, shown = 0, packHas = 0, renders = 0, worstBatches = 0, rerenderAsks = 0;
 const missing = [];
 for (const c of chars.filter((x) => x.items.some((i) => i.type === 'spell'))) {
   const { actor, render } = await buildSheet({ choose: (all) => all.find((x) => x.actor._id === c.actor._id) });
+  game.packs.get = (id) => packFor(id);
+  /* The packs this sheet's stubs name: one request each, at most. A stub by
+     the sheet's rule, which is no component marked, not no field. */
+  const marked = (x) => !!(x && (x.vocalized || x.seen || x.material));
+  const packsNamed = new Set(c.items.filter((i) => i.type === 'spell' && !marked(i.system?.components))
+    .map((i) => /^Compendium\.([^.]+\.[^.]+)\./.exec(i._stats?.compendiumSource ?? i.flags?.core?.sourceId ?? '')?.[1])
+    .filter(Boolean));
   /* world-chars.json keeps each item's _stats; the harness wrapper does not. */
   for (const raw of c.items) { const it = actor.items.get(raw._id); if (it) it._stats = raw._stats ?? {}; }
   actor.flags.a5e = { ...(actor.flags.a5e ?? {}), sheetIsLocked: true };
+  const before = batches.length;
   const root = await render();
+  renders++;
+  worstBatches = Math.max(worstBatches, batches.length - before - packsNamed.size);
+  const again = batches.length;
+  await render();
+  rerenderAsks += batches.length - again;
   for (const raw of c.items.filter((i) => i.type === 'spell')) {
     const own = raw.system?.components;
     if (own) continue;
     stubs++;
     const uuid = raw._stats?.compendiumSource ?? raw.flags?.core?.sourceId;
-    const src = uuid && (await fromUuid(uuid));
+    const src = uuid && source(uuid);
     if (!src) continue;
     sourced++;
     const c2 = src.system?.components ?? {};
@@ -58,6 +100,10 @@ for (const c of chars.filter((x) => x.items.some((i) => i.type === 'spell'))) {
 check('the world holds stub spells with a5e sources to read', sourced > 0, `${stubs} stubs, ${sourced} with a source in a5e’s spell pack`);
 check('every such spell whose source has components shows them', packHas > 0 && shown === packHas,
   `${shown} of ${packHas} shown` + (missing.length ? `; missing: ${missing.slice(0, 3).join(', ')}` : ''));
+check('sources are read a pack at a time, not a spell at a time',
+  batches.length > 0 && worstBatches <= 0 && singleReads === 0,
+  `${renders} sheets: ${batches.length} requests in all (${batches.join(', ')} ids), ${worstBatches > 0 ? worstBatches + " more than one per pack on a sheet" : "never more than one per pack a sheet names"}, ${singleReads} single reads`);
+check('and a sheet drawn again asks for nothing', rerenderAsks === 0, `${rerenderAsks} requests on the second render`);
 
 /* And one read closely: a stub with a material component. */
 {

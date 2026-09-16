@@ -302,12 +302,21 @@ export class SpellService {
     for (const pack of packs) {
       let index;
       try { index = await pack.getIndex(); } catch { continue; }
+      const found = [];
       for (const entry of index) {
         if (entry.type && entry.type !== 'feature') continue;
         const m = /^(?:Spellcasting|Pact Magic)(?:\s*\((.+)\))?$/.exec(entry.name ?? '');
-        if (!m) continue;
-        let doc;
-        try { doc = await pack.getDocument(entry._id); } catch { continue; }
+        if (m) found.push([entry._id, m]);
+      }
+      if (!found.length) continue;
+      /* One request for the pack's matches. They were read one at a time, each
+         waiting on the last, at every world load. */
+      let docs;
+      try { docs = new Map((await pack.getDocuments({ _id__in: found.map(([id]) => id) })).map((d) => [d.id, d])); }
+      catch { continue; }
+      for (const [id, m] of found) {
+        const doc = docs.get(id);
+        if (!doc) continue;
         const classes = doc?.system?.classes;
         const key = this.tableKey(typeof classes === 'string' ? classes : '');
         if (!key) continue;
