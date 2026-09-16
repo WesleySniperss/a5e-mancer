@@ -118,12 +118,12 @@ export const MAGIC_MANEUVERS = [
   { id: 'necrotic', name: 'Necrotic', school: 'esentsia', degree: 2, cost: 3,
     trigger: 'damageType', damageType: 'necrotic', activation: 'damage', consumesState: false,
     flavor: `Necromancers say that every wound is a debt. With a touch of dying magic they mark a foe as the first payment, and the life spilled by the next blow flows back to the caster instead of into the dirt.`,
-    effect: `When you deal necrotic damage to a creature with a spell or cantrip, you can use this maneuver as the damage is dealt. Until the end of your next turn, the next attack made against a hostile creature within 30 feet of you heals you for half the damage it deals. This happens once, and only while you are conscious.` },
+    effect: `When you deal necrotic damage to a creature with a spell or cantrip, you can use this maneuver as the damage is dealt. Until the end of your next turn, the next attack made against that same creature, while it is within 30 feet of you, heals you for half the damage the attack deals. This happens once, and only while you are conscious.` },
 
   { id: 'radiant', name: 'Radiant', school: 'esentsia', degree: 2, cost: 2,
     trigger: 'damageType', damageType: 'radiant', activation: 'damage', consumesState: false,
     flavor: `Light that has found its mark once will find it again. Priests of the dawn teach that radiance leaves a trace on those it burns, a glow no shadow can hide, which guides the next spell home or strips away the will to withstand it.`,
-    effect: `When you deal radiant damage to a creature with a spell or cantrip, you can use this maneuver as the damage is dealt. Until the end of your next turn, your next spell attack roll against that creature has advantage or, if your next spell or cantrip against it calls for a saving throw instead, the creature makes that saving throw with disadvantage.` },
+    effect: `When you deal radiant damage to a creature with a spell or cantrip, you can use this maneuver as the damage is dealt. Until the end of your next turn, your next spell attack roll against that creature has advantage or, if your next spell or cantrip against it calls for a saving throw instead, the creature makes that saving throw with disadvantage. If that attack, spell, or cantrip deals radiant damage to the creature, the light bursts from it: each other hostile creature within 5 feet of it takes radiant damage equal to half the damage dealt.` },
 
   { id: 'peak', name: 'Peak', school: 'esentsia', degree: 3, cost: 4,
     trigger: 'damageType', damageType: 'any', activation: 'bonusAction', consumesState: false,
@@ -139,12 +139,17 @@ export const MAGIC_MANEUVERS = [
   { id: 'reflection', name: 'Reflection', school: 'probiy', degree: 2, cost: 2,
     trigger: 'touchRange', activation: 'cast', consumesState: false,
     flavor: `Mirror-mages learned long ago that a reflection is a doorway. Where glass, still water, or polished steel shows the target, their touch can pass through the image and land as surely as if they stood beside it.`,
-    effect: `When you cast a spell or cantrip with a range of Touch, you can use this maneuver as part of casting it. The spell's range becomes as far as you can see, provided you can see the target through something transparent or reflective, such as glass, water, or a mirror.` },
+    effect: `When you cast a spell or cantrip with a range of Touch at a creature you can see, while you and that creature are each standing on a reflective or transparent surface, such as glass, still water, ice, or a mirror, you can use this maneuver as part of casting it. For this spell or cantrip, the creature counts as being within 5 feet of you.` },
 
   { id: 'bend', name: 'Bend', school: 'probiy', degree: 2, cost: 2,
     trigger: 'lineOrRay', activation: 'cast', consumesState: false,
     flavor: `A line of fire or a ray of frost need not run straight. Battle-mages who learned their trade at sieges curl their spells around corners and over barricades, striking foes who believed themselves safely out of sight.`,
-    effect: `When you cast a spell or cantrip that creates a line or a ray, you can use this maneuver as part of casting it. You can bend the line or ray once at an angle to go around cover or a corner. You don't need to see the target: you can instead choose a 10-foot cube the target is in, and the spell affects the target there.` },
+    effect: `When you cast a spell or cantrip that creates a line or a ray, you can use this maneuver as part of casting it. You can bend the line or ray once at an angle to go around cover or a corner.` },
+
+  { id: 'seeking', name: 'Seeking', school: 'probiy', degree: 2, cost: 2,
+    trigger: 'unseenTarget', activation: 'cast', consumesState: false,
+    flavor: `Hunters of the dark learn to cast by what they know rather than what they see. They name the place where the quarry hides, and the spell does the rest, feeling its way through smoke, shadow, and illusion until it finds the one it was sent for.`,
+    effect: `When you cast a spell or cantrip at a creature you can't see, you can use this maneuver as part of casting it. Choose a point within 10 feet of the creature: the spell or cantrip finds its own way from there to the creature. Against that creature, the spell or cantrip works as if you could see it, including for its attack roll.` },
 
   { id: 'pressure', name: 'Pressure', school: 'probiy', degree: 1, cost: 1,
     trigger: 'damagingSpell', activation: 'miss', consumesState: false,
@@ -167,7 +172,7 @@ export const MAGIC_MANEUVERS = [
     flavor: `Every spell is a thread, and a thread can be pulled from either end. Those who master dominion seize a hostile incantation as it forms and turn it about, so that the enemy's own magic breaks upon its caster.`,
     effect: `When a hostile creature you can see casts a spell or cantrip, you can turn it back on its caster for half its cost, provided you have that same spell or cantrip prepared or known. Make a spellcasting ability check contested by the caster's spellcasting ability check. On a success, the spell targets its caster instead.` },
 
-  { id: 'generous-hand', name: 'Open Hand', school: 'vlada', degree: 2, cost: 2,
+  { id: 'generous-hand', name: 'Open Hand', school: 'vlada', degree: 2, cost: 4,
     trigger: 'healing', activation: 'cast', consumesState: false,
     flavor: `Healers of the old orders held that mercy should never be measured out. When they open their hand, the grace that pours through it is given in full, and the wounded rise as whole as the magic can make them.`,
     effect: `When you cast a spell or cantrip that restores hit points, you can use this maneuver as part of casting it. Each of its healing dice counts as its highest number.` },
@@ -198,7 +203,7 @@ export const MAGIC_MANEUVERS = [
     flavor: `Wardens teach that a shield should do more than endure. Their protective magic remembers every blow it turns aside and returns part of that violence to the hand that struck.`,
     effect: `When a ward or shield effect from a spell or cantrip you cast absorbs damage from a melee attack, the attacker takes damage equal to half the damage absorbed.` },
 
-  { id: 'steadfast', name: 'Steadfast', school: 'utrymannia', degree: 3, cost: 4,
+  { id: 'steadfast', name: 'Steadfast', school: 'utrymannia', degree: 3, cost: 3,
     trigger: 'concentration', activation: 'reaction', reactionTrigger: 'When you fail a saving throw to maintain concentration on a spell', consumesState: false,
     flavor: `When pain or the chaos of battle threatens to tear a spell apart, the steadfast plant their feet and hold on. They move slowly and speak through gritted teeth, but the magic they sustain does not fall.`,
     effect: `When you fail a saving throw to maintain concentration on a spell, you can use your reaction to keep concentrating on it until the end of your next turn, and your speed is halved for the same time. When that time ends, you can use your reaction and spend this maneuver's exertion again to extend both by another round in the same way.` },

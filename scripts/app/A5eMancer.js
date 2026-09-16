@@ -1104,10 +1104,10 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
       const tradMap = data.get(key);
       return tradMap && [...tradMap.entries()].some(([deg, arr]) => deg <= info.maxDegree && arr.length);
     });
-    // …restricted to those the class may choose from.
-    if (Array.isArray(info.allowedTraditions)) {
-      tradKeys = tradKeys.filter(k => traditionAllowed(k, info.allowedTraditions));
-    }
+    // …restricted to those the class may choose from. Always asked, not only
+    // when the class names a list: "any tradition" still never means a magic
+    // school, and traditionAllowed is what knows that.
+    tradKeys = tradKeys.filter(k => traditionAllowed(k, info.allowedTraditions));
     if (!tradKeys.length) return;
 
     const chosenTraditions = A5eMancer.#shuffle(tradKeys).slice(0, info.traditions);
@@ -1464,8 +1464,7 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
         ui.notifications.warn(game.i18n.format('am.maneuvers.slots-full', { n: info.maneuversKnown }));
         return;
       }
-      if (tradition && Array.isArray(info.allowedTraditions)
-          && !traditionAllowed(tradition, info.allowedTraditions)) {
+      if (tradition && !traditionAllowed(tradition, info.allowedTraditions)) {
         ui.notifications.warn(game.i18n.localize('am.grants.tradition-not-allowed'));
         return;
       }

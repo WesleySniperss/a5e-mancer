@@ -19,7 +19,7 @@ import { MAGIC_MANEUVERS } from '../data/magicManeuvers.js';
 export class MagicManeuverPack {
 
   static PACK_NAME = 'a5e-mancer-magic-maneuvers';
-  static VERSION   = 9;          // bump to force a rebuild after data changes
+  static VERSION   = 10;         // bump to force a rebuild after data changes
   // Where the built version is recorded. A world setting, because a compendium
   // has no flag storage of its own — see #builtVersion.
   static SETTING   = 'magicManeuverPackVersion';

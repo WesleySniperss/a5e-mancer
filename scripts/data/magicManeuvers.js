@@ -146,6 +146,8 @@ export class MagicManeuvers {
       case 'shield':
       case 'concentration':
       case 'readiedSpell':
+      // Whether the target can be seen is table state, not the spell's shape
+      case 'unseenTarget':
         return false;
 
       default: return false;

@@ -731,10 +731,20 @@ export class ManeuverService {
       const now = summed('level'), before = summed('prev');
       const allowed = ks.some(s => !s.allowedTraditions) ? null
         : [...new Set(ks.flatMap(s => s.allowedTraditions))];
+      /* Combat maneuvers known add up feature by feature, as the book says. The
+         magic schools are one progression - ten by 20th level - so a wizard 10
+         and cleric 10 know what a 20th-level caster knows, not two 10th-level
+         casters' worth (12). Read at the summed levels, like the degree. */
+      const levelling = ks.some(s => s.classId === levellingId);
+      const magicTable = kind === 'magic' ? ks[0].table : null;
       kinds[kind] = {
-        gained: ks.filter(s => s.classId === levellingId)
-          .reduce((n, s) => n + Math.max(0, at(s.table, 'maneuversKnown', s.level) - at(s.table, 'maneuversKnown', s.prev)), 0),
-        known: ks.reduce((n, s) => n + at(s.table, 'maneuversKnown', s.level), 0),
+        gained: magicTable
+          ? (levelling ? Math.max(0, at(magicTable, 'maneuversKnown', now) - at(magicTable, 'maneuversKnown', before)) : 0)
+          : ks.filter(s => s.classId === levellingId)
+              .reduce((n, s) => n + Math.max(0, at(s.table, 'maneuversKnown', s.level) - at(s.table, 'maneuversKnown', s.prev)), 0),
+        known: magicTable
+          ? at(magicTable, 'maneuversKnown', now)
+          : ks.reduce((n, s) => n + at(s.table, 'maneuversKnown', s.level), 0),
         maxDegree: Math.max(0, ...ks.map(s => at(s.table, 'maxDegree', now))),
         prevMaxDegree: Math.max(0, ...ks.map(s => at(s.table, 'maxDegree', before))),
         allowedTraditions: kind === 'magic' ? Object.keys(MM_SCHOOLS) : allowed,
