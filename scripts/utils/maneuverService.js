@@ -697,17 +697,20 @@ export class ManeuverService {
    *   kinds    per kind ('combat', 'magic'):
    *     gained            maneuvers this level adds - from the class being levelled only
    *     known             maneuvers known in total at the new levels
-   *     maxDegree         highest degree, by the multiclassing rule
+   *     maxDegree         highest degree this level's picks may have
    *     prevMaxDegree     the same before the level, to say a degree opened
-   *     allowedTraditions keys, or null for any combat tradition
+   *     allowedTraditions keys the picks may come from, or null for any combat tradition
    *     traditionLimit    traditions (or schools) that may be open
    *
-   * The degree rule is the Adventurer's Guide's (Multiclassing, Combat
-   * Maneuvers): "You use your class levels in every class that grants combat
-   * maneuvers to determine the highest degree of combat maneuvers you can
-   * learn, determined by the class with the greatest access" - 3 fighter and 10
-   * herald learn as a 13th-level fighter. Maneuvers known and traditions add up
-   * across the features.
+   * Combat maneuvers follow the class being levelled, by this table's own rule
+   * (asked for 2026-09-16): a level in a class is picked by that class's
+   * table - its degree at its own level and its tradition list - and the
+   * other classes lend it nothing. That departs from the Adventurer's Guide on
+   * purpose, which sums the levels of every maneuver class for the degree (3
+   * fighter and 10 herald learning as a 13th-level fighter). What does still
+   * add up is what the classes already gave: maneuvers known, and traditions -
+   * counted only from a class whose own table has given it maneuvers, since a
+   * ranger or herald has none, and no traditions, at 1st level.
    *
    * Magic maneuvers are on top of all that, never part of it. Only the classes
    * that learn them count, their levels summed on the schools' one progression -
@@ -768,14 +771,18 @@ export class ManeuverService {
         return Math.min(20, [...byClass.values()].reduce((a, b) => a + b, 0));
       };
       const now = summed('level'), before = summed('prev');
-      const allowed = ks.some(s => !s.allowedTraditions) ? null
-        : [...new Set(ks.flatMap(s => s.allowedTraditions))];
       /* Combat maneuvers known add up feature by feature, as the book says. The
          magic schools are one progression - ten by 20th level - so a wizard 10
          and cleric 10 know what a 20th-level caster knows, not two 10th-level
          casters' worth (12). Read at the summed levels, like the degree. */
       const levelling = ks.some(s => s.classId === levellingId);
       const magicTable = kind === 'magic' ? MAGIC_MANEUVER_TABLE : null;
+      // The levelled class's own sources - its table, its archetype's - and
+      // which sources have given maneuvers (and so traditions) by their level
+      const own = ks.filter(s => s.classId === levellingId);
+      const hasFeature = (s) => at(s.table, 'maneuversKnown', s.level) > 0;
+      const ownAllowed = own.some(s => !s.allowedTraditions) ? null
+        : [...new Set(own.flatMap(s => s.allowedTraditions))];
       kinds[kind] = {
         gained: magicTable
           ? (levelling ? Math.max(0, at(magicTable, 'maneuversKnown', now) - at(magicTable, 'maneuversKnown', before)) : 0)
@@ -784,10 +791,16 @@ export class ManeuverService {
         known: magicTable
           ? at(magicTable, 'maneuversKnown', now)
           : ks.reduce((n, s) => n + at(s.table, 'maneuversKnown', s.level), 0),
-        maxDegree: Math.max(0, ...ks.map(s => at(s.table, 'maxDegree', now))),
-        prevMaxDegree: Math.max(0, ...ks.map(s => at(s.table, 'maxDegree', before))),
-        allowedTraditions: kind === 'magic' ? Object.keys(MM_SCHOOLS) : allowed,
-        traditionLimit: kind === 'magic' ? this.magicSchoolsAt(now) : ks.reduce((n, s) => n + (s.traditions || 0), 0),
+        maxDegree: magicTable
+          ? at(magicTable, 'maxDegree', now)
+          : Math.max(0, ...own.map(s => at(s.table, 'maxDegree', s.level))),
+        prevMaxDegree: magicTable
+          ? at(magicTable, 'maxDegree', before)
+          : Math.max(0, ...own.map(s => at(s.table, 'maxDegree', s.prev))),
+        allowedTraditions: magicTable ? Object.keys(MM_SCHOOLS) : ownAllowed,
+        traditionLimit: magicTable
+          ? this.magicSchoolsAt(now)
+          : ks.filter(hasFeature).reduce((n, s) => n + (s.traditions || 0), 0),
         sources: ks.map(s => s.label),
         levelling: ks.some(s => s.classId === levellingId)
       };
@@ -912,7 +925,7 @@ export class ManeuverService {
        for missing combat ones and the other way round, and two casters' tables
        added up past the ten the schools allow. */
     const at = (t, f, l) => Number(t?.[f]?.[Math.max(0, Math.min(20, l))] ?? 0) || 0;
-    const combat = { known: 0, traditions: 0, levels: 0, tables: [], allowed: [], any: false };
+    const combat = { known: 0, traditions: 0, tables: [], allowed: [], any: false };
     let magicLevels = 0;
 
     for (const item of actor.items) {
@@ -923,8 +936,7 @@ export class ManeuverService {
       if (table && at(table, 'maneuversKnown', level) > 0) {
         combat.known      += at(table, 'maneuversKnown', level);
         combat.traditions += table.traditions ?? 0;
-        combat.levels     += level;
-        combat.tables.push(table);
+        combat.tables.push({ table, level });
         if (!Array.isArray(table.allowedTraditions)) combat.any = true;
         else combat.allowed.push(...table.allowedTraditions);
       }
@@ -942,7 +954,7 @@ export class ManeuverService {
       combat: {
         maneuversKnown: combat.known,
         traditions: combat.traditions,
-        maxDegree: Math.max(0, ...combat.tables.map(t => at(t, 'maxDegree', Math.min(20, combat.levels)))),
+        maxDegree: Math.max(0, ...combat.tables.map(({ table, level }) => at(table, 'maxDegree', level))),
         knownCount: chosen.filter(i => kindOf(i) === 'combat').length,
         knownTraditions: traditionsKnown.filter(t => !isMagicSchool(t)).length
       },

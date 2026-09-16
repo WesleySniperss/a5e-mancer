@@ -653,11 +653,10 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
    * Spellguard wizard - combat maneuvers from its archetype at 2nd, magic ones
    * from the class at 3rd - was offered its magic maneuvers and never a combat
    * one; an archetype that gives maneuvers to a class with none (Steel Blooded,
-   * Martialist, the Engineers, the Myrmidon) gave nothing; and a multiclass took
-   * its degree from one class alone, so 3 fighter and 10 herald were held to
-   * 2nd degree where the Adventurer's Guide gives 4th. ManeuverService.maneuverBudget
-   * gathers every source; this adds the trade-ins, which free a pick of their
-   * own kind.
+   * Martialist, the Engineers, the Myrmidon) gave nothing. ManeuverService.
+   * maneuverBudget gathers every source - a combat pick by the rules of the
+   * class being levelled, see there; this adds the trade-ins, which free a pick
+   * of their own kind.
    */
   async #getManeuverInfo(cls, newClassLevel, { newClass = null } = {}) {
     this._maneuverBudget = null;
@@ -1112,6 +1111,13 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       }
     } else {
       // Select
+      /* Only from the traditions the levelled class allows - the list drawn
+         above already holds nothing else, but the click is what must not let
+         one through. */
+      if (tradition && !traditionAllowed(tradition, k?.allowedTraditions)) {
+        ui.notifications.warn(game.i18n.localize('am.grants.tradition-not-allowed'));
+        return;
+      }
       if (uuids.filter(u => kindOf(picked[u]) === kind).length >= limit) {
         ui.notifications.warn(game.i18n.format('am.maneuvers.slots-full', { n: limit }));
         return;
