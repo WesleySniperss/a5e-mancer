@@ -712,9 +712,11 @@ export class ManeuverService {
    * counted only from a class whose own table has given it maneuvers, since a
    * ranger or herald has none, and no traditions, at 1st level.
    *
-   * Magic maneuvers are on top of all that, never part of it. Only the classes
-   * that learn them count, their levels summed on the schools' one progression -
-   * how many, the degree and the schools alike - and those levels never count
+   * Magic maneuvers are on top of all that, never part of it. How many, and how
+   * many schools, come from the schools' one progression at the summed levels
+   * of the classes that learn them - ten at most, however they are split. The
+   * degree follows the class being levelled, as for combat maneuvers: a wizard
+   * 11 taking cleric 2 picks at cleric 2's degree. Those levels never count
    * toward combat maneuvers, nor a fighter's toward magic ones. A class with
    * both has two sources.
    *
@@ -783,20 +785,24 @@ export class ManeuverService {
       const hasFeature = (s) => at(s.table, 'maneuversKnown', s.level) > 0;
       const ownAllowed = own.some(s => !s.allowedTraditions) ? null
         : [...new Set(own.flatMap(s => s.allowedTraditions))];
+      const gainedMagic = (a, b) => Math.max(0, at(MAGIC_MANEUVER_TABLE, 'maneuversKnown', a) - at(MAGIC_MANEUVER_TABLE, 'maneuversKnown', b));
       kinds[kind] = {
         gained: magicTable
-          ? (levelling ? Math.max(0, at(magicTable, 'maneuversKnown', now) - at(magicTable, 'maneuversKnown', before)) : 0)
+          ? (levelling ? gainedMagic(now, before) : 0)
           : ks.filter(s => s.classId === levellingId)
               .reduce((n, s) => n + Math.max(0, at(s.table, 'maneuversKnown', s.level) - at(s.table, 'maneuversKnown', s.prev)), 0),
         known: magicTable
           ? at(magicTable, 'maneuversKnown', now)
           : ks.reduce((n, s) => n + at(s.table, 'maneuversKnown', s.level), 0),
+        /* The levelled class's own degree - for magic too. One case needs a
+           floor: a caster taken at 1st level has no degree of its own yet,
+           while the summed levels can still owe a maneuver (wizard 5 taking
+           cleric 1 reaches 6, the fourth). That pick is made at 1st degree,
+           the lowest there is, rather than lost. */
         maxDegree: magicTable
-          ? at(magicTable, 'maxDegree', now)
+          ? Math.max(own.length && gainedMagic(now, before) > 0 ? 1 : 0, ...own.map(s => at(s.table, 'maxDegree', s.level)))
           : Math.max(0, ...own.map(s => at(s.table, 'maxDegree', s.level))),
-        prevMaxDegree: magicTable
-          ? at(magicTable, 'maxDegree', before)
-          : Math.max(0, ...own.map(s => at(s.table, 'maxDegree', s.prev))),
+        prevMaxDegree: Math.max(0, ...own.map(s => at(s.table, 'maxDegree', s.prev))),
         allowedTraditions: magicTable ? Object.keys(MM_SCHOOLS) : ownAllowed,
         traditionLimit: magicTable
           ? this.magicSchoolsAt(now)
@@ -926,7 +932,7 @@ export class ManeuverService {
        added up past the ten the schools allow. */
     const at = (t, f, l) => Number(t?.[f]?.[Math.max(0, Math.min(20, l))] ?? 0) || 0;
     const combat = { known: 0, traditions: 0, tables: [], allowed: [], any: false };
-    let magicLevels = 0;
+    let magicLevels = 0, magicDegree = 0;
 
     for (const item of actor.items) {
       if (item.type !== 'class') continue;
@@ -940,7 +946,10 @@ export class ManeuverService {
         if (!Array.isArray(table.allowedTraditions)) combat.any = true;
         else combat.allowed.push(...table.allowedTraditions);
       }
-      if (this.magicTableFor(item.name)) magicLevels += level;
+      if (this.magicTableFor(item.name)) {
+        magicLevels += level;
+        magicDegree = Math.max(magicDegree, at(MAGIC_MANEUVER_TABLE, 'maxDegree', level));
+      }
     }
     magicLevels = Math.min(20, magicLevels);
 
@@ -961,7 +970,7 @@ export class ManeuverService {
       magic: {
         maneuversKnown: magicKnown,
         traditions: magicKnown ? this.magicSchoolsAt(magicLevels) : 0,
-        maxDegree: magicKnown ? at(MAGIC_MANEUVER_TABLE, 'maxDegree', magicLevels) : 0,
+        maxDegree: magicKnown ? Math.max(1, magicDegree) : 0,
         knownCount: chosen.filter(i => kindOf(i) === 'magic').length,
         knownTraditions: traditionsKnown.filter(t => isMagicSchool(t)).length
       }
