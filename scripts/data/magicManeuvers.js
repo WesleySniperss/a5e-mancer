@@ -36,7 +36,7 @@ export class MagicManeuvers {
 
   /**
    * The progression row in force at a character level — the highest threshold
-   * at or below it. Below 3rd there is nothing.
+   * at or below it. Below 2nd there is nothing.
    */
   static progressionAt(level) {
     const lvl = Number(level) || 0;

@@ -458,7 +458,7 @@
   "am.levelup.archetype-none-hint": "Level up without taking an archetype",
   "am.levelup.archetype-none-chosen": "Levelling up without an archetype.",
   "am.settings.mm-pack.name": "Build the Magic Maneuvers compendium",
-  "am.settings.mm-pack.hint": "Creates a world compendium containing the 26 magic maneuvers as maneuver items, so they can be browsed, dragged and read like any other maneuver. Rebuilt automatically when the module updates them. They never appear in the combat maneuver pickers.",
+  "am.settings.mm-pack.hint": "Creates a world compendium containing the 28 magic maneuvers as maneuver items, so they can be browsed, dragged and read like any other maneuver. Rebuilt automatically when the module updates them. They never appear in the combat maneuver pickers.",
   "am.spells.bonus-title": "Spells your features let you choose",
   "am.spells.bonus-hint": "Chosen on top of your class's own spells and always prepared. Right-click a card to read the spell.",
   "am.spells.bonus-full": "{source} lets you choose {n}. Deselect one first.",
