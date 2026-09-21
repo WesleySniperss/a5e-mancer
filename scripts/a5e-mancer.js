@@ -159,6 +159,9 @@ Hooks.once('ready', () => {
   // Homebrew compendium, built from inside Foundry — see magicManeuverPack.js
   MagicManeuverPack.registerSource();
   MagicManeuverPack.ensure().catch(err => AM.log(1, 'Magic maneuver pack:', err));
+  // Knowing a magic maneuver brings the exertion pool to pay for it
+  MagicManeuverPack.installHooks();
+  MagicManeuverPack.sweep().catch(err => AM.log(1, 'Magic maneuver exertion pools:', err));
   // Content imported from a5e.tools - see importedPack.js
   ImportedPack.ensure().catch(err => AM.log(1, 'Imported pack:', err));
 });

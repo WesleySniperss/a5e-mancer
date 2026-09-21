@@ -1,6 +1,7 @@
 import { AM } from '../am.js';
-import { MAGIC_MANEUVERS } from '../data/magicManeuvers.js';
+import { MAGIC_MANEUVERS, MM_SCHOOLS, MM_PROGRESSION } from '../data/magicManeuvers.js';
 import { indexFieldsFor } from './compendiumIndexFix.js';
+import { GrantAbsorber } from './grantAbsorber.js';
 
 /* One icon each, from Foundry's own set as a5e's maneuvers are. All of them
    shared one rune before, so in the compendium browser and the sidebar the
@@ -56,7 +57,10 @@ const MM_ICONS = {
 export class MagicManeuverPack {
 
   static PACK_NAME = 'a5e-mancer-magic-maneuvers';
-  static VERSION   = 11;         // bump to force a rebuild after data changes
+  static VERSION   = 12;         // bump to force a rebuild after data changes
+  /* The feature that gives a magic maneuver caster its exertion pool, kept
+     under one id so a character's copy is always recognisable. */
+  static FEATURE_ID = 'amMagicManeuvers';
   /* The source every item names, registered as an a5e product (registerSource)
      so the browser shows it the way it shows AG beside a5e's own - and a5e's
      own setting for hiding a source from the browser can hide these too. */
@@ -186,8 +190,9 @@ export class MagicManeuverPack {
         await Item.deleteDocuments(existing.map(d => d.id), { pack: pack.collection });
       }
 
-      await Item.createDocuments(MAGIC_MANEUVERS.map(m => this.itemData(m)),
-                                 { pack: pack.collection, keepId: false });
+      // keepId for the feature's fixed id; the maneuvers carry none and get new ones
+      await Item.createDocuments([this.featureData(), ...MAGIC_MANEUVERS.map(m => this.itemData(m))],
+                                 { pack: pack.collection, keepId: true });
       /* The index a5e's browser filters and labels from. The system builds it
          at setup, before this pack is filled - without the system fields a
          rebuilt entry has no degree, school or exertion to filter on, and its
@@ -285,6 +290,109 @@ export class MagicManeuverPack {
       m.flavor ? `<p>${m.flavor}</p>` : '',
       `<p>${m.effect}</p>`
     ].filter(Boolean).join('');
+  }
+
+  /**
+   * The Magic Maneuvers feature: what a combat class's Combat Maneuvers feature
+   * is to a fighter. Its exertion grant is what gives the pool - a5e sizes a
+   * character's pool from the exertion grants on its features and nothing else,
+   * so a wizard with magic maneuvers and no such feature had a pool of 0 and
+   * could not pay for a single one. Twice the proficiency bonus, regained on a
+   * short or long rest, as the combat maneuver classes have; a5e takes the
+   * larger pool rather than adding them, so a fighter-wizard keeps one pool.
+   */
+  static featureData() {
+    const ord = (n) => `${n}${n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'}`;
+    const rows = MM_PROGRESSION.map(r =>
+      `<tr><td>${ord(r.level)}</td><td>${r.known}</td><td>${r.schools}</td><td>${ord(r.maxDegree)}</td></tr>`).join('');
+    return {
+      _id: this.FEATURE_ID, name: 'Magic Maneuvers', type: 'feature',
+      img: 'icons/magic/symbols/runes-star-pentagon-blue.webp',
+      system: {
+        description:
+          `<p>You shape your spells with magic maneuvers, learned from the schools of magic: ${Object.values(MM_SCHOOLS).join(', ')}. You use them by spending exertion.</p>`
+          + '<p><strong>Exertion.</strong> You have an exertion pool equal to twice your proficiency bonus, and you regain any exertion you have spent when you finish a short or long rest. An exertion pool from another feature is the same pool: they do not add up.</p>'
+          + '<p><strong>Learning.</strong> The table shows how many magic maneuvers you know, from how many schools, and the highest degree you can learn, by your levels in the classes that learn them. Whenever you gain a level in such a class, you can replace one magic maneuver you know with another.</p>'
+          + '<table border="1"><thead><tr><td>Level</td><td>Maneuvers Known</td><td>Schools</td><td>Maneuver Degree</td></tr></thead>'
+          + `<tbody>${rows}</tbody></table>`
+          + '<p><strong>Saving throws.</strong> A magic maneuver that calls for one uses your spell save DC.</p>',
+        secretDescription: '', source: this.SOURCE,
+        featureType: 'class', classes: '', class: '', prerequisite: '', requiresBloodied: false,
+        concentration: false, favorite: false,
+        uses: { value: 0, max: '', per: '', recharge: { formula: '1d6', threshold: 6 } },
+        actions: {},
+        grants: {
+          amMMExertionPool: { _id: 'amMMExertionPool', grantType: 'exertion', exertionType: 'pool', poolType: 'doubleProf',
+                              bonus: '', level: 1, levelType: 'character', optional: false, label: 'Exertion Pool', img: '' }
+        }
+      },
+      flags: { [AM.ID]: { magicManeuverFeature: true } },
+      effects: []
+    };
+  }
+
+  /** Does this character know a magic maneuver, and lack the feature? */
+  static #owesPool(actor) {
+    if (actor?.type !== 'character') return false;
+    const items = [...(actor.items ?? [])];
+    if (items.some(i => i.flags?.[AM.ID]?.magicManeuverFeature)) return false;
+    return items.some(i => i.type === 'maneuver' && Object.hasOwn(MM_SCHOOLS, i.system?.tradition ?? ''));
+  }
+
+  static #pending = new Map();
+
+  /**
+   * Give a character who knows a magic maneuver the Magic Maneuvers feature,
+   * and with it the exertion pool, once. Created without a5e's grant window and
+   * its grant applied here, the way the builder adds a feature.
+   */
+  static async ensurePool(actor) {
+    if (!this.#owesPool(actor)) return null;
+    // One at a time per character: the sweep and a new maneuver can meet
+    if (this.#pending.has(actor.id)) return this.#pending.get(actor.id);
+    const run = (async () => {
+      const charLevel = [...actor.items].filter(i => i.type === 'class')
+        .reduce((n, c) => n + (Number(c.system?.classLevels) || 0), 0) || 1;
+      const [created] = await actor.createEmbeddedDocuments('Item', [this.featureData()], { noGrant: true });
+      if (created) await GrantAbsorber.apply(actor, created, {}, { charLevel, clsLevel: charLevel });
+      AM.log(3, `${actor.name}: Magic Maneuvers feature added, with its exertion pool`);
+      return created ?? null;
+    })();
+    this.#pending.set(actor.id, run);
+    try { return await run; }
+    catch (err) { AM.log(1, `${actor.name}: the Magic Maneuvers feature could not be added:`, err); return null; }
+    finally { this.#pending.delete(actor.id); }
+  }
+
+  /**
+   * A magic maneuver arriving by any road - the level-up, the manage window,
+   * a drop from the compendium - brings the pool with it. Only on the client
+   * that made the change, or every connected player would add one.
+   */
+  static installHooks() {
+    Hooks.on('createItem', (item, _options, userId) => {
+      if (userId !== game.user?.id || item?.type !== 'maneuver') return;
+      if (!Object.hasOwn(MM_SCHOOLS, item.system?.tradition ?? '')) return;
+      const actor = item.parent;
+      if (!actor) return;
+      clearTimeout(this.#timers.get(actor.id));
+      this.#timers.set(actor.id, setTimeout(() => {
+        this.#timers.delete(actor.id);
+        this.ensurePool(actor);
+      }, 500));
+    });
+  }
+  static #timers = new Map();
+
+  /** For the GM, once a session: the characters who learned magic maneuvers before this. */
+  static async sweep() {
+    if (!game.user?.isGM) return 0;
+    let n = 0;
+    for (const actor of game.actors ?? []) {
+      if (this.#owesPool(actor) && await this.ensurePool(actor)) n++;
+    }
+    if (n) AM.log(3, `Magic Maneuvers feature given to ${n} character(s) who knew magic maneuvers without an exertion pool`);
+    return n;
   }
 
   /** Is this item one of ours? Used to keep them out of combat-maneuver lists. */
