@@ -9,6 +9,7 @@ import { FeatService } from '../utils/featService.js';
 import { ManeuverService } from '../utils/maneuverService.js';
 import { ConditionSource } from '../utils/conditionSource.js';
 import { ItemRepair } from '../utils/itemRepair.js';
+import { patchInPlace, snapshot } from '../utils/livePatch.js';
 
 const MODULE_ID = 'a5e-mancer';
 
@@ -226,6 +227,113 @@ export class A5eCharacterSheet extends ActorSheet {
    */
   #starred(item) {
     return !!item?.system?.favorite || !!this._legacyFavorites?.has(item?.id);
+  }
+
+  /* ── Redrawing ────────────────────────────────────── */
+
+  /**
+   * A number changed, not the sheet.
+   *
+   * Foundry redraws a v1 sheet whole for every write on its actor. Measured in
+   * the browser on Elbranbran (44 items), one point of damage cost 133–170ms
+   * inside _render — getData, the template, 358KB of innerHTML, and every
+   * listener bound again — and the canvas ticker shares that thread, which is
+   * the map hanging whenever anything on the sheet is touched.
+   *
+   * Foundry says what changed: renderData holds the diff. Where all of it is
+   * something livePatch can draw — hit points, exertion, a spell slot — the
+   * elements holding those numbers are set in place and this redraw is skipped.
+   * Anything else redraws as before, so a change of shape is never patched.
+   *
+   * force is a deliberate render: the first one, or _onSettingChange and the
+   * like. It always goes through.
+   *
+   * What does need a redraw often comes in a burst. Taking a character from 1
+   * hit point to 0, a5e removes Bloodied, adds Unconscious and Incapacitated,
+   * and updates Incapacitated — one write each, a server round trip apart —
+   * and each asked for its own redraw: four in 1.1 seconds, measured, ~700ms of
+   * a blocked page for one click. Foundry's v1 _render also DROPS a request
+   * that lands while a redraw is running, so the burst could end on a sheet
+   * still showing Bloodied. Requests that follow recent activity are
+   * gathered instead, and the sheet is drawn once when REDRAW_QUIET passes
+   * with nothing new — see #gather.
+   */
+  async _render(force = false, options = {}) {
+    if (!force) {
+      if (this._state === this.constructor.RENDER_STATES.RENDERED) {
+        try {
+          const shown = patchInPlace(this, options, this.#drawn);
+          if (shown) {
+            this.#drawn = shown;
+            this.#lastActivity = performance.now();
+            return;
+          }
+        } catch (err) {
+          /* A rule that throws must cost a redraw, not the change. */
+          AM.log(1, 'Drawing an update in place failed; redrawing the sheet.', err);
+        }
+      }
+      if (this.#gather(options)) return;
+    }
+    clearTimeout(this.#gathered);
+    this.#gathered = null;
+    this.#lastActivity = performance.now();
+    /* Taken here, before super's first await, so it is the actor getData
+       reads. A change landing mid-redraw is held by #gather and redrawn. Not
+       taken when super is about to turn the request away (a redraw already
+       running, or the window closing): the sheet would not show it. */
+    const S = this.constructor.RENDER_STATES;
+    if (this._state !== S.RENDERING && this._state !== S.CLOSING) this.#drawn = snapshot(this.actor);
+    return super._render(force, options);
+  }
+
+  /* What the sheet on screen was drawn from — see snapshot in livePatch. */
+  #drawn = null;
+
+  /** How long a burst has to go quiet before the one redraw it gets. */
+  static REDRAW_QUIET = 500;
+
+  /* When the sheet last changed, and the redraw waiting on quiet. */
+  #lastActivity = 0;
+  #gathered = null;
+
+  /**
+   * Hold this render request back, to be drawn with the rest of its burst.
+   *
+   * Held: any request while a redraw is running, which Foundry would drop;
+   * and a document's request (renderContext set) within REDRAW_QUIET of the
+   * last change or while one is already held. Not held: a request the sheet
+   * makes of itself — a spell book picked, a search typed — which answers a
+   * click and goes at once, and the first change after a quiet spell, so a
+   * single action still redraws with no delay.
+   *
+   * @returns {boolean} true when the request is held
+   */
+  #gather(options) {
+    const S = this.constructor.RENDER_STATES;
+    const busy = this._state === S.RENDERING;
+    if (!busy && this._state !== S.RENDERED) return false;
+    if (!busy && !options.renderContext) return false;
+    const recent = performance.now() - this.#lastActivity < A5eCharacterSheet.REDRAW_QUIET;
+    if (!busy && !recent && !this.#gathered) {
+      this.#lastActivity = performance.now();
+      return false;
+    }
+    this.#lastActivity = performance.now();
+    clearTimeout(this.#gathered);
+    this.#gathered = setTimeout(() => this.#flush(), A5eCharacterSheet.REDRAW_QUIET);
+    return true;
+  }
+
+  /** The held redraw: after the one running, if one is; never on a closed sheet. */
+  #flush() {
+    const S = this.constructor.RENDER_STATES;
+    if (this._state === S.RENDERING) {
+      this.#gathered = setTimeout(() => this.#flush(), 50);
+      return;
+    }
+    this.#gathered = null;
+    if (this._state === S.RENDERED) this.render(false);
   }
 
   /* ── Data ─────────────────────────────────────────── */

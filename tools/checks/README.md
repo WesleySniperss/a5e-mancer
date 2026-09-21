@@ -560,3 +560,50 @@ What it is not: Foundry. None of Foundry's or the sheet's JavaScript runs, so
 anything a listener would do to the layout — opening a tab — the probe does
 itself, and says so. The window's 700px minimum width is Foundry's CSS, and
 applies here as there.
+
+## `livepatch.mjs` and `lib/cdp.mjs` — live checks
+
+The one check here that runs against **Foundry itself**: a real world, real
+documents, a5e's own automation, Foundry's own render pipeline. Everything else
+stands Foundry in; this is what those stand-ins cannot answer.
+
+Reported as: *the map background hangs whenever something changes on the
+sheet.* Measured in the browser, one point of damage cost 133–170 ms inside
+`_render` — getData 44–66, the template 29–49, innerHTML 5–7, listeners 44–51 —
+on the thread the canvas draws on. And taking a character to 0 hit points cost
+**four** of those in 1.1 s: the write, then a5e removing Bloodied and adding
+Unconscious and Incapacitated, one document write each, each redrawing the lot.
+
+`_render` now draws a change in place where `scripts/utils/livePatch.js` has a
+rule for everything that moved — hit points, exertion, a spell slot — and
+gathers a burst of other requests into one redraw. This check holds that to
+account: for each case it draws the actor the slow way at the new state, and
+compares that markup, character by character, with the patched sheet. Both
+come out of the same browser and the same template, so a difference is a
+number left stale. It also counts redraws, and a change no rule claims must
+still cost one.
+
+Two things it found that nothing else would have:
+
+- **What was written is not what changed.** On a monster, one point of damage
+  put `deafened` into `actor.statuses` — no effect created, nothing in the diff
+  but the hit points — and the patched conditions strip showed it hearing. A
+  patch now also compares a snapshot of the prepared data the sheet was drawn
+  from (0.15–0.31 ms, 585–863 leaves) and redraws when anything unowned moved.
+- **Foundry drops a render that arrives mid-render.** v1 `_render` returns at
+  once while `_state` is RENDERING, so a burst could end on a sheet still
+  showing Bloodied. Gathered requests are redrawn after the one running.
+
+Needs a Foundry serving a **copy** of the world — it writes, and puts back what
+it wrote — and Edge. The copy used so far: a data path whose `Data/modules` and
+`Data/systems` are links to the real folders, and whose `Data/worlds/a5e` is a
+copied world, served with `node main.js --dataPath=<copy> --port=30011
+--world=a5e --noupdate --noupnp`. Then:
+
+    node tools/checks/livepatch.mjs --user <a GM's user id>
+
+`lib/cdp.mjs` starts Edge with extensions off. Edge signed in to Windows brings
+its extensions into even a fresh profile, and their welcome pages opened in
+front of the Foundry tab: `document.hidden`, every timer throttled to as much
+as a minute, and a check of a few minutes ran for ten before anyone looked. The
+check now refuses to run in a hidden tab.
