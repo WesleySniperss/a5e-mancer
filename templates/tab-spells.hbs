@@ -49,6 +49,21 @@
                 <strong>{{spellInfo.spellsKnown}}</strong> {{localize 'am.app.spells.spells-known-label'}}
               </span>
             </div>
+          {{else if spellInfo.preparedOfBook}}
+            {{!-- The spellbook's spells, and how many of them are prepared at a
+                  time: the wizard's rule is modifier + level, not all of them. --}}
+            <div class="am-info-row">
+              <i class="fa-solid fa-book-sparkles" style="color:var(--am-gold)"></i>
+              <span>
+                <strong>{{spellInfo.spellsKnown}}</strong> {{localize 'am.app.spells.spellbook-label'}}
+              </span>
+            </div>
+            <div class="am-info-row">
+              <i class="fa-solid fa-book-open" style="color:var(--am-accent)"></i>
+              <span>
+                <strong>{{spellInfo.preparedOfBook}}</strong> {{localize 'am.app.spells.prepared-of-book'}}
+              </span>
+            </div>
           {{else if spellInfo.preparedCap}}
             {{!-- The number, not only the rule: modifier + level, read from the
                   abilities tab and the increases picked on the origin tabs. --}}

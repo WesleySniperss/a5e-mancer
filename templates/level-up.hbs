@@ -159,86 +159,10 @@
   </section>
   {{/unless}}
 
-  {{!-- Maneuvers (multiclass) --}}
+  {{!-- Maneuvers (multiclass): a section per kind taught - combat traditions and
+        magic schools apart. See partial-maneuver-picker.hbs. --}}
   {{#if maneuverInfo.newManeuversToLearn}}
-  <hr />
-  <section class="lu-section">
-    <h3><i class="fa-solid fa-swords"></i> {{localize 'am.maneuvers.section-title'}}</h3>
-    {{#if maneuverInfo.degreeUnlocked}}
-      <p class="am-hint">
-        <i class="fa-solid fa-arrow-up" style="color:var(--am-gold)"></i>
-        {{localize 'am.maneuvers.degree-unlocked' degree=maneuverInfo.degreeUnlocked}}
-      </p>
-    {{/if}}
-    <p>{{localize 'am.maneuvers.pick-prompt' n=maneuverInfo.newManeuversToLearn}}
-      <strong>({{localize 'am.maneuvers.max-degree' degree=maneuverInfo.maxDegree}})</strong>
-    </p>
-
-    <div class="am-selection-header">
-      <div class="am-counter-badge {{#if (gte selectedManeuverCount maneuverInfo.newManeuversToLearn)}}am-badge-success{{else}}am-badge-pending{{/if}}">
-        <i class="fa-solid fa-swords"></i>
-        {{selectedManeuverCount}}/{{maneuverInfo.newManeuversToLearn}}
-      </div>
-    </div>
-
-    {{#if maneuversLoaded}}
-      <div class="am-filter-pills" role="toolbar">
-        {{#each inlineTraditions}}
-          <button type="button"
-                  class="am-filter-pill {{#if this.active}}am-pill-active{{/if}} {{#if this.used}}am-pill-used{{/if}}"
-                  data-action="luFilterManeuverTradition"
-                  data-tradition="{{this.key}}">
-            {{this.label}}
-            {{#if this.used}}<i class="fa-solid fa-check am-pill-check"></i>{{/if}}
-          </button>
-        {{else}}
-          <p class="am-hint">{{localize 'am.app.maneuvers.no-traditions'}}</p>
-        {{/each}}
-      </div>
-      {{#if maneuverFilterTradition}}
-        {{#if visibleManeuvers.length}}
-          <div class="am-card-grid am-inline-card-grid" role="list">
-            {{#each visibleManeuvers}}
-              <button type="button"
-                      class="am-card {{#if this.isSelected}}am-card-selected{{/if}} {{#if this.alreadyKnown}}am-card-known{{/if}}"
-                      role="listitem"
-                      data-action="luToggleManeuver"
-                      data-uuid="{{this.uuid}}"
-                      data-tradition="{{this.tradition}}"
-                      data-name="{{this.name}}"
-                      data-known="{{#if this.alreadyKnown}}true{{else}}false{{/if}}"
-                      {{#if this.alreadyKnown}}disabled aria-disabled="true"
-                      data-tooltip="{{localize 'am.maneuvers.already-known'}}"{{/if}}>
-                <img class="am-card-img" src="{{this.img}}" alt="" loading="lazy">
-                <span class="am-card-name">{{this.name}}</span>
-                <div class="am-card-meta">
-                  <span class="am-degree-pip">{{this.degree}}°</span>
-                  {{#if this.exertion}}
-                    <span class="am-ex-cost"><i class="fa-solid fa-bolt"></i>{{this.exertion}}</span>
-                  {{/if}}
-                  {{#if this.alreadyKnown}}
-                    <span class="am-known-pip"><i class="fa-solid fa-check"></i></span>
-                  {{/if}}
-                </div>
-              </button>
-            {{/each}}
-          </div>
-        {{else}}
-          <p class="am-hint">{{localize 'am.maneuvers.none-found'}}</p>
-        {{/if}}
-        <div class="am-inline-description overflow-vert-only">
-          <p class="am-hint am-inline-desc-hint">{{localize 'am.app.hover-for-description'}}</p>
-        </div>
-      {{else}}
-        <p class="am-hint am-filter-prompt">
-          <i class="fa-solid fa-hand-pointer"></i>
-          {{localize 'am.app.maneuvers.select-tradition-hint'}}
-        </p>
-      {{/if}}
-    {{else}}
-      <p class="am-loading"><i class="fas fa-spinner fa-spin"></i> {{localize 'am.app.loading'}}</p>
-    {{/if}}
-  </section>
+    {{#each maneuverSections}}{{> am-maneuver-picker}}{{/each}}
   {{/if}}
 
   {{!-- Spells (multiclass) --}}
@@ -411,22 +335,25 @@
         marked here frees one pick in the browsers above. --}}
   {{!-- Collapsed by default. Swapping something out is the rare case, and a full
         list of everything known pushed the actual choices off the screen. --}}
-  {{#if knownManeuverList}}
+  {{!-- One trade-in list per kind: a magic maneuver is swapped for a magic
+        one, a combat maneuver for a combat one, each with its own count. --}}
+  {{#each maneuverReplaceSections}}
   <hr />
-  <section class="lu-section am-replace-section">
-    <button type="button" class="am-replace-toggle" data-action="luToggleReplace" data-what="maneuver">
-      <i class="fa-solid {{#if showReplaceManeuver}}fa-chevron-down{{else}}fa-chevron-right{{/if}}"></i>
+  <section class="lu-section am-replace-section" data-kind="{{this.kind}}">
+    <button type="button" class="am-replace-toggle" data-action="luToggleReplace" data-what="maneuver" data-kind="{{this.kind}}">
+      <i class="fa-solid {{#if this.show}}fa-chevron-down{{else}}fa-chevron-right{{/if}}"></i>
       <i class="fa-solid fa-right-left"></i>
-      {{localize 'am.levelup.replace-maneuver-title'}}
-      <span class="am-hint">({{maneuverReplaceUsed}}/{{maneuverReplaceLimit}})</span>
+      {{this.title}}
+      <span class="am-hint">({{this.used}}/{{this.limit}})</span>
     </button>
-    {{#if showReplaceManeuver}}
-      <p class="am-hint">{{localize 'am.levelup.replace-hint' n=maneuverReplaceLimit}}</p>
+    {{#if this.show}}
+      <p class="am-hint">{{localize 'am.levelup.replace-hint' n=this.limit}}</p>
       <div class="am-replace-list">
-        {{#each knownManeuverList}}
+        {{#each this.list}}
           <button type="button"
                   class="am-replace-row {{#if this.replaced}}am-replace-marked{{/if}}"
-                  data-action="luReplaceManeuver" data-item-id="{{this.id}}">
+                  data-action="luReplaceManeuver" data-item-id="{{this.id}}"
+                  {{#if this.uuid}}data-uuid="{{this.uuid}}"{{/if}} data-name="{{this.name}}" data-img="{{this.img}}">
             <img src="{{this.img}}" alt="" class="am-replace-img">
             <span class="am-replace-name">{{this.name}}</span>
             <span class="am-hint">{{this.traditionLabel}} · {{this.degree}}°</span>
@@ -436,7 +363,7 @@
       </div>
     {{/if}}
   </section>
-  {{/if}}
+  {{/each}}
 
   {{#if knownSpellList}}
   <hr />
@@ -720,102 +647,10 @@
   {{!-- Spells this level's features let the character choose --}}
   {{> am-bonus-spells choices=bonusSpellChoices}}
 
-  {{!-- Maneuvers (level-up mode) --}}
+  {{!-- Maneuvers (level-up mode): a section per kind taught - combat traditions and
+        magic schools apart. See partial-maneuver-picker.hbs. --}}
   {{#if maneuverInfo.newManeuversToLearn}}
-  <hr />
-  <section class="lu-section">
-    <h3><i class="fa-solid fa-swords"></i> {{localize 'am.maneuvers.section-title'}}</h3>
-    {{#if maneuverInfo.degreeUnlocked}}
-      <p class="am-hint">
-        <i class="fa-solid fa-arrow-up" style="color:var(--am-gold)"></i>
-        {{localize 'am.maneuvers.degree-unlocked' degree=maneuverInfo.degreeUnlocked}}
-      </p>
-    {{/if}}
-    <p>{{localize 'am.maneuvers.pick-prompt' n=maneuverInfo.newManeuversToLearn}}
-      <strong>({{localize 'am.maneuvers.max-degree' degree=maneuverInfo.maxDegree}})</strong>
-    </p>
-
-    <div class="am-selection-header">
-      <div class="am-counter-badge {{#if (gte selectedManeuverCount maneuverInfo.newManeuversToLearn)}}am-badge-success{{else}}am-badge-pending{{/if}}">
-        <i class="fa-solid fa-swords"></i>
-        {{selectedManeuverCount}}/{{maneuverInfo.newManeuversToLearn}}
-      </div>
-      {{!-- A level that teaches both kinds - a Spellguard wizard's - says how
-            many of each, and to what degree, since they are chosen apart. --}}
-      {{#if maneuverInfo.multipleKinds}}
-        {{#each maneuverInfo.kindList}}
-          <div class="am-counter-badge {{#if (gte this.selected this.newToLearn)}}am-badge-success{{else}}am-badge-pending{{/if}}"
-               data-tooltip="{{this.sources}}">
-            {{this.label}}: {{this.selected}}/{{this.newToLearn}} · {{localize 'am.maneuvers.max-degree' degree=this.maxDegree}}
-          </div>
-        {{/each}}
-      {{/if}}
-      {{#if selectedTraditions.length}}
-        <div class="am-counter-badge am-badge-info">
-          <i class="fa-solid fa-book"></i>
-          {{selectedTraditions.length}} {{localize 'am.app.maneuvers.traditions-label'}}
-        </div>
-      {{/if}}
-    </div>
-
-    {{#if maneuversLoaded}}
-      <div class="am-filter-pills" role="toolbar">
-        {{#each inlineTraditions}}
-          <button type="button"
-                  class="am-filter-pill {{#if this.active}}am-pill-active{{/if}} {{#if this.used}}am-pill-used{{/if}}"
-                  data-action="luFilterManeuverTradition"
-                  data-tradition="{{this.key}}">
-            {{this.label}}
-            {{#if this.used}}<i class="fa-solid fa-check am-pill-check"></i>{{/if}}
-          </button>
-        {{else}}
-          <p class="am-hint">{{localize 'am.app.maneuvers.no-traditions'}}</p>
-        {{/each}}
-      </div>
-      {{#if maneuverFilterTradition}}
-        {{#if visibleManeuvers.length}}
-          <div class="am-card-grid am-inline-card-grid" role="list">
-            {{#each visibleManeuvers}}
-              <button type="button"
-                      class="am-card {{#if this.isSelected}}am-card-selected{{/if}} {{#if this.alreadyKnown}}am-card-known{{/if}}"
-                      role="listitem"
-                      data-action="luToggleManeuver"
-                      data-uuid="{{this.uuid}}"
-                      data-tradition="{{this.tradition}}"
-                      data-name="{{this.name}}"
-                      data-known="{{#if this.alreadyKnown}}true{{else}}false{{/if}}"
-                      {{#if this.alreadyKnown}}disabled aria-disabled="true"
-                      data-tooltip="{{localize 'am.maneuvers.already-known'}}"{{/if}}>
-                <img class="am-card-img" src="{{this.img}}" alt="" loading="lazy">
-                <span class="am-card-name">{{this.name}}</span>
-                <div class="am-card-meta">
-                  <span class="am-degree-pip">{{this.degree}}°</span>
-                  {{#if this.exertion}}
-                    <span class="am-ex-cost"><i class="fa-solid fa-bolt"></i>{{this.exertion}}</span>
-                  {{/if}}
-                  {{#if this.alreadyKnown}}
-                    <span class="am-known-pip"><i class="fa-solid fa-check"></i></span>
-                  {{/if}}
-                </div>
-              </button>
-            {{/each}}
-          </div>
-        {{else}}
-          <p class="am-hint">{{localize 'am.maneuvers.none-found'}}</p>
-        {{/if}}
-        <div class="am-inline-description overflow-vert-only">
-          <p class="am-hint am-inline-desc-hint">{{localize 'am.app.hover-for-description'}}</p>
-        </div>
-      {{else}}
-        <p class="am-hint am-filter-prompt">
-          <i class="fa-solid fa-hand-pointer"></i>
-          {{localize 'am.app.maneuvers.select-tradition-hint'}}
-        </p>
-      {{/if}}
-    {{else}}
-      <p class="am-loading"><i class="fas fa-spinner fa-spin"></i> {{localize 'am.app.loading'}}</p>
-    {{/if}}
-  </section>
+    {{#each maneuverSections}}{{> am-maneuver-picker}}{{/each}}
   {{/if}}
 
   {{/if}}{{!-- /mode toggle --}}

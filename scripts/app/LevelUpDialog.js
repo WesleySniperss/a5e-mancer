@@ -1,7 +1,7 @@
 import { AM } from '../am.js';
 import { LevelUpService } from '../utils/levelUpService.js';
 import { DocumentService } from '../utils/documentService.js';
-import { ManeuverService, CLASS_MANEUVER_TABLES, getTraditions, traditionAllowed, isMagicSchool } from '../utils/maneuverService.js';
+import { ManeuverService, CLASS_MANEUVER_TABLES, getTraditions, traditionAllowed, isMagicSchool, traditionLoreHtml } from '../utils/maneuverService.js';
 import { SpellService, CLASS_SPELL_TABLES } from '../utils/spellService.js';
 import { ItemDescPanel } from '../utils/itemDescPanel.js';
 import { GrantAbsorber } from '../utils/grantAbsorber.js';
@@ -45,7 +45,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     this._bonusSpellChoices   = [];
 
     // Inline browser state
-    this._maneuverFilter   = { tradition: null };
+    this._maneuverFilter   = { combat: null, magic: null };
     this._spellFilter      = { level: null, school: null };
     this._allManeuversData = null;
     this._allSpellsData    = null;
@@ -556,21 +556,44 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!maneuverInfo?.newManeuversToLearn) return;
     context.maneuversLoaded = !!this._allManeuversData;
     if (this._allManeuversData) {
-      const actorTraditions = ManeuverService.getActorTraditions?.(this.actor) ?? [];
-      const allUsed = [...new Set([...actorTraditions, ...this._selectedTraditions])];
-      /* Each tradition answers to its own kind: a school to the magic budget and
-         degree, anything else to the combat one - and only a kind this level has
-         picks left in is offered at all. */
-      const kindFor = (key) => maneuverInfo.kinds?.[isMagicSchool(key) ? 'magic' : 'combat'];
-      const offered = (key) => { const k = kindFor(key); return !!k?.newToLearn && traditionAllowed(key, k.allowedTraditions); };
-      const degreeFor = (key) => kindFor(key)?.maxDegree ?? 0;
-      context.inlineTraditions      = LevelUpDialog.#buildTraditionPills(
-        this._allManeuversData, allUsed, this._maneuverFilter.tradition, offered, degreeFor);
-      context.visibleManeuvers      = LevelUpDialog.#filterManeuvers(
-        this._allManeuversData, degreeFor(this._maneuverFilter.tradition), this._maneuverFilter.tradition,
-        this._selectedManeuverUuids, ManeuverService.getActorManeuverKeys(this.actor)
-      );
-      context.maneuverFilterTradition = this._maneuverFilter.tradition ?? '';
+      /* A section per kind this level teaches: combat maneuvers from combat
+         traditions, magic ones from the schools - each with its own count,
+         degree, limit and filter. One picker for both called the schools
+         combat traditions and let a click in one kind close the other's list. */
+      const kindOf = (key) => (isMagicSchool(key) ? 'magic' : 'combat');
+      const open = LevelUpDialog.#openTraditions(this);
+      const knownKeys = ManeuverService.getActorManeuverKeys(this.actor);
+      context.maneuverSections = maneuverInfo.kindList.map(({ kind, selected, sources }) => {
+        const k = maneuverInfo.kinds[kind];
+        const opened = open.filter(t => kindOf(t) === kind);
+        const full = opened.length >= k.traditionLimit;
+        const filter = this._maneuverFilter?.[kind] ?? null;
+        const allowed = (key) => kindOf(key) === kind && traditionAllowed(key, k.allowedTraditions);
+        /* A tradition past the limit is still shown and can be browsed - a
+           pick from it is what is refused - so it is marked, not hidden. */
+        const pills = LevelUpDialog.#buildTraditionPills(this._allManeuversData, opened, filter, allowed, k.maxDegree)
+          .map(p => ({ ...p, lore: traditionLoreHtml(p.key), locked: full && !opened.includes(p.key) }));
+        const locked = filter && full && !opened.includes(filter);
+        return {
+          kind,
+          magic: kind === 'magic',
+          title: game.i18n.localize(kind === 'magic' ? 'am.maneuvers.section-title-magic' : 'am.maneuvers.section-title'),
+          traditionsLabel: game.i18n.localize(kind === 'magic' ? 'am.maneuvers.schools-label' : 'am.maneuvers.traditions-open-label'),
+          sources,
+          newToLearn: k.newToLearn,
+          selected,
+          maxDegree: k.maxDegree,
+          degreeUnlocked: k.maxDegree > k.prevMaxDegree ? k.maxDegree : null,
+          traditionsOpen: opened.length,
+          traditionLimit: k.traditionLimit,
+          pills,
+          filterTradition: filter,
+          visibleManeuvers: filter
+            ? LevelUpDialog.#filterManeuvers(this._allManeuversData, k.maxDegree, filter, this._selectedManeuverUuids, knownKeys)
+                .map(m => ({ ...m, blocked: locked && !m.isSelected }))
+            : []
+        };
+      });
     } else if (!this._loadingManeuvers) {
       this._loadingManeuvers = true;
       ManeuverService.loadAllManeuvers().then(data => {
@@ -623,7 +646,8 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
     context.spellsLoaded = !!this._allSpellsData;
     if (this._allSpellsData) {
-      const result = LevelUpDialog.#filterSpells(this._allSpellsData, spellInfo, this._spellFilter, this._selectedCantripUuids, this._selectedSpellUuids);
+      const result = LevelUpDialog.#filterSpells(this._allSpellsData, spellInfo, this._spellFilter, this._selectedCantripUuids, this._selectedSpellUuids,
+        SpellService.getActorSpellKeys(this.actor));
       context.visibleSpells        = result.spells;
       context.spellLevelPills      = result.levelPills;
       context.spellSchoolPills     = result.schoolPills;
@@ -735,16 +759,33 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       .filter(m => teaches.has(isMagicSchool(m.tradition) ? 'magic' : 'combat'));
     if (!known.length) return;
 
-    const kindsKnown = new Set(known.map(m => (isMagicSchool(m.tradition) ? 'magic' : 'combat')));
-    context.maneuverReplaceLimit = info.replaceablePerKind * kindsKnown.size;
-    context.maneuverReplaceUsed  = this._replacedManeuverIds.length;
-    // Opened once something is marked, so a swap in progress is never hidden
-    context.showReplaceManeuver  = !!this._showReplaceManeuver || this._replacedManeuverIds.length > 0;
-    context.knownManeuverList = known.map(m => ({
-      id: m.id, name: m.name, img: m.img,
-      degree: m.degree, traditionLabel: m.traditionLabel,
-      replaced: this._replacedManeuverIds.includes(m.id)
-    }));
+    /* A list per kind, each with its own count: a magic maneuver is traded
+       for a magic one and a combat maneuver for a combat one. */
+    const kindOf = (t) => (isMagicSchool(t) ? 'magic' : 'combat');
+    const kindOfItem = (id) => {
+      const it = this.actor.items.get(id);
+      return kindOf(it?.system?.tradition ?? it?.system?.combatTradition ?? '');
+    };
+    const shown = this._showReplaceManeuver ?? {};
+    context.maneuverReplaceSections = ['combat', 'magic'].map(kind => {
+      const list = known.filter(m => kindOf(m.tradition) === kind);
+      if (!list.length) return null;
+      const used = this._replacedManeuverIds.filter(id => kindOfItem(id) === kind).length;
+      return {
+        kind,
+        title: game.i18n.localize(kind === 'magic' ? 'am.levelup.replace-magic-title' : 'am.levelup.replace-maneuver-title'),
+        used,
+        limit: info.replaceablePerKind,
+        // Opened once something is marked, so a swap in progress is never hidden
+        show: !!shown[kind] || used > 0,
+        list: list.map(m => ({
+          id: m.id, uuid: this.actor.items.get(m.id)?.uuid ?? '', name: m.name, img: m.img,
+          degree: m.degree, traditionLabel: m.traditionLabel,
+          replaced: this._replacedManeuverIds.includes(m.id)
+        }))
+      };
+    }).filter(Boolean);
+    context.maneuverReplaceLimit = info.replaceablePerKind * context.maneuverReplaceSections.length;
   }
 
   /**
@@ -838,7 +879,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     this._spellsSource      = null;
     this._loadingManeuvers  = false;
     this._loadingSpells     = false;
-    this._maneuverFilter    = { tradition: null };
+    this._maneuverFilter    = { combat: null, magic: null };
     this._spellFilter       = { level: null, school: null };
     // Grant picks belong to one class at one level — switching either invalidates them
     this._levelChoices      = {};
@@ -886,6 +927,25 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       }));
   }
 
+  /**
+   * Traditions and schools open to this character now: those the proficiency
+   * list records, the school of every magic maneuver already known - a school
+   * is open once a maneuver from it is known, whether or not the list caught
+   * it, so a level could otherwise open two more each time - and those this
+   * level's picks are opening. Combat traditions are a5e's own grants and the
+   * list holds them; a maneuver a feat handed out from another tradition does
+   * not take a slot.
+   */
+  static #openTraditions(dialog) {
+    const known = ManeuverService.getActorManeuvers(dialog.actor)
+      .filter(m => !m.basic && isMagicSchool(m.tradition)).map(m => m.tradition);
+    return [...new Set([
+      ...(ManeuverService.getActorTraditions?.(dialog.actor) ?? []),
+      ...known,
+      ...(dialog._selectedTraditions ?? [])
+    ])];
+  }
+
   static #filterManeuvers(allData, maxDegree, traditionFilter, selectedUuids, knownKeys = new Set()) {
     if (!allData || !traditionFilter) return [];
     const tradMap = allData.get(traditionFilter);
@@ -908,7 +968,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       || a.name.localeCompare(b.name));
   }
 
-  static #filterSpells(allData, spellInfo, filter, selectedCantrips, selectedSpells) {
+  static #filterSpells(allData, spellInfo, filter, selectedCantrips, selectedSpells, knownKeys = new Set()) {
     const maxLevel     = spellInfo?.maxLevel ?? 1;
     const filterLevel  = filter.level ?? null;
     const filterSchool = filter.school ?? null;
@@ -932,7 +992,10 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         if (filterSchool && spell.school !== filterSchool) continue;
         const isCantrip  = level === 0;
         const isSelected = isCantrip ? selectedCantrips.includes(spell.uuid) : selectedSpells.includes(spell.uuid);
-        spells.push({ ...spell, isSelected, isCantrip });
+        // Already on the character - in the spellbook or known - so it is not
+        // taken a second time by accident
+        const alreadyKnown = !isSelected && SpellService.isKnownSpell(knownKeys, spell);
+        spells.push({ ...spell, isSelected, isCantrip, alreadyKnown });
       }
     }
 
@@ -955,7 +1018,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     this._detachDescPanel?.();
     this._detachDescPanel = ItemDescPanel.attach(
       this.element,
-      '.am-card[data-uuid], .am-maneuver-card[data-uuid], .am-spell-card[data-uuid], [data-lore]'
+      '.am-card[data-uuid], .am-maneuver-card[data-uuid], .am-spell-card[data-uuid], .am-replace-row[data-uuid], [data-lore]'
     );
 
     /* ── Feat search ── */
@@ -1059,7 +1122,10 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   static luFilterManeuverTradition(_event, btn) {
     const dialog = AM.levelUpDialog;
     if (!dialog) return;
-    dialog._maneuverFilter = { tradition: btn.dataset.tradition || null };
+    const tradition = btn.dataset.tradition || null;
+    const kind = btn.dataset.kind || (isMagicSchool(tradition) ? 'magic' : 'combat');
+    const current = dialog._maneuverFilter?.[kind] ?? null;
+    dialog._maneuverFilter = { ...(dialog._maneuverFilter ?? {}), [kind]: current === tradition ? null : tradition };
     dialog.render(false);
   }
 
@@ -1124,8 +1190,9 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       }
       if (tradition) {
         const actorTraditions = ManeuverService.getActorTraditions?.(dialog.actor) ?? [];
-        // Schools against schools, combat traditions against combat traditions
-        const allUsed = new Set([...actorTraditions, ...traditions].filter(t => kindOf(t) === kind));
+        // Schools against schools, combat traditions against combat traditions -
+        // and one a known maneuver comes from is open, recorded or not
+        const allUsed = new Set(LevelUpDialog.#openTraditions(dialog).filter(t => kindOf(t) === kind));
         if (!allUsed.has(tradition) && allUsed.size >= totalTraditionLimit) {
           ui.notifications.warn(game.i18n.format('am.app.maneuvers.tradition-limit', { n: totalTraditionLimit }));
           return;
@@ -1223,6 +1290,10 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     const isCantrip = level === 0;
     const cantrips  = [...dialog._selectedCantripUuids];
     const spells    = [...dialog._selectedSpellUuids];
+    if (btn.dataset.known === 'true' && !cantrips.includes(uuid) && !spells.includes(uuid)) {
+      ui.notifications.warn(game.i18n.localize('am.spells.already-known'));
+      return;
+    }
 
     if (isCantrip) {
       const idx = cantrips.indexOf(uuid);
@@ -1633,8 +1704,13 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   static luToggleReplace(_event, btn) {
     const dialog = AM.levelUpDialog;
     if (!dialog) return;
-    if (btn.dataset.what === 'spell') dialog._showReplaceSpell = !dialog._showReplaceSpell;
-    else                              dialog._showReplaceManeuver = !dialog._showReplaceManeuver;
+    if (btn.dataset.what === 'spell') {
+      dialog._showReplaceSpell = !dialog._showReplaceSpell;
+    } else {
+      const kind = btn.dataset.kind || 'combat';
+      const shown = dialog._showReplaceManeuver ?? {};
+      dialog._showReplaceManeuver = { ...shown, [kind]: !shown[kind] };
+    }
     dialog.render(false);
   }
 

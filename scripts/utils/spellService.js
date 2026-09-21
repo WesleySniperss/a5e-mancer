@@ -1098,9 +1098,16 @@ export class SpellService {
     return total;
   }
 
-  /** Spells held prepared as a5e counts them: state 1. Always prepared (2) is free. */
+  /**
+   * Spells held prepared: state 1, cantrips left out. Always prepared (2) is
+   * free. a5e's own footer counts a cantrip marked prepared as well, but the
+   * rule does not - the wizard prepares "wizard spells written in your
+   * spellbook", which holds no cantrips, and the cleric and druid prepare
+   * levelled spells the same way - so one ticked by habit took a place.
+   */
   static preparedHeld(actor) {
     return actor?.items?.filter?.(i => i.type === 'spell'
+      && Number(i.system?.level ?? i.system?.spellLevel ?? 0) > 0
       && Number(i.system?.prepared ?? 0) === 1).length ?? 0;
   }
 
@@ -1113,6 +1120,29 @@ export class SpellService {
   /**
    * Get spells already on the actor.
    */
+  /**
+   * Identifiers for every spell the actor has - compendium source and
+   * lowercased name - so a picker can mark one already known. The name is the
+   * fallback for spells imported or made by hand, which carry no source.
+   */
+  static getActorSpellKeys(actor) {
+    const keys = new Set();
+    for (const item of actor?.items ?? []) {
+      if (item?.type !== 'spell') continue;
+      const src = item._stats?.compendiumSource ?? item.flags?.core?.sourceId ?? '';
+      if (src) keys.add(PackFilter.normalizeSource(src));
+      if (item.name) keys.add(item.name.toLowerCase());
+    }
+    return keys;
+  }
+
+  /** True when this spell is already on the actor (by source uuid or name). */
+  static isKnownSpell(keys, spell) {
+    if (!keys?.size || !spell) return false;
+    return keys.has(PackFilter.normalizeSource(spell.uuid ?? ''))
+        || keys.has(String(spell.name ?? '').toLowerCase());
+  }
+
   static getActorSpells(actor) {
     return actor.items
       .filter(i => i.type === 'spell')

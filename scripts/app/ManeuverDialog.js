@@ -1,9 +1,8 @@
 import { AM } from '../am.js';
-import { ManeuverService, getTraditions, traditionAllowed } from '../utils/maneuverService.js';
+import { ManeuverService, getTraditions, traditionAllowed, traditionLoreHtml } from '../utils/maneuverService.js';
 import { ItemDescPanel } from '../utils/itemDescPanel.js';
 import { PackFilter } from '../utils/packFilter.js';
 import { MM_SCHOOLS, MM_SCHOOL_LORE } from '../data/magicManeuvers.js';
-import { TRADITION_LORE, TRADITION_NOTES } from '../data/traditionLore.js';
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -452,15 +451,9 @@ export class ManeuverDialog extends HandlebarsApplicationMixin(ApplicationV2) {
    * so the caller falls through to the compendium.
    */
   static #traditionLore(key) {
-    const t = TRADITION_LORE[key];
-    if (t?.intro) {
-      return (t.keywords ? `<p><em>${t.keywords}</em></p>` : '') + `<p>${t.intro}</p>`;
-    }
-    /* Published text first, ours second. TRADITION_NOTES covers the traditions
-       whose own books we do not have — see the header of traditionLore.js for
-       where each was looked for. They carry no keyword line, deliberately. */
-    const note = TRADITION_NOTES[key];
-    return note ? `<p>${note}</p>` : '';
+    /* Published text first, ours second - see traditionLoreHtml, which the
+       level-up's pills read too. The schools are answered before this. */
+    return MM_SCHOOL_LORE[key] ? '' : traditionLoreHtml(key);
   }
 
   async #lookupCompendiumDesc(name) {

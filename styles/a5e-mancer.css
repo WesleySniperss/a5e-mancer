@@ -2146,6 +2146,12 @@ img[src*="a5e-mancer/assets/icons/"] {
   &.am-pill-active.am-pill-used {
     background: rgba(143,214,147,0.12) !important;
   }
+
+  /* Past the limit of open traditions or schools: browsable, not pickable */
+  &.am-pill-locked {
+    opacity: 0.55;
+    border-style: dashed !important;
+  }
 }
 
 .am-pill-check { font-size: 0.65rem; }
@@ -3080,6 +3086,22 @@ img[src*="a5e-mancer/assets/icons/"] {
 }
 .am-feat-pager button { padding: 0.1rem 0.5rem; }
 .am-feat-pager button[disabled] { opacity: 0.35; cursor: default; }
+
+/* Add Feat on the sheet: the level-up's picker in its own window, with the
+   choice and the button kept in view at the bottom. */
+.am-feat-dialog-body { display: flex; flex-direction: column; gap: 0.5rem; }
+.am-feat-dialog-footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.25rem 0.25rem;
+  border-top: 1px solid var(--am-gold-border);
+  background: var(--am-bg-content);
+}
+.am-feat-dialog-footer button[disabled] { opacity: 0.45; cursor: default; }
 
 /* Trade-ins are collapsed by default; the header is the control */
 .am-replace-toggle {

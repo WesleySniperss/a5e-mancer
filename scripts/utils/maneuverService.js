@@ -1,6 +1,7 @@
 import { AM } from '../am.js';
 import { PackFilter } from './packFilter.js';
-import { MM_SCHOOLS, MM_CLASSES, MM_PROGRESSION } from '../data/magicManeuvers.js';
+import { MM_SCHOOLS, MM_CLASSES, MM_PROGRESSION, MM_SCHOOL_LORE } from '../data/magicManeuvers.js';
+import { TRADITION_LORE, TRADITION_NOTES } from '../data/traditionLore.js';
 import { iconForItem, applyItemIcon } from '../data/a5eIcons.js';
 import { castOnlyEffects } from './effectTiming.js';
 
@@ -276,6 +277,19 @@ function sortByLabel(obj, labelOf) {
   const entries = Object.entries(obj).sort(([, a], [, b]) => text(a).localeCompare(text(b)));
   for (const [key] of entries) delete obj[key];
   for (const [key, value] of entries) obj[key] = value;
+}
+
+/**
+ * A tradition's or school's own text, as HTML - what right-clicking its pill
+ * shows. The schools' lore is the module's; a combat tradition's is its book's
+ * (keywords in italics, then the paragraph), else our note on it, else nothing.
+ */
+export function traditionLoreHtml(key) {
+  if (MM_SCHOOL_LORE[key]) return `<p>${MM_SCHOOL_LORE[key]}</p>`;
+  const t = TRADITION_LORE[key];
+  if (t?.intro) return (t.keywords ? `<p><em>${t.keywords}</em></p>` : '') + `<p>${t.intro}</p>`;
+  const note = TRADITION_NOTES[key];
+  return note ? `<p>${note}</p>` : '';
 }
 
 /** Is this tradition key one of the magic schools? */

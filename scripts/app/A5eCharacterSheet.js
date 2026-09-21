@@ -1,6 +1,7 @@
 import { AM } from '../am.js';
 import { LevelUpDialog } from './LevelUpDialog.js';
 import { ManeuverDialog } from './ManeuverDialog.js';
+import { FeatDialog } from './FeatDialog.js';
 import { SpellDialog } from './SpellDialog.js';
 import { SpellService } from '../utils/spellService.js';
 import { PackFilter } from '../utils/packFilter.js';
@@ -4868,107 +4869,11 @@ export class A5eCharacterSheet extends ActorSheet {
     });
   }
 
-  async #openFeatPicker() {
-    /* The feats come from FeatService, the loader the level-up already uses.
-
-       This window had a loader of its own, and it found nothing — every time,
-       on every world — and then blamed the compendiums:
-         - it kept entries of type `feat`, a type a5e's packs never use. A feat
-           is a `feature` whose featureType is `feat`: 625 of the 640 entries
-           in a5e's feats pack, and 0 of them matched;
-         - it asked pack.getIndex to fold `system` into an index Foundry had
-           already built, which throws on a5e's packs, and the empty catch
-           skipped every pack before the type test was even reached.
-       FeatService had both of those fixed already; a second copy of the same
-       job had neither. One loader now. */
-    const esc = (s) => foundry.utils.escapeHTML(String(s ?? ''));
-    let feats = [];
-    try {
-      feats = await FeatService.optionsFor(this.actor);
-    } catch (err) {
-      AM.log(1, 'Feats could not be loaded:', err);
-    }
-
-    if (!feats.length) {
-      ui.notifications.warn('No feats found in the enabled item compendiums. Check that a5e’s Feats compendium is enabled for this world.');
-      return;
-    }
-
-    /* The prerequisite as FeatService judges it: met, not met (with why), or
-       prose it cannot judge — shown either way, never hidden. */
-    const rows = feats.map(f => `
-      <div class="am-feat-picker-row${f.met ? '' : ' am-fp-unmet'}" data-uuid="${esc(f.uuid)}">
-        <img src="${esc(f.img)}" width="24" height="24" style="border:none;border-radius:3px;float:none;margin:0" />
-        <span class="am-fp-name">${esc(f.name)}</span>
-        ${f.preText ? `<span class="am-fp-req" title="${esc(f.why ? `Not met: ${f.why}` : 'Prerequisite')}">${esc(f.preText)}</span>` : ''}
-        <span class="am-fp-pack">${esc(f.packLabel)}</span>
-        <button type="button" class="am-fp-add-btn" data-uuid="${esc(f.uuid)}">Add</button>
-      </div>
-    `).join('');
-
-    const content = `
-      <style>
-        .am-feat-picker-wrap { display:flex; flex-direction:column; gap:0.4rem; }
-        .am-fp-search { width:100%; padding:0.3rem 0.5rem; font-size:0.9rem; border:1px solid #ccc; border-radius:3px; }
-        .am-feat-picker-list { max-height:360px; overflow-y:auto; display:flex; flex-direction:column; gap:0.15rem; }
-        .am-feat-picker-row { display:flex; align-items:center; gap:0.4rem; padding:0.2rem 0.3rem; border-radius:3px; border:1px solid #eee; font-size:0.84rem; }
-        .am-feat-picker-row:hover { background:rgba(200,160,32,0.07); }
-        .am-fp-name { flex:1; font-weight:bold; }
-        .am-fp-unmet .am-fp-name, .am-fp-unmet .am-fp-req { opacity:0.55; }
-        .am-fp-req { font-size:0.72rem; opacity:0.6; }
-        .am-fp-pack { font-size:0.7rem; opacity:0.45; margin-inline-start:auto; white-space:nowrap; }
-        .am-fp-add-btn { font-size:0.72rem; padding:0.1rem 0.5rem; border:1px solid #c8a020; border-radius:2px; background:rgba(200,160,32,0.12); cursor:pointer; color:#5a3a00; white-space:nowrap; }
-        .am-fp-add-btn:hover { background:rgba(200,160,32,0.3); }
-        .am-fp-add-btn.am-added { background:#2a7a2a; border-color:#2a7a2a; color:white; pointer-events:none; }
-      </style>
-      <div class="am-feat-picker-wrap">
-        <input type="text" class="am-fp-search" placeholder="Search feats…" />
-        <div class="am-feat-picker-list">${rows}</div>
-      </div>
-    `;
-
-    const actor = this.actor;
-    foundry.applications.api.DialogV2.wait({
-      window: { title: 'Add Feat' },
-      content,
-      position: { width: 480, height: 540 },
-      rejectClose: false,
-      buttons: [{ action: 'close', label: 'Close', default: true }],
-      // v14 DialogV2: render(event, dialog); dialog.element is the root HTMLElement.
-      render: (_event, dialog) => {
-        const root = dialog.element;
-
-        const search = root.querySelector('.am-fp-search');
-        search?.addEventListener('input', () => {
-          const q = search.value.toLowerCase();
-          root.querySelectorAll('.am-feat-picker-row').forEach(row => {
-            const name = row.querySelector('.am-fp-name')?.textContent.toLowerCase() ?? '';
-            row.style.display = name.includes(q) ? '' : 'none';
-          });
-        });
-
-        root.querySelectorAll('.am-fp-add-btn').forEach(btn => {
-          btn.addEventListener('click', async () => {
-            try {
-              const item = await fromUuid(btn.dataset.uuid);
-              if (item) {
-                /* Created the way a5e creates a dropped item, so its own grant
-                   window handles any choices the feat carries — there is no
-                   builder here to have asked them. The source is recorded, as
-                   the other dialogs record it, so the feat is known later. */
-                const data = item.toObject();
-                data._stats = { ...(data._stats ?? {}), compendiumSource: btn.dataset.uuid };
-                await Item.create(data, { parent: actor });
-                btn.textContent = '✓ Added';
-                btn.classList.add('am-added');
-              }
-            } catch (err) {
-              ui.notifications.error('Could not add feat: ' + err.message);
-            }
-          });
-        });
-      },
-    });
+  #openFeatPicker() {
+    /* The level-up's feat picker in a window of its own - filters, orders,
+       pages, the prerequisite on each card, right-click for the text. This was
+       a plain dialog with a name search over a column of rows. See FeatDialog. */
+    new FeatDialog(this.actor).render({ force: true });
   }
 
   #normTrad(raw) {

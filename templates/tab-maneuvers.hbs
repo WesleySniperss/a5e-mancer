@@ -54,6 +54,8 @@
                       class="am-filter-pill {{#if this.active}}am-pill-active{{/if}} {{#if this.used}}am-pill-used{{/if}}"
                       data-action="filterManeuverTradition"
                       data-tradition="{{this.key}}"
+                      data-name="{{this.label}}"
+                      {{#if this.lore}}data-lore="{{this.lore}}"{{/if}}
                       data-tooltip="{{this.label}}">
                 {{this.label}}
                 {{#if this.used}}<i class="fa-solid fa-check am-pill-check"></i>{{/if}}

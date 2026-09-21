@@ -1,0 +1,98 @@
+{{!-- One kind of maneuver a level teaches: combat maneuvers from combat
+      traditions, or magic maneuvers from the schools. Each has its own count,
+      degree and tradition limit, so each gets its own section rather than one
+      heading that called the schools combat traditions.
+      Context: one entry of maneuverSections. --}}
+<hr />
+<section class="lu-section am-maneuver-kind" data-kind="{{kind}}">
+  <h3><i class="fa-solid {{#if magic}}fa-wand-sparkles{{else}}fa-swords{{/if}}"></i> {{title}}</h3>
+  {{#if degreeUnlocked}}
+    <p class="am-hint">
+      <i class="fa-solid fa-arrow-up" style="color:var(--am-gold)"></i>
+      {{localize 'am.maneuvers.degree-unlocked' degree=degreeUnlocked}}
+    </p>
+  {{/if}}
+  <p>{{localize 'am.maneuvers.pick-prompt' n=newToLearn}}
+    <strong>({{localize 'am.maneuvers.max-degree' degree=maxDegree}})</strong>
+  </p>
+
+  <div class="am-selection-header">
+    <div class="am-counter-badge {{#if (gte selected newToLearn)}}am-badge-success{{else}}am-badge-pending{{/if}}"
+         {{#if sources}}data-tooltip="{{sources}}"{{/if}}>
+      <i class="fa-solid {{#if magic}}fa-wand-sparkles{{else}}fa-swords{{/if}}"></i>
+      {{selected}}/{{newToLearn}}
+    </div>
+    {{!-- Counted with what the character already knows, so a limit that is
+          already spent shows as spent before anything is clicked. --}}
+    <div class="am-counter-badge {{#if (gte traditionsOpen traditionLimit)}}am-badge-success{{else}}am-badge-info{{/if}}"
+         data-tooltip="{{localize 'am.maneuvers.traditions-open-hint'}}">
+      <i class="fa-solid fa-book"></i>
+      {{traditionsLabel}}: {{traditionsOpen}}/{{traditionLimit}}
+    </div>
+  </div>
+
+  {{#if @root.maneuversLoaded}}
+    <div class="am-filter-pills" role="toolbar" aria-label="{{traditionsLabel}}">
+      {{#each pills}}
+        {{!-- data-lore: the tradition's or school's own text, read on right-click --}}
+        <button type="button"
+                class="am-filter-pill {{#if this.active}}am-pill-active{{/if}} {{#if this.used}}am-pill-used{{/if}} {{#if this.locked}}am-pill-locked{{/if}}"
+                data-action="luFilterManeuverTradition"
+                data-tradition="{{this.key}}"
+                data-kind="{{../kind}}"
+                data-name="{{this.label}}"
+                {{#if this.lore}}data-lore="{{this.lore}}"{{/if}}
+                {{#if this.locked}}data-tooltip="{{localize 'am.maneuvers.tradition-locked' n=../traditionLimit}}"{{/if}}>
+          {{#if this.locked}}<i class="fa-solid fa-lock"></i>{{/if}}
+          {{this.label}}
+          {{#if this.used}}<i class="fa-solid fa-check am-pill-check"></i>{{/if}}
+        </button>
+      {{else}}
+        <p class="am-hint">{{localize 'am.app.maneuvers.no-traditions'}}</p>
+      {{/each}}
+    </div>
+    {{#if filterTradition}}
+      {{#if visibleManeuvers.length}}
+        <div class="am-card-grid am-inline-card-grid" role="list">
+          {{#each visibleManeuvers}}
+            <button type="button"
+                    class="am-card {{#if this.isSelected}}am-card-selected{{/if}} {{#if this.alreadyKnown}}am-card-known{{/if}} {{#if this.blocked}}am-card-unmet{{/if}}"
+                    role="listitem"
+                    data-action="luToggleManeuver"
+                    data-uuid="{{this.uuid}}"
+                    data-tradition="{{this.tradition}}"
+                    data-name="{{this.name}}"
+                    data-img="{{this.img}}"
+                    data-known="{{#if this.alreadyKnown}}true{{else}}false{{/if}}"
+                    {{#if this.alreadyKnown}}aria-disabled="true"
+                    data-tooltip="{{localize 'am.maneuvers.already-known'}}"{{/if}}>
+              <img class="am-card-img" src="{{this.img}}" alt="" loading="lazy">
+              <span class="am-card-name">{{this.name}}</span>
+              <div class="am-card-meta">
+                <span class="am-degree-pip">{{this.degree}}°</span>
+                {{#if this.exertion}}
+                  <span class="am-ex-cost"><i class="fa-solid fa-bolt"></i>{{this.exertion}}</span>
+                {{/if}}
+                {{#if this.alreadyKnown}}
+                  <span class="am-known-pip"><i class="fa-solid fa-check"></i></span>
+                {{/if}}
+              </div>
+            </button>
+          {{/each}}
+        </div>
+      {{else}}
+        <p class="am-hint">{{localize 'am.maneuvers.none-found'}}</p>
+      {{/if}}
+      <div class="am-inline-description overflow-vert-only">
+        <p class="am-hint am-inline-desc-hint">{{localize 'am.app.hover-for-description'}}</p>
+      </div>
+    {{else}}
+      <p class="am-hint am-filter-prompt">
+        <i class="fa-solid fa-hand-pointer"></i>
+        {{localize 'am.app.maneuvers.select-tradition-hint'}}
+      </p>
+    {{/if}}
+  {{else}}
+    <p class="am-loading"><i class="fas fa-spinner fa-spin"></i> {{localize 'am.app.loading'}}</p>
+  {{/if}}
+</section>

@@ -86,12 +86,14 @@
         <div class="am-card-grid am-inline-card-grid am-spell-inline-grid" role="list">
           {{#each visibleSpells}}
             <button type="button"
-                    class="am-card {{#if this.isSelected}}am-card-selected am-card-selected-spell{{/if}}"
+                    class="am-card {{#if this.isSelected}}am-card-selected am-card-selected-spell{{/if}} {{#if this.alreadyKnown}}am-card-known{{/if}}"
                     role="listitem"
                     data-action="luToggleSpell"
                     data-uuid="{{this.uuid}}"
                     data-level="{{this.level}}"
-                    data-name="{{this.name}}">
+                    data-name="{{this.name}}"
+                    data-known="{{#if this.alreadyKnown}}true{{else}}false{{/if}}"
+                    {{#if this.alreadyKnown}}aria-disabled="true" data-tooltip="{{localize 'am.spells.already-known'}}"{{/if}}>
               <img class="am-card-img" src="{{this.img}}" alt="" loading="lazy">
               <span class="am-card-name">{{this.name}}</span>
               <div class="am-card-meta">
@@ -102,6 +104,9 @@
                 {{/if}}
                 {{#if this.concentration}}
                   <span class="am-conc-tag" title="Concentration">C</span>
+                {{/if}}
+                {{#if this.alreadyKnown}}
+                  <span class="am-known-pip"><i class="fa-solid fa-check"></i></span>
                 {{/if}}
               </div>
             </button>

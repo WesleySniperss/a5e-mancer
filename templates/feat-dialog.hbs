@@ -1,0 +1,106 @@
+{{!-- Add Feat, from the character sheet. The level-up's feat picker in a
+      window of its own - same filters, orders, pages and cards. --}}
+<div class="am-feat-dialog-body">
+  {{#if failed}}
+    <p class="am-hint">{{localize 'am.asi.feat-error'}}</p>
+  {{else if noneLoaded}}
+    <p class="am-hint">{{localize 'am.feats.none-loaded'}}</p>
+  {{else}}
+    <div class="am-selection-header am-feat-controls">
+      <input type="text" class="am-feat-search form-input"
+        placeholder="{{localize 'am.asi.feat-search'}}" value="{{featSearch}}" autocomplete="off">
+      <button type="button"
+        class="am-filter-pill {{#if featOnlyEligible}}am-pill-active{{/if}}"
+        data-action="fdToggle" data-filter="eligible">
+        <i class="fa-solid fa-filter"></i> {{localize 'am.asi.feat-eligible-only'}}
+      </button>
+      <button type="button"
+        class="am-filter-pill {{#if featMyClassOnly}}am-pill-active{{/if}}"
+        data-action="fdToggle" data-filter="my-class"
+        data-tooltip="{{localize 'am.asi.feat-my-class-hint'}}">
+        <i class="fa-solid fa-shield-halved"></i> {{localize 'am.asi.feat-my-class'}}
+      </button>
+      <button type="button"
+        class="am-filter-pill {{#if featUngatedOnly}}am-pill-active{{/if}}"
+        data-action="fdToggle" data-filter="ungated"
+        data-tooltip="{{localize 'am.asi.feat-ungated-hint'}}">
+        <i class="fa-solid fa-door-open"></i> {{localize 'am.asi.feat-ungated'}}
+      </button>
+    </div>
+
+    <div class="am-feat-sorts">
+      <span class="am-hint">{{localize 'am.app.sort-label'}}:</span>
+      {{#each featSorts}}
+        <button type="button" class="am-sort-btn {{#if this.active}}am-active{{/if}}"
+          data-action="fdSort" data-sort="{{this.key}}">
+          {{localize this.label}}
+          {{#if this.active}}
+            <i class="fa-solid {{#if (eq ../featSortDir 'asc')}}fa-arrow-up{{else}}fa-arrow-down{{/if}}"></i>
+          {{/if}}
+        </button>
+      {{/each}}
+    </div>
+
+    {{#if feats.length}}
+      <div class="am-card-grid am-inline-card-grid" role="list">
+        {{#each feats}}
+          <button type="button"
+                  class="am-card {{#if this.selected}}am-card-selected{{/if}} {{#unless this.met}}am-card-unmet{{/unless}}"
+                  role="listitem"
+                  data-action="fdSelect"
+                  data-uuid="{{this.uuid}}"
+                  data-name="{{this.name}}"
+                  data-img="{{this.img}}"
+                  {{#if this.why}}data-tooltip="{{localize 'am.feats.not-met' why=this.why}}"{{else if this.preText}}data-tooltip="{{this.preText}}"{{/if}}>
+            <img class="am-card-img" src="{{this.img}}" alt="" loading="lazy">
+            <span class="am-card-name">{{this.name}}</span>
+            {{#if this.preText}}
+              <span class="am-card-pre {{#unless this.met}}am-card-pre-fail{{/unless}}">
+                {{#if this.unknown}}<i class="fa-solid fa-circle-question"></i>{{/if}}
+                {{this.preText}}
+              </span>
+            {{/if}}
+            <div class="am-card-meta">
+              {{#if this.owned}}
+                <span class="am-known-pip" data-tooltip="{{localize 'am.feats.owned'}}"><i class="fa-solid fa-user-check"></i></span>
+              {{/if}}
+              {{#if this.selected}}
+                <span class="am-known-pip"><i class="fa-solid fa-check"></i></span>
+              {{/if}}
+            </div>
+          </button>
+        {{/each}}
+      </div>
+      <div class="am-inline-description overflow-vert-only">
+        <p class="am-hint am-inline-desc-hint">{{localize 'am.app.hover-for-description'}}</p>
+      </div>
+    {{else}}
+      <p class="am-hint">{{localize 'am.asi.feat-none'}}</p>
+    {{/if}}
+
+    {{#if (gt featPages 1)}}
+      <div class="am-feat-pager">
+        <button type="button" data-action="fdPage" data-dir="-1" {{#unless featHasPrev}}disabled{{/unless}}>
+          <i class="fa-solid fa-chevron-left"></i>
+        </button>
+        <span class="am-hint">{{localize 'am.asi.feat-page' page=featPage pages=featPages total=featTotal}}</span>
+        <button type="button" data-action="fdPage" data-dir="1" {{#unless featHasNext}}disabled{{/unless}}>
+          <i class="fa-solid fa-chevron-right"></i>
+        </button>
+      </div>
+    {{/if}}
+
+    <div class="am-feat-dialog-footer">
+      <span class="am-hint">
+        {{#if chosen}}
+          <i class="fa-solid fa-circle-check" style="color:#4a9a4a"></i> <strong>{{chosen.name}}</strong>
+        {{else}}
+          {{localize 'am.feats.pick-hint'}}
+        {{/if}}
+      </span>
+      <button type="button" class="am-footer-submit" data-action="fdAdd" {{#unless chosen}}disabled{{/unless}}>
+        <i class="fa-solid fa-plus"></i> {{localize 'am.feats.add'}}
+      </button>
+    </div>
+  {{/if}}
+</div>

@@ -295,6 +295,8 @@ Hooks.once('ready', async () => {
     ['am-spell-browser', 'partial-spell-browser.hbs'],
     // Spells a feature lets the character choose; builder and level-up alike.
     ['am-bonus-spells',  'partial-bonus-spells.hbs'],
+    // One kind of maneuver a level teaches, combat or magic; both level-up branches.
+    ['am-maneuver-picker', 'partial-maneuver-picker.hbs'],
     // The character sheet is Tidy's Quadrone markup; its item table and item
     // row are the two shapes it repeats, so they live as partials rather than
     // being written out once per tab. See templates/sheet/ and tidy/README.md.

@@ -3,7 +3,7 @@ import {
   ActorCreationService, CharacterArtPicker, DOMManager,
   EquipmentService, FormValidation, SavedOptions, StatRoller,
   ManeuverService, CLASS_MANEUVER_TABLES, getTraditions, traditionAllowed,
-  DocumentService
+  traditionLoreHtml, DocumentService
 } from '../utils/index.js';
 import { SpellService, CLASS_SPELL_TABLES } from '../utils/spellService.js';
 import { LoreTableService } from '../utils/loreTableService.js';
@@ -1148,6 +1148,12 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     if (info && (info.spellsKnown ?? 0) < 0) {
       const cap = SpellService.preparedCountFor(className, 1, (ability) => A5eMancer.#projectedScore(ability));
       if (cap !== null) info = { ...info, spellsKnown: cap, preparedCap: true };
+    } else if (info?.type === 'prepared') {
+      /* A wizard picks six for the spellbook and prepares fewer of them:
+         Intelligence modifier + level. Only the six were shown, so how many
+         of them would be prepared was nowhere on the page. */
+      const cap = SpellService.preparedCountFor(className, 1, (ability) => A5eMancer.#projectedScore(ability));
+      if (cap !== null) info = { ...info, preparedOfBook: Math.min(cap, info.spellsKnown) };
     }
 
     const origin = ['heritage', 'culture', 'background']
@@ -1507,7 +1513,9 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
         label:  t.label,
         active: t.key === activeTradition,
         used:   selectedTraditions.includes(t.key),
-        count:  t.count
+        count:  t.count,
+        // The tradition's own text, for right-click
+        lore:   traditionLoreHtml(t.key)
       }));
   }
 
