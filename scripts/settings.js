@@ -177,6 +177,22 @@ export function registerSettings() {
     }
   });
 
+  // Content imported from a5e.tools (an archetype so far), built into a world
+  // compendium the builder and the level-up read like a5e's own.
+  game.settings.register(AM.ID, 'buildImportedPack', {
+    name: 'am.settings.imported-pack.name', hint: 'am.settings.imported-pack.hint',
+    scope: 'world', config: true, type: Boolean, default: true,
+    onChange: () => {
+      import('./utils/importedPack.js')
+        .then(({ ImportedPack }) => ImportedPack.ensure({ force: true }))
+        .catch(err => AM.log(1, 'Imported pack build failed:', err));
+    }
+  });
+  // What the imported compendium was built from, as a hash of its data.
+  game.settings.register(AM.ID, 'importedPackHash', {
+    scope: 'world', config: false, type: String, default: ''
+  });
+
   // Which catalogue version the world's magic maneuver compendium was built
   // from. Hidden: it is bookkeeping, not a choice. It lives here rather than on
   // the pack because a compendium is a collection, not a document, and has no

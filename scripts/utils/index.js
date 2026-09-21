@@ -19,6 +19,7 @@ export { ItemDescPanel } from './itemDescPanel.js';
 export { LoreTableService } from './loreTableService.js';
 export { PackFilter } from './packFilter.js';
 export { MagicManeuverPack } from './magicManeuverPack.js';
+export { ImportedPack } from './importedPack.js';
 export { ProficiencyLedger } from './proficiencyLedger.js';
 export { MulticlassRules } from './multiclassRules.js';
 export { ConditionSource } from './conditionSource.js';

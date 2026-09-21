@@ -474,6 +474,8 @@
   "am.levelup.archetype-none": "No archetype",
   "am.levelup.archetype-none-hint": "Level up without taking an archetype",
   "am.levelup.archetype-none-chosen": "Levelling up without an archetype.",
+  "am.settings.imported-pack.name": "Build the Imported content compendium",
+  "am.settings.imported-pack.hint": "Creates a world compendium of content imported from a5e.tools - the Dread Knight warlock archetype so far - built the way a5e builds its own, so the builder and the level-up offer it like any other. Rebuilt automatically when the module updates it.",
   "am.settings.mm-pack.name": "Build the Magic Maneuvers compendium",
   "am.settings.mm-pack.hint": "Creates a world compendium containing the 29 magic maneuvers as maneuver items, so they can be browsed, dragged and read like any other maneuver. Rebuilt automatically when the module updates them. They sit beside a5e's own maneuvers: in its compendium folder, and in its compendium browser under their schools.",
   "am.spells.bonus-title": "Spells your features let you choose",

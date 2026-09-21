@@ -178,7 +178,8 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     }
   }
 
-  _preparePartContext(partId, context) {
+  /* async: Foundry awaits it, and the maneuvers tab reads the archetype */
+  async _preparePartContext(partId, context) {
     try {
       if (context.tabs?.[partId]) context.tab = context.tabs[partId];
       const currentIndex = TAB_ORDER.indexOf(this.tabGroups['a5e-mancer-tabs']);
@@ -261,7 +262,9 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
           const className = A5eMancer.#getSelectedClassName();
           const classKey  = className?.toLowerCase() ?? '';
           context.classSelected         = !!AM.SELECTED.class?.uuid;
-          context.maneuverInfo          = classKey ? ManeuverService.getClassManeuverInfo(className, 1) : null;
+          // The class's table, or its 1st-level archetype's (Eldritch Maneuvers)
+          await ManeuverService.refreshCreationArchetype();
+          context.maneuverInfo          = classKey ? ManeuverService.creationInfo(className) : null;
           // Combat maneuvers, or the magic schools from a later level
           context.isManeuverClass       = classKey ? (!!CLASS_MANEUVER_TABLES[classKey] || !!ManeuverService.magicTableFor(classKey)) : false;
           context.selectedManeuverUuids = AM.creationManeuvers?.uuids ?? [];
@@ -621,6 +624,7 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
          and the whole archetype goes back to a5e's own routine. */
       await DOMManager.loadItemGrants('archetype', arch.uuid);
     }
+    await ManeuverService.refreshCreationArchetype();
 
     await AM.app?.render(false, { parts: ['class'] });
   }
@@ -679,6 +683,8 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     // Choosing a gift brings its own contents into the tree, and dropping one
     // takes them out again — so the tree is rebuilt before the tab redraws.
     await DOMManager.refreshItemGrants(type);
+    // A choice on the archetype can bring maneuvers (Eldritch Maneuvers)
+    if (type === 'archetype') await ManeuverService.refreshCreationArchetype();
     // The archetype's pickers sit on the class tab; it has no part of its own.
     await AM.app?.render(false, { parts: [type === 'archetype' ? 'class' : type] });
   }
@@ -987,7 +993,7 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
   /** Pick random valid maneuvers for the selected class (quota + allowed traditions + degree). */
   static async #randomizeManeuvers() {
     const className = A5eMancer.#getSelectedClassName();
-    const info = className ? ManeuverService.getClassManeuverInfo(className, 1) : null;
+    const info = className ? ManeuverService.creationInfo(className) : null;
     if (!info) return;
 
     if (!AM.allManeuversData) {
@@ -1339,7 +1345,7 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!uuid) return;
 
     const className = A5eMancer.#getSelectedClassName();
-    const info      = ManeuverService.getClassManeuverInfo(className, 1);
+    const info      = ManeuverService.creationInfo(className);
     if (!info) return;
 
     const uuids      = [...(AM.creationManeuvers?.uuids ?? [])];

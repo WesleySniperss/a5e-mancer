@@ -543,7 +543,11 @@ export class ActorCreationService {
     const data = AM.creationManeuvers;
     if (!data?.uuids?.length && !data?.traditions?.length) return;
     await ManeuverService.applyManeuversToActor(
-      actor, data.uuids ?? [], data.traditions ?? []
+      actor, data.uuids ?? [], data.traditions ?? [],
+      /* Learned through an archetype feature that spends spell points - when
+         the class has no maneuvers of its own, these are that feature's */
+      { spellPoints: !!AM.archetypeManeuverInfo?.spellPoints
+                     && !ManeuverService.getClassManeuverInfo(AM.SELECTED.class?.name ?? '', 1) }
     );
     AM.creationManeuvers = null;
   }

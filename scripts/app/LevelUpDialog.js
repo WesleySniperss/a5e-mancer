@@ -1843,7 +1843,8 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
       if (dialog._selectedManeuverUuids.length || dialog._selectedTraditions.length) {
         await ManeuverService.applyManeuversToActor(
-          dialog.actor, dialog._selectedManeuverUuids, dialog._selectedTraditions
+          dialog.actor, dialog._selectedManeuverUuids, dialog._selectedTraditions,
+          { spellPoints: !!dialog._maneuverBudget?.kinds?.combat?.spellPoints }
         );
       }
       if (dialog._selectedCantripUuids.length || dialog._selectedSpellUuids.length) {
@@ -1885,7 +1886,9 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
     if (dialog._selectedManeuverUuids.length || dialog._selectedTraditions.length) {
       await ManeuverService.applyManeuversToActor(
-        dialog.actor, dialog._selectedManeuverUuids, dialog._selectedTraditions
+        dialog.actor, dialog._selectedManeuverUuids, dialog._selectedTraditions,
+        // Eldritch Maneuvers and the like: picks spend spell points
+        { spellPoints: !!dialog._maneuverBudget?.kinds?.combat?.spellPoints }
       );
     }
     if (dialog._selectedCantripUuids.length || dialog._selectedSpellUuids.length) {

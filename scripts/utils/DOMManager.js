@@ -428,6 +428,7 @@ export class DOMManager {
       // `archetypeLevel` is the class item's own field, so this asks the class
       // rather than keeping a list of which ones do it at 1st.
       AM.archetypes = { level: 0, options: [], uuid: null };
+      AM.archetypeManeuverInfo = null;
       // A new class means a new archetype list, so anything gathered for the
       // old one goes with it. Its grant choices especially: left behind, they
       // would be applied to an archetype this character never took.
@@ -807,7 +808,7 @@ export class DOMManager {
       },
       maneuvers:   () => {
         const className = AM.SELECTED.class?.name ?? '';
-        const info = className ? ManeuverService.getClassManeuverInfo(className, 1) : null;
+        const info = className ? ManeuverService.creationInfo(className) : null;
         if (!info) return true; // no maneuvers for this class
         return (AM.creationManeuvers?.uuids?.length ?? 0) >= info.maneuversKnown;
       },

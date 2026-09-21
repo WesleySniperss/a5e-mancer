@@ -4,7 +4,7 @@ import { A5eMancer } from './app/A5eMancer.js';
 import { LevelUpDialog } from './app/LevelUpDialog.js';
 import { A5eCharacterSheet } from './app/A5eCharacterSheet.js';
 import { A5eNPCSheet } from './app/A5eNPCSheet.js';
-import { DocumentService, StatRoller, Beyond20Service, YourFlavorService, GrantDialogEnhancer, MagicManeuverPack } from './utils/index.js';
+import { DocumentService, StatRoller, Beyond20Service, YourFlavorService, GrantDialogEnhancer, MagicManeuverPack, ImportedPack } from './utils/index.js';
 import { registerMagicSchools, ManeuverService } from './utils/maneuverService.js';
 import { iconForItem } from './data/a5eIcons.js';
 import { installCompendiumFilterFix } from './utils/compendiumIndexFix.js';
@@ -159,6 +159,8 @@ Hooks.once('ready', () => {
   // Homebrew compendium, built from inside Foundry — see magicManeuverPack.js
   MagicManeuverPack.registerSource();
   MagicManeuverPack.ensure().catch(err => AM.log(1, 'Magic maneuver pack:', err));
+  // Content imported from a5e.tools - see importedPack.js
+  ImportedPack.ensure().catch(err => AM.log(1, 'Imported pack:', err));
 });
 
 /* ── Public API ─────────────────────────────────────────── */

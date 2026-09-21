@@ -655,16 +655,22 @@ export class ManeuverService {
       const g = doc?._source?.system?.grants ?? doc?.system?.grants ?? {};
       return g instanceof Map ? [...g.values()] : Object.values(g);
     };
+    /* A feature offered as a choice counts too - the Dread Knight's Eldritch
+       Maneuvers is one of two a player picks between - but only for a
+       character that took it; maneuverBudget checks that. */
     const featureUuids = (doc) => grantsOf(doc)
       .filter(g => g?.grantType === 'feature')
       .sort((a, b) => (Number(a.level) || 1) - (Number(b.level) || 1))
-      .flatMap(g => (g.features?.base ?? []).map(e => ({ uuid: e?.uuid ?? e, level: Number(g.level) || 1 })))
+      .flatMap(g => [
+        ...(g.features?.base ?? []).map(e => ({ uuid: e?.uuid ?? e, level: Number(g.level) || 1, optional: false })),
+        ...(g.features?.options ?? []).map(e => ({ uuid: e?.uuid ?? e, level: Number(g.level) || 1, optional: true }))
+      ])
       .filter(e => typeof e.uuid === 'string');
 
     const read = async (uuid) => { try { return await fromUuid(uuid); } catch { return null; } };
     let found = null;
-    const visit = async (entries, depth) => {
-      for (const { uuid, level } of entries) {
+    const visit = async (entries, depth, parentOptional = false) => {
+      for (const { uuid, level, optional } of entries) {
         if (found) return;
         const doc = await read(uuid);
         if (!doc) continue;
@@ -683,16 +689,93 @@ export class ManeuverService {
                one way: the Spellguard's says total 2 for "Cutting Omen and one
                more", counting the fixed one in. A total above the fixed count is
                read as including it; otherwise it is on top. */
-            traditions: spec ? (total > base.length ? total : base.length + (options.length ? Math.max(1, total) : 0)) : 0
+            traditions: spec ? (total > base.length ? total : base.length + (options.length ? Math.max(1, total) : 0)) : 0,
+            // Only for a character that took this feature, when it was a choice
+            optionalFeature: (optional || parentOptional) ? { uuid, name: doc.name } : null,
+            // Its maneuvers spend spell points instead of exertion (Eldritch Maneuvers)
+            costsSpellPoints: doc.flags?.[AM.ID]?.maneuversCost === 'spellPoints'
           };
           return;
         }
-        if (depth < 1) await visit(featureUuids(doc).map(e => ({ ...e, level: Math.max(level, e.level) })), depth + 1);
+        if (depth < 1) await visit(featureUuids(doc).map(e => ({ ...e, level: Math.max(level, e.level) })), depth + 1, optional || parentOptional);
       }
     };
     await visit(featureUuids(archetypeDoc), 0);
     this.archetypeManeuverCache.set(key, found);
     return found;
+  }
+
+  /**
+   * What a character being built learns at 1st level: its class's table, or,
+   * for a class with none, the archetype it takes at 1st when that archetype
+   * teaches maneuvers from 1st - the Dread Knight's Eldritch Maneuvers, the
+   * Martialist's. Sync, for the pickers and the tab check; the archetype's
+   * part is worked out by refreshCreationArchetype when it changes.
+   */
+  static creationInfo(className) {
+    return (className ? this.getClassManeuverInfo(className, 1) : null) ?? AM.archetypeManeuverInfo ?? null;
+  }
+
+  /**
+   * The builder's archetype at 1st, read for maneuvers: its table's 1st row,
+   * when the feature carrying it is part of the archetype or was picked among
+   * its choices.
+   */
+  static async refreshCreationArchetype() {
+    AM.archetypeManeuverInfo = null;
+    const uuid = AM.archetypes?.level === 1 ? AM.archetypes.uuid : null;
+    if (!uuid) return null;
+    let doc = null;
+    try { doc = await fromUuid(uuid); } catch { doc = null; }
+    const am = doc ? await this.archetypeManeuvers(doc) : null;
+    if (!am || am.fromLevel > 1) return null;
+    const known = Number(am.maneuversKnown?.[1] ?? 0) || 0;
+    if (!known) return null;
+    if (am.optionalFeature) {
+      const picked = Object.values(AM.itemGrants?.archetype?.choices ?? {}).flat();
+      if (!picked.includes(am.optionalFeature.uuid)) return null;
+    }
+    AM.archetypeManeuverInfo = {
+      maneuversKnown: known,
+      maxDegree: Number(am.maxDegree?.[1] ?? 1) || 1,
+      traditions: am.traditions,
+      allowedTraditions: am.allowedTraditions,
+      replaceable: 0,
+      spellPoints: !!am.costsSpellPoints,
+      fromArchetype: am.archetype
+    };
+    return AM.archetypeManeuverInfo;
+  }
+
+  /** Does the actor have this feature - by compendium source, or by name? */
+  static hasFeature(actor, { uuid, name } = {}) {
+    for (const i of actor?.items ?? []) {
+      if (i?.type !== 'feature') continue;
+      const src = i._stats?.compendiumSource ?? i.flags?.core?.sourceId ?? '';
+      if ((uuid && src === uuid) || (name && i.name === name)) return true;
+    }
+    return false;
+  }
+
+  /**
+   * A maneuver made to spend spell points instead of exertion, as a feature
+   * like Eldritch Maneuvers requires: "you use these maneuvers by expending
+   * spell points equal to the required exertion". Each exertion consumer on
+   * its actions becomes a spell-point consumer of the same amount, the shape
+   * a5e's own spell-point features use.
+   */
+  static toSpellPoints(data) {
+    let changed = false;
+    for (const action of Object.values(data?.system?.actions ?? {})) {
+      for (const [id, c] of Object.entries(action?.consumers ?? {})) {
+        if (c?.type !== 'resource' || c.resource !== 'exertion') continue;
+        action.consumers[id] = { type: 'spell', default: true, mode: 'pointsOnly', spellLevel: 1,
+                                 points: Number(c.quantity) || Number(data.system?.exertionCost) || 1 };
+        changed = true;
+      }
+    }
+    if (changed) foundry.utils.setProperty(data, `flags.${AM.ID}.spellPoints`, true);
+    return changed;
   }
 
   /** How many magic schools may be open at a level of the schools' progression. */
@@ -770,9 +853,10 @@ export class ManeuverService {
         try { arch = await fromUuid(archetypeUuid); } catch { arch = null; }
       }
       const am = arch ? await this.archetypeManeuvers(arch) : null;
-      if (am && c.level >= am.fromLevel) {
+      if (am && c.level >= am.fromLevel && (!am.optionalFeature || this.hasFeature(actor, am.optionalFeature))) {
         sources.push({ kind: 'combat', label: `${am.archetype} (${c.name})`, classId: c.id, level: c.level, prev: c.prev,
-                       table: am, allowedTraditions: am.allowedTraditions, traditions: am.traditions, archetype: true });
+                       table: am, allowedTraditions: am.allowedTraditions, traditions: am.traditions, archetype: true,
+                       spellPoints: !!am.costsSpellPoints });
       }
     }
 
@@ -822,7 +906,9 @@ export class ManeuverService {
           ? this.magicSchoolsAt(now)
           : ks.filter(hasFeature).reduce((n, s) => n + (s.traditions || 0), 0),
         sources: ks.map(s => s.label),
-        levelling: ks.some(s => s.classId === levellingId)
+        levelling: ks.some(s => s.classId === levellingId),
+        // This level's picks spend spell points, not exertion (Eldritch Maneuvers)
+        spellPoints: !magicTable && own.length > 0 && own.every(s => s.spellPoints)
       };
     }
     return { sources, kinds };
@@ -1030,7 +1116,7 @@ export class ManeuverService {
    * window and then offered again by a later one (level-up → a5e's own grant
    * dialog → sheet management) landed on the sheet twice.
    */
-  static async applyManeuversToActor(actor, maneuverUuids, newTraditions = []) {
+  static async applyManeuversToActor(actor, maneuverUuids, newTraditions = [], { spellPoints = false } = {}) {
     if (!maneuverUuids.length && !newTraditions.length) return;
 
     const known = this.getActorManeuverKeys(actor);
@@ -1046,6 +1132,8 @@ export class ManeuverService {
         data._stats = data._stats || {};
         data._stats.compendiumSource = uuid;
         applyItemIcon(data);
+        // Learned through a feature that spends spell points - never a school's
+        if (spellPoints && !isMagicSchool(data.system?.tradition ?? '')) this.toSpellPoints(data);
         // A known maneuver costs exertion to use; until then it does nothing.
         // Same guard as spells — see effectTiming.
         const retimed = castOnlyEffects(data);
