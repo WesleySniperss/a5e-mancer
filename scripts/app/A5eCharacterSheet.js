@@ -215,6 +215,32 @@ export class A5eCharacterSheet extends ActorSheet {
     return { [key]: { formula: String(delta), label: 'Sheet correction', img: 'icons/svg/upgrade.svg' } };
   }
 
+  /**
+   * The spell book the Magic tab opens on, where a spell naming no book is
+   * listed, and where a dropped spell goes when no book has been picked.
+   *
+   * The first book — unless it hides spell slots while the actor has some and
+   * a later book shows them. a5e's monsters come with "Innate Spellcasting"
+   * first, and a5e turns showSpellSlots off for it: innate spells are cast so
+   * many times a day, not from slots. Reported as a monster with slots and no
+   * stars: the Archfey Enchanter, nine levels of slots, opened on its innate
+   * book — where its 42 spells, none filed in a book, were all listed — with
+   * the 20 stars one book over, under "Spellcasting". Measured on the other
+   * monsters with slots in this world (Naga, Archmage, Evil Mage): one book
+   * each, stars drawn, nothing changes for them.
+   *
+   * @param {Actor} actor
+   * @returns {string|null} a book id
+   */
+  static homeSpellBook(actor) {
+    const sys = actor?.system ?? {};
+    const ids = Object.keys(sys.spellBooks ?? {});
+    const bookOf = (id) => actor.spellBooks?.get?.(id) ?? sys.spellBooks?.[id] ?? {};
+    const hasSlots = Object.values(sys.spellResources?.slots ?? {})
+      .some((s) => (Number(s?.max) || 0) > 0);
+    return (hasSlots && ids.find((id) => bookOf(id).showSpellSlots ?? true)) || ids[0] || null;
+  }
+
   /** Nothing should keep observing an element that has been torn down. */
 
   /**
@@ -915,13 +941,15 @@ export class A5eCharacterSheet extends ActorSheet {
        its temp settings, so a redraw does not jump back to the first.
 
        One departure, on purpose: a spell naming no book, or a book that is
-       gone, is listed under the first book. a5e files those under "none" and
-       never draws that list, so they vanish from its sheet — and in the saved
-       copy of this world's characters, 74 of their 92 spells name no book.
-       Hiding a character's spells is not a thing to copy. */
+       gone, is listed under the home book — see homeSpellBook. a5e files
+       those under "none" and never draws that list, so they vanish from its
+       sheet — and in the saved copy of this world's characters, 74 of their
+       92 spells name no book. Hiding a character's spells is not a thing to
+       copy. */
     const bookIds = Object.keys(sys.spellBooks ?? {});
     const bookOf  = (id) => actor.spellBooks?.get?.(id) ?? sys.spellBooks?.[id] ?? {};
-    const currentBook = bookIds.includes(this._spellBook) ? this._spellBook : (bookIds[0] ?? null);
+    const homeBook = A5eCharacterSheet.homeSpellBook(actor);
+    const currentBook = bookIds.includes(this._spellBook) ? this._spellBook : homeBook;
     const abilityName = (key) => ABILITIES.find((a) => a.key === key)?.label ?? key;
     const spellBooks = bookIds.map((id) => {
       const b = bookOf(id);
@@ -931,13 +959,14 @@ export class A5eCharacterSheet extends ActorSheet {
       return {
         id, name: b.name || 'Spell Book', active: id === currentBook,
         count: spells.filter((s) => s.spellBook === id
-          || (id === bookIds[0] && !bookIds.includes(s.spellBook))).length,
+          || (id === homeBook && !bookIds.includes(s.spellBook))).length,
         tip: [dc ? `Spell save DC ${dc}` : null, ability ? abilityName(ability) : null].filter(Boolean).join(' · ') || null
       };
     });
     const spellBookNav = unlocked || bookIds.length > 1;
     const bookSpells = !currentBook ? spells : spells.filter((s) => s.spellBook === currentBook
-      || (currentBook === bookIds[0] && !bookIds.includes(s.spellBook)));
+      || (currentBook === homeBook && !bookIds.includes(s.spellBook)));
+    const spellBookHomeName = homeBook ? (bookOf(homeBook).name || 'Spell Book') : '';
     const book = currentBook ? bookOf(currentBook) : {};
 
     /* Moving a spell between books. a5e has no control for it — dropping a
@@ -1445,7 +1474,7 @@ export class A5eCharacterSheet extends ActorSheet {
       abilities, skills, resources, classes,
       savingThrows, maneuverDC, proficiencies,
       weapons, maneuvers, maneuverGroups, spells, spellGroups, spellSlots,
-      spellBooks, spellBookNav, spellBookResources, spellBookUnsorted,
+      spellBooks, spellBookNav, spellBookResources, spellBookUnsorted, spellBookHomeName,
       features, feats, allFeatures, featuresBySource, featureFilters,
       customCounters, freeCounter,
       effectGroups, bonuses, hasBonuses, interactionGroups, settings,
@@ -2701,10 +2730,10 @@ export class A5eCharacterSheet extends ActorSheet {
     }
 
     /* The book the Magic tab is showing, as a5e drops into its current book;
-       the first when none has been picked or the picked one is gone. */
+       the home book when none has been picked or the picked one is gone. */
     const bookIds = Object.keys(actor.system?.spellBooks ?? {});
     const bookId = bookIds.includes(this._spellBook) ? this._spellBook
-                 : (actor.spellBooks?.first?.()?._id ?? bookIds[0]);
+                 : A5eCharacterSheet.homeSpellBook(actor);
     const book = bookId ? actor.spellBooks?.get?.(bookId) : null;
     if (!book) {
       ui.notifications.warn(`${actor.name} has no spell book to put ${item.name} in. a5e makes one when a class that casts is added.`);

@@ -162,9 +162,11 @@ try {
     { name: 'a point of exertion', redraws: 0, skipUnless: 'npcExertion',
       from: () => ({ 'flags.a5e-mancer.exertion': { current: 3, max: 5 } }),
       to:   () => ({ 'flags.a5e-mancer.exertion.current': 2 }) },
-    /* The NPC sheet draws no stars for a monster's slots (the Archfey
-       Enchanter's nine levels: none). With nothing on screen to set, the rule
-       leaves it to a redraw — which is the safe answer, and the one expected. */
+    /* A book with showSpellSlots off (a5e's "Innate Spellcasting") draws no
+       stars. Open on one, with nothing on screen to set, the rule leaves it
+       to a redraw — the safe answer, and the one expected. The Archfey
+       Enchanter opened on its innate book until homeSpellBook; it now opens
+       on "Spellcasting", and its slot is patched like any other. */
     { name: 'a spell slot spent', redraws: (a) => (a.slotDrawn ? 0 : 1), skipUnless: 'slot',
       from: (a) => ({ [`system.spellResources.slots.${a.slotLevel}.current`]: a.slotMax }),
       to:   (a) => ({ [`system.spellResources.slots.${a.slotLevel}.current`]: Math.max(0, a.slotMax - 1) }) },

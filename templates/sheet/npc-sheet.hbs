@@ -1166,12 +1166,14 @@
         </nav>
       {{/if}}
 
-      {{!-- Spells that name none of the actor's books: listed under the first,
-           and one click to file them — see "Moving a spell between books". --}}
+      {{!-- Spells that name none of the actor's books: listed under the home
+           book — the first, or the first that shows slots on an actor with
+           slots (homeSpellBook) — and one click to file them — see "Moving a
+           spell between books". --}}
       {{#if spellBookUnsorted}}
         <p class="am-spellbook-unsorted color-text-lighter">
           <i class="fa-solid fa-circle-info"></i>
-          {{spellBookUnsorted}} spell{{#unless (eq spellBookUnsorted 1)}}s{{/unless}} in no spell book, shown under the first.
+          {{spellBookUnsorted}} spell{{#unless (eq spellBookUnsorted 1)}}s{{/unless}} in no spell book, shown under {{spellBookHomeName}}.
           <button type="button" class="button button-secondary am-spellbook-sort" data-action="spellbook-sort">
             <i class="fa-solid fa-book-bookmark"></i> Sort into books
           </button>
