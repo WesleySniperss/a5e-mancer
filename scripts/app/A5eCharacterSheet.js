@@ -1086,8 +1086,13 @@ export class A5eCharacterSheet extends ActorSheet {
       if (spellsByLevel[k]) spellGroups[k] = spellsByLevel[k];
       /* a5e's isSpellLevelVisible: unlocked, every level that has slots or
          an override; locked, only those with slots to spend, and only while
-         the switch is on. */
-      else if (slotsByLevel[k].has && (unlocked || (showSlots && slotsByLevel[k].max > 0))) spellGroups[k] = [];
+         the switch is on.
+
+         One departure: not in a book that shows no slots. An empty level is
+         listed for its slots alone, and such a book draws neither stars nor
+         slot fields — a5e's own sheet puts "Level 6", "7" and "8" in the
+         Archfey Enchanter's innate book with nothing under or beside them. */
+      else if (bookShowsSlots && slotsByLevel[k].has && (unlocked || (showSlots && slotsByLevel[k].max > 0))) spellGroups[k] = [];
     }
 
     /* Fatigue/Strife pip arrays */
@@ -4942,7 +4947,9 @@ export class A5eCharacterSheet extends ActorSheet {
       }
     }
 
-    const here = ids.includes(this._spellBook) ? this._spellBook : ids[0];
+    /* The book on screen: the one picked, or the home book the tab opens
+       on — not simply the first, which on a monster is its innate book. */
+    const here = ids.includes(this._spellBook) ? this._spellBook : A5eCharacterSheet.homeSpellBook(actor);
     const bookName = (id) => (actor.spellBooks?.get?.(id) ?? actor.system.spellBooks[id])?.name || 'Spell Book';
     const updates = loose.map((i) => ({ _id: i.id, 'system.spellBook': fromPack.get(i.name.toLowerCase()) ?? here }));
     const counts = new Map();
