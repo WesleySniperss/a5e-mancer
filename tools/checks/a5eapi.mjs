@@ -59,7 +59,19 @@ const OURS_OR_JS = new Set([
   'updateSource', 'clone', 'reset', 'toDragData', 'getRollData', 'prepareData'
 ]);
 
-let missing = 0, found = 0;
+/* A method this module declares, or Foundry's client does, is not a5e's to
+   have: getActorTraditions?.() on our own ManeuverService, escapeHTML?.() on
+   foundry.utils. Counted as a5e's, every such call read as a missing method,
+   and the check failed on names that were never the system's. */
+const FOUNDRY = 'D:/Games/FVTT/Foundry Virtual Tabletop/resources/app/';
+const foundry = [...readAll(FOUNDRY + 'client', ['.mjs', '.js']), ...readAll(FOUNDRY + 'common', ['.mjs', '.js'])].join('\n');
+/* A method definition - `name(args) {`, static, async or a getter - or a
+   function bound to the name. A call alone, `x.name(`, does not declare it. */
+const declaredIn = (src, name) =>
+  new RegExp('(?:^|[\\s;{}])(?:static\\s+)?(?:async\\s+)?(?:get\\s+)?' + name + '\\s*\\([^)]*\\)\\s*\\{').test(src) ||
+  new RegExp('\\b(?:function\\s+' + name + '\\b|' + name + '\\s*[:=]\\s*(?:async\\s*)?(?:function|\\([^)]*\\)\\s*=>))').test(src);
+
+let missing = 0, found = 0, elsewhere = 0;
 const gone = [];
 for (const [name, how] of [...called].sort()) {
   if (OURS_OR_JS.has(name)) continue;
@@ -68,11 +80,12 @@ for (const [name, how] of [...called].sort()) {
     new RegExp('(?:async\\s+)?' + name + '\\s*\\(').test(system) ||
     new RegExp('\\b' + name + '\\s*[:=]\\s*(?:async\\s*)?(?:function|\\()').test(system);
   if (declared) { found++; continue; }
+  if (declaredIn(ours, name) || declaredIn(foundry, name)) { elsewhere++; continue; }
   gone.push([name, how]);
   missing++;
 }
 
-console.log(`${called.size} optional calls found, ${found} of them a5e declares`);
+console.log(`${called.size} optional calls found, ${found} of them a5e declares, ${elsewhere} this module or Foundry does`);
 console.log(missing ? '\ncalled here, declared nowhere in a5e:' : '\nevery a5e method this module reaches for exists');
 for (const [n, how] of gone) console.log(`  ${n.padEnd(34)} (${how})`);
 process.exit(missing ? 1 : 0);

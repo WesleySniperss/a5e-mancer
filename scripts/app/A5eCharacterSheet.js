@@ -3539,7 +3539,18 @@ export class A5eCharacterSheet extends ActorSheet {
         const fontPx =
           parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
 
-        const widthRems = (this.position?.width ?? el.clientWidth ?? 0) / fontPx;
+        /* The width the sheet is drawn at, not the one it was asked for. Tidy
+           will not let the window be narrower than 43.75rem, so a position
+           narrower than that - a window dragged small, a larger interface
+           font - drew the sheet at 43.75rem and laid the row out for less:
+           the compact layout, which boxes every plate and the initiative in
+           a frame, squeezed the AC shield, and pushed the right end of the
+           header past the window. Measured, the row is never compact, since
+           that needs under 41.5rem. Before the sheet is in the page it has no
+           width to measure; the position stands in, and the observer below
+           corrects it the moment it is drawn. */
+        const drawn = el.getBoundingClientRect?.().width || 0;
+        const widthRems = (drawn || this.position?.width || el.clientWidth || 0) / fontPx;
         if (!widthRems) return;
 
         const n = 6;                                 // a5e has the same six

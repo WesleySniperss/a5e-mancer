@@ -48,7 +48,6 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
       randomizeTabContent:    A5eMancer.randomizeTabContent,
       cardSelect:             A5eMancer.cardSelect,
       clearCardSelection:     A5eMancer.clearCardSelection,
-      rollDestinyTable:       A5eMancer.rollDestinyTable,
       rollLoreTable:          A5eMancer.rollLoreTable,
       rollAllLoreTables:      A5eMancer.rollAllLoreTables,
       setHpMethod:             A5eMancer.setHpMethod,
@@ -918,107 +917,6 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     }
   }
 
-  static async rollDestinyTable(_event, btn) {
-    const fieldName = btn.dataset.field;
-    const die       = parseInt(btn.dataset.die) || 4;
-    const source    = btn.dataset.source ?? 'destiny'; // 'destiny' or 'background'
-    const result    = 1 + Math.floor(Math.random() * die);
-    const form      = AM.app?.element;
-    if (!form) return;
-    const field = form.querySelector(`[name="${fieldName}"]`);
-    if (!field) return;
-
-    // Look up table from the relevant compendium item (destiny or background)
-    const itemUuid = source === 'background'
-      ? AM.SELECTED.background?.uuid
-      : AM.SELECTED.destiny?.uuid;
-
-    const doc = itemUuid
-      ? await fromUuid(itemUuid).catch(() => null)
-      : null;
-
-    const tableText = doc
-      ? A5eMancer.#extractTableEntry(doc.system?.description?.value ?? doc.system?.description ?? '', fieldName, result)
-      : null;
-
-    if (tableText) {
-      field.value = tableText;
-    } else {
-      field.value = `${result} (1d${die})`;
-    }
-    field.dispatchEvent(new Event('input', { bubbles: true }));
-  }
-
-  /**
-   * Extracts the Nth entry from a roll table in an HTML description.
-   *
-   * A5e destiny items have two roll tables: a d4 "Source of Motivation" and a
-   * d6 "Goals" table. Rather than relying on heading keywords (which vary across
-   * items), we identify tables by their entry count:
-   *   – destinyMotivation: prefer the table/list closest to 4 entries
-   *   – destinyGoals:      prefer the table/list closest to 6 entries
-   *   – backstory:         use the first table/list found (d6, from background)
-   *
-   * Both <table> (numeric first column OR positional) and <ol>/<ul> are supported.
-   */
-  static #extractTableEntry(html, fieldName, n) {
-    if (!html) return null;
-    const div = document.createElement('div');
-    div.innerHTML = html;
-
-    // Gather all tables and lists with at least 2 entries, in DOM order
-    const rollTables = [...div.querySelectorAll('table, ol, ul')].map(el => {
-      if (el.tagName === 'TABLE') {
-        const rows = [...el.querySelectorAll('tr')].filter(r => r.querySelector('td'));
-        return rows.length >= 2 ? { el, count: rows.length, rows, type: 'table' } : null;
-      }
-      const items = [...el.querySelectorAll('li')];
-      return items.length >= 2 ? { el, count: items.length, items, type: 'list' } : null;
-    }).filter(Boolean);
-
-    if (rollTables.length === 0) return null;
-
-    // Pick the most appropriate table based on expected entry count
-    const targetCount = fieldName === 'destinyGoals' ? 6
-                      : fieldName === 'destinyMotivation' ? 4
-                      : 6; // backstory uses d6
-
-    // Sort candidates by how close their count is to targetCount; prefer exact match
-    const sorted = [...rollTables].sort((a, b) =>
-      Math.abs(a.count - targetCount) - Math.abs(b.count - targetCount)
-    );
-
-    // If two tables are equally close (e.g., both at 4 entries), prefer the one
-    // that comes SECOND for goals (goals table follows motivation table in the HTML)
-    let target = sorted[0];
-    if (fieldName === 'destinyGoals' && rollTables.length >= 2) {
-      const firstClose = rollTables.find(t => Math.abs(t.count - 4) <= 1);
-      const secondClose = rollTables.filter(t => t !== firstClose)
-                                    .find(t => Math.abs(t.count - 6) <= 2);
-      if (secondClose) target = secondClose;
-    }
-
-    // Extract Nth entry from the chosen table
-    if (target.type === 'table') {
-      for (const row of target.rows) {
-        const cells = row.querySelectorAll('td');
-        // Numeric first column (1, 2, 3…)
-        if (cells.length >= 2 && parseInt(cells[0].textContent.trim()) === n)
-          return cells[1].textContent.trim();
-      }
-      // Fallback: positional (header row may exist, skip non-td rows already filtered)
-      const row = target.rows[n - 1];
-      if (row) {
-        const cells = row.querySelectorAll('td');
-        return cells[cells.length - 1]?.textContent.trim() ?? null;
-      }
-    } else {
-      return target.items[n - 1]?.textContent.trim() ?? null;
-    }
-
-    return null;
-  }
-
   static async randomizeAll(event) {
     event.preventDefault();
     const app = AM.app;
@@ -1055,13 +953,11 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     // 4. Randomize ability scores based on the active method
     await A5eMancer.#randomizeAbilities(app.element);
 
-    // 5. Roll every lore table the destiny/background offers, plus the older
-    //    fixed narrative fields (backstory and friends)
+    /* 5. Roll every lore table the destiny/background offers. The fixed d6
+       beside the backstory went: it read the first list in the background's
+       description, whatever that was, and wrote a line of it in as the
+       backstory. */
     A5eMancer.rollAllLoreTables();
-    for (const rb of form.querySelectorAll('[data-action="rollDestinyTable"]')) {
-      rb.click();
-      await new Promise(r => setTimeout(r, 50));
-    }
 
     // 6. Equipment: roll starting wealth + pick a random option in each choice group
     //    (the option buttons are wired by DOMManager click listeners, not data-action)

@@ -584,20 +584,42 @@ export class ActorCreationService {
       }
     }
 
+    /* A rolled table result belongs with the field it answers, not in a pile
+       of its own. A background's Connections table is the character's
+       connections, its Mementos table their mementos; a destiny's own table
+       ("Table: Atonement Destiny") is the source of motivation, and "Fulfilling
+       Your Destiny" the way it is fulfilled. Every roll used to be written into
+       Notes under its table's heading, beside whatever the player typed for the
+       same thing - so a connection read as notes, and the Connections row it
+       answered stayed empty. What matches none of these keeps its heading in
+       Notes. */
+    const into = { connections: [], mementos: [], motivation: [], fulfillment: [] };
+    const otherLore = [];
+    for (const l of lore) {
+      const h = l.heading ?? '';
+      if (/connection/i.test(h))                                           into.connections.push(l.text);
+      else if (/memento/i.test(h))                                          into.mementos.push(l.text);
+      else if (/fulfil/i.test(h))                                           into.fulfillment.push(l.text);
+      else if (l.source === 'destiny' && /motivation|^table:.*destiny/i.test(h)) into.motivation.push(l.text);
+      else otherLore.push(l);
+    }
+    // What the player typed first, then the roll, each once
+    const merge = (typed, rolled) => [...new Set([typed, ...rolled].map(clean).filter(Boolean))].join('\n\n');
+
     const bio = {
       lore,
       traits:      clean(fd.traits),
       ideals:      clean(fd.ideals),
       bonds:       clean(fd.bonds),
       flaws:       clean(fd.flaws),
-      connections: clean(fd.connections),
+      connections: merge(fd.connections, into.connections),
       backstory:   clean(fd.backstory),
-      mementos:    clean(fd.mementos),
+      mementos:    merge(fd.mementos, into.mementos),
       destiny: {
-        motivation:  clean(fd.destinyMotivation),
+        motivation:  merge(fd.destinyMotivation, into.motivation),
         goals:       clean(fd.destinyGoals),
         connection:  clean(fd.destinyConnection),
-        fulfillment: clean(fd.destinyFulfillment),
+        fulfillment: merge(fd.destinyFulfillment, into.fulfillment),
         inspiration: clean(fd.destinyInspiration)
       }
     };
@@ -611,21 +633,29 @@ export class ActorCreationService {
       section('Destiny Connection', bio.destiny.connection)
     ].filter(Boolean).join('\n');
 
+    /* The destiny, whole, in Goals: its source of motivation, the goals, how
+       it is fulfilled and the inspiration it gives. Motivation and inspiration
+       used to go to Notes, apart from the rest of the same destiny. */
     const goalsHtml = [
+      section('Source of Motivation', bio.destiny.motivation),
       bio.destiny.goals ? para(bio.destiny.goals) : '',
-      section('Fulfillment', bio.destiny.fulfillment)
+      section('Fulfillment', bio.destiny.fulfillment),
+      section('Inspiration Feature', bio.destiny.inspiration)
     ].filter(Boolean).join('\n');
 
+    /* Notes holds what a5e has no field for: personality traits, mementos and
+       any table that answers none of the fields above. The backstory is not
+       among them any more - it has a5e's own Backstory page. */
     const notesHtml = [
-      section('Backstory',            bio.backstory),
       section('Personality Traits',   bio.traits),
       section('Mementos',             bio.mementos),
-      section('Destiny Motivation',   bio.destiny.motivation),
-      section('Inspiration Feature',  bio.destiny.inspiration),
-      ...lore.map(l => section(l.heading, l.text))
+      ...otherLore.map(l => section(l.heading, l.text))
     ].filter(Boolean).join('\n');
 
     const updates = {
+      /* a5e's Backstory page is system.details.bio. The builder never wrote it,
+         so the page stayed empty and the backstory sat in Notes under a heading. */
+      'system.details.bio':    bio.backstory ? para(bio.backstory) : '',
       'system.details.ideals': bio.ideals ? para(bio.ideals) : '',
       'system.details.bonds':  bondsHtml,
       'system.details.flaws':  bio.flaws ? para(bio.flaws) : '',
