@@ -29,7 +29,7 @@ Object.assign(TOOL_NAMES, {
   'playing cards': 'playingCardSet', 'playing card set': 'playingCardSet', 'dice set': 'diceSet', 'dice': 'diceSet',
   'land vehicles': 'landVehicles', 'water vehicles': 'waterVehicles', 'air vehicles': 'airVehicles', 'space vehicles': 'spaceVehicles',
   'vehicles land': 'landVehicles', 'vehicles water': 'waterVehicles', 'vehicles air': 'airVehicles',
-  'the sewing kit': 'sewingKit'
+  'the sewing kit': 'sewingKit', 'board games': 'boardGameSet', 'board game': 'boardGameSet', 'card games': 'playingCardSet'
 });
 const WIND = ['bagpipes', 'flute', 'horn', 'ocarina', 'panFlute', 'shawm', 'harmonica', 'saxophone', 'trombone'];
 // category phrases -> keys
@@ -49,7 +49,6 @@ for (const [skill, specs] of Object.entries(K.skillSpecialties)) for (const k of
 const WEAPONS = { simple: Object.keys(K.weapons.simple), martial: Object.keys(K.weapons.martial) };
 const WEAPON_NAMES = {};
 for (const cat of Object.keys(K.weapons)) for (const k of Object.keys(K.weapons[cat])) { const n = flat(words(k)); WEAPON_NAMES[n] = k; WEAPON_NAMES[n + 's'] = k; }
-const WEAPONISH = /weapon|whip|net|crossbow|bow|dagger|sword|axe|hammer|spear|javelin|sling|dart|lance|pike|trident|maul|flail|scimitar|rapier|saber|glaive|halberd|club|mace|staff|sickle|revolver|pistol|musket|rifle|shotgun|blowgun|gauntlet|chain|knuckles/;
 
 const found = (text, names) => {
   const f = ' ' + flat(text) + ' ';
@@ -89,10 +88,16 @@ function itemsIn(part) {
     if (!parts.length || new Set(parts.map((x) => x[0])).size > 1) { blank(); continue; }
     const kind = parts[0][0];
     if (kind === 'skill' && !chosen && !/other/.test(m[0])) continue;
-    it.counted.push({ kind, n, keys: uniq(parts.flatMap((x) => x[1])) });
+    // "one modern language and one historical language": two picks from one list
+    const keys = uniq(parts.flatMap((x) => x[1]));
+    const same = it.counted.find((c) => c.kind === kind && c.keys.join() === keys.join());
+    if (same) same.n += n; else it.counted.push({ kind, n, keys });
     blank();
   }
   if (/\ball gaming sets\b/.test(p)) { it.tool.push(...Object.keys(K.tools.gamingSets)); p = p.replace(/\ball gaming sets\b/, ' '); }
+  if (/\ball (?:types of )?vehicles\b/.test(p)) { it.tool.push(...Object.keys(K.tools.vehicles)); p = p.replace(/\ball (?:types of )?vehicles\b/, ' '); }
+  if (/\ball miscellaneous tools\b/.test(p)) { it.tool.push(...Object.keys(K.tools.miscellaneous)); p = p.replace(/\ball miscellaneous tools\b/, ' '); }
+  if (/\ball artisan s? ?tools\b|\ball artisans tools\b/.test(p)) { it.tool.push(...Object.keys(K.tools.artisansTools)); p = p.replace(/\ball artisan s? ?tools\b|\ball artisans tools\b/, ' '); }
   if (/\ball musical instruments\b/.test(p)) { it.tool.push(...Object.keys(K.tools.musicalInstruments)); p = p.replace(/\ball musical instruments\b/, ' '); }
   // "any one artisan's tool kit" inside an options list
   const anyCat = /\bany (?:one )?(artisans? tool kits?|artisans? tools|musical instruments?|gaming sets?)\b/.exec(p);
@@ -105,7 +110,11 @@ function itemsIn(part) {
   if (/\bshields?\b/.test(p) && !/\bmetal shields?\b/.test(p)) it.armor.push('shield');
   if (/\ball martial weapons\b|\bmartial weapons\b/.test(p)) it.weapon.push(...WEAPONS.martial);
   if (/\bsimple weapons\b/.test(p)) it.weapon.push(...WEAPONS.simple);
-  for (const [n, k] of Object.entries(WEAPON_NAMES)) if (WEAPONISH.test(n) && p.includes(' ' + n + ' ')) it.weapon.push(k);
+  {
+    const hits = [];
+    for (const [n, k] of Object.entries(WEAPON_NAMES)) { let i = p.indexOf(' ' + n + ' '); while (i >= 0) { hits.push([i + 1, i + 1 + n.length, k]); i = p.indexOf(' ' + n + ' ', i + 1); } }
+    for (const h of hits) if (!hits.some((o) => o !== h && o[0] <= h[0] && o[1] >= h[1] && o[1] - o[0] > h[1] - h[0])) it.weapon.push(h[2]);
+  }
   it.skill.push(...skillsIn(p.replace(/\bskill specialt\w*/g, ' ')));
   it.tool.push(...toolsIn(p));
   it.tradition.push(...traditionsIn(p));
@@ -136,6 +145,18 @@ function detectGrants(blocksText) {
   const other = [];
 
   for (const block of blocksText) {
+    // "Your Strength, Dexterity, or Constitution score increases by 1" / "an ability score of your choice increases by 1"
+    for (const raw of sentences(block)) {
+      const s = lead(raw.trim());
+      if (/^(if|when|while|until)\b/i.test(s)) continue;
+      const ch = /\byour ((?:strength|dexterity|constitution|intelligence|wisdom|charisma)(?:,? (?:or |and )?(?:strength|dexterity|constitution|intelligence|wisdom|charisma))+) score increases by (\d)/i.exec(s);
+      if (ch && /\bor\b/i.test(ch[1])) {
+        const opts = ch[1].toLowerCase().match(/strength|dexterity|constitution|intelligence|wisdom|charisma/g).map((w) => ABIL[w]);
+        other.push({ grantType: 'ability', label: 'Ability Score Increase', bonus: ch[2], abilities: { base: [], options: opts, total: 1 }, context: { types: ['base'] } });
+      }
+      const any = /\b(?:an|one) ability score of your choice increases by (\d)|\bincrease (?:one|an) ability score of your choice by (\d)/i.exec(s);
+      if (any) other.push({ grantType: 'ability', label: 'Ability Score Increase', bonus: any[1] ?? any[2], abilities: { base: [], options: ['str', 'dex', 'con', 'int', 'wis', 'cha'], total: 1 }, context: { types: ['base'] } });
+    }
     const blockConditional = /^(?:•\s*)?(if|while|when|whenever)\b/i.test(lead(block.trim()));
     for (const raw of sentences(block)) {
       const s = lead(raw.trim());
@@ -246,6 +267,18 @@ function detectGrants(blocksText) {
     if (!o.length || seenChoice.has(key)) continue;
     seenChoice.add(key);
     push(c.kind, [], o, Math.min(c.total || 1, o.length));
+  }
+  /* A given part and one choice of the same kind are one grant in a5e's packs -
+     "Survival, and either Intimidation or Stealth" is base [sur], options
+     [itm, ste], total 1 - and the builder shows it as one line. */
+  for (const kind of KINDS) {
+    const bucket = (x) => x.keys ?? x.traits;
+    const same = grants.filter((x) => (kind === 'language' ? x.traits?.traitType === 'languages' : x.proficiencyType === kind));
+    const given = same.filter((x) => !bucket(x).options.length), chosen = same.filter((x) => bucket(x).options.length);
+    if (given.length === 1 && chosen.length === 1) {
+      Object.assign(bucket(given[0]), { options: bucket(chosen[0]).options, total: bucket(chosen[0]).total });
+      grants.splice(grants.indexOf(chosen[0]), 1);
+    }
   }
   if (expertise.size) grants.push({ grantType: 'expertiseDice', label: 'Expertise Dice', keys: { base: [...expertise], options: [], total: 0 }, expertiseType: 'skill' });
   const bySkill = {};

@@ -22,8 +22,8 @@ import { indexFieldsFor } from './compendiumIndexFix.js';
  * files themselves are fetched when the pack is built.
  *
  * A thousand entries in one list is not browsable, so the pack has a folder per
- * kind - Archetypes, Archetype Features, Spells, Psionic Powers, Magic Items,
- * Equipment - rebuilt with it.
+ * kind (Archetypes, Backgrounds, Feats, Combat Maneuvers, Spells, Magic Items,
+ * Equipment and the rest), rebuilt with it.
  */
 export class ImportedPack {
 
@@ -76,8 +76,8 @@ export class ImportedPack {
   }
 
   /** The folder a document goes in: its own, or by its type. */
-  static FOLDER_OF_TYPE = { archetype: 'Archetypes', feature: 'Archetype Features', spell: 'Spells', object: 'Equipment' };
-  static FOLDER_ORDER = ['Archetypes', 'Archetype Features', 'Spells', 'Psionic Powers', 'Magic Items', 'Equipment'];
+  static FOLDER_OF_TYPE = { archetype: 'Archetypes', feature: 'Archetype Features', spell: 'Spells', object: 'Equipment', maneuver: 'Combat Maneuvers', background: 'Backgrounds', destiny: 'Destinies' };
+  static FOLDER_ORDER = ['Archetypes', 'Archetype Features', 'Backgrounds', 'Background Features', 'Destinies', 'Destiny Features', 'Feats', 'Combat Maneuvers', 'Spells', 'Psionic Powers', 'Magic Items', 'Equipment'];
   static folderOf(doc) { return doc.flags?.[AM.ID]?.folder ?? this.FOLDER_OF_TYPE[doc.type] ?? null; }
 
   /** The pack's folders, made afresh: name -> id. A failure leaves the documents unfoldered, not unbuilt. */

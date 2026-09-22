@@ -2,6 +2,7 @@ import { AM } from '../am.js';
 import { PackFilter } from './packFilter.js';
 import { MM_SCHOOLS, MM_CLASSES, MM_PROGRESSION, MM_SCHOOL_LORE } from '../data/magicManeuvers.js';
 import { TRADITION_LORE, TRADITION_NOTES } from '../data/traditionLore.js';
+import { IMPORTED_TRADITIONS } from '../data/imported/traditions.js';
 import { iconForItem, applyItemIcon } from '../data/a5eIcons.js';
 import { castOnlyEffects } from './effectTiming.js';
 
@@ -250,6 +251,10 @@ export function registerMagicSchools() {
     // The config holds i18n keys elsewhere; a literal label localizes to itself
     CONFIG.A5E.maneuverTraditions[key] ??= label;
   }
+  /* And the traditions of the maneuvers imported from a5e.tools that a5e's list
+     lacks (Unerring Hawk, the duels' basic maneuvers): without them a maneuver
+     of theirs had a tradition no list, filter or picker could name. */
+  for (const [key, { label }] of Object.entries(IMPORTED_TRADITIONS)) CONFIG.A5E.maneuverTraditions[key] ??= label;
   /* In among the combat traditions by name, as a5e lists its own. Added at the
      end, the schools came after Viper's Fangs in every list read from here -
      the compendium browser's tradition filter, the sheet's tradition picker. */
@@ -259,6 +264,9 @@ export function registerMagicSchools() {
   const sheetFilter = CONFIG.A5E.filters?.maneuvers?.traditions?.filters;
   if (sheetFilter) {
     for (const [key, label] of Object.entries(MM_SCHOOLS)) {
+      sheetFilter[key] ??= { label, key: 'system.tradition', type: 'value', truthValue: 'or' };
+    }
+    for (const [key, { label }] of Object.entries(IMPORTED_TRADITIONS)) {
       sheetFilter[key] ??= { label, key: 'system.tradition', type: 'value', truthValue: 'or' };
     }
     sortByLabel(sheetFilter, (entry) => entry?.label);
@@ -288,7 +296,7 @@ export function traditionLoreHtml(key) {
   if (MM_SCHOOL_LORE[key]) return `<p>${MM_SCHOOL_LORE[key]}</p>`;
   const t = TRADITION_LORE[key];
   if (t?.intro) return (t.keywords ? `<p><em>${t.keywords}</em></p>` : '') + `<p>${t.intro}</p>`;
-  const note = TRADITION_NOTES[key];
+  const note = TRADITION_NOTES[key] ?? IMPORTED_TRADITIONS[key]?.lore;
   return note ? `<p>${note}</p>` : '';
 }
 

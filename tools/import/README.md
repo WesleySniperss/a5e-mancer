@@ -2,12 +2,13 @@
 
 Converts a5e.tools pages into a5e item documents for the world compendium
 "A5e Mancer: Imported" (`scripts/utils/importedPack.js`): archetypes, spells,
-psionic powers, magic items, weapons and mundane equipment that a5e's packs
-lack. Run from the module root, with Node 20 or later:
+psionic powers, combat maneuvers, feats, backgrounds, destinies, magic items
+and equipment that a5e's packs lack. Run from the module root, with Node 20 or
+later:
 
     node tools/import/prepare.cjs            # 1. a5e's packs and CONFIG maps, from the local install
     node tools/import/fetch-archetypes.cjs   # 2. missing archetypes, and their pages (cached)
-    node tools/import/fetch-content.cjs      #    missing spells, powers, items, and their pages
+    node tools/import/fetch-content.cjs      #    everything else missing, and its pages
     node tools/import/build-archetypes.cjs   # 3. convert; writes the module's data and a report
     node tools/import/build-content.cjs
     node tools/import/check-archetypes.mjs   # 4. check them with the module's own code
@@ -46,13 +47,12 @@ world when its hash changes, into a folder per kind.
 - **Ids** are derived from the archetype and feature names, so a rebuild keeps
   them and a character that took an archetype keeps its links.
 
-## Spells, psionic powers and items
+## Everything else
 
 - **What is missing** is decided by `lib/match.cjs`: names compared in several
   spellings ("Hand crossbow" / "Crossbow, Hand"), and a generic magic item
   counts as present when a5e has it per variant ("Holy Avenger" / "Holy Avenger
-  Longsword", "Weapon +1" / "Longsword +1"). Hirelings, pets, mounts and
-  services are not converted: in Foundry they are actors or prices.
+  Longsword", "Weapon +1" / "Longsword +1").
 - **Spells** get their level, schools, classes, components, concentration,
   ritual, and one action: casting time, range, duration, target, area, saving
   throw, the first damage or healing roll with its scaling, and the spell
@@ -62,7 +62,23 @@ world when its hash changes, into a folder per kind.
 - **Objects** get their kind (from the list's category first, then the name),
   rarity, attunement, price (credits too), weight, charges, and an action where
   the text uses one; weapons and siege engines their attack and damage;
-  vehicles and drones their statistics in the text.
+  vehicles and drones their statistics in the text. A mount or a pet is the
+  entry a character buys, with a link to a5e's creature to play it from; a
+  hireling is what recruiting them costs.
+- **Combat maneuvers** get their tradition, degree, exertion, stance, saving
+  throw and damage. Two traditions a5e's list lacks (Unerring Hawk, the duels'
+  basic maneuvers) are written to `scripts/data/imported/traditions.js` and
+  registered by the module beside a5e's own.
+- **Feats** are a5e's feat features, with the prerequisite the Add Feat window
+  reads, the proficiencies, ability increases and maneuvers their text gives,
+  and an action where they have one.
+- **Backgrounds** get their ability increase, skill, tool and language
+  proficiencies, the suggested equipment as links to a5e's gear, and their
+  feature as a document of its own; their connections and mementos are lists
+  the builder can roll on.
+- **Destinies** get their source of inspiration, inspiration feature and
+  fulfillment feature as three documents, linked the way a5e links them, and
+  their motivations as a rollable list.
 
 Corrections the page structure cannot tell the converter go in
 `archetype-overrides.cjs`. Read `.cache/build-report.txt` after a build: one

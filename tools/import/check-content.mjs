@@ -36,19 +36,26 @@ const bad = (list, f) => list.filter(f);
 const names = (list) => list.slice(0, 6).map((d) => d.name).join(', ');
 
 const sp = CONTENT.filter((d) => d.type === 'spell');
+const man = CONTENT.filter((d) => d.type === 'maneuver');
+const feats = CONTENT.filter((d) => d.type === 'feature' && d.system.featureType === 'feat');
+const bgs = CONTENT.filter((d) => d.type === 'background');
+const dests = CONTENT.filter((d) => d.type === 'destiny');
+const byId = new Map(CONTENT.map((d) => [d._id, d]));
 const psi = sp.filter((d) => d.system.disciplines.length);
 const obj = CONTENT.filter((d) => d.type === 'object');
 
 /* A. the documents */
 {
-  check('419 documents: 25 spells, 92 psionic powers, 302 objects', CONTENT.length === 419 && sp.length - psi.length === 25 && psi.length === 92 && obj.length === 302,
-    `${CONTENT.length}: ${sp.length - psi.length}/${psi.length}/${obj.length}`);
+  check('25 spells, 92 psionic powers, 387 objects, 91 maneuvers, 112 feats, 20 backgrounds, 7 destinies',
+    sp.length - psi.length === 25 && psi.length === 92 && obj.length === 387 && man.length === 91 && feats.length === 112 && bgs.length === 20 && dests.length === 7,
+    `${sp.length - psi.length}/${psi.length}/${obj.length}/${man.length}/${feats.length}/${bgs.length}/${dests.length}`);
   const { DREAD_KNIGHT } = await import(pathToFileURL(path.join(root, 'data', 'imported', 'dreadKnight.js')).href);
   const ids = [...CONTENT, ...ARCH, ...DREAD_KNIGHT].map((d) => d._id);
   check('every id is 16 letters and digits and unique across the whole pack', ids.every((i) => /^[A-Za-z0-9]{16}$/.test(i)) && new Set(ids).size === ids.length);
   const inner = CONTENT.flatMap((d) => [...Object.keys(d.system.actions ?? {}), ...Object.values(d.system.actions ?? {}).flatMap((a) => [...Object.keys(a.prompts ?? {}), ...Object.keys(a.rolls ?? {}), ...Object.keys(a.consumers ?? {}), ...Object.keys(a.ranges ?? {})])]);
   check('action, roll, prompt, consumer and range ids are 16 characters', inner.every((i) => /^[A-Za-z0-9]{16}$/.test(i)));
-  const known = new Set([...spells, ...gear, ...features, ...maneuvers].map((d) => d._id));
+  const monsterIds = new Set(read(path.join(P.PACKS, 'monsterIndex.json')).map((m) => m._id));
+  const known = new Set([...spells, ...gear, ...features, ...maneuvers, ...CONTENT].map((d) => d._id).concat([...monsterIds]));
   const dead = CONTENT.flatMap((d) => [...d.system.description.matchAll(/@UUID\[([^\]]+)\]/g)].map((m) => m[1]).filter((u) => !known.has(u.split('.').pop())).map((u) => `${d.name}: ${u}`));
   check('every @UUID link resolves to a5e\'s packs', !dead.length, dead.slice(0, 3).join(' | '));
   const missing = [...new Set(CONTENT.map((d) => d.img))].filter((i) => !fs.existsSync(P.PUBLIC + i));
@@ -60,10 +67,17 @@ const obj = CONTENT.filter((d) => d.type === 'object');
   check('sources are a5e\'s product keys or the ones the module registers', !bad(CONTENT, (d) => !srcOk.test(d.system.source)).length, names(bad(CONTENT, (d) => !srcOk.test(d.system.source))));
   const spellIdx = M.index(spells.map((s) => s.name));
   const gearIdx = M.index(gear.map((g) => g.name), { subset: true });
-  const dup = [...bad(sp, (d) => spellIdx.has(d.name)), ...bad(obj, (d) => gearIdx.has(d.name))];
+  const idx = (n) => M.index(read(path.join(P.PACKS, `${n}.json`)).map((d) => d.name));
+  const manIdx = idx('maneuvers'), featIdx = idx('feats'), bgIdx = idx('backgrounds'), destIdx = idx('destinies');
+  const dup = [...bad(sp, (d) => spellIdx.has(d.name)), ...bad(obj, (d) => gearIdx.has(d.name)), ...bad(man, (d) => manIdx.has(d.name)),
+    ...bad(feats, (d) => featIdx.has(d.name)), ...bad(bgs, (d) => bgIdx.has(d.name)), ...bad(dests, (d) => destIdx.has(d.name))];
   check('none of them is already in a5e\'s packs', !dup.length, names(dup));
-  const within = CONTENT.map((d) => `${d.type}:${d.name}`);
+  const within = CONTENT.filter((d) => d.type !== 'feature' || d.system.featureType === 'feat').map((d) => `${d.type}:${d.name}`);
   check('no name twice', new Set(within).size === within.length, within.filter((n, i) => within.indexOf(n) !== i).slice(0, 5).join(', '));
+  const links = CONTENT.flatMap((d) => Object.values(d.system.grants ?? {}).flatMap((g) => [...(g.features?.base ?? []), ...(g.features?.options ?? []), ...(g.items?.base ?? [])].map((e) => e.uuid)))
+    .concat(dests.flatMap((d) => [d.system.sourceOfInspiration, d.system.inspirationFeature, d.system.fulfillmentFeature]));
+  const deadGrant = links.filter((u) => !known.has(String(u).split('.').pop()));
+  check('every grant and destiny link names a document that exists', !deadGrant.length && links.length > 50, `${links.length} links; dead ${deadGrant.slice(0, 3).join(', ')}`);
 }
 
 /* B. spells and psionic powers, in a5e's keys */
@@ -125,7 +139,46 @@ const obj = CONTENT.filter((d) => d.type === 'object');
   check('Crossdagger: a finesse, thrown, parrying weapon with its attack and 1d4', cd.system.weaponProperties.includes('finesse') && cd.system.weaponProperties.includes('thrown')
     && Object.values(cda.rolls).some((r) => r.formula === '1d4 + @finesse.mod'));
   check('drones listed twice on a5e.tools come once, with their price', obj.filter((d) => d.name === 'Mortar Drone').length === 1 && O('Mortar Drone').system.price.value === 250);
-  check('no hirelings, pets, mounts or services', !obj.some((d) => /^(Bodyguard|Healer|Sage|Porter), |^(Riding horse|Mastiff|Owlbear|Camel)$/.test(d.name)));
+  check('the hirelings, mounts and pets a character buys are here too', ['Bodyguard, expert', 'Riding horse', 'Owlbear', 'Stabling'].every((n) => obj.some((d) => d.name === n)));
+}
+
+/* C2. maneuvers, feats, backgrounds, destinies, bought creatures */
+{
+  const trad = new Set([...Object.keys(K.maneuverTraditions), 'unerringHawk', 'duelingManeuvers']);
+  check('maneuvers: a tradition a5e or the module knows, degree 1-5, exertion spent as a5e spends it',
+    man.every((d) => trad.has(d.system.tradition) && d.system.degree >= 1 && d.system.degree <= 5
+      && (!d.system.exertionCost || Object.values(Object.values(d.system.actions)[0].consumers).some((c) => c.resource === 'exertion' && c.quantity === d.system.exertionCost))),
+    man.filter((d) => !trad.has(d.system.tradition)).map((d) => d.system.tradition).slice(0, 3).join());
+  const { IMPORTED_TRADITIONS } = await import(pathToFileURL(path.join(root, 'data', 'imported', 'traditions.js')).href);
+  check('the two traditions a5e lacks are registered by the module, with the duels\' note', Object.keys(IMPORTED_TRADITIONS).sort().join() === 'duelingManeuvers,unerringHawk' && /duels/.test(IMPORTED_TRADITIONS.duelingManeuvers.lore));
+  const MN = (n) => man.find((d) => d.name === n);
+  const hg = MN('Hungry Ghosts'), dm = MN('Deflect Missile');
+  check('Hungry Ghosts: Eldritch Blackguard, 4th degree, 3 exertion, a bonus-action stance', hg.system.tradition === 'eldritchBlackguard' && hg.system.degree === 4 && hg.system.exertionCost === 3 && hg.system.isStance
+    && Object.values(hg.system.actions)[0].activation.type === 'bonusAction');
+  check('the site\'s "Def lect Missile" is Deflect Missile', !!dm && !man.some((d) => /Def lect/.test(d.name)));
+  const FT = (n) => feats.find((d) => d.name === n);
+  const G = (d, t) => Object.values(d.system.grants).filter((g) => (g.proficiencyType ?? g.traits?.traitType ?? g.grantType) === t);
+  check('feats: a5e\'s feat type with the prerequisite the Add Feat window reads', feats.every((d) => d.system.featureType === 'feat') && FT('Audio Engineer').system.prerequisite === '3 levels in artificer , 3 levels in bard');
+  check('"Your Intelligence or Wisdom score increases by 1": a choice of the two', JSON.stringify(G(FT('Divine Spark'), 'ability')[0]?.abilities) === '{"base":[],"options":["int","wis"],"total":1}');
+  check('"proficiency with the Socialite Stance and To My Side maneuvers": both maneuvers granted', G(FT('Rally Point Warrior'), 'item')[0]?.items.base.length === 2);
+  check('Secret Agent: garottes, assassin\'s gauntlets and boot daggers (not every dagger)', JSON.stringify(G(FT('Secret Agent'), 'weapon')[0]?.keys.base) === '["garotte","assassinsGauntlet","bootDagger"]');
+  const BG = (n) => bgs.find((d) => d.name === n);
+  const ar = BG('Archaeologist');
+  check('Archaeologist: +1 Intelligence and one more, History and Arcana or Survival, a tool of two, two languages, gear from a5e, its feature',
+    JSON.stringify(G(ar, 'ability')[0].abilities.base) === '["int"]' && G(ar, 'skill')[0].keys.base.join() === 'his' && G(ar, 'skill')[0].keys.options.join() === 'arc,sur'
+      && G(ar, 'tool')[0].keys.options.length === 2 && G(ar, 'languages')[0].traits.total === 2 && G(ar, 'item')[0].items.base.length >= 3
+      && byId.get(G(ar, 'feature')[0].features.base[0].uuid.split('.').pop())?.system.featureType === 'background');
+  check('backgrounds: connections and mementos as lists the builder rolls', bgs.every((d) => /CONNECTIONS<\/h3><ol>(<li>[^<]+<\/li>){6,}/.test(d.system.description) && /MEMENTOS<\/h3><ol>/.test(d.system.description)));
+  const dk = dests.find((d) => d.name === 'Darkness');
+  check('Darkness: its source of inspiration, inspiration and fulfillment features, and six motivations',
+    ['sourceOfInspiration', 'inspirationFeature', 'fulfillmentFeature'].every((k) => byId.get(dk.system[k].split('.').pop())?.system.featureType === 'destiny')
+      && /MOTIVATIONS<\/h3><ol>(<li>[^<]+<\/li>){6}<\/ol>/.test(dk.system.description));
+  const pets = obj.filter((d) => /<em>(Mount|Pet)<\/em>/.test(d.system.description));
+  check('mounts and pets: bought here, their stat blocks linked from a5e\'s monsters', pets.length >= 45 && pets.filter((d) => /a5e-monsters\.Actor\./.test(d.system.description)).length >= pets.length - 2,
+    `${pets.filter((d) => /a5e-monsters/.test(d.system.description)).length}/${pets.length} linked`);
+  const st = obj.find((d) => d.name === 'Stabling');
+  check('Stabling: 5 sp, per day', st.system.price.value === 5 && st.system.price.denomination === 'sp' && st.system.price.special === 'per day');
+  check('hirelings: the three tiers each at its price', ['inexperienced', 'seasoned', 'expert'].every((t, i) => obj.find((d) => d.name === `Bodyguard, ${t}`)?.system.price.value === [500, 2000, 5000][i]));
 }
 
 /* D. the pack, with both files and its folders */
@@ -152,9 +205,11 @@ const obj = CONTENT.filter((d) => d.type === 'object');
   await ImportedPack.ensure();
   check('the pack holds everything, fetched from both files', created.length === 10 + GENERATED.count && fetched === 2, `${created.length} documents, ${fetched} fetches`);
   const order = folders.map((f) => f.name).join(' / ');
-  check('six folders in order, every document in one', order === 'Archetypes / Archetype Features / Spells / Psionic Powers / Magic Items / Equipment' && created.every((d) => d.folder), order);
+  check('a folder per kind, in order, every document in one',
+    order === 'Archetypes / Archetype Features / Backgrounds / Background Features / Destinies / Destiny Features / Feats / Combat Maneuvers / Spells / Psionic Powers / Magic Items / Equipment' && created.every((d) => d.folder), order);
   const inFolder = (n) => created.filter((d) => d.folder === folders.find((f) => f.name === n)?.id).length;
-  check('the counts per folder', inFolder('Archetypes') === 89 && inFolder('Spells') === 25 && inFolder('Psionic Powers') === 92 && inFolder('Magic Items') === 142 && inFolder('Equipment') === 160,
+  check('the counts per folder', inFolder('Archetypes') === 89 && inFolder('Spells') === 25 && inFolder('Psionic Powers') === 92 && inFolder('Magic Items') === 142 && inFolder('Equipment') === 245
+      && inFolder('Combat Maneuvers') === 91 && inFolder('Feats') === 112 && inFolder('Backgrounds') === 20 && inFolder('Background Features') === 20 && inFolder('Destinies') === 7 && inFolder('Destiny Features') === 21,
     folders.map((f) => `${f.name} ${inFolder(f.name)}`).join(', '));
 }
 

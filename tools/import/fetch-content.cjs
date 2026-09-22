@@ -1,12 +1,13 @@
-// Step 2b: the spells, psionic powers, magic items, weapons and mundane
-// equipment a5e.tools lists that a5e's packs lack, and their pages.
+// Step 2b: what a5e.tools lists and a5e's packs lack - spells, psionic powers,
+// magic items, weapons, mundane equipment, combat maneuvers, feats,
+// backgrounds, destinies - and their pages.
 //   node tools/import/fetch-content.cjs [--refresh]
 //
 // "Lacks" is decided by lib/match.cjs: names are compared in several spellings,
 // and for gear a generic entry counts as present when a5e has it per variant
-// ("Holy Avenger" / "Holy Avenger Longsword"). Mundane equipment that is not a
-// thing you carry - hirelings, pets, mounts, services - is left out: in
-// Foundry those are actors or prices, not items.
+// ("Holy Avenger" / "Holy Avenger Longsword"). Mounts, pets, hirelings and
+// services come too: as the entry a character buys, linked to the creature's
+// stat block where a5e has one.
 const fs = require('fs'), path = require('path');
 const P = require('./lib/paths.cjs');
 const L = require('./lib/lists.cjs');
@@ -18,7 +19,11 @@ const LISTS = {
   'psionic-powers':    { against: 'spells' },
   'magic-items':       { against: 'adventuringGear', subset: true },
   weapons:             { against: 'adventuringGear', subset: true },
-  'mundane-equipment': { against: 'adventuringGear', subset: true, skipTypes: ['Follower', 'Pet', 'Mount', 'Services'] }
+  'mundane-equipment': { against: 'adventuringGear', subset: true },
+  'combat-maneuvers':  { against: 'maneuvers' },
+  feats:               { against: 'feats' },
+  backgrounds:         { against: 'backgrounds' },
+  destinies:           { against: 'destinies' }
 };
 const fileOf = (list, url) => path.join(P.CACHE, 'pages', list, url.replace(/^\//, '').replace(/\//g, '_') + '.html');
 

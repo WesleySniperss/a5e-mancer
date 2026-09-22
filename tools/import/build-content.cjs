@@ -1,5 +1,6 @@
-// Step 3b: a5e.tools spells, psionic powers, magic items, weapons and mundane
-// equipment -> a5e spell and object documents, with fixed ids.
+// Step 3b: a5e.tools spells, psionic powers, magic items, weapons, mundane
+// equipment, combat maneuvers, feats, backgrounds and destinies -> a5e
+// documents, with fixed ids.
 //   node tools/import/build-content.cjs [--dry]
 //
 // Writes scripts/data/imported/a5etools-content.json and generated.js, and
@@ -9,6 +10,8 @@ const P = require('./lib/paths.cjs');
 const N = require('./lib/normalize.cjs');
 const { fieldsOf } = require('./lib/fields.cjs');
 const { detectUses, detectAction } = require('./lib/actions.cjs');
+const { detectGrants } = require('./lib/grants.cjs');
+const M = require('./lib/match.cjs');
 const { iconIndex } = require('./lib/icons.cjs');
 const { emit } = require('./lib/emit.cjs');
 
@@ -18,6 +21,40 @@ const lk = N.lookups();
 const K = JSON.parse(fs.readFileSync(P.KEYS, 'utf8'));
 const pickSpellIcon = iconIndex(['spells']);
 const pickGearIcon = iconIndex(['adventuringGear']);
+const pickManeuverIcon = iconIndex(['maneuvers']);
+const pickFeatureIcon = iconIndex(['feats', 'backgroundFeatures', 'destinyFeatures', 'backgrounds', 'destinies']);
+const packDocs = (n) => JSON.parse(fs.readFileSync(path.join(P.PACKS, `${n}.json`), 'utf8'));
+/* a5e's creatures, for the mounts and pets a character buys: name variants -> the actor */
+const MONSTERS = (() => {
+  const map = new Map();
+  const file = path.join(P.PACKS, 'monsterIndex.json');
+  if (!fs.existsSync(file)) return map;
+  for (const m of JSON.parse(fs.readFileSync(file, 'utf8'))) for (const v of M.variants(m.name)) if (!map.has(v)) map.set(v, m);
+  return map;
+})();
+const monsterFor = (name) => { for (const v of M.variants(name)) if (MONSTERS.has(v)) return MONSTERS.get(v); return null; };
+/* a5e's adventuring gear, for a background's suggested equipment */
+const GEAR = (() => { const map = new Map(); for (const g of packDocs('adventuringGear')) for (const v of M.variants(g.name)) if (!map.has(v)) map.set(v, g); return map; })();
+const gearFor = (name) => { for (const v of M.variants(name)) if (GEAR.has(v)) return GEAR.get(v); return null; };
+const blocksOfHtml = (html) => N.units(html).flatMap((u) => /^(ul|ol)$/.test(u.tag) ? [...u.html.matchAll(/<li>([\s\S]*?)<\/li>/g)].map((m) => N.text(m[1])) : u.tag === 'table' ? [] : [u.text]);
+function grantsFrom(blocks, idBase, level = 0) {
+  const out = {};
+  for (const g of detectGrants(blocks)) {
+    const gid = rid(`${idBase}|g|${g.grantType}|${g.proficiencyType ?? g.skill ?? g.traits?.traitType ?? ''}|${JSON.stringify(g.keys ?? g.traits ?? g.specialties ?? g.senses ?? g.movementTypes ?? g.abilities ?? '')}`, 'g');
+    out[gid] = { _id: gid, level, levelType: level ? 'class' : 'character', optional: false, img: '', ...g };
+  }
+  return out;
+}
+/* The tradition keys a5e knows, and the ones a5e.tools has that it does not (registered by the module) */
+const TRADITION_KEYS = Object.fromEntries(Object.keys(K.maneuverTraditions).map((k) => [k.replace(/([A-Z])/g, ' $1').toLowerCase(), k]));
+const EXTRA_TRADITIONS = {};
+const traditionKey = (label) => {
+  const n = String(label ?? '').toLowerCase().replace(/[’']/g, '').trim();
+  if (TRADITION_KEYS[n]) return TRADITION_KEYS[n];
+  const key = n.replace(/[^a-z0-9 ]/g, '').replace(/ (\w)/g, (_m, c) => c.toUpperCase());
+  EXTRA_TRADITIONS[key] = String(label).trim();
+  return key;
+};
 const fileOf = (list, url) => path.join(P.CACHE, 'pages', list, url.replace(/^\//, '').replace(/\//g, '_') + '.html');
 
 /* ── ids ─────────────────────────────────────────────────────────── */
@@ -312,6 +349,19 @@ function objectDoc(list, row) {
       const stats = N.text(html.slice(html.indexOf('</h1>') + 5)).replace(/^.*?\bWeight\b\s*[\d.,]*\s*(?:lbs?\.?|tons?|-)?\s*/i, '').replace(/\s*Source\b.*$/i, '');
       if (stats && !plainOf(description).includes(stats.slice(0, 40))) description = `<p>${stats}</p>` + description;
     }
+    // a mount or a pet is bought here and played from its stat block: the link
+    if (/^(mount|pet)$/i.test(type)) {
+      const m = monsterFor(name.replace(/\s*\((?:mount|pet)\)\s*$/i, ''));
+      if (m) description += `<p><strong>Statistics:</strong> @UUID[Compendium.a5e.a5e-monsters.Actor.${m._id}]{${m.name}}${m.cr !== undefined && m.cr !== null ? ` (CR ${m.cr})` : ''} - drag it to the canvas or the sidebar to have the creature.</p>`;
+      sys.weight = 0;
+    }
+    if (/follower/i.test(type)) sys.weight = 0;
+    // "5s per day": a price a5e reads, and what it is for
+    if (/per day|per week|per night|per month/i.test(F.cost?.text ?? row.cost ?? '')) {
+      const t = String(F.cost?.text ?? row.cost);
+      const m = /([\d,.]+)\s*(cp|sp|ep|gp|pp|cr|c|s|g)\b/i.exec(t);
+      if (m) sys.price = { value: Number(m[1].replace(/,/g, '')), denomination: ({ c: 'cp', s: 'sp', g: 'gp' })[m[2].toLowerCase()] ?? m[2].toLowerCase(), special: t.slice(m.index + m[0].length).trim() };
+    }
     description = `<p><em>${type}</em></p>` + description;
     sys.source = sourceOf(F.source?.text ?? row.source);
   }
@@ -365,17 +415,248 @@ function objectDoc(list, row) {
   };
 }
 
+/* ── combat maneuvers ────────────────────────────────────────────── */
+function maneuverDoc(list, row) {
+  const html = article(fs.readFileSync(fileOf(list, row.url), 'utf8'));
+  const F = fieldsOf(html);
+  const slug = row.url.split('/').pop();
+  const id = rid(`${list}|${slug}|${row.name}`);
+  const name = N.text(row.name).replace(/^Def lect\b/, 'Deflect');
+  const tradition = traditionKey(row['cm-tradition']);
+  const degree = Number((/(\d)/.exec(row['cm-degree'] ?? '') || [])[1] || 1);
+  const exertion = Number(row['cm-exertion-points'] ?? 0) || 0;
+  const actType = String(row['cm-action-type'] ?? '');
+  const isStance = /stance/i.test(actType) || /\(stance\)/i.test(F.body?.text ?? '');
+  const activation = /bonus action/i.test(actType) ? { type: 'bonusAction', cost: 1, reactionTrigger: '' }
+    : /reaction/i.test(actType) ? { type: 'reaction', cost: 1, reactionTrigger: '' }
+    : /action/i.test(actType) ? { type: 'action', cost: 1, reactionTrigger: '' } : { type: 'special', cost: 1, reactionTrigger: '' };
+  const description = cleanHtml(F.body?.html ?? '');
+  const plain = plainOf(description);
+  if (activation.type === 'reaction') {
+    const w = /^(?:\w+ \(?stance\)?\s*)?((?:when|whenever|if)\b[^,]*),/i.exec(plain);
+    if (w) activation.reactionTrigger = w[1].slice(0, 200);
+  }
+  const sv = new RegExp('\\b(strength|dexterity|constitution|intelligence|wisdom|charisma) saving throw', 'i').exec(plain);
+  const dm = new RegExp(`\\b(\\d+d\\d+(?:\\s*\\+\\s*\\d+)?) (${DMG}) damage`, 'i').exec(plain);
+  const action = {
+    name, activation, duration: isStance ? { unit: 'special', value: '' } : { unit: 'instantaneous', value: '' },
+    ranges: {}, area: { shape: '', size: '', placeTemplate: false }, target: { quantity: '', type: '' },
+    prompts: sv ? { [rid(`${id}|save`, 'p')]: { type: 'savingThrow', default: true, ability: ABIL[sv[1].toLowerCase()], onSave: '', saveDC: { type: 'custom', bonus: '@maneuverDC' }, label: '' } } : {},
+    rolls: dm ? { [rid(`${id}|damage`, 'r')]: { type: 'damage', default: true, formula: dm[1], damageType: dm[2].toLowerCase(), canCrit: false, label: '' } } : {},
+    consumers: exertion ? { [rid(`${id}|exertion`, 'c')]: { type: 'resource', default: true, resource: 'exertion', quantity: exertion } } : {}
+  };
+  return {
+    _id: id, name, type: 'maneuver',
+    img: pickManeuverIcon(name, 'icons/skills/melee/maneuver-sword-katana-yellow.webp'),
+    system: {
+      description, secretDescription: '', source: sourceOf(F['cm-source']?.text ?? row['cm-source']), favorite: false,
+      uses: { value: 0, max: '', per: '', recharge: { formula: '1d6', threshold: 6 } },
+      concentration: false, degree, exertionCost: exertion, isStance,
+      prerequisite: String(F['cm-prerequisite']?.text ?? '').replace(/\.$/, ''), tradition,
+      actions: { [rid(`${id}|action`, 'a')]: action },
+      price: { value: 0, denomination: 'gp', special: '' }
+    },
+    flags: { 'a5e-mancer': { imported: `${list}/${slug}`, url: `https://a5e.tools${row.url}`, folder: 'Combat Maneuvers' } },
+    effects: []
+  };
+}
+
+/* ── feats ───────────────────────────────────────────────────────── */
+/* maneuvers by name - a5e's, and the ones converted here - for feats that grant them */
+const MANEUVERS = (() => {
+  const map = new Map();
+  for (const m of packDocs('maneuvers')) for (const v of M.variants(m.name)) if (!map.has(v)) map.set(v, `Compendium.a5e.a5e-maneuvers.Item.${m._id}`);
+  for (const r of want['combat-maneuvers'] ?? []) {
+    const id = rid(`combat-maneuvers|${r.url.split('/').pop()}|${r.name}`);
+    for (const v of M.variants(r.name)) if (!map.has(v)) map.set(v, `Compendium.world.a5e-mancer-imported.Item.${id}`);
+  }
+  return map;
+})();
+const maneuverFor = (name) => { for (const v of M.variants(name)) if (MANEUVERS.has(v)) return MANEUVERS.get(v); return null; };
+function featureBase(id, name, description, featureType, source, { prerequisite = '', blocks = null, level = 0 } = {}) {
+  const b = blocks ?? blocksOfHtml(description);
+  const plain = b.join(' ');
+  const uses = detectUses(plain);
+  const act = detectAction(name, plain, { uses, caster: false, rid: (k) => rid(`${id}|a|${k}`, k) });
+  return {
+    _id: id, name, type: 'feature',
+    img: pickFeatureIcon(name, 'icons/sundries/scrolls/scroll-bound-sealed-blue.webp'),
+    system: {
+      description, secretDescription: '', source, featureType, classes: '', class: '', prerequisite,
+      requiresBloodied: false, concentration: false, favorite: false,
+      uses: uses ?? { value: 0, max: '', per: '', recharge: { formula: '1d6', threshold: 6 } },
+      actions: act ? { [rid(`${id}|action`, 'a')]: act } : {},
+      grants: grantsFrom(b, id, level)
+    },
+    effects: []
+  };
+}
+function featDoc(list, row) {
+  const html = article(fs.readFileSync(fileOf(list, row.url), 'utf8'));
+  const F = fieldsOf(html);
+  const slug = row.url.split('/').pop();
+  const id = rid(`${list}|${slug}|${row.name}`);
+  const name = N.text(row.name);
+  const body = cleanHtml(F['feat-details']?.html ?? '');
+  const head = N.text(html.slice(html.indexOf('</h1>'), html.indexOf('field--name-field-feat-details')));
+  const kind = (/\b(Synergy|Heritage|Culture|Destiny|Tier \d|Epic|Origin)\s+Feat\b/i.exec(head) || [])[0];
+  const prerequisite = String(F['feat-prerequisite-formattd']?.text ?? row['feat-prerequisite-formattd'] ?? '').replace(/\.$/, '');
+  const description = (kind || prerequisite ? `<p><em>${[kind, prerequisite ? `Prerequisite: ${prerequisite}` : ''].filter(Boolean).join('. ')}</em></p>` : '') + body;
+  const d = featureBase(id, name, description, 'feat', sourceOf(F['feat-source']?.text ?? row['feat-source']), { prerequisite, blocks: blocksOfHtml(body) });
+  // "You gain proficiency with the Socialite Stance and To My Side maneuvers": the maneuvers themselves
+  const known = [];
+  for (const m of plainOf(body).matchAll(/proficiency with (?:the )?([^.;]+?) maneuvers?\b/gi)) {
+    for (const part of m[1].split(/,\s*|\s+and\s+/)) { const hit = maneuverFor(part.trim()); if (hit && !known.includes(hit)) known.push(hit); }
+  }
+  if (known.length) {
+    const gid = rid(`${id}|maneuvers`, 'g');
+    d.system.grants[gid] = { _id: gid, grantType: 'item', level: 0, levelType: 'character', optional: false, img: '', label: 'Maneuvers',
+      items: { base: known.map((uuid) => ({ uuid, quantityOverride: 0 })), options: [], total: 0 } };
+  }
+  d.flags = { 'a5e-mancer': { imported: `${list}/${slug}`, url: `https://a5e.tools${row.url}`, folder: 'Feats' } };
+  return d;
+}
+
+/* ── backgrounds ─────────────────────────────────────────────────── */
+const ABIL_KEYS = { strength: 'str', dexterity: 'dex', constitution: 'con', intelligence: 'int', wisdom: 'wis', charisma: 'cha' };
+function proficiencyGrants(text, what, idBase) {
+  let t = String(text ?? '').replace(/\.$/, '').trim();
+  if (!t) return {};
+  const n = (/^(one|two|three) of your choice$/i.exec(t) || [])[1];
+  if (n && what === 'tool') t = `${n} tools of your choice`;
+  // "Water vehicles, musical instrument": a category named alone is one of your choice
+  t = t.replace(/(^|,\s*|\bor\s+|\band\s+)(musical instrument|gaming set|artisan[’']?s tools?|vehicle)\b(?! of your)/gi, (_m, lead, cat) => `${lead}one ${cat} of your choice`);
+  const sentence = what === 'language' ? `You gain proficiency in ${t.replace(/^(\w+)$/, '$1')}.` : `You gain proficiency with ${t}.`;
+  return grantsFrom([sentence], `${idBase}|${what}`);
+}
+function backgroundDocs(list, row) {
+  const html = article(fs.readFileSync(fileOf(list, row.url), 'utf8'));
+  const F = fieldsOf(html);
+  const slug = row.url.split('/').pop();
+  const id = rid(`${list}|${slug}|${row.name}`);
+  const name = N.text(row.name);
+  const source = sourceOf(F['background-source']?.text ?? row['background-source']);
+  const featName = N.text(F['background-feature-name']?.text ?? 'Feature').replace(/\.$/, '');
+  const featDesc = cleanHtml(F['background-feature-desc']?.html ?? '');
+  const feature = featureBase(rid(`${id}|feature`), featName, featDesc, 'background', source);
+  feature.flags = { 'a5e-mancer': { imported: `${list}/${slug}/feature`, url: `https://a5e.tools${row.url}`, folder: 'Background Features' } };
+
+  const grants = {};
+  const abil = ABIL_KEYS[String(F['background-ability-score']?.text ?? '').toLowerCase().trim()];
+  if (abil) {
+    const gid = rid(`${id}|ability`, 'g');
+    grants[gid] = { _id: gid, grantType: 'ability', level: 0, optional: false, default: true, img: '', label: 'Ability Score Increase',
+      abilities: { base: [abil], options: ['str', 'dex', 'con', 'int', 'wis', 'cha'], total: 1 }, bonus: '1', context: { types: ['base'], requiresProficiency: false } };
+  }
+  Object.assign(grants, proficiencyGrants(F['background-skill-prof']?.text, 'skill', id));
+  Object.assign(grants, proficiencyGrants(F['background-tool-prof']?.text, 'tool', id));
+  Object.assign(grants, proficiencyGrants(F['background-lang']?.text, 'language', id));
+  const equipText = F['background-suggested-equip']?.text ?? '';
+  const gear = [];
+  for (const raw of equipText.replace(/\.$/, '').split(/,\s*|\s+and\s+/)) {
+    const item = raw.replace(/^(?:a|an|the|two|three|\d+)\s+/i, '').replace(/\s*\(.*\)\s*/, '').trim();
+    const g = item && gearFor(item);
+    if (g && !gear.some((x) => x._id === g._id)) gear.push(g);
+  }
+  if (gear.length) {
+    const gid = rid(`${id}|equipment`, 'g');
+    grants[gid] = { _id: gid, grantType: 'item', level: 0, optional: true, default: true, img: '', label: 'Suggested Equipment',
+      items: { base: gear.map((g) => ({ uuid: `Compendium.a5e.a5e-adventuring-gear.Item.${g._id}`, quantityOverride: 0 })), options: [], total: 0 } };
+  }
+  const fgid = rid(`${id}|featuregrant`, 'g');
+  grants[fgid] = { _id: fgid, grantType: 'feature', level: 0, optional: false, img: '', label: 'Feature',
+    features: { base: [{ uuid: `${PACK}${feature._id}`, name: featName, img: feature.img, limitedReselection: true, selectionLimit: 1 }], options: [], total: 0 } };
+
+  const li = (key) => Array.from({ length: 12 }, (_, i) => F[`background-${key}-${i + 1}`]?.text).filter(Boolean);
+  const connections = li('connection'), mementos = li('memento');
+  const cost = F['background-sugg-eq-cost']?.text;
+  const line = (label, v) => v ? `<p><strong>${label}:</strong> ${v}</p>` : '';
+  const description = cleanHtml(F.body?.html ?? '')
+    + line('Ability Score Increases', abil ? `+1 to ${F['background-ability-score'].text.trim()} and one other ability score.` : '')
+    + line('Skill Proficiencies', F['background-skill-prof']?.text)
+    + line('Tool Proficiencies', F['background-tool-prof']?.text)
+    + line('Languages', F['background-lang']?.text)
+    + line(`Suggested Equipment${cost ? ` (Cost ${cost} gold)` : ''}`, equipText)
+    + `<p><strong><em>Feature: @UUID[${PACK}${feature._id}]{${featName}}.</em></strong> ${plainOf(featDesc)}</p>`
+    + (F['background-adventures-adv'] ? `<p><strong><em>Adventures and Advancement.</em></strong> ${F['background-adventures-adv'].text}</p>` : '')
+    + (connections.length ? `<h3>${name.toUpperCase()} CONNECTIONS</h3><ol>${connections.map((c) => `<li>${c}</li>`).join('')}</ol>` : '')
+    + (mementos.length ? `<hr><h3>${name.toUpperCase()} MEMENTOS</h3><ol>${mementos.map((c) => `<li>${c}</li>`).join('')}</ol>` : '');
+  const background = {
+    _id: id, name, type: 'background',
+    img: pickFeatureIcon(`${name} ${featName}`, 'icons/sundries/documents/document-sealed-signatures-red.webp'),
+    system: { description, secretDescription: '', source, favorite: false, grants, actions: {}, price: { value: 0, denomination: 'gp', special: '' } },
+    flags: { 'a5e-mancer': { imported: `${list}/${slug}`, url: `https://a5e.tools${row.url}`, folder: 'Backgrounds' } },
+    effects: []
+  };
+  return [background, feature];
+}
+
+/* ── destinies ───────────────────────────────────────────────────── */
+function destinyDocs(list, row) {
+  const html = article(fs.readFileSync(fileOf(list, row.url), 'utf8'));
+  const F = fieldsOf(html);
+  const slug = row.url.split('/').pop();
+  const id = rid(`${list}|${slug}|${row.name}`);
+  const name = N.text(row.name);
+  const source = sourceOf(F['destiny-source']?.text ?? row['destiny-source']);
+  // "Obfuscation. You draw inspiration from..." - the name is the lead-in
+  const split = (field) => {
+    const h = cleanHtml(F[field]?.html ?? '');
+    const t = plainOf(h);
+    const m = /^([^.]{2,60})\.\s*/.exec(t);
+    return { title: m ? m[1].trim() : '', html: h, text: t };
+  };
+  const src = split('destiny-source-of-insp'), insp = split('destiny-insp-feature'), full = split('destiny-fulfillment-feat');
+  const mk = (key, part, label) => {
+    const d = featureBase(rid(`${id}|${key}`), part.title ? `${label}: ${part.title}` : `${name} ${label}`, part.html, 'destiny', source);
+    d.flags = { 'a5e-mancer': { imported: `${list}/${slug}/${key}`, url: `https://a5e.tools${row.url}`, folder: 'Destiny Features' } };
+    return d;
+  };
+  const fSrc = mk('source', src, 'Source of Inspiration'), fInsp = mk('inspiration', insp, 'Inspiration Feature'), fFull = mk('fulfillment', full, 'Fulfillment Feature');
+  // the source of inspiration is the destiny's own name in a5e's packs
+  fSrc.name = name;
+  const motivations = Array.from({ length: 12 }, (_, i) => F[`destiny-motivation-${i + 1}`]?.text).filter(Boolean);
+  const description = cleanHtml(F.body?.html ?? '')
+    + `<hr><p><strong><em>Source of Inspiration: ${src.title || name}.</em></strong> ${src.text.replace(/^[^.]{2,60}\.\s*/, '')}</p>`
+    + `<p><strong><em>Inspiration Feature: ${insp.title}.</em></strong> ${insp.text.replace(/^[^.]{2,60}\.\s*/, '')}</p>`
+    + `<hr><h4>FULFILLING YOUR DESTINY</h4>${cleanHtml(F['destiny-fulfilling-your']?.html ?? '')}`
+    + `<p><strong><em>Fulfillment Feature: ${full.title}.</em></strong> ${full.text.replace(/^[^.]{2,60}\.\s*/, '')}</p>`
+    + (motivations.length ? `<h3>${name.toUpperCase()} MOTIVATIONS</h3><ol>${motivations.map((m) => `<li>${m}</li>`).join('')}</ol>` : '');
+  const destiny = {
+    _id: id, name, type: 'destiny',
+    img: pickFeatureIcon(name, 'icons/magic/symbols/star-yellow.webp'),
+    system: {
+      description, secretDescription: '', source, favorite: false,
+      sourceOfInspiration: `${PACK}${fSrc._id}`, inspirationFeature: `${PACK}${fInsp._id}`, fulfillmentFeature: `${PACK}${fFull._id}`,
+      actions: {}, price: { value: 0, denomination: 'gp', special: '' }
+    },
+    flags: { 'a5e-mancer': { imported: `${list}/${slug}`, url: `https://a5e.tools${row.url}`, folder: 'Destinies' } },
+    effects: []
+  };
+  return [destiny, fSrc, fInsp, fFull];
+}
+const PACK = 'Compendium.world.a5e-mancer-imported.Item.';
+
 /* ── run ──────────────────────────────────────────────────────────── */
 const docs = [];
 const report = [];
 for (const [list, rows] of Object.entries(want)) {
   const byName = new Map();
+  const extra = [];
   for (const row of rows) {
-    const d = /spells|psionic/.test(list) ? spellDoc(list, row) : objectDoc(list, row);
+    const made = /spells|psionic/.test(list) ? spellDoc(list, row)
+      : list === 'combat-maneuvers' ? maneuverDoc(list, row)
+      : list === 'feats' ? featDoc(list, row)
+      : list === 'backgrounds' ? backgroundDocs(list, row)
+      : list === 'destinies' ? destinyDocs(list, row)
+      : objectDoc(list, row);
+    const [d, ...rest] = Array.isArray(made) ? made : [made];
+    extra.push(...rest);
     const prev = byName.get(d.name);
     const worth = (x) => (x.system.price?.value ? 2 : 0) + (x.system.weight ? 1 : 0);
     if (!prev || worth(d) > worth(prev)) byName.set(d.name, d);
   }
+  for (const d of extra) byName.set(`${d.name}\u0000${d._id}`, d);
   report.push(`\n## ${list} (${byName.size})`);
   for (const d of byName.values()) {
     docs.push(d);
@@ -385,8 +666,15 @@ for (const [list, rows] of Object.entries(want)) {
       ? [`L${s.level}`, s.schools.primary || s.disciplines.join(), s.classes.join('/'), s.concentration ? 'conc' : '', s.ritual ? 'ritual' : '',
          a ? `${a.activation.type}${a.duration.unit ? ' ' + a.duration.value + ' ' + a.duration.unit : ''}${Object.values(a.ranges)[0] ? ' @' + Object.values(a.ranges)[0].range : ''}` : '',
          Object.values(a?.prompts ?? {})[0] ? 'save ' + Object.values(a.prompts)[0].ability : '', Object.values(a?.rolls ?? {})[0] ? Object.values(a.rolls)[0].formula + ' ' + (Object.values(a.rolls)[0].damageType ?? Object.values(a.rolls)[0].healingType) + (Object.values(a.rolls)[0].scaling ? ' +' + Object.values(a.rolls)[0].scaling.formula : '') : '']
-      : [s.objectType, s.rarity, s.requiresAttunement ? 'attune' : '', `${s.price.value} ${s.price.denomination}`, s.weight ? s.weight + ' lb' : '', s.uses.max ? `uses ${s.uses.max}/${s.uses.per || '-'}` : '',
-         a ? `act:${a.activation.type}${Object.values(a.rolls)[0] ? ' ' + Object.values(a.rolls).map((r) => r.formula ?? r.attackType).join(' ') : ''}` : '', s.weaponProperties.join('/')];
+      : d.type === 'object'
+      ? [s.objectType, s.rarity, s.requiresAttunement ? 'attune' : '', `${s.price.value} ${s.price.denomination}${s.price.special ? ' ' + s.price.special : ''}`, s.weight ? s.weight + ' lb' : '', s.uses.max ? `uses ${s.uses.max}/${s.uses.per || '-'}` : '',
+         a ? `act:${a.activation.type}${Object.values(a.rolls)[0] ? ' ' + Object.values(a.rolls).map((r) => r.formula ?? r.attackType).join(' ') : ''}` : '', s.weaponProperties.join('/'), /@UUID\[Compendium\.a5e\.a5e-monsters/.test(s.description) ? 'stat block linked' : '']
+      : d.type === 'maneuver'
+      ? [`${s.tradition} ${s.degree}°`, `${s.exertionCost} ex`, s.isStance ? 'stance' : '', a?.activation.type, s.prerequisite ? 'prereq: ' + s.prerequisite : '',
+         Object.values(a?.prompts ?? {})[0] ? 'save ' + Object.values(a.prompts)[0].ability : '', Object.values(a?.rolls ?? {})[0] ? Object.values(a.rolls)[0].formula + ' ' + Object.values(a.rolls)[0].damageType : '']
+      : [d.type, s.featureType ?? '', s.prerequisite ? 'prereq: ' + s.prerequisite : '', s.uses?.max ? `uses ${s.uses.max}/${s.uses.per}` : '', a ? 'act:' + a.activation.type : '',
+         Object.values(s.grants ?? {}).map((g) => g.proficiencyType ?? g.traits?.traitType ?? g.grantType).join(','),
+         d.type === 'destiny' ? 'features linked' : ''];
     report.push(`  ${d.name} [${s.source}] ${bits.filter(Boolean).join(' · ')}  (${d.img.split('/').pop()})`);
   }
 }
@@ -395,4 +683,18 @@ const types = docs.reduce((o, d) => ((o[d.type] = (o[d.type] || 0) + 1), o), {})
 console.log(`${docs.length} documents ${JSON.stringify(types)} - report in .cache/content-report.txt`);
 if (dry) { fs.writeFileSync(path.join(P.CACHE, "content-dry.json"), JSON.stringify(docs)); process.exit(0); }
 const r = emit('a5etools-content', docs);
+/* The combat traditions a5e.tools has and a5e does not, for the module to register */
+const TRADITION_LORE_TEXT = {
+  duelingManeuvers: 'Context-specific maneuvers, considered to be basic maneuvers, but only available during duels.'
+};
+const tradFile = path.join(P.OUT, 'traditions.js');
+fs.writeFileSync(tradFile, `/**
+ * Combat traditions of the maneuvers converted from a5e.tools that a5e's own
+ * list does not have - generated by tools/import/build-content.cjs. Registered
+ * beside a5e's (registerMagicSchools), so their maneuvers sort, filter and
+ * read like any other; the text is what right-clicking the tradition shows.
+ */
+export const IMPORTED_TRADITIONS = ${JSON.stringify(Object.fromEntries(Object.entries(EXTRA_TRADITIONS).sort().map(([k, label]) => [k, { label, lore: TRADITION_LORE_TEXT[k] ?? '' }])), null, 2).replace(/"(\w+)":/g, '$1:').replace(/"/g, "'")};
+`);
+console.log(`${path.relative(P.MODULE, tradFile)}: ${Object.keys(EXTRA_TRADITIONS).join(', ') || 'none'}`);
 console.log(`${path.relative(P.MODULE, r.file)}: ${(r.bytes / 1024).toFixed(0)} KB; generated.js lists ${r.total} documents`);
