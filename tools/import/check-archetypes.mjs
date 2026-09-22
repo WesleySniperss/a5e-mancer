@@ -227,21 +227,39 @@ const G = (f, type) => Object.values(f?.system.grants ?? {}).filter(g => (g.prof
   const served = Object.fromEntries(GENERATED.files.map((f) => ['/modules/a5e-mancer/' + f.file, JSON.parse(fs.readFileSync(path.join(P.MODULE, f.file), 'utf8'))]));
   globalThis.fetch = async (url) => { fetched++; return { ok: !!served[url], status: served[url] ? 200 : 404, json: async () => JSON.parse(JSON.stringify(served[url])) }; };
   const batches = [];
-  const packDocs = [];
-  const pack = { collection: 'world.a5e-mancer-imported', locked: false, folder: null, metadata: {},
-    async getDocuments() { return packDocs.splice(0); }, async getIndex() { return []; }, async configure() {}, async setFolder() {} };
-  globalThis.Item = { createDocuments: async (docs) => { batches.push(docs.length); packDocs.push(...docs); return docs; }, deleteDocuments: async () => [] };
+  const held = new Map();                                   // collection -> the documents in it
+  const makePack = ({ name, type }) => {
+    const collection = `world.${name}`;
+    held.set(collection, []);
+    const pack = { collection, locked: false, folder: null, folders: [], metadata: { type },
+      async getDocuments() { return held.get(collection).splice(0); }, async getIndex() { return []; }, async configure() {}, async setFolder() {} };
+    game.packs.set(collection, pack);
+    return pack;
+  };
+  const documentClass = () => ({
+    createDocuments: async (docs, { pack }) => { batches.push(docs.length); held.get(pack).push(...docs); return docs; },
+    deleteDocuments: async () => []
+  });
+  globalThis.Item = documentClass();
+  globalThis.Actor = documentClass();
   globalThis.foundry.documents = { Folder: { createDocuments: async (d) => d.map((x, i) => ({ ...x, id: 'f' + String(i).padStart(15, '0') })), deleteDocuments: async () => [] },
-    collections: { CompendiumCollection: { createCompendium: async () => { game.packs.set(pack.collection, pack); return pack; } } } };
+    collections: { CompendiumCollection: { createCompendium: async (data) => makePack(data) } } };
   ImportedPack.registerSource();
   check('the Gate Pass Gazette series is a source a5e can name', CONFIG.A5E.products.a5eMancerGPG?.abbreviation === 'GPG');
   await ImportedPack.ensure();
-  check('the pack holds the Dread Knight\'s 10 and every converted document, created in batches of at most 100',
-    packDocs.length === 10 + GENERATED.count && batches.every(n => n <= 100) && fetched === GENERATED.files.length, `${packDocs.length} in ${batches.join('+')}, fetched ${fetched}`);
+  const packDocs = held.get('world.a5e-mancer-imported') ?? [];
+  const monsters = held.get('world.a5e-mancer-imported-monsters') ?? [];
+  check('the item pack holds the Dread Knight\'s 10 and every converted item, created in batches of at most 100',
+    packDocs.length === ImportedPack.countOf('Item') && packDocs.length === 10 + GENERATED.count - 313 && batches.every(n => n <= 100) && fetched === GENERATED.files.length,
+    `${packDocs.length} in ${batches.join('+')}, fetched ${fetched}`);
+  check('the monsters are built into a pack of their own, as actors', monsters.length === ImportedPack.countOf('Actor') && monsters.every(d => d.type === 'npc'), `${monsters.length} actors`);
   const before = batches.length;
   await ImportedPack.ensure();
-  check('with nothing changed it is not rebuilt, and the JSON not fetched again', batches.length === before && fetched === GENERATED.files.length);
-  check('the hash covers both kinds of content', ImportedPack.hash.includes(`+${GENERATED.count}:${GENERATED.hash}`), ImportedPack.hash);
+  check('with nothing changed neither is rebuilt, and the JSON not fetched again', batches.length === before && fetched === GENERATED.files.length);
+  check('each pack\'s hash covers what it holds, and only that',
+    ImportedPack.hash.startsWith(`${10}:`) && ImportedPack.hash.includes(`+${ImportedPack.countOf('Item') - 10}:`)
+    && ImportedPack.hashOf('Actor').includes(`+${ImportedPack.countOf('Actor')}:`) && ImportedPack.hashOf('Actor') !== ImportedPack.hash,
+    `${ImportedPack.hash} / ${ImportedPack.hashOf('Actor')}`);
 }
 
 console.log(results.join('\n'));

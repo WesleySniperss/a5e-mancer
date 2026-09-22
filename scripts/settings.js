@@ -188,8 +188,12 @@ export function registerSettings() {
         .catch(err => AM.log(1, 'Imported pack build failed:', err));
     }
   });
-  // What the imported compendium was built from, as a hash of its data.
+  // What each imported compendium was built from, as a hash of its data: the
+  // items in one pack, the monsters in another, rebuilt apart.
   game.settings.register(AM.ID, 'importedPackHash', {
+    scope: 'world', config: false, type: String, default: ''
+  });
+  game.settings.register(AM.ID, 'importedMonsterPackHash', {
     scope: 'world', config: false, type: String, default: ''
   });
 

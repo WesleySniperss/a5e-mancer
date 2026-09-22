@@ -9,7 +9,9 @@ const djb2 = (text) => {
   return (h >>> 0).toString(36);
 };
 
-const LABEL = { archetype: 'archetypes', feature: 'features', spell: 'spells and psionic powers', object: 'items' };
+const LABEL = { archetype: 'archetypes', feature: 'features', spell: 'spells and psionic powers', object: 'items', npc: 'monsters' };
+/** A file holds actors or items; a pack can hold only one kind of document. */
+const ACTOR_TYPES = new Set(['npc', 'character']);
 
 function wrap(head, names) {
   const out = []; let line = ` *   ${head}: `;
@@ -32,7 +34,8 @@ function emit(name, docs) {
     const all = JSON.parse(text);
     const types = {};
     for (const d of all) types[d.type] = (types[d.type] || 0) + 1;
-    return { file: `scripts/data/imported/${f}`, count: all.length, hash: djb2(text), types, all };
+    const documents = all.some((d) => ACTOR_TYPES.has(d.type)) ? 'Actor' : 'Item';
+    return { file: `scripts/data/imported/${f}`, count: all.length, hash: djb2(text), types, documents, all };
   });
   const byType = {};
   for (const e of entries) for (const [t, n] of Object.entries(e.types)) byType[t] = (byType[t] || 0) + n;
@@ -54,7 +57,7 @@ ${Object.entries(byClass).sort().map(([c, n]) => wrap(c, n.sort())).join('\n')}
  */
 export const GENERATED = {
   files: [
-${entries.map((e) => `    { file: '${e.file}', count: ${e.count} }`).join(',\n')}
+${entries.map((e) => `    { file: '${e.file}', count: ${e.count}, documents: '${e.documents}', hash: '${e.hash}' }`).join(',\n')}
   ],
   count: ${entries.reduce((n, e) => n + e.count, 0)},
   hash: '${djb2(entries.map((e) => e.hash).join('+'))}'

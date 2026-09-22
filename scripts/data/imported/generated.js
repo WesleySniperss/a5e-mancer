@@ -13,6 +13,7 @@
  *   91 maneuver
  *   20 background
  *   7 destiny
+ *   313 monsters
  *   20 heritage
  *   33 culture
  *
@@ -43,10 +44,11 @@
  */
 export const GENERATED = {
   files: [
-    { file: 'scripts/data/imported/a5etools-archetypes.json', count: 622 },
-    { file: 'scripts/data/imported/a5etools-content.json', count: 775 },
-    { file: 'scripts/data/imported/a5etools-origins.json', count: 351 }
+    { file: 'scripts/data/imported/a5etools-archetypes.json', count: 622, documents: 'Item', hash: '18js5qi' },
+    { file: 'scripts/data/imported/a5etools-content.json', count: 775, documents: 'Item', hash: '1ue4c6z' },
+    { file: 'scripts/data/imported/a5etools-monsters.json', count: 313, documents: 'Actor', hash: '1l938ju' },
+    { file: 'scripts/data/imported/a5etools-origins.json', count: 351, documents: 'Item', hash: 'r6bi6r' }
   ],
-  count: 1748,
-  hash: 'gxr7dp'
+  count: 2061,
+  hash: '12zxj9k'
 };

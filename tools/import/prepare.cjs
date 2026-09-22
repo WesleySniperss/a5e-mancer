@@ -13,25 +13,34 @@ const fs = require('fs'), path = require('path');
 const P = require('./lib/paths.cjs');
 const { ClassicLevel } = require(P.CLASSIC_LEVEL);
 
-async function readPack(dir) {
+async function readPack(dir, kind = 'items') {
   const copy = path.join(P.CACHE, 'packcopy', path.basename(path.dirname(path.dirname(dir))) + '-' + path.basename(dir));
   fs.rmSync(copy, { recursive: true, force: true });
   fs.mkdirSync(copy, { recursive: true });
   for (const f of fs.readdirSync(dir)) if (f !== 'LOCK') { try { fs.copyFileSync(path.join(dir, f), path.join(copy, f)); } catch {} }
   const db = new ClassicLevel(copy, { valueEncoding: 'json' });
   const docs = [];
-  for await (const [k, v] of db.iterator()) if (/^!items![^.!]+$/.test(k)) docs.push(v);
+  const top = new RegExp(`^!${kind}![^.!]+$`);
+  for await (const [k, v] of db.iterator()) if (top.test(k)) docs.push(v);
   await db.close();
   return docs;
 }
 
 (async () => {
   fs.mkdirSync(P.PACKS, { recursive: true });
-  for (const name of ['spells', 'maneuvers', 'classes', 'archetypes', 'classFeatures', 'adventuringGear', 'feats', 'backgrounds', 'backgroundFeatures', 'destinies', 'destinyFeatures', 'heritages', 'heritageFeatures', 'cultures', 'cultureFeatures', 'paragonGifts', 'monsters']) {
+  for (const name of ['spells', 'maneuvers', 'classes', 'archetypes', 'classFeatures', 'adventuringGear', 'feats', 'backgrounds', 'backgroundFeatures', 'destinies', 'destinyFeatures', 'heritages', 'heritageFeatures', 'cultures', 'cultureFeatures', 'paragonGifts']) {
     const docs = await readPack(path.join(P.SYSTEM, 'packs', name));
     fs.writeFileSync(path.join(P.PACKS, `${name}.json`), JSON.stringify(docs));
     console.log(`a5e ${name}: ${docs.length}`);
   }
+  // the monsters pack holds actors, and only what tells them apart is kept:
+  // the whole of it is 30 MB and the converter needs the names and the shape
+  const monsters = await readPack(path.join(P.SYSTEM, 'packs', 'monsters'), 'actors');
+  fs.writeFileSync(path.join(P.PACKS, 'monsterIndex.json'), JSON.stringify(monsters.map((m) => ({
+    _id: m._id, name: m.name, img: m.img, cr: m.system?.details?.cr, source: m.system?.source ?? m.system?.details?.source, items: (m.items ?? []).length
+  }))));
+  fs.writeFileSync(path.join(P.PACKS, 'monsterSample.json'), JSON.stringify(monsters.slice(0, 3)));
+  console.log(`a5e monsters: ${monsters.length} actors`);
   // archetypes a world already has, from any of its Item packs
   const worldArchetypes = [];
   for (const world of fs.existsSync(P.WORLDS) ? fs.readdirSync(P.WORLDS) : []) {
@@ -54,7 +63,7 @@ async function readPack(dir) {
   if (i < 0) throw new Error('a5e.js.map has no src/config.ts');
   const src = map.sourcesContent[i];
   const keys = {};
-  for (const name of ['abilities', 'skills', 'tools', 'weapons', 'skillSpecialties', 'languages', 'maneuverTraditions', 'damageTypes', 'armor', 'senses', 'movement', 'spellSchools', 'objectTypes', 'itemRarity', 'currencyDenominations', 'abilityActivationTypes', 'psionicDisciplines', 'weaponProperties', 'timePeriods', 'healingTypes', 'creatureTypes']) {
+  for (const name of ['abilities', 'skills', 'tools', 'weapons', 'skillSpecialties', 'languages', 'maneuverTraditions', 'damageTypes', 'armor', 'senses', 'movement', 'spellSchools', 'objectTypes', 'itemRarity', 'currencyDenominations', 'abilityActivationTypes', 'psionicDisciplines', 'weaponProperties', 'timePeriods', 'healingTypes', 'creatureTypes', 'terrainTypes', 'attackTypes']) {
     const m = new RegExp('\\nconst ' + name + '(?::[^=]+)? = \\{').exec(src);
     if (!m) throw new Error(`config.ts: no ${name}`);
     let j = m.index + m[0].length - 1, depth = 0, k = j;

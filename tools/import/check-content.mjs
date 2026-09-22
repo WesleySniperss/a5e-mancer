@@ -189,22 +189,31 @@ const obj = CONTENT.filter((d) => d.type === 'object');
   });
   const { GENERATED } = await import(pathToFileURL(path.join(root, 'data', 'imported', 'generated.js')).href);
   const ORIGINS = read(path.join(root, 'data', 'imported', 'a5etools-origins.json'));
-  check('the manifest lists every converted file and every document', GENERATED.files.length === 3 && GENERATED.count === ARCH.length + CONTENT.length + ORIGINS.length);
+  const MONSTERS = read(path.join(root, 'data', 'imported', 'a5etools-monsters.json'));
+  check('the manifest lists every converted file and every document, and which hold actors',
+    GENERATED.files.length === 4 && GENERATED.count === ARCH.length + CONTENT.length + ORIGINS.length + MONSTERS.length
+    && GENERATED.files.filter((f) => f.documents === 'Actor').map((f) => f.count).join() === String(MONSTERS.length));
   const served = Object.fromEntries(GENERATED.files.map((f) => [`/modules/a5e-mancer/${f.file}`, read(path.join(P.MODULE, f.file))]));
   let fetched = 0;
   globalThis.fetch = async (url) => { fetched++; return { ok: !!served[url], status: served[url] ? 200 : 404, json: async () => JSON.parse(JSON.stringify(served[url])) }; };
-  const created = [], folders = [];
-  const pack = { collection: 'world.a5e-mancer-imported', locked: false, folder: null, folders: [], metadata: {},
-    async getDocuments() { return []; }, async getIndex() { return []; }, async configure() {}, async setFolder() {} };
+  const created = [], folders = [], monsterFolders = [];
+  const makePack = ({ name, type }) => {
+    const pack = { collection: `world.${name}`, locked: false, folder: null, folders: [], metadata: { type },
+      async getDocuments() { return []; }, async getIndex() { return []; }, async configure() {}, async setFolder() {} };
+    game.packs.set(pack.collection, pack);
+    return pack;
+  };
   globalThis.Item = { createDocuments: async (docs) => { created.push(...docs); return docs; }, deleteDocuments: async () => [] };
+  globalThis.Actor = { createDocuments: async (docs) => docs, deleteDocuments: async () => [] };
   globalThis.foundry.documents = {
-    Folder: { createDocuments: async (datas) => datas.map((d, i) => { const f = { ...d, id: `folder${String(i).padStart(10, '0')}` }; folders.push(f); return f; }), deleteDocuments: async () => [] },
-    collections: { CompendiumCollection: { createCompendium: async () => { game.packs.set(pack.collection, pack); return pack; } } }
+    Folder: { createDocuments: async (datas) => datas.map((d, i) => { const f = { ...d, id: `folder${d.type}${String(i).padStart(10, '0')}` }; (d.type === 'Actor' ? monsterFolders : folders).push(f); return f; }), deleteDocuments: async () => [] },
+    collections: { CompendiumCollection: { createCompendium: async (data) => makePack(data) } }
   };
   ImportedPack.registerSource();
   check('the sources the module adds are named for a5e', ['a5eMancerGPG', 'a5eMancerPlanestrider', 'a5eMancerMythological', 'a5eMancerOther'].every((k) => CONFIG.A5E.products[k]?.title));
   await ImportedPack.ensure();
-  check('the pack holds everything, fetched from each file once', created.length === 10 + GENERATED.count && fetched === GENERATED.files.length, `${created.length} documents, ${fetched} fetches`);
+  check('the item pack holds everything but the monsters, fetched from each file once',
+    created.length === 10 + GENERATED.count - MONSTERS.length && fetched === GENERATED.files.length, `${created.length} documents, ${fetched} fetches`);
   const order = folders.map((f) => f.name).join(' / ');
   check('a folder per kind, in order, every document in one',
     order === 'Heritages / Heritage Features / Paragon Gifts / Cultures / Culture Features / Backgrounds / Background Features / Destinies / Destiny Features / Archetypes / Archetype Features / Feats / Combat Maneuvers / Spells / Psionic Powers / Magic Items / Equipment'
