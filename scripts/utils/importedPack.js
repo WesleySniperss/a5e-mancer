@@ -26,6 +26,10 @@ import { indexFieldsFor } from './compendiumIndexFix.js';
  * themselves are fetched when a pack is built. Each file says in the manifest
  * whether it holds items or actors, which is the pack it is built into.
  *
+ * The three sit together in one compendium folder of their own, "A5e Mancer
+ * Import", made when the first pack is built and filled once for worlds whose
+ * packs were made before it existed.
+ *
  * A thousand entries in one list is not browsable, so each pack has folders:
  * Archetypes, Backgrounds, Feats, Combat Maneuvers, Spells, Magic Items,
  * Equipment and the rest for the items, one per creature kind (Beasts,
@@ -34,21 +38,24 @@ import { indexFieldsFor } from './compendiumIndexFix.js';
  */
 export class ImportedPack {
 
-  /** The pack each kind of document goes in, and where it sits in the sidebar. */
+  /** The pack each kind of document goes in. */
   static PACKS = {
     Item: {
       name: 'a5e-mancer-imported', label: 'A5e Mancer: Imported',
-      setting: 'importedPackHash', beside: 'a5e.a5e-archetypes', index: ['archetype', 'feature']
+      setting: 'importedPackHash', index: ['archetype', 'feature']
     },
     Actor: {
       name: 'a5e-mancer-imported-monsters', label: 'A5e Mancer: Imported Monsters',
-      setting: 'importedMonsterPackHash', beside: 'a5e.a5e-monsters', index: ['npc']
+      setting: 'importedMonsterPackHash', index: ['npc']
     },
     JournalEntry: {
       name: 'a5e-mancer-imported-challenges', label: 'A5e Mancer: Exploration Challenges',
-      setting: 'importedChallengePackHash', beside: 'a5e.a5e-journals', index: []
+      setting: 'importedChallengePackHash', index: []
     }
   };
+
+  /** The sidebar folder the three of them are gathered in, so they sit together. */
+  static SIDEBAR_FOLDER = 'A5e Mancer Import';
   static KINDS = Object.keys(this.PACKS);
 
   static PACK_NAME = 'a5e-mancer-imported';
@@ -148,7 +155,7 @@ export class ImportedPack {
     return out;
   }
 
-  /** Both packs, each built only if what it holds has changed. */
+  /** Every pack, each built only if what it holds has changed, and all in one folder. */
   static async ensure({ force = false } = {}) {
     if (!game.user.isGM) return null;
     if (!game.settings.get(AM.ID, 'buildImportedPack')) return null;
@@ -157,6 +164,7 @@ export class ImportedPack {
       const pack = await this.#ensureOne(kind, force);
       first ??= pack;
     }
+    await this.#gatherAll();
     return first;
   }
 
@@ -181,8 +189,8 @@ export class ImportedPack {
       }
 
       await this.#populate(pack, kind);
-      // Beside a5e's own in the sidebar, once; a GM's own placement stands
-      if (created) await this.#placeBesideSystem(pack, spec.beside);
+      // In the module's own sidebar folder when it is new; afterwards a GM's own placement stands
+      if (created) await this.#gather(pack);
       await this.#rememberHash(kind, this.hashOf(kind));
       ui.notifications.info(`${AM.NAME}: ${spec.label} ready (${count} entries).`);
       return pack;
@@ -203,13 +211,37 @@ export class ImportedPack {
     catch (err) { AM.log(2, 'Could not record the imported compendium version:', err); }
   }
 
-  static async #placeBesideSystem(pack, beside) {
+  /** The sidebar folder the packs live in, made if the world has none. */
+  static async #sidebarFolder() {
+    const FolderClass = foundry.documents?.Folder ?? globalThis.Folder;
+    const mine = game.folders?.find(f => f.type === 'Compendium' && f.name === this.SIDEBAR_FOLDER);
+    if (mine) return mine;
+    const [made] = await FolderClass.createDocuments([{ name: this.SIDEBAR_FOLDER, type: 'Compendium', sorting: 'm' }]) ?? [];
+    return made ?? null;
+  }
+
+  static async #gather(pack) {
     try {
-      if (pack.folder) return;
-      const folder = game.packs.get(beside)?.folder ?? null;
-      if (folder) await pack.setFolder(folder);
+      const folder = await this.#sidebarFolder();
+      if (folder && pack.folder?.id !== folder.id) await pack.setFolder(folder);
     } catch (err) {
-      AM.log(2, 'Could not put the imported compendium beside a5e\'s:', err);
+      AM.log(2, 'Could not put the imported compendium in its folder:', err);
+    }
+  }
+
+  /* The packs of worlds built before there was a folder are sitting wherever
+     they were made, so they are moved into it - once. After that the GM's own
+     placement stands: a pack dragged out stays out. */
+  static async #gatherAll() {
+    try {
+      if (game.settings.get(AM.ID, 'importedPacksGathered')) return;
+      for (const kind of this.KINDS) {
+        const pack = this.packOf(kind);
+        if (pack) await this.#gather(pack);
+      }
+      await game.settings.set(AM.ID, 'importedPacksGathered', true);
+    } catch (err) {
+      AM.log(2, 'Could not gather the imported compendia into one folder:', err);
     }
   }
 

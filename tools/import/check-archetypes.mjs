@@ -232,7 +232,8 @@ const G = (f, type) => Object.values(f?.system.grants ?? {}).filter(g => (g.prof
     const collection = `world.${name}`;
     held.set(collection, []);
     const pack = { collection, locked: false, folder: null, folders: [], metadata: { type },
-      async getDocuments() { return held.get(collection).splice(0); }, async getIndex() { return []; }, async configure() {}, async setFolder() {} };
+      async getDocuments() { return held.get(collection).splice(0); }, async getIndex() { return []; }, async configure() {},
+      async setFolder(folder) { this.folder = folder; } };
     game.packs.set(collection, pack);
     return pack;
   };
@@ -243,7 +244,18 @@ const G = (f, type) => Object.values(f?.system.grants ?? {}).filter(g => (g.prof
   globalThis.Item = documentClass();
   globalThis.Actor = documentClass();
   globalThis.JournalEntry = documentClass();
-  globalThis.foundry.documents = { Folder: { createDocuments: async (d) => d.map((x, i) => ({ ...x, id: 'f' + String(i).padStart(15, '0') })), deleteDocuments: async () => [] },
+  // the world's folders, so the sidebar folder is made once and found again
+  game.folders = [];
+  let madeFolders = 0;
+  globalThis.foundry.documents = {
+    Folder: {
+      createDocuments: async (d) => d.map((x, i) => {
+        const folder = { ...x, id: 'f' + String(madeFolders++).padStart(15, '0') };
+        if (x.type === 'Compendium') game.folders.push(folder);
+        return folder;
+      }),
+      deleteDocuments: async () => []
+    },
     collections: { CompendiumCollection: { createCompendium: async (data) => makePack(data) } } };
   ImportedPack.registerSource();
   check('the Gate Pass Gazette series is a source a5e can name', CONFIG.A5E.products.a5eMancerGPG?.abbreviation === 'GPG');
@@ -262,6 +274,21 @@ const G = (f, type) => Object.values(f?.system.grants ?? {}).filter(g => (g.prof
   const before = batches.length;
   await ImportedPack.ensure();
   check('with nothing changed neither is rebuilt, and the JSON not fetched again', batches.length === before && fetched === GENERATED.files.length);
+  const placed = ImportedPack.KINDS.map(k => ImportedPack.packOf(k)?.folder);
+  check('the three packs sit together in one compendium folder of the module\'s own',
+    game.folders.length === 1 && game.folders[0].name === 'A5e Mancer Import' && game.folders[0].type === 'Compendium'
+    && placed.length === 3 && placed.every(f => f?.id === game.folders[0].id),
+    `${game.folders.map(f => f.name).join(', ')} <- ${placed.filter(Boolean).length} packs`);
+  // a world whose packs were built before the folder existed: they are moved in once
+  const monsterPack = ImportedPack.packOf('Actor');
+  monsterPack.folder = null;
+  settings.set('importedPacksGathered', false);
+  await ImportedPack.ensure();
+  const moved = monsterPack.folder?.id === game.folders[0].id;
+  monsterPack.folder = null;
+  await ImportedPack.ensure();
+  check('a pack built before the folder existed is moved in once, and one dragged out afterwards stays out',
+    moved && monsterPack.folder === null && game.folders.length === 1, `${moved ? 'moved' : 'not moved'}, folders ${game.folders.length}`);
   check('each pack\'s hash covers what it holds, and only that',
     ImportedPack.hash.startsWith(`${10}:`) && ImportedPack.hash.includes(`+${ImportedPack.countOf('Item') - 10}:`)
     && ImportedPack.hashOf('Actor').includes(`+${ImportedPack.countOf('Actor')}:`) && ImportedPack.hashOf('Actor') !== ImportedPack.hash,

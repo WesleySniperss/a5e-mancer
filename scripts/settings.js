@@ -200,6 +200,11 @@ export function registerSettings() {
   game.settings.register(AM.ID, 'importedChallengePackHash', {
     scope: 'world', config: false, type: String, default: ''
   });
+  // Whether the imported compendia have been gathered into the module's own
+  // sidebar folder. Once done, a GM who drags one out keeps it out.
+  game.settings.register(AM.ID, 'importedPacksGathered', {
+    scope: 'world', config: false, type: Boolean, default: false
+  });
 
   // Which catalogue version the world's magic maneuver compendium was built
   // from. Hidden: it is bookkeeping, not a choice. It lives here rather than on
