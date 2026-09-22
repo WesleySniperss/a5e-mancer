@@ -7,12 +7,14 @@
  * how ImportedPack knows the pack is out of date.
  *
  *   88 archetypes
- *   687 features
+ *   985 features
  *   117 spells and psionic powers
  *   387 items
  *   91 maneuver
  *   20 background
  *   7 destiny
+ *   20 heritage
+ *   33 culture
  *
  * Archetypes by class:
  *   adept: Bruiser, Durala Carao, Ghostly Soul, Walking Rock
@@ -42,8 +44,9 @@
 export const GENERATED = {
   files: [
     { file: 'scripts/data/imported/a5etools-archetypes.json', count: 622 },
-    { file: 'scripts/data/imported/a5etools-content.json', count: 775 }
+    { file: 'scripts/data/imported/a5etools-content.json', count: 775 },
+    { file: 'scripts/data/imported/a5etools-origins.json', count: 351 }
   ],
-  count: 1397,
-  hash: '4sfm77'
+  count: 1748,
+  hash: 'gxr7dp'
 };

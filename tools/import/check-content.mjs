@@ -188,7 +188,8 @@ const obj = CONTENT.filter((d) => d.type === 'object');
     throw e;
   });
   const { GENERATED } = await import(pathToFileURL(path.join(root, 'data', 'imported', 'generated.js')).href);
-  check('the manifest lists both files and every document', GENERATED.files.length === 2 && GENERATED.count === ARCH.length + CONTENT.length);
+  const ORIGINS = read(path.join(root, 'data', 'imported', 'a5etools-origins.json'));
+  check('the manifest lists every converted file and every document', GENERATED.files.length === 3 && GENERATED.count === ARCH.length + CONTENT.length + ORIGINS.length);
   const served = Object.fromEntries(GENERATED.files.map((f) => [`/modules/a5e-mancer/${f.file}`, read(path.join(P.MODULE, f.file))]));
   let fetched = 0;
   globalThis.fetch = async (url) => { fetched++; return { ok: !!served[url], status: served[url] ? 200 : 404, json: async () => JSON.parse(JSON.stringify(served[url])) }; };
@@ -203,13 +204,15 @@ const obj = CONTENT.filter((d) => d.type === 'object');
   ImportedPack.registerSource();
   check('the sources the module adds are named for a5e', ['a5eMancerGPG', 'a5eMancerPlanestrider', 'a5eMancerMythological', 'a5eMancerOther'].every((k) => CONFIG.A5E.products[k]?.title));
   await ImportedPack.ensure();
-  check('the pack holds everything, fetched from both files', created.length === 10 + GENERATED.count && fetched === 2, `${created.length} documents, ${fetched} fetches`);
+  check('the pack holds everything, fetched from each file once', created.length === 10 + GENERATED.count && fetched === GENERATED.files.length, `${created.length} documents, ${fetched} fetches`);
   const order = folders.map((f) => f.name).join(' / ');
   check('a folder per kind, in order, every document in one',
-    order === 'Archetypes / Archetype Features / Backgrounds / Background Features / Destinies / Destiny Features / Feats / Combat Maneuvers / Spells / Psionic Powers / Magic Items / Equipment' && created.every((d) => d.folder), order);
+    order === 'Heritages / Heritage Features / Paragon Gifts / Cultures / Culture Features / Backgrounds / Background Features / Destinies / Destiny Features / Archetypes / Archetype Features / Feats / Combat Maneuvers / Spells / Psionic Powers / Magic Items / Equipment'
+    && created.every((d) => d.folder), order);
   const inFolder = (n) => created.filter((d) => d.folder === folders.find((f) => f.name === n)?.id).length;
   check('the counts per folder', inFolder('Archetypes') === 89 && inFolder('Spells') === 25 && inFolder('Psionic Powers') === 92 && inFolder('Magic Items') === 142 && inFolder('Equipment') === 245
-      && inFolder('Combat Maneuvers') === 91 && inFolder('Feats') === 112 && inFolder('Backgrounds') === 20 && inFolder('Background Features') === 20 && inFolder('Destinies') === 7 && inFolder('Destiny Features') === 21,
+      && inFolder('Combat Maneuvers') === 91 && inFolder('Feats') === 112 && inFolder('Backgrounds') === 20 && inFolder('Background Features') === 20 && inFolder('Destinies') === 7 && inFolder('Destiny Features') === 21
+      && inFolder('Heritages') === 20 && inFolder('Cultures') === 33 && inFolder('Heritage Features') + inFolder('Paragon Gifts') + inFolder('Culture Features') === ORIGINS.length - 53,
     folders.map((f) => `${f.name} ${inFolder(f.name)}`).join(', '));
 }
 

@@ -1,18 +1,21 @@
 # Importing from a5e.tools
 
 Converts a5e.tools pages into a5e item documents for the world compendium
-"A5e Mancer: Imported" (`scripts/utils/importedPack.js`): archetypes, spells,
-psionic powers, combat maneuvers, feats, backgrounds, destinies, magic items
-and equipment that a5e's packs lack. Run from the module root, with Node 20 or
-later:
+"A5e Mancer: Imported" (`scripts/utils/importedPack.js`): heritages, cultures,
+backgrounds, destinies, archetypes, feats, combat maneuvers, spells, psionic
+powers, magic items and equipment that a5e's packs lack. Run from the module
+root, with Node 20 or later:
 
     node tools/import/prepare.cjs            # 1. a5e's packs and CONFIG maps, from the local install
     node tools/import/fetch-archetypes.cjs   # 2. missing archetypes, and their pages (cached)
     node tools/import/fetch-content.cjs      #    everything else missing, and its pages
+    node tools/import/fetch-origins.cjs      #    missing heritages and cultures (two rules pages)
     node tools/import/build-archetypes.cjs   # 3. convert; writes the module's data and a report
     node tools/import/build-content.cjs
+    node tools/import/build-origins.cjs
     node tools/import/check-archetypes.mjs   # 4. check them with the module's own code
     node tools/import/check-content.mjs
+    node tools/import/check-origins.mjs
 
 Everything downloaded or copied goes to `tools/import/.cache`, which git
 ignores. Step 3 writes `scripts/data/imported/a5etools-*.json` and
@@ -79,6 +82,12 @@ world when its hash changes, into a folder per kind.
 - **Destinies** get their source of inspiration, inspiration feature and
   fulfillment feature as three documents, linked the way a5e links them, and
   their motivations as a rollable list.
+- **Heritages** get a document per named trait and per gift, the gifts of the
+  page's variant sections among them, the paragon gifts as a choice at 10th
+  level, and grants for size (a choice where the page gives one, none where it
+  gives none), speed and creature type. **Cultures** get a document per trait
+  and their languages, the ones they know apart from the ones they choose.
+  Both read pages that mark nothing in bold, as some do.
 
 Corrections the page structure cannot tell the converter go in
 `archetype-overrides.cjs`. Read `.cache/build-report.txt` after a build: one

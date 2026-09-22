@@ -75,8 +75,11 @@ function clean(body, lk, seen) {
   });
   // tag set
   s = s.replace(/<(\/?)b\b[^>]*>/gi, '<$1strong>').replace(/<(\/?)i\b[^>]*>/gi, '<$1em>');
-  // a spell named in italics, as a5e's books set them
-  s = s.replace(/<em>(\s*)([^<@]{2,40}?)(\s*)<\/em>/g, (all, a, name, b) => {
+  // a spell named in italics, as a5e's books set them - but not a trait's own
+  // lead-in, which the books set in bold italics and end with a stop
+  // ("<strong><em>Darkvision.</em></strong> You have superior vision ...")
+  s = s.replace(/(<strong>\s*)?<em>(\s*)([^<@]{2,40}?)(\s*)<\/em>/g, (all, bold, a, name, b) => {
+    if (bold || /[.:]\s*$/.test(name)) return all;
     const spell = lk.spellByName.get(norm(decode(name)));
     if (!spell) return all;
     seen.spells.add(spell.name);
