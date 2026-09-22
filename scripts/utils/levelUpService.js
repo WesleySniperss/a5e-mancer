@@ -1,7 +1,7 @@
 import { AM } from '../am.js';
 import { PackFilter } from './packFilter.js';
 import { DocumentService } from './documentService.js';
-import { A5E_CLASS_DATA, classKey as classKeyOf, knackNameFor, knackLevelsFor } from '../data/a5eClassData.js';
+import { A5E_CLASS_DATA, classKey as classKeyOf, isReplaced5eClass, knackNameFor, knackLevelsFor } from '../data/a5eClassData.js';
 import { iconForItem } from '../data/a5eIcons.js';
 import { GrantAbsorber } from './grantAbsorber.js';
 import { MulticlassRules } from './multiclassRules.js';
@@ -170,6 +170,8 @@ export class LevelUpService {
         const index = await PackFilter.indexOf(pack, ['name', 'type', 'img', 'system'], { types: ['class'] });
         for (const entry of index) {
           if (entry.type !== 'class') continue;
+          // As in the builder: A5e replaced the 5e barbarian, monk and paladin
+          if (isReplaced5eClass(entry.name)) continue;
           results.push({
             name:   entry.name,
             uuid:   `Compendium.${pack.collection}.${entry._id}`,

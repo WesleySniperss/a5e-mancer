@@ -51,6 +51,22 @@ export function classKey(name) {
   return (name ?? '').toLowerCase().replace(/\s*\(.*\)\s*/, '').trim();
 }
 
+/**
+ * The three 5e classes A5e replaces, and what with. A5e has no barbarian, monk
+ * or paladin: the berserker, the adept and the herald are those classes, rebuilt.
+ * A 5e copy reaches the class lists only from a pack made for 5e - Plutonium's
+ * import of the 2024 Player's Handbook put a Paladin in this world's
+ * plutonium-a5e-classes - and it is not a class of this edition, so the builder
+ * and the multiclass list leave it out. A character already built on one keeps
+ * working: the hit dice and multiclassing tables still know the three names.
+ */
+export const REPLACED_5E_CLASSES = { barbarian: 'berserker', monk: 'adept', paladin: 'herald' };
+
+/** Is this a 5e class that A5e replaced (and so not one to offer)? */
+export function isReplaced5eClass(name) {
+  return Object.hasOwn(REPLACED_5E_CLASSES, classKey(name));
+}
+
 /* ============================================================
    Asking the system before asking this file
    ============================================================

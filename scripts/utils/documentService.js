@@ -1,6 +1,6 @@
 import { AM } from '../am.js';
 import { PackFilter } from './packFilter.js';
-import { classKey } from '../data/a5eClassData.js';
+import { classKey, isReplaced5eClass } from '../data/a5eClassData.js';
 import { CLASS_DESCRIPTIONS, HERITAGE_DESCRIPTIONS } from '../data/a5eDescriptions.js';
 import { iconForItem } from '../data/a5eIcons.js';
 
@@ -87,6 +87,8 @@ export class DocumentService {
         const index = await pack.getIndex();
         for (const entry of index) {
           if (entry.type !== type) continue;
+          // A 5e barbarian, monk or paladin from a 5e pack: not a class of this edition
+          if (type === 'class' && isReplaced5eClass(entry.name)) continue;
           docs.push({
             id:          entry._id,
             name:        entry.name,
