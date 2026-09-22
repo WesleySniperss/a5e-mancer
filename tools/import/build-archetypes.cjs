@@ -3,7 +3,7 @@
 //   node tools/import/build-archetypes.cjs [--dry] [name...]
 //
 // Writes scripts/data/imported/a5etools-archetypes.json and generated.js (the
-// manifest the module loads), and .cache/build-report.txt: every archetype's
+// manifest the module loads, over every converted file), and .cache/build-report.txt: every archetype's
 // levels, features, choices, uses, actions and grants, to read before shipping.
 // With names, or --dry, it only writes the report.
 const fs = require('fs'), path = require('path'), crypto = require('crypto');
@@ -290,31 +290,5 @@ console.log(`${archetypes.length} archetypes, ${all.length} documents - report i
 if (dry || only.length) process.exit(0);
 
 /* ── into the module ──────────────────────────────────────────────── */
-const FILE = 'scripts/data/imported/a5etools-archetypes.json';
-const text = JSON.stringify(all);
-let h = 5381;                                   // the hash ImportedPack compares, as it computes its own
-for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0;
-const hash = (h >>> 0).toString(36);
-fs.writeFileSync(path.join(P.MODULE, FILE), text);
-const byClass = {};
-for (const a of archetypes) (byClass[a.system.class] ??= []).push(a.name);
-const wrap = (head, names) => { const out = []; let line = ` *   ${head}: `; for (const [i, n] of names.entries()) { const piece = n + (i < names.length - 1 ? ',' : ''); if (line.length + piece.length > 88) { out.push(line.trimEnd()); line = ' *     '; } line += piece + ' '; } out.push(line.trimEnd()); return out.join('\n'); };
-const lines = Object.entries(byClass).sort().map(([c, n]) => wrap(c, n.sort())).join('\n');
-fs.writeFileSync(path.join(P.OUT, 'generated.js'), `/**
- * Archetypes converted from a5e.tools by tools/import - generated, do not edit
- * by hand: change the converter or its overrides and run it again.
- *
- * The documents are in ${path.basename(FILE)}, fetched only when the Imported
- * compendium is built; this manifest is what the module loads, and its hash is
- * how ImportedPack knows the pack is out of date.
- *
-${lines}
- */
-export const GENERATED = {
-  file: '${FILE}',
-  count: ${all.length},
-  archetypes: ${archetypes.length},
-  hash: '${hash}'
-};
-`);
-console.log(`${FILE}: ${(text.length / 1024).toFixed(0)} KB, hash ${hash}`);
+const r = require('./lib/emit.cjs').emit('a5etools-archetypes', all);
+console.log(`${path.relative(P.MODULE, r.file)}: ${(r.bytes / 1024).toFixed(0)} KB; generated.js lists ${r.total} documents`);

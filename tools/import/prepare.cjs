@@ -27,7 +27,7 @@ async function readPack(dir) {
 
 (async () => {
   fs.mkdirSync(P.PACKS, { recursive: true });
-  for (const name of ['spells', 'maneuvers', 'classes', 'archetypes', 'classFeatures']) {
+  for (const name of ['spells', 'maneuvers', 'classes', 'archetypes', 'classFeatures', 'adventuringGear']) {
     const docs = await readPack(path.join(P.SYSTEM, 'packs', name));
     fs.writeFileSync(path.join(P.PACKS, `${name}.json`), JSON.stringify(docs));
     console.log(`a5e ${name}: ${docs.length}`);
@@ -54,7 +54,7 @@ async function readPack(dir) {
   if (i < 0) throw new Error('a5e.js.map has no src/config.ts');
   const src = map.sourcesContent[i];
   const keys = {};
-  for (const name of ['abilities', 'skills', 'tools', 'weapons', 'skillSpecialties', 'languages', 'maneuverTraditions', 'damageTypes', 'armor', 'senses', 'movement', 'spellSchools']) {
+  for (const name of ['abilities', 'skills', 'tools', 'weapons', 'skillSpecialties', 'languages', 'maneuverTraditions', 'damageTypes', 'armor', 'senses', 'movement', 'spellSchools', 'objectTypes', 'itemRarity', 'currencyDenominations', 'abilityActivationTypes', 'psionicDisciplines', 'weaponProperties', 'timePeriods', 'healingTypes']) {
     const m = new RegExp('\\nconst ' + name + '(?::[^=]+)? = \\{').exec(src);
     if (!m) throw new Error(`config.ts: no ${name}`);
     let j = m.index + m[0].length - 1, depth = 0, k = j;

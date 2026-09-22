@@ -223,21 +223,24 @@ const G = (f, type) => Object.values(f?.system.grants ?? {}).filter(g => (g.prof
   const { ImportedPack } = await import(pathToFileURL(path.join(root, 'utils', 'importedPack.js')).href);
   const { GENERATED } = await import(pathToFileURL(path.join(root, 'data', 'imported', 'generated.js')).href);
   let fetched = 0;
-  globalThis.fetch = async (url) => { fetched++; return { ok: url === '/modules/a5e-mancer/' + GENERATED.file, status: 200, json: async () => JSON.parse(JSON.stringify(GEN)) }; };
+  // every converted file the manifest lists, served as the module would
+  const served = Object.fromEntries(GENERATED.files.map((f) => ['/modules/a5e-mancer/' + f.file, JSON.parse(fs.readFileSync(path.join(P.MODULE, f.file), 'utf8'))]));
+  globalThis.fetch = async (url) => { fetched++; return { ok: !!served[url], status: served[url] ? 200 : 404, json: async () => JSON.parse(JSON.stringify(served[url])) }; };
   const batches = [];
   const packDocs = [];
   const pack = { collection: 'world.a5e-mancer-imported', locked: false, folder: null, metadata: {},
     async getDocuments() { return packDocs.splice(0); }, async getIndex() { return []; }, async configure() {}, async setFolder() {} };
   globalThis.Item = { createDocuments: async (docs) => { batches.push(docs.length); packDocs.push(...docs); return docs; }, deleteDocuments: async () => [] };
-  globalThis.foundry.documents = { collections: { CompendiumCollection: { createCompendium: async () => { game.packs.set(pack.collection, pack); return pack; } } } };
+  globalThis.foundry.documents = { Folder: { createDocuments: async (d) => d.map((x, i) => ({ ...x, id: 'f' + String(i).padStart(15, '0') })), deleteDocuments: async () => [] },
+    collections: { CompendiumCollection: { createCompendium: async () => { game.packs.set(pack.collection, pack); return pack; } } } };
   ImportedPack.registerSource();
   check('the Gate Pass Gazette series is a source a5e can name', CONFIG.A5E.products.a5eMancerGPG?.abbreviation === 'GPG');
   await ImportedPack.ensure();
-  check('the pack holds the Dread Knight\'s 10 and the converted 622, created in batches of at most 100',
-    packDocs.length === 632 && batches.every(n => n <= 100) && fetched === 1, `${packDocs.length} in ${batches.join('+')}, fetched ${fetched}`);
+  check('the pack holds the Dread Knight\'s 10 and every converted document, created in batches of at most 100',
+    packDocs.length === 10 + GENERATED.count && batches.every(n => n <= 100) && fetched === GENERATED.files.length, `${packDocs.length} in ${batches.join('+')}, fetched ${fetched}`);
   const before = batches.length;
   await ImportedPack.ensure();
-  check('with nothing changed it is not rebuilt, and the JSON not fetched again', batches.length === before && fetched === 1);
+  check('with nothing changed it is not rebuilt, and the JSON not fetched again', batches.length === before && fetched === GENERATED.files.length);
   check('the hash covers both kinds of content', ImportedPack.hash.includes(`+${GENERATED.count}:${GENERATED.hash}`), ImportedPack.hash);
 }
 

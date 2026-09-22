@@ -1,11 +1,17 @@
 /**
- * Archetypes converted from a5e.tools by tools/import - generated, do not edit
- * by hand: change the converter or its overrides and run it again.
+ * Content converted from a5e.tools by tools/import - generated, do not edit by
+ * hand: change the converter or its overrides and run it again.
  *
- * The documents are in a5etools-archetypes.json, fetched only when the Imported
+ * The documents are in the JSON files below, fetched only when the Imported
  * compendium is built; this manifest is what the module loads, and its hash is
  * how ImportedPack knows the pack is out of date.
  *
+ *   88 archetypes
+ *   534 features
+ *   117 spells and psionic powers
+ *   302 items
+ *
+ * Archetypes by class:
  *   adept: Bruiser, Durala Carao, Ghostly Soul, Walking Rock
  *   artificer: Arcano-Pugilist, Botanotechnitian, Elastic Thinker, Machinist,
  *     Scrap Crafter, Synaptic Surgeon, Tinker, Wandmaker
@@ -31,8 +37,10 @@
  *   wizard: Antiquarian, Enclavist, Last Raven, Street Magician
  */
 export const GENERATED = {
-  file: 'scripts/data/imported/a5etools-archetypes.json',
-  count: 622,
-  archetypes: 88,
-  hash: 'mti00a'
+  files: [
+    { file: 'scripts/data/imported/a5etools-archetypes.json', count: 622 },
+    { file: 'scripts/data/imported/a5etools-content.json', count: 419 }
+  ],
+  count: 1041,
+  hash: 'afkd24'
 };

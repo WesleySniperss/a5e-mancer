@@ -4,8 +4,8 @@ import { GENERATED } from '../data/imported/generated.js';
 import { indexFieldsFor } from './compendiumIndexFix.js';
 
 /**
- * The world compendium of content imported from a5e.tools - archetypes and
- * their features first, and later maneuvers, feats and items.
+ * The world compendium of content imported from a5e.tools: archetypes and
+ * their features, spells, psionic powers, magic items and equipment.
  *
  * Built from inside Foundry, as MagicManeuverPack is, and for the same reason:
  * a module can only ship a pack as a LevelDB built outside Foundry. Two things
@@ -17,9 +17,13 @@ import { indexFieldsFor } from './compendiumIndexFix.js';
  *
  * Two kinds of content. Written by hand (IMPORTED): the Dread Knight, whose
  * features carry actions and a flag the module reads. And converted from
- * a5e.tools pages by tools/import (GENERATED): 88 archetypes and their
- * features, over a megabyte of JSON - so only its count and hash are loaded
- * with the module, and the JSON itself is fetched when the pack is built.
+ * a5e.tools pages by tools/import (GENERATED): some two megabytes of JSON in a
+ * few files, so only their count and hash are loaded with the module and the
+ * files themselves are fetched when the pack is built.
+ *
+ * A thousand entries in one list is not browsable, so the pack has a folder per
+ * kind - Archetypes, Archetype Features, Spells, Psionic Powers, Magic Items,
+ * Equipment - rebuilt with it.
  */
 export class ImportedPack {
 
@@ -39,28 +43,57 @@ export class ImportedPack {
 
   static get count() { return IMPORTED.length + GENERATED.count; }
 
-  /* The source of the Gate Pass Gazette archetypes whose issue a5e.tools does
-     not name: a5e's list of products knows the issues, not the series. */
-  static SOURCE = 'a5eMancerGPG';
+  /* Sources a5e's list of products does not have: the Gate Pass Gazette where
+     a5e.tools does not name the issue (a5e knows the issues, not the series),
+     and books a5e has no entry for. */
+  static SOURCES = {
+    a5eMancerGPG:          { abbreviation: 'GPG', title: 'Level Up: Gate Pass Gazette (via a5e.tools)', url: 'https://a5e.tools/rules/gate-pass-gazette', series: 'gatePassGazette' },
+    a5eMancerPlanestrider: { abbreviation: 'PJ', title: "Planestrider's Journal (via a5e.tools)", url: 'https://a5e.tools' },
+    a5eMancerMythological: { abbreviation: 'MFMM', title: 'Mythological Figures & Maleficent Monsters (via a5e.tools)', url: 'https://a5e.tools' },
+    a5eMancerOther:        { abbreviation: 'a5e.tools', title: 'a5e.tools', url: 'https://a5e.tools' }
+  };
   static registerSource() {
     const products = CONFIG.A5E?.products;
-    if (!products || products[this.SOURCE]) return;
-    products[this.SOURCE] = {
-      abbreviation: 'GPG', affiliate: true, publisher: 'enPublishing', series: 'gatePassGazette',
-      systems: ['a5e'], title: 'Level Up: Gate Pass Gazette (via a5e.tools)', url: 'https://a5e.tools/rules/gate-pass-gazette'
-    };
+    if (!products) return;
+    for (const [key, p] of Object.entries(this.SOURCES)) {
+      if (products[key]) continue;
+      products[key] = { affiliate: true, publisher: 'enPublishing', systems: ['a5e'], ...p };
+    }
   }
 
   /** Every document the pack is built from: the written ones, and the converted ones fetched. */
   static async documents() {
     const docs = foundry.utils.deepClone(IMPORTED);
-    if (!GENERATED.count) return docs;
-    const route = foundry.utils.getRoute?.(`modules/${AM.ID}/${GENERATED.file}`) ?? `modules/${AM.ID}/${GENERATED.file}`;
-    const res = await fetch(route);
-    if (!res.ok) throw new Error(`${GENERATED.file}: ${res.status} ${res.statusText}`);
-    const generated = await res.json();
-    if (generated.length !== GENERATED.count) AM.log(2, `${GENERATED.file} holds ${generated.length} documents, the manifest says ${GENERATED.count}`);
-    return docs.concat(generated);
+    for (const { file, count } of GENERATED.files ?? []) {
+      const route = foundry.utils.getRoute?.(`modules/${AM.ID}/${file}`) ?? `modules/${AM.ID}/${file}`;
+      const res = await fetch(route);
+      if (!res.ok) throw new Error(`${file}: ${res.status} ${res.statusText}`);
+      const generated = await res.json();
+      if (generated.length !== count) AM.log(2, `${file} holds ${generated.length} documents, the manifest says ${count}`);
+      docs.push(...generated);
+    }
+    return docs;
+  }
+
+  /** The folder a document goes in: its own, or by its type. */
+  static FOLDER_OF_TYPE = { archetype: 'Archetypes', feature: 'Archetype Features', spell: 'Spells', object: 'Equipment' };
+  static FOLDER_ORDER = ['Archetypes', 'Archetype Features', 'Spells', 'Psionic Powers', 'Magic Items', 'Equipment'];
+  static folderOf(doc) { return doc.flags?.[AM.ID]?.folder ?? this.FOLDER_OF_TYPE[doc.type] ?? null; }
+
+  /** The pack's folders, made afresh: name -> id. A failure leaves the documents unfoldered, not unbuilt. */
+  static async #folders(pack, names) {
+    const out = new Map();
+    try {
+      const FolderClass = foundry.documents?.Folder ?? globalThis.Folder;
+      const old = [...(pack.folders ?? [])].map(f => f.id);
+      if (old.length) await FolderClass.deleteDocuments(old, { pack: pack.collection });
+      const order = [...names].sort((a, b) => (this.FOLDER_ORDER.indexOf(a) + 1 || 99) - (this.FOLDER_ORDER.indexOf(b) + 1 || 99));
+      const made = await FolderClass.createDocuments(order.map((name, i) => ({ name, type: 'Item', sorting: 'a', sort: (i + 1) * 1000 })), { pack: pack.collection });
+      for (const f of made ?? []) out.set(f.name, f.id);
+    } catch (err) {
+      AM.log(2, 'Could not make the imported compendium\'s folders:', err);
+    }
+    return out;
   }
 
   static async ensure({ force = false } = {}) {
@@ -127,7 +160,9 @@ export class ImportedPack {
       const existing = await pack.getDocuments();
       if (existing.length) await Item.deleteDocuments(existing.map(d => d.id), { pack: pack.collection });
       const docs = await this.documents();
-      // In batches: 600-odd documents in one request is a large message to send and to validate at once
+      const folders = await this.#folders(pack, new Set(docs.map(d => this.folderOf(d)).filter(Boolean)));
+      for (const d of docs) { const id = folders.get(this.folderOf(d)); if (id) d.folder = id; }
+      // In batches: a thousand documents in one request is a large message to send and to validate at once
       for (let i = 0; i < docs.length; i += 100) {
         await Item.createDocuments(docs.slice(i, i + 100), { pack: pack.collection, keepId: true });
       }
