@@ -2042,6 +2042,21 @@ img[src*="a5e-mancer/assets/icons/"] {
   font-size: 0.7rem;
 }
 
+.am-item-desc-back {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.1rem 0.2rem;
+  font-size: 0.9rem;
+  width: auto;
+  opacity: 0.6;
+  line-height: 1;
+  flex-shrink: 0;
+  align-self: flex-start;
+
+  &:hover { opacity: 1; }
+}
+
 .am-item-desc-close {
   background: none;
   border: none;

@@ -33,9 +33,27 @@ export class ItemDescPanel {
    */
   static seeded = new Map();
 
+  /* A link in the text opens its document in the panel, where the player is
+     already reading, and Back returns to what the panel showed before.
+     #current is what it shows now, as #open takes it; #history what it showed
+     before each link followed. A new right-click starts over. */
+  static #current = null;
+  static #history = [];
+
+  /* Documents the panel can show: an item's description, a journal page's
+     text. A link to anything else - an actor, a scene, a roll table - is left
+     to Foundry, which opens its sheet. */
+  static #READABLE = new Set(['Item', 'JournalEntryPage']);
+
   /* ── open / close ─────────────────────────────────────── */
 
   static close() {
+    this.#current = null;
+    this.#history = [];
+    this.#remove();
+  }
+
+  static #remove() {
     this.#el?.remove();
     this.#el = null;
   }
@@ -52,24 +70,36 @@ export class ItemDescPanel {
     if (!uuid) return;
     this.close();
     this.#doc = seed.doc ?? null;
+    return this.#open({ uuid, seed }, { x, y });
+  }
 
-    // Render immediately from what the card knows, then fill in from the document
-    const panel = this.#build({ ...seed, resources: seed.resources ?? [], description: '', loading: true });
-    this.#place(panel, x, y);
-    this.#el = panel;
+  /**
+   * Show one entry: `{ uuid, seed }`, or `{ seed }` alone for text that belongs
+   * to no document. `at` is the click ({x, y}), or the corner the panel already
+   * sits at ({left, top}) when a link or Back changes what it shows.
+   */
+  static async #open(entry, at) {
+    const { uuid = null, seed = {} } = entry;
+    this.#remove();
+    this.#current = entry;
+    const back = this.#history.length > 0;
 
     // A caller that already has the text passes it here. Grant rows do: the
     // description was read when the row was built, so showing it must not depend
     // on resolving the uuid a second time — that lookup is the step that kept
     // failing, and the row would then claim the feature had no description when
     // the pack plainly holds one.
-    if (seed.description) {
-      const only = this.#build({ ...seed, resources: seed.resources ?? [], loading: false });
-      panel.replaceWith(only);
+    if (seed.description || !uuid) {
+      const only = this.#build({ ...seed, resources: seed.resources ?? [], loading: false, back });
+      this.#put(only, at);
       this.#el = only;
-      this.#place(only, x, y);
       return;
     }
+
+    // Render immediately from what the card knows, then fill in from the document
+    const panel = this.#build({ ...seed, resources: seed.resources ?? [], description: '', loading: true, back });
+    this.#put(panel, at);
+    this.#el = panel;
 
     const detail = await this.#load(uuid);
     if (this.#el !== panel || !panel.isConnected) return;   // superseded/closed
@@ -82,12 +112,31 @@ export class ItemDescPanel {
       img:  seed.img  || detail.img,
       resources: [...(seed.resources ?? []), ...detail.resources],
       description: detail.description,
-      loading: false
+      loading: false,
+      back
     };
     const fresh = this.#build(merged);
     panel.replaceWith(fresh);
     this.#el = fresh;
-    this.#place(fresh, x, y);
+    this.#put(fresh, at);
+  }
+
+  /* A link in the text: its document, in the panel, where it is. */
+  static #follow(link) {
+    if (this.#current) this.#history.push(this.#current);
+    // The link's own words for the moment it loads; the document's name after
+    this.#open({ uuid: link.dataset.uuid, seed: { pending: link.textContent.trim() } }, this.#corner());
+  }
+
+  static #back() {
+    const prev = this.#history.pop();
+    if (prev) this.#open(prev, this.#corner());
+  }
+
+  /* Where the panel sits now, so the next thing it shows opens in the same place. */
+  static #corner() {
+    const s = this.#el?.style;
+    return { left: parseFloat(s?.left) || 8, top: parseFloat(s?.top) || 8 };
   }
 
   /**
@@ -98,9 +147,7 @@ export class ItemDescPanel {
     if (!html) return;
     this.close();
     this.#doc = doc;
-    const panel = this.#build({ name, description: html, resources: [], loading: false });
-    this.#place(panel, x, y);
-    this.#el = panel;
+    this.#open({ seed: { name, description: html } }, { x, y });
   }
 
   /* ── data ─────────────────────────────────────────────── */
@@ -190,7 +237,7 @@ export class ItemDescPanel {
     // A5e declares description as a plain HTMLField — there is no `.value`
     const raw = typeof doc.system?.description === 'string'
       ? doc.system.description
-      : (doc.system?.description?.value ?? '');
+      : (doc.system?.description?.value ?? doc.text?.content ?? '');
     if (!raw) return '';
     try {
       const TE = foundry.applications?.ux?.TextEditor?.implementation ?? TextEditor;
@@ -202,7 +249,7 @@ export class ItemDescPanel {
 
   /* ── markup ───────────────────────────────────────────── */
 
-  static #build({ name = '', img = '', resources = [], description = '', loading = false }) {
+  static #build({ name = '', img = '', resources = [], description = '', loading = false, back = false, pending = '' }) {
     const panel = document.createElement('div');
     panel.className = 'am-item-desc-panel';
 
@@ -213,9 +260,11 @@ export class ItemDescPanel {
 
     panel.innerHTML = `
       <div class="am-item-desc-header">
+        ${back ? `<button class="am-item-desc-back" type="button" aria-label="${game.i18n.localize('am.app.back')}"
+                  data-tooltip="${game.i18n.localize('am.app.back')}"><i class="fa-solid fa-arrow-left"></i></button>` : ''}
         ${img ? `<img src="${img}" alt="" />` : ''}
         <div class="am-item-desc-header-text">
-          <div class="am-item-desc-title">${name}</div>
+          <div class="am-item-desc-title">${name || pending}</div>
           <div class="am-item-desc-meta">${chips}</div>
         </div>
         <button class="am-item-desc-close" type="button" aria-label="Close">✕</button>
@@ -227,11 +276,36 @@ export class ItemDescPanel {
 
     panel.querySelector('.am-item-desc-close')
          ?.addEventListener('click', () => ItemDescPanel.close());
+    panel.querySelector('.am-item-desc-back')
+         ?.addEventListener('click', () => ItemDescPanel.#back());
     // Clicks inside must not reach the card underneath (which would toggle it)
     panel.addEventListener('pointerdown', (e) => e.stopPropagation());
-    panel.addEventListener('click',       (e) => e.stopPropagation());
+    panel.addEventListener('click', (e) => {
+      /* A link in the text. Stopping every click here is what made them dead:
+         Foundry follows a link from one listener on the page, which the click
+         never reached. A feature or a spell opens in the panel; a link to
+         anything else, and an inline roll, go on to Foundry; a broken one stops. */
+      const link = e.target.closest?.('a.content-link[data-uuid]');
+      if (link && !link.classList.contains('broken') && ItemDescPanel.#READABLE.has(link.dataset.type)) {
+        e.preventDefault();
+        e.stopPropagation();
+        ItemDescPanel.#follow(link);
+        return;
+      }
+      if (e.target.closest?.('a.content-link:not(.broken), a.inline-roll')) return;
+      e.stopPropagation();
+    });
     this.#host.body.appendChild(panel);
     return panel;
+  }
+
+  static #put(panel, at) {
+    if (at.x !== undefined) return this.#place(panel, at.x, at.y);
+    // The same corner, kept on the screen when the new text is taller
+    const view = this.#host.defaultView ?? window;
+    const ph = Math.min(panel.scrollHeight || 320, 512);
+    panel.style.left = `${at.left}px`;
+    panel.style.top  = `${Math.max(8, Math.min(at.top, view.innerHeight - ph - 8))}px`;
   }
 
   static #place(panel, x, y) {

@@ -6,6 +6,7 @@
   "am.app.creation-progress": "complete",
   "am.app.loading": "Loading…",
   "am.app.no-description": "No description available for this item.",
+  "am.app.back": "Back",
   "am.app.character-created": "'{name}' has been created successfully!",
   "am.app.save": "Save for Later",
   "am.app.save-description": "Save your progress and close",
