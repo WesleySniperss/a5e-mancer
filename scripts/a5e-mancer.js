@@ -163,6 +163,7 @@ Hooks.once('ready', () => {
   MagicManeuverPack.installHooks();
   MagicManeuverPack.sweep().catch(err => AM.log(1, 'Magic maneuver exertion pools:', err));
   // Content imported from a5e.tools - see importedPack.js
+  ImportedPack.registerSource();
   ImportedPack.ensure().catch(err => AM.log(1, 'Imported pack:', err));
 });
 

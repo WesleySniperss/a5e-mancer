@@ -1,5 +1,6 @@
 import { AM } from '../am.js';
 import { IMPORTED } from '../data/imported/index.js';
+import { GENERATED } from '../data/imported/generated.js';
 import { indexFieldsFor } from './compendiumIndexFix.js';
 
 /**
@@ -13,6 +14,12 @@ import { indexFieldsFor } from './compendiumIndexFix.js';
  * and a character that took the archetype keeps its links through a rebuild.
  * And the pack is rebuilt when its content changes, by a hash of the data,
  * rather than by a version someone has to remember to bump.
+ *
+ * Two kinds of content. Written by hand (IMPORTED): the Dread Knight, whose
+ * features carry actions and a flag the module reads. And converted from
+ * a5e.tools pages by tools/import (GENERATED): 88 archetypes and their
+ * features, over a megabyte of JSON - so only its count and hash are loaded
+ * with the module, and the JSON itself is fetched when the pack is built.
  */
 export class ImportedPack {
 
@@ -27,13 +34,39 @@ export class ImportedPack {
     const text = JSON.stringify(IMPORTED);
     let h = 5381;
     for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0;
-    return `${IMPORTED.length}:${(h >>> 0).toString(36)}`;
+    return `${IMPORTED.length}:${(h >>> 0).toString(36)}+${GENERATED.count}:${GENERATED.hash}`;
+  }
+
+  static get count() { return IMPORTED.length + GENERATED.count; }
+
+  /* The source of the Gate Pass Gazette archetypes whose issue a5e.tools does
+     not name: a5e's list of products knows the issues, not the series. */
+  static SOURCE = 'a5eMancerGPG';
+  static registerSource() {
+    const products = CONFIG.A5E?.products;
+    if (!products || products[this.SOURCE]) return;
+    products[this.SOURCE] = {
+      abbreviation: 'GPG', affiliate: true, publisher: 'enPublishing', series: 'gatePassGazette',
+      systems: ['a5e'], title: 'Level Up: Gate Pass Gazette (via a5e.tools)', url: 'https://a5e.tools/rules/gate-pass-gazette'
+    };
+  }
+
+  /** Every document the pack is built from: the written ones, and the converted ones fetched. */
+  static async documents() {
+    const docs = foundry.utils.deepClone(IMPORTED);
+    if (!GENERATED.count) return docs;
+    const route = foundry.utils.getRoute?.(`modules/${AM.ID}/${GENERATED.file}`) ?? `modules/${AM.ID}/${GENERATED.file}`;
+    const res = await fetch(route);
+    if (!res.ok) throw new Error(`${GENERATED.file}: ${res.status} ${res.statusText}`);
+    const generated = await res.json();
+    if (generated.length !== GENERATED.count) AM.log(2, `${GENERATED.file} holds ${generated.length} documents, the manifest says ${GENERATED.count}`);
+    return docs.concat(generated);
   }
 
   static async ensure({ force = false } = {}) {
     if (!game.user.isGM) return null;
     if (!game.settings.get(AM.ID, 'buildImportedPack')) return null;
-    if (!IMPORTED.length) return null;
+    if (!this.count) return null;
 
     let pack = this.pack;
     const built = this.#builtHash();
@@ -57,7 +90,7 @@ export class ImportedPack {
       // Beside a5e's archetypes in the sidebar, once; a GM's own placement stands
       if (created) await this.#placeBesideSystem(pack);
       await this.#rememberHash(this.hash);
-      ui.notifications.info(`${AM.NAME}: imported content compendium ready (${IMPORTED.length} entries).`);
+      ui.notifications.info(`${AM.NAME}: imported content compendium ready (${this.count} entries).`);
       return pack;
     } catch (err) {
       AM.log(1, 'Could not build the imported content compendium:', err);
@@ -93,10 +126,14 @@ export class ImportedPack {
     try {
       const existing = await pack.getDocuments();
       if (existing.length) await Item.deleteDocuments(existing.map(d => d.id), { pack: pack.collection });
-      await Item.createDocuments(foundry.utils.deepClone(IMPORTED), { pack: pack.collection, keepId: true });
+      const docs = await this.documents();
+      // In batches: 600-odd documents in one request is a large message to send and to validate at once
+      for (let i = 0; i < docs.length; i += 100) {
+        await Item.createDocuments(docs.slice(i, i + 100), { pack: pack.collection, keepId: true });
+      }
       // The fields a5e's browser and the module's pickers read, at once
       await pack.getIndex({ fields: [...new Set([...indexFieldsFor('archetype'), ...indexFieldsFor('feature'), 'system', 'flags'])] });
-      AM.log(3, `Imported content compendium filled with ${IMPORTED.length} entries`);
+      AM.log(3, `Imported content compendium filled with ${docs.length} entries`);
     } finally {
       if (wasLocked) await pack.configure({ locked: true });
     }

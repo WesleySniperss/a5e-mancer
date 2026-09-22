@@ -13,3 +13,6 @@ module.zip
 world-chars.json
 # Working copies of a5e's packs, taken so classic-level can open them.
 packcopy*/
+
+# The a5e.tools importer's downloads and copies of a5e's packs.
+tools/import/.cache/
