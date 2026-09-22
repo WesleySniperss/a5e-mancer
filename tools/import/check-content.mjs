@@ -190,13 +190,16 @@ const obj = CONTENT.filter((d) => d.type === 'object');
   const { GENERATED } = await import(pathToFileURL(path.join(root, 'data', 'imported', 'generated.js')).href);
   const ORIGINS = read(path.join(root, 'data', 'imported', 'a5etools-origins.json'));
   const MONSTERS = read(path.join(root, 'data', 'imported', 'a5etools-monsters.json'));
-  check('the manifest lists every converted file and every document, and which hold actors',
-    GENERATED.files.length === 4 && GENERATED.count === ARCH.length + CONTENT.length + ORIGINS.length + MONSTERS.length
-    && GENERATED.files.filter((f) => f.documents === 'Actor').map((f) => f.count).join() === String(MONSTERS.length));
+  const CHALLENGES = read(path.join(root, 'data', 'imported', 'a5etools-challenges.json'));
+  const ofKind = (kind) => GENERATED.files.filter((x) => x.documents === kind).reduce((n, x) => n + x.count, 0);
+  check('the manifest lists every converted file and every document, and which hold actors or journal entries',
+    GENERATED.files.length === 5 && GENERATED.count === ARCH.length + CONTENT.length + ORIGINS.length + MONSTERS.length + CHALLENGES.length
+    && ofKind('Actor') === MONSTERS.length && ofKind('JournalEntry') === CHALLENGES.length,
+    GENERATED.files.map((x) => `${x.documents} ${x.count}`).join(', '));
   const served = Object.fromEntries(GENERATED.files.map((f) => [`/modules/a5e-mancer/${f.file}`, read(path.join(P.MODULE, f.file))]));
   let fetched = 0;
   globalThis.fetch = async (url) => { fetched++; return { ok: !!served[url], status: served[url] ? 200 : 404, json: async () => JSON.parse(JSON.stringify(served[url])) }; };
-  const created = [], folders = [], monsterFolders = [];
+  const created = [], folders = [], elsewhere = [];
   const makePack = ({ name, type }) => {
     const pack = { collection: `world.${name}`, locked: false, folder: null, folders: [], metadata: { type },
       async getDocuments() { return []; }, async getIndex() { return []; }, async configure() {}, async setFolder() {} };
@@ -205,15 +208,16 @@ const obj = CONTENT.filter((d) => d.type === 'object');
   };
   globalThis.Item = { createDocuments: async (docs) => { created.push(...docs); return docs; }, deleteDocuments: async () => [] };
   globalThis.Actor = { createDocuments: async (docs) => docs, deleteDocuments: async () => [] };
+  globalThis.JournalEntry = { createDocuments: async (docs) => docs, deleteDocuments: async () => [] };
   globalThis.foundry.documents = {
-    Folder: { createDocuments: async (datas) => datas.map((d, i) => { const f = { ...d, id: `folder${d.type}${String(i).padStart(10, '0')}` }; (d.type === 'Actor' ? monsterFolders : folders).push(f); return f; }), deleteDocuments: async () => [] },
+    Folder: { createDocuments: async (datas) => datas.map((d, i) => { const f = { ...d, id: `folder${d.type}${String(i).padStart(10, '0')}` }; (d.type === 'Item' ? folders : elsewhere).push(f); return f; }), deleteDocuments: async () => [] },
     collections: { CompendiumCollection: { createCompendium: async (data) => makePack(data) } }
   };
   ImportedPack.registerSource();
   check('the sources the module adds are named for a5e', ['a5eMancerGPG', 'a5eMancerPlanestrider', 'a5eMancerMythological', 'a5eMancerOther'].every((k) => CONFIG.A5E.products[k]?.title));
   await ImportedPack.ensure();
-  check('the item pack holds everything but the monsters, fetched from each file once',
-    created.length === 10 + GENERATED.count - MONSTERS.length && fetched === GENERATED.files.length, `${created.length} documents, ${fetched} fetches`);
+  check('the item pack holds everything but the monsters and the challenges, fetched from each file once',
+    created.length === 10 + GENERATED.count - MONSTERS.length - CHALLENGES.length && fetched === GENERATED.files.length, `${created.length} documents, ${fetched} fetches`);
   const order = folders.map((f) => f.name).join(' / ');
   check('a folder per kind, in order, every document in one',
     order === 'Heritages / Heritage Features / Paragon Gifts / Cultures / Culture Features / Backgrounds / Background Features / Destinies / Destiny Features / Archetypes / Archetype Features / Feats / Combat Maneuvers / Spells / Psionic Powers / Magic Items / Equipment'

@@ -6,9 +6,10 @@ import { indexFieldsFor } from './compendiumIndexFix.js';
 /**
  * The world compendia of content imported from a5e.tools: heritages, cultures,
  * backgrounds, destinies, archetypes and their features, feats, combat
- * maneuvers, spells, psionic powers, magic items and equipment in one, and the
- * monsters in another - a compendium holds one kind of document, and a monster
- * is an actor.
+ * maneuvers, spells, psionic powers, magic items and equipment in one, the
+ * monsters in another and the exploration challenges in a third - a compendium
+ * holds one kind of document, and a monster is an actor, a challenge a journal
+ * entry.
  *
  * Built from inside Foundry, as MagicManeuverPack is, and for the same reason:
  * a module can only ship a pack as a LevelDB built outside Foundry. Two things
@@ -27,8 +28,9 @@ import { indexFieldsFor } from './compendiumIndexFix.js';
  *
  * A thousand entries in one list is not browsable, so each pack has folders:
  * Archetypes, Backgrounds, Feats, Combat Maneuvers, Spells, Magic Items,
- * Equipment and the rest for the items, and one per creature kind (Beasts,
- * Dragons, Undead...) for the monsters. They are rebuilt with the pack.
+ * Equipment and the rest for the items, one per creature kind (Beasts,
+ * Dragons, Undead...) for the monsters, and one per kind of challenge (Traps,
+ * Terrain, Weather...) for the journals. They are rebuilt with the pack.
  */
 export class ImportedPack {
 
@@ -41,6 +43,10 @@ export class ImportedPack {
     Actor: {
       name: 'a5e-mancer-imported-monsters', label: 'A5e Mancer: Imported Monsters',
       setting: 'importedMonsterPackHash', beside: 'a5e.a5e-monsters', index: ['npc']
+    },
+    JournalEntry: {
+      name: 'a5e-mancer-imported-challenges', label: 'A5e Mancer: Exploration Challenges',
+      setting: 'importedChallengePackHash', beside: 'a5e.a5e-journals', index: []
     }
   };
   static KINDS = Object.keys(this.PACKS);
@@ -116,7 +122,8 @@ export class ImportedPack {
   static FOLDER_OF_TYPE = { archetype: 'Archetypes', feature: 'Archetype Features', spell: 'Spells', object: 'Equipment', maneuver: 'Combat Maneuvers', background: 'Backgrounds', destiny: 'Destinies', heritage: 'Heritages', culture: 'Cultures' };
   static FOLDER_ORDER = {
     Item: ['Heritages', 'Heritage Features', 'Paragon Gifts', 'Cultures', 'Culture Features', 'Backgrounds', 'Background Features', 'Destinies', 'Destiny Features', 'Archetypes', 'Archetype Features', 'Feats', 'Combat Maneuvers', 'Spells', 'Psionic Powers', 'Magic Items', 'Equipment'],
-    Actor: ['Aberrations', 'Beasts', 'Celestials', 'Constructs', 'Dragons', 'Elementals', 'Fey', 'Fiends', 'Giants', 'Humanoids', 'Monstrosities', 'Oozes', 'Plants', 'Undead']
+    Actor: ['Aberrations', 'Beasts', 'Celestials', 'Constructs', 'Dragons', 'Elementals', 'Fey', 'Fiends', 'Giants', 'Humanoids', 'Monstrosities', 'Oozes', 'Plants', 'Undead'],
+    JournalEntry: ['Traps', 'Terrain', 'Weather', 'Supernatural', 'Creatures', 'Circumstance', 'Urban', 'Constructed', 'Technological', 'Other']
   };
   static folderOf(doc) { return doc.flags?.[AM.ID]?.folder ?? this.FOLDER_OF_TYPE[doc.type] ?? null; }
 
@@ -170,7 +177,7 @@ export class ImportedPack {
           return null;
         }
         pack = await CC.createCompendium({ label: spec.label, name: spec.name, type: kind, packageType: 'world' });
-        AM.log(3, `Created the imported ${kind === 'Actor' ? 'monster' : 'content'} compendium`);
+        AM.log(3, `Created ${spec.label}`);
       }
 
       await this.#populate(pack, kind);

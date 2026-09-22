@@ -189,11 +189,15 @@ export function registerSettings() {
     }
   });
   // What each imported compendium was built from, as a hash of its data: the
-  // items in one pack, the monsters in another, rebuilt apart.
+  // items in one pack, the monsters in another and the exploration challenges
+  // in a third, each rebuilt on its own.
   game.settings.register(AM.ID, 'importedPackHash', {
     scope: 'world', config: false, type: String, default: ''
   });
   game.settings.register(AM.ID, 'importedMonsterPackHash', {
+    scope: 'world', config: false, type: String, default: ''
+  });
+  game.settings.register(AM.ID, 'importedChallengePackHash', {
     scope: 'world', config: false, type: String, default: ''
   });
 

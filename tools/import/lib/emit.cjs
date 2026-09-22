@@ -9,9 +9,10 @@ const djb2 = (text) => {
   return (h >>> 0).toString(36);
 };
 
-const LABEL = { archetype: 'archetypes', feature: 'features', spell: 'spells and psionic powers', object: 'items', npc: 'monsters' };
-/** A file holds actors or items; a pack can hold only one kind of document. */
+const LABEL = { archetype: 'archetypes', feature: 'features', spell: 'spells and psionic powers', object: 'items', npc: 'monsters', journal: 'exploration challenges' };
+/** A file holds items, actors or journal entries; a pack can hold only one kind. */
 const ACTOR_TYPES = new Set(['npc', 'character']);
+const kindOf = (all) => (all.some((d) => ACTOR_TYPES.has(d.type)) ? 'Actor' : all.some((d) => Array.isArray(d.pages)) ? 'JournalEntry' : 'Item');
 
 function wrap(head, names) {
   const out = []; let line = ` *   ${head}: `;
@@ -33,8 +34,8 @@ function emit(name, docs) {
     const text = fs.readFileSync(path.join(P.OUT, f), 'utf8');
     const all = JSON.parse(text);
     const types = {};
-    for (const d of all) types[d.type] = (types[d.type] || 0) + 1;
-    const documents = all.some((d) => ACTOR_TYPES.has(d.type)) ? 'Actor' : 'Item';
+    for (const d of all) { const t = d.type ?? (Array.isArray(d.pages) ? 'journal' : 'other'); types[t] = (types[t] || 0) + 1; }
+    const documents = kindOf(all);
     return { file: `scripts/data/imported/${f}`, count: all.length, hash: djb2(text), types, documents, all };
   });
   const byType = {};

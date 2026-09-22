@@ -1,31 +1,36 @@
 # Importing from a5e.tools
 
-Converts a5e.tools pages into a5e documents for two world compendia
+Converts a5e.tools pages into a5e documents for three world compendia
 (`scripts/utils/importedPack.js`): "A5e Mancer: Imported" holds the heritages,
 cultures, backgrounds, destinies, archetypes, feats, combat maneuvers, spells,
-psionic powers, magic items and equipment a5e's packs lack, and "A5e Mancer:
-Imported Monsters" the monsters - a compendium holds one kind of document, and
-a monster is an actor. Run from the module root, with Node 20 or later:
+psionic powers, magic items and equipment a5e's packs lack, "A5e Mancer:
+Imported Monsters" the monsters and "A5e Mancer: Exploration Challenges" the
+challenges - a compendium holds one kind of document, and a monster is an
+actor, a challenge a journal entry. Run from the module root, with Node 20 or
+later:
 
     node tools/import/prepare.cjs            # 1. a5e's packs and CONFIG maps, from the local install
     node tools/import/fetch-archetypes.cjs   # 2. missing archetypes, and their pages (cached)
     node tools/import/fetch-content.cjs      #    everything else missing, and its pages
     node tools/import/fetch-origins.cjs      #    missing heritages and cultures (two rules pages)
     node tools/import/fetch-monsters.cjs     #    missing monsters, and their pages
+    node tools/import/fetch-challenges.cjs   #    the exploration challenges (a5e ships none)
     node tools/import/build-archetypes.cjs   # 3. convert; writes the module's data and a report
     node tools/import/build-content.cjs
     node tools/import/build-origins.cjs
     node tools/import/build-monsters.cjs
+    node tools/import/build-challenges.cjs
     node tools/import/check-archetypes.mjs   # 4. check them with the module's own code
     node tools/import/check-content.mjs
     node tools/import/check-origins.mjs
     node tools/import/check-monsters.mjs
+    node tools/import/check-challenges.mjs
 
 Everything downloaded or copied goes to `tools/import/.cache`, which git
 ignores. Step 3 writes `scripts/data/imported/a5etools-*.json` and
 `generated.js`, the manifest over all of them - each file with the count, the
-hash and whether it holds items or actors. A pack rebuilds itself in the world
-when its own hash changes, into a folder per kind.
+hash and whether it holds items, actors or journal entries. A pack rebuilds
+itself in the world when its own hash changes, into a folder per kind.
 
 `prepare` needs Foundry's `classic-level`: it looks for the install at
 `D:/Games/FVTT/Foundry Virtual Tabletop/resources/app`, or `FOUNDRY_APP`.
@@ -107,6 +112,14 @@ when its own hash changes, into a folder per kind.
   creature type, size, senses, languages, swarm and elite come off the page's
   fields. What the page does not say is not invented: a page that says the hit
   points vary leaves them at zero, and the report says so.
+- **Exploration challenges** are journal entries: a5e has no item type for one,
+  and nothing to hang it on. Each is one page - the kind, tier, challenge
+  rating and area at the top, the regions under it, then the description and
+  the possible solutions under their own headings - filed under its kind
+  (Traps, Terrain, Weather...), with the numbers kept in the module's flags so
+  a journal can still be picked out by tier or rating. These pages write their
+  bold and italics as styled spans, so the emphasis is turned into markup
+  before the text is cleaned, and the spaces the spans swallowed are put back.
 
 Corrections the page structure cannot tell the converter go in
 `archetype-overrides.cjs`. Read `.cache/build-report.txt` after a build: one

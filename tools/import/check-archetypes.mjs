@@ -242,6 +242,7 @@ const G = (f, type) => Object.values(f?.system.grants ?? {}).filter(g => (g.prof
   });
   globalThis.Item = documentClass();
   globalThis.Actor = documentClass();
+  globalThis.JournalEntry = documentClass();
   globalThis.foundry.documents = { Folder: { createDocuments: async (d) => d.map((x, i) => ({ ...x, id: 'f' + String(i).padStart(15, '0') })), deleteDocuments: async () => [] },
     collections: { CompendiumCollection: { createCompendium: async (data) => makePack(data) } } };
   ImportedPack.registerSource();
@@ -249,10 +250,15 @@ const G = (f, type) => Object.values(f?.system.grants ?? {}).filter(g => (g.prof
   await ImportedPack.ensure();
   const packDocs = held.get('world.a5e-mancer-imported') ?? [];
   const monsters = held.get('world.a5e-mancer-imported-monsters') ?? [];
+  const challenges = held.get('world.a5e-mancer-imported-challenges') ?? [];
   check('the item pack holds the Dread Knight\'s 10 and every converted item, created in batches of at most 100',
-    packDocs.length === ImportedPack.countOf('Item') && packDocs.length === 10 + GENERATED.count - 313 && batches.every(n => n <= 100) && fetched === GENERATED.files.length,
+    packDocs.length === ImportedPack.countOf('Item') && packDocs.length + monsters.length + challenges.length === 10 + GENERATED.count
+    && batches.every(n => n <= 100) && fetched === GENERATED.files.length,
     `${packDocs.length} in ${batches.join('+')}, fetched ${fetched}`);
-  check('the monsters are built into a pack of their own, as actors', monsters.length === ImportedPack.countOf('Actor') && monsters.every(d => d.type === 'npc'), `${monsters.length} actors`);
+  check('the monsters and the exploration challenges are built into packs of their own, as actors and as journal entries',
+    monsters.length === ImportedPack.countOf('Actor') && monsters.every(d => d.type === 'npc')
+    && challenges.length === ImportedPack.countOf('JournalEntry') && challenges.every(d => Array.isArray(d.pages) && d.pages.length === 1),
+    `${monsters.length} actors, ${challenges.length} journal entries`);
   const before = batches.length;
   await ImportedPack.ensure();
   check('with nothing changed neither is rebuilt, and the JSON not fetched again', batches.length === before && fetched === GENERATED.files.length);
