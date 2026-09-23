@@ -1,4 +1,5 @@
 import { AM } from '../am.js';
+import { HiddenSources } from './hiddenSources.js';
 
 /**
  * Fixes the a5e system's compendium browser filters.
@@ -208,6 +209,9 @@ export async function enrichCompendiumIndexes() {
           if (!e.system.synergy && chainRoots.has(e.name)) e.system.synergy = e.name;
         }
       }
+      /* The fresh index is the whole pack again: a5e's hidden sources out of it,
+         which is the other half of what a5e's own indexCompendiaFields does. */
+      HiddenSources.drop(pack);
       enriched++;
     } catch (err) {
       AM.log(2, `Index enrichment failed for ${pack?.collection}:`, err);

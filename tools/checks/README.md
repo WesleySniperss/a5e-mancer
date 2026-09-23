@@ -641,3 +641,23 @@ a5e's packs and the imported content, old against new:
 
 Reads a5e's packs from `tools/import/.cache`: run `tools/import/prepare.cjs`
 once.
+
+## `hiddensources.mjs`
+
+a5e's "Hidden Compendium Sources", applied (`scripts/utils/hiddenSources.js`),
+against a5e's heritages, classes and feats and the Imported challenges, behind
+stub packs that behave as Foundry v14's do: `getIndex({fields})` merges the
+server's answer - the whole pack - into the loaded index, and
+`database.get({index: true})` answers without merging.
+
+a5e applies the setting at `setup`, when no pack index is loaded yet, so on
+Foundry v13 and later it has never hidden anything. Two things decided the
+shape of the fix:
+
+- **Only a saved value hides.** a5e registers the setting with Voidrunner's
+  Codex ticked, but its own code reads the value saved in the world and not
+  the default. Read the same way here, a world with Psions and a Psyknight in
+  it keeps them until a GM saves the setting.
+- **Every index request brings the pack back.** A picker's, the browser's
+  enrichment, a rebuilt Imported pack: each gets every entry from the server,
+  hidden ones included, so each drops them again.

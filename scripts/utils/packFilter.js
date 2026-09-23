@@ -1,4 +1,5 @@
 import { AM } from '../am.js';
+import { HiddenSources } from './hiddenSources.js';
 
 /**
  * Which compendiums the module reads content from.
@@ -87,6 +88,8 @@ export class PackFilter {
    * @param {string[]} [opts.types]  only these item types matter to the caller
    */
   static async indexOf(pack, fields, { types = null } = {}) {
+    // a5e's Hidden Compendium Sources out of the indexes first - see hiddenSources.js
+    await HiddenSources.apply();
     let plain;
     try {
       plain = await pack.getIndex();
@@ -105,6 +108,8 @@ export class PackFilter {
 
     try {
       const rich = await pack.getIndex({ fields });
+      // The server hands back the whole pack, hidden sources included: out again
+      HiddenSources.drop(pack);
       if (this.#carriesFields(rich, fields)) return rich;
       AM.log(2, `${pack?.collection}: the index came back without its system data; `
              + `reading the documents instead`);
@@ -116,7 +121,7 @@ export class PackFilter {
              + `— ${err.message}`);
     }
 
-    return this.#documentIndex(pack, plain, types);
+    return HiddenSources.filter(await this.#documentIndex(pack, plain, types));
   }
 
   /**

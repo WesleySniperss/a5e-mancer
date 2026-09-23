@@ -8,6 +8,7 @@ import { DocumentService, StatRoller, Beyond20Service, YourFlavorService, GrantD
 import { registerMagicSchools, ManeuverService } from './utils/maneuverService.js';
 import { iconForItem } from './data/a5eIcons.js';
 import { installCompendiumFilterFix } from './utils/compendiumIndexFix.js';
+import { HiddenSources } from './utils/hiddenSources.js';
 import { ConditionSource } from './utils/conditionSource.js';
 import { ItemRepair } from './utils/itemRepair.js';
 
@@ -164,7 +165,9 @@ Hooks.once('ready', () => {
   MagicManeuverPack.sweep().catch(err => AM.log(1, 'Magic maneuver exertion pools:', err));
   // Content imported from a5e.tools - see importedPack.js
   ImportedPack.registerSource();
-  ImportedPack.ensure().catch(err => AM.log(1, 'Imported pack:', err));
+  ImportedPack.ensure().catch(err => AM.log(1, 'Imported pack:', err))
+    // a5e's Hidden Compendium Sources, which a5e itself applies too early to hide anything - see hiddenSources.js
+    .finally(() => HiddenSources.apply());
 });
 
 /* ── Public API ─────────────────────────────────────────── */

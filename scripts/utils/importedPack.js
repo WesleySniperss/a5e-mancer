@@ -2,6 +2,7 @@ import { AM } from '../am.js';
 import { IMPORTED } from '../data/imported/index.js';
 import { GENERATED } from '../data/imported/generated.js';
 import { indexFieldsFor } from './compendiumIndexFix.js';
+import { HiddenSources } from './hiddenSources.js';
 
 /**
  * The world compendia of content imported from a5e.tools: heritages, cultures,
@@ -307,6 +308,8 @@ export class ImportedPack {
       // The fields a5e's browser and the module's pickers read, at once
       const fields = this.PACKS[kind].index.flatMap(t => indexFieldsFor(t));
       await pack.getIndex({ fields: [...new Set([...fields, 'system', 'flags'])] });
+      // a5e's hidden sources (Voidrunner's Codex by default) out of the rebuilt index
+      HiddenSources.drop(pack);
       AM.log(3, `${this.PACKS[kind].label} filled with ${docs.length} entries`);
     } finally {
       if (wasLocked) await pack.configure({ locked: true });

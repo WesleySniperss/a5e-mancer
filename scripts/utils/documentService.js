@@ -1,5 +1,6 @@
 import { AM } from '../am.js';
 import { PackFilter } from './packFilter.js';
+import { HiddenSources } from './hiddenSources.js';
 import { classKey, isReplaced5eClass } from '../data/a5eClassData.js';
 import { CLASS_DESCRIPTIONS, HERITAGE_DESCRIPTIONS } from '../data/a5eDescriptions.js';
 import { iconForItem } from '../data/a5eIcons.js';
@@ -61,6 +62,8 @@ export class DocumentService {
    * Respects the per-type pack whitelist in settings; falls back to everything.
    */
   static async #fetchByType(type) {
+    // Read below from the plain index, so a5e's hidden sources go from it first - see hiddenSources.js
+    await HiddenSources.apply();
     const selectedPacks = game.settings.get(AM.ID, `${type}Packs`) || [];
     const itemPacks = PackFilter.itemPacks();
 
