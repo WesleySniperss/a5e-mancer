@@ -625,8 +625,37 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
       await DOMManager.loadItemGrants('archetype', arch.uuid);
     }
     await ManeuverService.refreshCreationArchetype();
+    await A5eMancer.#refreshCreationSpells();
 
-    await AM.app?.render(false, { parts: ['class'] });
+    // The spells tab too: the patron's list and the archetype's spell choices live there
+    await AM.app?.render(false, { parts: ['class', 'spells'] });
+  }
+
+  /**
+   * The spell list the builder offers, redone for the features chosen so far.
+   *
+   * A warlock's patron list is chosen on the class tab, after the class's spell
+   * list was loaded, and the builder has no actor for SpellService to read an
+   * expanded list from - so a 1st-level warlock was never offered their
+   * patron's spells. The class's and the archetype's chosen features stand in
+   * for the actor here.
+   */
+  static async #refreshCreationSpells() {
+    const className = AM.SELECTED.class?.name ?? '';
+    if (!className) return;
+    try {
+      const { ProseSpells } = await import('../utils/proseSpells.js');
+      const docs = [];
+      for (const type of ['class', 'archetype']) {
+        const store = AM.itemGrants?.[type];
+        if (store?.absorb) docs.push(...await ProseSpells.docsFromGrantModels(store.features, store.choices));
+      }
+      await SpellService.collectExpandedLists(docs);
+      const spellInfo = SpellService.getClassSpellInfo(className);
+      AM.allSpellsData = await SpellService.loadSpells(className, spellInfo?.maxLevel ?? 1);
+    } catch (err) {
+      AM.log(2, 'The spell list could not be redone for the chosen archetype:', err);
+    }
   }
 
   /** Turn mixed heritage on or off, or change which heritage the gift comes from. */
@@ -685,8 +714,12 @@ export class A5eMancer extends HandlebarsApplicationMixin(ApplicationV2) {
     await DOMManager.refreshItemGrants(type);
     // A choice on the archetype can bring maneuvers (Eldritch Maneuvers)
     if (type === 'archetype') await ManeuverService.refreshCreationArchetype();
+    // ...and spells: a warlock's patron list is a choice on the archetype
+    if (type === 'archetype' || type === 'class') await A5eMancer.#refreshCreationSpells();
     // The archetype's pickers sit on the class tab; it has no part of its own.
-    await AM.app?.render(false, { parts: [type === 'archetype' ? 'class' : type] });
+    // The spells tab shows what a choice there owes: the list, and the spell picks.
+    const parts = [type === 'archetype' ? 'class' : type, 'spells'];
+    await AM.app?.render(false, { parts });
   }
 
   /** Discard the pool and go back to rolling each ability on its own. */

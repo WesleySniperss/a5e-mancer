@@ -460,10 +460,11 @@ export class DOMManager {
     });
     const className = AM.SELECTED.class?.name ?? '';
     const spellInfo = SpellService.getClassSpellInfo(className);
-    /* Expanded lists belong to an actor. The set is static and the level-up
+    /* Expanded lists belong to a character. The set is static and the level-up
        and spell windows fill it from whichever character they last opened, so
        a warlock's patron spells stayed admitted for the next character built
-       here. The builder has no actor, so it has none. */
+       here. Emptied on a new class; the features chosen for this one fill it
+       again as they are chosen (A5eMancer.#refreshCreationSpells). */
     SpellService.collectExpandedLists(null);
     // No name means the class could not be read; an unfiltered list is never
     // the right answer to that, so nothing is offered until it can be.

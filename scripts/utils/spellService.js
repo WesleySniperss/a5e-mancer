@@ -623,6 +623,7 @@ export class SpellService {
   static spellFitsRule(sys, rule, uuid = '') {
     if (!rule) return false;
     if (uuid && this.extraAllowed.has(uuid)) return true;
+    if (this.#inAddedSchool(sys)) return true;
     if (rule.lists.some(k => this.spellAllowsClass(sys, k, uuid))) return true;
     if (!rule.schools.length || sys?.rare) return false;
     const raw = sys?.schools?.secondary ?? [];
@@ -781,42 +782,112 @@ export class SpellService {
    */
   static spellUuidsFromLinks(html) {
     const out = new Set();
-    const re = /@UUID\[(Compendium\.[^\]]*?\.Item\.[A-Za-z0-9]+)\]/g;
+    /* Both forms a5e writes: "Compendium.a5e.a5e-spells.Item.<id>" and the short
+       "Compendium.a5e.a5e-spells.<id>" four of its warlock lists use (Air, Earth,
+       Radiance, Water). Given back in the long form the spell loader uses. */
+    const re = /@UUID\[Compendium\.([^.\]]+)\.([^.\]]+)\.(?:Item\.)?([A-Za-z0-9]{16})\]/g;
     let m;
     while ((m = re.exec(String(html ?? '')))) {
       // Only the spell packs: these features link features and items too
-      if (/spells/i.test(m[1])) out.add(m[1]);
+      if (/spells/i.test(m[2])) out.add(`Compendium.${m[1]}.${m[2]}.Item.${m[3]}`);
     }
     return [...out];
   }
 
   /** Uuids admitted past the class filter, gathered from expanded-list features. */
   static extraAllowed = new Set();
+  /** Schools a feature adds to the character's list: "the good and radiant schools". */
+  static extraSchools = new Set();
 
   /**
-   * Collect the expanded lists an actor's features name, so the picker offers
-   * them. Safe to call repeatedly; it replaces what it found last time.
+   * Collect the lists the character's features add to, so the picker offers
+   * their spells. Three shapes, as a5e writes them:
+   *   - an expanded list: a feature named for one ("Warlock Expanded Spell List:
+   *     Fire", "Mythfire Expanded Spells") or saying that is what its table is -
+   *     every spell it names, linked (either form) or in italics;
+   *   - a sentence adding named spells to a class list: "add the Augury and
+   *     Divination spells to your druid spell list";
+   *   - a sentence adding schools: "Add the good and radiant schools of magic to
+   *     your list of herald spells", "all spells from the compulsion school are
+   *     considered wielder spells for you".
+   * Spells added to a spellbook or to spells KNOWN are the character's own and
+   * ProseSpells grants them; this is only what the picker may offer.
+   *
+   * Safe to call repeatedly; it replaces what it found last time.
+   * @param {Actor|object[]|null} source  an actor, or feature documents - the ones
+   *        chosen so far in the builder, which has no actor yet
    */
-  static collectExpandedLists(actor) {
+  static async collectExpandedLists(source) {
     this.extraAllowed = new Set();
-    for (const item of (actor?.items ?? [])) {
-      if (item.type !== 'feature') continue;
+    this.extraSchools = new Set();
+    const items = Array.isArray(source) ? source : [...(source?.items ?? [])];
+    const features = items.filter(i => i?.type === 'feature');
+    if (!features.length) return this.extraAllowed;
+
+    const { ProseSpells } = await import('./proseSpells.js');
+    let lookup = null;
+    try { lookup = await ProseSpells.lookup(); } catch { lookup = null; }
+    const plain = (html) => String(html ?? '').replace(/@UUID\[[^\]]*\]\{([^}]*)\}/g, '$1').replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ').replace(/&rsquo;|&#39;/g, "'").replace(/\s+/g, ' ').trim();
+    const named = (html) => {
+      const out = new Set(this.spellUuidsFromLinks(html));
+      // "Undead Expanded Spell List" names its spells in italics, with no links
+      for (const m of String(html ?? '').matchAll(/<(?:em|i)>([^<]{2,60})<\/(?:em|i)>/g)) {
+        const hit = lookup?.byName.get(ProseSpells.norm(m[1]));
+        if (hit) out.add(hit.uuid.replace(/^(Compendium\.[^.]+\.[^.]+)\.(?!Item\.)/, '$1.Item.'));
+      }
+      return out;
+    };
+    const SCHOOLS = /\bthe ([a-z ,]+?) schools? (?:of magic )?to\b|\bspells (?:from|of) the ([a-z ,]+?) schools? are (?:considered|counted as) [a-z ]{1,30} spells for you\b/i;
+
+    for (const item of features) {
       const raw = typeof item.system?.description === 'string'
         ? item.system.description
         : (item.system?.description?.value ?? '');
-      if (!/expanded spell list/i.test(item.name ?? '') && !/expanded spell list/i.test(raw)) continue;
-      for (const uuid of this.spellUuidsFromLinks(raw)) this.extraAllowed.add(uuid);
+      const text = plain(raw);
+      if (/expanded spells?\b/i.test(item.name ?? '')
+          || /expanded spell list|spells? (?:are|is) added to (?:the|your) [a-z ]{1,30}list/i.test(text)) {
+        for (const uuid of named(raw)) this.extraAllowed.add(uuid);
+        continue;
+      }
+      for (const sentence of raw.split(/(?<=[.!?])\s+(?=[A-Z<@])|<\/p>|<br\s*\/?>/i)) {
+        const t = plain(sentence);
+        if (/\bknown\b|\bspellbook\b/i.test(t)) continue;       // the character's own - ProseSpells
+        const toList = /\badds?\b[^.]*\bto (?:the|your) (?:list of [a-z]+ spells|[a-z]+ (?:spell )?list)\b/i.test(t);
+        const school = SCHOOLS.exec(t);
+        if (toList) for (const uuid of named(sentence)) this.extraAllowed.add(uuid);
+        if (school) {
+          for (const w of (school[1] ?? school[2]).split(/,\s*|\s+and\s+|\s+or\s+/)) {
+            const key = w.trim().toLowerCase().replace(/^the /, '');
+            if (key && key.split(' ').length <= 2) this.extraSchools.add(key);
+          }
+        }
+      }
     }
-    if (this.extraAllowed.size) {
-      AM.log(3, `${this.extraAllowed.size} spell(s) admitted from expanded lists`);
+    if (this.extraAllowed.size || this.extraSchools.size) {
+      AM.log(3, `Expanded lists: ${this.extraAllowed.size} spell(s)${this.extraSchools.size ? `, schools ${[...this.extraSchools].join(', ')}` : ''} admitted`);
     }
     return this.extraAllowed;
+  }
+
+  /**
+   * A spell of a school a feature added to the character's list ("the good and
+   * radiant schools") - but not a rare one: a5e's rare spells are found or
+   * granted, never learned from a list.
+   */
+  static #inAddedSchool(sys) {
+    if (!this.extraSchools.size || !sys?.schools || sys.rare) return false;
+    const second = sys.schools.secondary;
+    const own = [sys.schools.primary, ...(Array.isArray(second) ? second : Object.keys(second ?? {}))]
+      .map(s => String(s ?? '').toLowerCase());
+    return own.some(s => this.extraSchools.has(s));
   }
 
   static spellAllowsClass(sys, className, uuid = '') {
     // An expanded list names its spells outright; they are on the character's
     // list whatever the spell's own class field says.
     if (uuid && this.extraAllowed.has(uuid)) return true;
+    if (this.#inAddedSchool(sys)) return true;
 
     /* Three cases, and the middle one used to be folded into the last.
 
@@ -1008,7 +1079,9 @@ export class SpellService {
    *        sheet is showing. Without it, the actor's first book.
    */
   static async applySpellsToActor(actor, spellUuids, { prepared = null, flags = null, prepareRoom = null, spellBookId: bookId = null } = {}) {
-    if (!spellUuids.length) return;
+    if (!spellUuids.length) return [];
+    /** What the actor holds of what was asked for when this returns: made now, or there already. */
+    const held = new Set();
 
     // A5e requires spells to reference a spellbook on the actor.
     // The spellbook is created by class grants when the class item is added.
@@ -1030,11 +1103,11 @@ export class SpellService {
 
     const itemDatas = [];
     for (const uuid of spellUuids) {
-      if (existingSources.has(uuid)) continue; // exact UUID match
+      if (existingSources.has(uuid)) { held.add(uuid); continue; } // exact UUID match
       try {
         const item = await fromUuid(uuid);
         if (!item) continue;
-        if (existingNames.has(item.name.toLowerCase())) continue; // name match fallback
+        if (existingNames.has(item.name.toLowerCase())) { held.add(uuid); continue; } // name match fallback
         const data = item.toObject();
         data._stats = data._stats || {};
         data._stats.compendiumSource = uuid;
@@ -1072,9 +1145,14 @@ export class SpellService {
       }
     }
     if (itemDatas.length) {
-      await actor.createEmbeddedDocuments('Item', itemDatas);
+      const made = await actor.createEmbeddedDocuments('Item', itemDatas);
+      for (const doc of made ?? []) {
+        const source = doc?._stats?.compendiumSource;
+        if (source) held.add(source);
+      }
       AM.log(3, `Added ${itemDatas.length} spells to spellbook ${spellBookId}`);
     }
+    return [...held];
   }
 
   /**

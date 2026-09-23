@@ -78,7 +78,7 @@ export class SpellDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     if (this._loading) {
       // A warlock's expanded list names spells that are not warlock spells; the
       // class filter would drop every one without this.
-      SpellService.collectExpandedLists(this.actor);
+      await SpellService.collectExpandedLists(this.actor);
       this._allSpells = await SpellService.loadSpells(this.className, this.maxSpellLevel);
       this._loading   = false;
       if (this.manage && !this._seeded) {

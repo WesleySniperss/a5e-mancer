@@ -643,6 +643,15 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       this._allSpellsData = null;
       this._loadingSpells = false;
     }
+    /* What this dialog's own picks add to the list - the archetype taken here,
+       a patron's expanded list, an oath's schools - is not on the actor yet.
+       A change reloads the list; unlike a change of rule, it keeps the picks. */
+    const grants = AM.levelUpGrants;
+    const expandedKey = `${this._archetypeUuid ?? ''}|${JSON.stringify(grants?.absorb ? (grants.choices ?? {}) : {})}`;
+    if (this._spellsExpandedKey !== expandedKey) {
+      this._spellsExpandedKey = expandedKey;
+      if (this._allSpellsData) { this._allSpellsData = null; this._loadingSpells = false; }
+    }
 
     context.spellsLoaded = !!this._allSpellsData;
     if (this._allSpellsData) {
@@ -659,13 +668,24 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       // in every compendium, which is what made "all schools" available.
       // Expanded lists first: they decide which non-class spells the filter
       // below must let through, and the load applies the filter as it indexes.
-      SpellService.collectExpandedLists(this.actor);
       const filter = casting ? SpellService.archetypeSpellFilter(casting) : casterName;
-      SpellService.loadSpells(filter, spellInfo.maxLevel ?? 1).then(data => {
+      const key = expandedKey;
+      const load = async () => {
+        const { ProseSpells } = await import('../utils/proseSpells.js');
+        const chosen = grants?.absorb ? await ProseSpells.docsFromGrantModels(grants.features, grants.choices) : [];
+        await SpellService.collectExpandedLists([...this.actor.items, ...chosen]);
+        return SpellService.loadSpells(filter, spellInfo.maxLevel ?? 1);
+      };
+      load().then(data => {
         if (this._spellsSource !== source) return;   // loaded for a rule no longer shown
-        this._allSpellsData = data;
         this._loadingSpells = false;
+        // picks changed while it loaded: load again for what is chosen now
+        if (this._spellsExpandedKey !== key) { this.render(false); return; }
+        this._allSpellsData = data;
         this.render(false);
+      }).catch(err => {
+        AM.log(1, 'The level-up spell list could not be loaded:', err);
+        this._loadingSpells = false;
       });
     }
   }
@@ -1853,7 +1873,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
           { prepareRoom: SpellService.preparedRoom(dialog.actor) }
         );
       }
-      await LevelUpDialog.#featureSpells(dialog.actor);
+      await LevelUpDialog.#featureSpells(dialog);
       return;
     }
 
@@ -1903,7 +1923,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     // Magic maneuvers need nothing here: their school is a tradition, so they go
     // through the maneuver path above like every other maneuver.
 
-    await LevelUpDialog.#featureSpells(dialog.actor);
+    await LevelUpDialog.#featureSpells(dialog);
   }
 
   /**
@@ -1953,15 +1973,17 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     }
   }
 
-  static async #featureSpells(actor) {
+  /* The dialog is handed in, not looked up: formHandler clears AM.levelUpDialog
+     before it applies anything, so reading it back here found nothing and every
+     spell picked in the dialog was dropped. */
+  static async #featureSpells(dialog) {
+    const actor = dialog?.actor;
+    if (!actor) return;
     const { ProseSpells } = await import('../utils/proseSpells.js');
     if (!ProseSpells.enabled) return;
     try { await ProseSpells.ensure(actor); }
     catch (err) { AM.log(1, 'Spells from features could not be added:', err); }
-    const dialog = AM.levelUpDialog;
-    if (dialog?.actor === actor) {
-      try { await ProseSpells.applyChoices(actor, dialog._bonusSpellPicks, dialog._bonusSpellChoices); }
-      catch (err) { AM.log(1, 'Chosen feature spells could not be added:', err); }
-    }
+    try { await ProseSpells.applyChoices(actor, dialog._bonusSpellPicks ?? {}, dialog._bonusSpellChoices ?? []); }
+    catch (err) { AM.log(1, 'Chosen feature spells could not be added:', err); }
   }
 }

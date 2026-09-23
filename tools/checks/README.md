@@ -607,3 +607,37 @@ its extensions into even a fresh profile, and their welcome pages opened in
 front of the Foundry tab: `document.hidden`, every timer throttled to as much
 as a minute, and a check of a few minutes ran for ten before anyone looked. The
 check now refuses to run in a hidden tab.
+
+## `prosespells.mjs`
+
+What a feature's prose grants, offers or skips, through the real
+`ProseSpells.parse`, and what the spell pickers let through from an expanded
+list, through the real `SpellService.collectExpandedLists`. 37 sentences as a5e
+and the imported content write them, then a5e's own features: the cleric's
+Thaumaturgy, the six artificer archetypes whose tables are written as lines,
+the Elemental Priest's chosen list, the Air list's short-form links, Mythfire's
+list, a herald oath's added schools.
+
+Every probe was a spell lost or wrongly given before it was fixed. Run against
+the code before those fixes it passes 21 of 44; the ones it failed were real:
+every a5e cleric without Thaumaturgy, six artificer archetypes without one of
+their ten spells, a 1st-level warlock never offered their patron's list.
+
+What decided the rules, found by running the parser over all 6,907 features in
+a5e's packs and the imported content, old against new:
+
+- **"Or" is a choice only when you learn.** "You learn the Dancing Lights,
+  Light, or Produce Flame cantrip" is picked once; "you can cast either
+  Counterspell or Dispel Magic once per rest" is picked at each casting, so
+  both are the character's; "you learn the Sleep spell, or another bard spell
+  if you already know it" grants Sleep.
+- **"Count as artificer spells for you" is a grant.** An artificer archetype's
+  table says it of spells always prepared; read as an expanded list, it took
+  ten spells from each of nine archetypes. A warlock's list is known by its
+  name instead.
+- **A row number is a spell level when the rows run 1, 2, 3...** Labyrinth
+  Priest's and Stone Heart's tables, and the Court Magician's "Spell Level"
+  column, are reached at 1st, 3rd, 5th... class level.
+
+Reads a5e's packs from `tools/import/.cache`: run `tools/import/prepare.cjs`
+once.

@@ -153,7 +153,7 @@ export class ProseSpells {
       for (let guard = 0; guard < 8; guard++) {
         /* Not "a" or "an": "cast a divination spell" names a kind of spell,
            not the spell Divination. */
-        rest = rest.replace(/^(?:the|spell|spells|cantrip|cantrips|bonus)\s+/, '');
+        rest = rest.replace(/^(?:the|spell|spells|cantrip|cantrips|power|powers|bonus)\s+/, '');
         const name = lookup.names.find(n => {
           if (!rest.startsWith(n)) return false;
           const after = rest.slice(n.length);
@@ -168,7 +168,7 @@ export class ProseSpells {
         const s = lookup.byName.get(name);
         found.set(s.id, s);
         rest = rest.slice(name.length).replace(/^\S*\s*/, (w) => /^[a-z]/.test(w) ? '' : w).trim();
-        const sep = /^(?:and|as|cantrips?|spells?)\s+/.exec(rest);
+        const sep = /^(?:and|as|cantrips?|spells?|powers?)\s+/.exec(rest);
         if (!sep) break;
         rest = rest.slice(sep[0].length);
       }
@@ -176,7 +176,7 @@ export class ProseSpells {
     return found;
   }
 
-  static #AFTER_NAME = new Set(['cantrip', 'cantrips', 'spell', 'spells', 'prepared', 'and', 'as', 'once', 'twice',
+  static #AFTER_NAME = new Set(['cantrip', 'cantrips', 'spell', 'spells', 'power', 'powers', 'prepared', 'and', 'as', 'once', 'twice',
     'at', 'without', 'on', 'using', 'with', 'a', 'an', 'the', 'in', 'for', 'from', 'by', 'through', 'upon', 'if',
     'each', 'is', 'which', 'but', 'when', 'then', 'or', 'rare', 'ritual']);
 
@@ -184,7 +184,7 @@ export class ProseSpells {
     const found = this.#marked(html, lookup);
     for (const [id, s] of this.#afterVerbs(this.#plain(html), lookup)) found.set(id, s);
     // "the X cantrip" / "the X spell", written anywhere in the sentence
-    for (const m of this.#plain(html).matchAll(/\bthe ([A-Za-z][A-Za-z'’\/ -]{1,50}?) (?:cantrips?|spells?)\b/g)) {
+    for (const m of this.#plain(html).matchAll(/\bthe ([A-Za-z][A-Za-z'’\/ -]{1,50}?) (?:cantrips?|spells?|powers?)\b/g)) {
       const s = lookup.byName.get(this.norm(m[1]));
       if (s) found.set(s.id, s);
     }
@@ -226,8 +226,8 @@ export class ProseSpells {
    */
   static #gates(text) {
     const out = [];
-    const re = /\b(?:at|starting at|beginning at|once you reach|when you reach|upon reaching|once you are at least an?|when you are an?) (\d{1,2})(?:st|nd|rd|th)[- ]level\b(?=\s*(?:,|you\b|[a-z]+\s+you\b))/gi;
-    for (const m of text.matchAll(re)) out.push({ at: m.index, level: Number(m[1]) });
+    const re = /\b(?:at|starting at|beginning at|once you reach|when you reach|upon reaching|once you are at least an?|when you are an?) (?:(\d{1,2})(?:st|nd|rd|th)[- ]level|level (\d{1,2}))\b(?=\s*(?:,|you\b|[a-z]+\s+you\b))/gi;
+    for (const m of text.matchAll(re)) out.push({ at: m.index, level: Number(m[1] ?? m[2]) });
     return out;
   }
 
@@ -239,6 +239,52 @@ export class ProseSpells {
     const before = gates.filter(g => g.at <= at);
     return before.length ? before[before.length - 1].level : 0;
   }
+
+  /**
+   * Spell tables written as lines instead of a <table>: "Artificer Level - Spell
+   * <br>3rd - Grease Fog Cloud<br>5th - Heat Metal Levitate", or a paragraph a
+   * row ("<p>3rd: Shield, Winter's Bite</p>", "<p>2nd Level: Color Spray</p>").
+   * Two such lines or more, each naming spells, become a table with the level
+   * in its first cell, in place; anything else is left as it was.
+   */
+  static #linesToTable(src, lookup) {
+    const ROW = /^\s*(?:<(?:strong|em|b|i)>\s*)*(\d{1,2})(?:st|nd|rd|th)?(?:[\s-]*level)?\s*(?:<\/(?:strong|em|b|i)>\s*)*\s*[-–—:|]\s*([\s\S]+?)\s*$/i;
+    const pieces = String(src).split(/(<br\s*\/?>|<\/?p[^>]*>)/i);
+    const rows = [];
+    pieces.forEach((piece, i) => {
+      if (i % 2) return;                                   // a separator
+      const m = ROW.exec(piece);
+      if (!m) return;
+      const lvl = Number(m[1]);
+      if (!(lvl >= 1 && lvl <= 20)) return;
+      const cells = m[2].split(/,\s*|\s+and\s+/);
+      const spells = this.#marked(m[2], lookup).size ? [...this.#marked(m[2], lookup).values()] : cells.flatMap(c => this.#cellSpells(c, lookup));
+      if (spells.length) rows.push({ i, lvl, html: m[2], n: spells.length });
+    });
+    // an archetype's table names one to three spells a row; a class list by level names ten
+    if (rows.length < 2 || rows.some(r => r.n > 4)) return src;
+    const table = `<table>${rows.map(r => `<tr><td>${r.lvl}</td><td>${r.html}</td></tr>`).join('')}</table>`;
+    const drop = new Set(rows.map(r => r.i));
+    const first = rows[0].i;
+    return pieces.map((p, i) => (i === first ? table : drop.has(i) ? '' : p)).join('');
+  }
+
+  /**
+   * Spells a sentence offers one of: "the Telekinesis or Telepathy power", "the
+   * Dancing Lights, Light, or Produce Flame cantrip", "either Thaumaturgy or
+   * Spare the Dying". Only names joined by "or" count - "you learn the Sleep
+   * spell, or another bard spell if you already know it" grants Sleep.
+   */
+  static #joinedByOr(text, spells) {
+    if (spells.length < 2) return false;
+    const t = this.norm(text);
+    const names = spells.map(s => this.norm(s.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    return names.some(a => names.some(b => a !== b
+      && new RegExp(`\\b${a},? or (?:the )?${b}\\b`).test(t)));
+  }
+
+  /** Classes that reach spell level N at class level 2N - 1. */
+  static #FULL_CASTERS = new Set(['bard', 'cleric', 'druid', 'sorcerer', 'wizard', 'warlock', 'witch', 'psion']);
 
   /* ── parsing ──────────────────────────────────────────── */
 
@@ -254,18 +300,27 @@ export class ProseSpells {
   static parse(html, lookup, { classKey = '', name = '' } = {}) {
     const out = { auto: [], choices: [], skipped: [] };
     let src = String(html ?? '');
-    if (!/spell|cantrip/i.test(src)) return out;
+    if (!/spell|cantrip|\bpowers?\b|prepared|\bcast\b/i.test(src)) return out;
 
     /* A feature that lays out alternatives - one of which the character has,
        recorded nowhere this can read - grants none of what follows. What comes
        before still counts: Searing Revelation gives its cantrips and only then
        says "choose one of the following". */
-    const alt = /\bchoose one of the following\b|\bselect one of the following\b|\bchoose one of these\b/i.exec(src);
+    const alt = /\b(?:choose|select|gain|receive) one of the following\b|\bgrants? you one of the following\b|\bchoose one of these\b/i.exec(src);
     if (alt) {
       src = src.slice(0, alt.index);
       out.skipped.push('alternatives');
     }
+    /* A table written as lines: "3rd - Grease Fog Cloud<br>5th - ...", "<p>2nd Level: A, B</p>".
+       Made a table here so the table rules below read it. */
+    src = this.#linesToTable(src, lookup);
     const outside = this.#plain(src.replace(/<table[\s\S]*?<\/table>/gi, ' '));
+    const levelTables = (src.match(/<table[\s\S]*?<\/table>/gi) ?? [])
+      .filter(t => (t.match(/<tr[\s\S]*?<\/tr>/gi) ?? []).some(r => {
+        const cells = [...r.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map(m => m[1]);
+        const lvl = parseInt(this.#plain(cells[0] ?? '').replace(/[^\d]/g, ''), 10);
+        return cells.length >= 2 && lvl >= 1 && lvl <= 20;
+      })).length;
 
     /* Tables of spells by level */
     for (const table of src.match(/<table[\s\S]*?<\/table>/gi) ?? []) {
@@ -281,17 +336,32 @@ export class ProseSpells {
         if (spells.length) levelRows.push({ atLevel: lvl, spells });
       }
       if (!levelRows.length) continue;
+      const nums = levelRows.map(r => r.atLevel);
+      const bySpellLevel = (/spell level/.test(header) && !/(?:class|character|[a-z]+) level\b/.test(header.replace(/spell level/g, '')))
+        || (nums.length >= 3 && nums.every((n, i) => n === i + 1));
+      if (bySpellLevel && this.#FULL_CASTERS.has(classKey)) for (const r of levelRows) r.atLevel = Math.min(2 * r.atLevel - 1, 20);
 
-      if (/expanded spell/i.test(name) || /spell level/.test(header) || /expanded spell/i.test(outside)) {
+      /* The order matters. A table chosen from says so ("choose one spell from the
+         3rd-level row"), whatever its header; spells added to a spellbook are the
+         character's; only then is a "Spell Level" table or an "expanded" one a
+         list added to, not known. */
+      if (classKey === 'sorcerer' || /choose (?:one|an additional) spell from/i.test(outside)) {
+        out.choices.push({ kind: 'rowChoice', rows: levelRows.map(r => ({ atLevel: r.atLevel, options: r.spells })) });
+        continue;
+      }
+      const toSpellbook = /\b(?:add|copy|write|inscribe)s?\b[^.]*\b(?:to|in|into) your spellbook\b/i.test(outside);
+      /* Not "count as artificer spells for you": an artificer's archetype table
+         says that of spells it grants, always prepared. A warlock's list is
+         known by its name. */
+      if (!toSpellbook && (/expanded spell/i.test(name) || /spell level/.test(header) || /expanded spell/i.test(outside))) {
         out.skipped.push('expanded list');                  // added to a list, not known
         continue;
       }
-      if (/one of several lists|choose (?:one|a) (?:list|of the following lists)/i.test(outside)) {
+      /* "Your archetype spells are selected from one of several lists": skipped
+         only where the lists are all here. The Elemental Priest's chosen list
+         repeats the sentence above the one table the player took. */
+      if (levelTables > 1 && /one of several lists|choose (?:one|a) (?:list|of the following lists)/i.test(outside)) {
         out.skipped.push('choice of lists');
-        continue;
-      }
-      if (classKey === 'sorcerer' || /choose (?:one|an additional) spell from/i.test(outside)) {
-        out.choices.push({ kind: 'rowChoice', rows: levelRows.map(r => ({ atLevel: r.atLevel, options: r.spells })) });
         continue;
       }
       for (const r of levelRows) {
@@ -304,12 +374,17 @@ export class ProseSpells {
     for (const block of blocks) {
       for (const sentence of block.split(/(?<=[.!?])\s+(?=[A-Z<@])/)) {
         const text = this.#plain(sentence);
-        if (!text || !/spell|cantrip|prepared|\bcast\b/i.test(text)) continue;
+        if (!text || !/spell|cantrip|prepared|\bcast\b|\bpowers?\b/i.test(text)) continue;
 
         // Alternatives under labels ("Unmoored: You can cast ...")
-        if (/^[A-Z][\w'’ -]{1,24}:\s/.test(text) && !/^(?:Cantrips|Spells)\b/i.test(text)) {
-          if (this.#spellsInSentence(sentence, lookup).length) out.skipped.push(`labelled alternative: ${text.slice(0, 40)}`);
-          continue;
+        const label = /^([A-Z][\w'’ -]{1,24}):\s/.exec(text);
+        if (label && !/^(?:Cantrips|Spells)\b/i.test(text)) {
+          // "Twisted Affliction (Fettered)" has all five lines; its name says which is its own
+          const own = /\(([^)]+)\)\s*$/.exec(name)?.[1];
+          if (!own || own.toLowerCase() !== label[1].trim().toLowerCase()) {
+            if (this.#spellsInSentence(sentence, lookup).length) out.skipped.push(`labelled alternative: ${text.slice(0, 40)}`);
+            continue;
+          }
         }
         if (/\bif you (?:already )?know the\b|^if you know\b|\bif you have the\b/i.test(text)) continue;
         // "If you chose Scholar of the Old Ways, you learn ...", "If you hold such an item, you can cast ..."
@@ -318,21 +393,34 @@ export class ProseSpells {
         if (/\bwhen(?:ever)? you cast\b/i.test(text) && !/\byou (?:learn|know|can cast|may cast|always have)\b/i.test(text)) continue;
         // The effect of a spell, not the spell: "the benefits of a Death Ward spell", "replicate the See Invisibility spell"
         if (/\bbenefits? of\b|\breplicat|\beffects? of (?:a|an|the)\b|\bas if (?:you|it) (?:had )?cast|\bsame (?:effect|way) as\b/i.test(text)) continue;
+        // "an expertise die on saves against spells ... (such as Command)" names examples, not grants
+        if (/\b(?:saving throws?|saves?|checks?) against\b/i.test(text) && !/\byou (?:\w+ ){0,2}?(?:learn|know)\b|\bcan cast\b|\bprepared\b/i.test(text)) continue;
         // "Your spellcasting ability for these spells is your choice of ..." chooses no spell
         if (/spellcasting (?:ability|modifier)/i.test(text) && !/\byou (?:learn|know|gain|can cast)\b/i.test(text)) continue;
 
-        const isChoice = /\bof your choice\b|\byour choice of\b|\bchoose\b|\bone of the following\b|\bchosen from\b/i.test(text);
+        /* "when you choose this archetype" says when, not that anything is chosen */
+        const asked = text.replace(/\bwhen you (?:choose|select|pick|take|adopt) (?:this|your|the) [\w'’ -]{0,30}?(?:archetype|school|tradition|path|patron|domain|circle|oath|college|specialty|focus|calling|order|way)\b/gi, '');
+        /* A choice of spells, not any "choose": "choose two cantrips", "choose a
+           spell from ...". "Cast Alter Self at will, only choosing the Amphibious
+           option ... instead of being able to choose a different one" chooses
+           the spell's option and grants the spell. */
+        const isChoice = /\bof your choice\b|\byour choice of\b|\bone of the following\b|\bchosen from\b/i.test(asked)
+          || /\bchoose (?:(?:one|two|three|four|five|six|an?|any|up to \w+)\s+)?(?:[\w-]+\s+)?(?:spells?|cantrips?|powers?)\b|\bchoose\b[^.]*\bfrom (?:the|among|your|a|an)\b|\bchoose (?:either|between|one of)\b/i.test(asked);
         const isInnate = /\bcast\b/i.test(text)
-          && /\bonce\b|without (?:expending|using|spending)|\bat will\b|per (?:long|short) rest|a number of times|between (?:long|short) rests/i.test(text);
-        const isAlways = /\balways (?:have|has)\b[^.]*\bprepared\b|\balways prepared\b/i.test(text);
-        const isLearn  = /\byou (?:learn|know|gain)\b/i.test(text) && /\bcantrips?\b|\bspells?\b/i.test(text);
+          && /\bonce\b|without (?:expending|using|spending|needing)|without (?:a|any) spell slots?|\bat will\b|per (?:long|short) rest|a number of times|between (?:long|short) rests|\bas (?:a )?rituals?\b|\bspend \d+ [\w ]{1,20}? points? to cast\b/i.test(text);
+        const isAlways = /\b(?:always|permanently) (?:have|has)\b[^.]*\bprepared\b|\balways prepared\b/i.test(text);
+        const isLearn  = (/\byou (?:\w+ ){0,3}?(?:learn|know|gain)\b/i.test(text) && /\bcantrips?\b|\bspells?\b|\bpowers?\b/i.test(text))
+          // "you add the Find Familiar spell to your spellbook / to your list of known spells"
+          || /\badds?\b[^.]*\bto (?:your spellbook|(?:your|the) list of known [\w ]{0,20}spells|your spells known)\b/i.test(text);
         if (!isChoice && !isInnate && !isAlways && !isLearn) continue;
 
         const spells = this.#spellsInSentence(sentence, lookup);
         const gates = this.#gates(text);
         const atLevel = gates[0]?.level ?? 0;
 
-        if (isChoice) {
+        /* "You learn A or B" is picked once; "you can cast A or B once per rest"
+           is picked at each casting, so both are the character's to cast. */
+        if (isChoice || ((isLearn || !isInnate) && this.#joinedByOr(text, spells))) {
           const count = /\bthree\b/i.test(text) ? 3 : /\btwo\b/i.test(text) ? 2 : 1;
           const cantrip = /\bcantrips?\b/i.test(text) && !/\bspells?\b/i.test(text);
           out.choices.push({ kind: 'pick', count, cantrip, options: spells, atLevel, text });
@@ -532,20 +620,26 @@ export class ProseSpells {
         keys.push(key);
         if (have.has(g.name.toLowerCase())) continue;
         have.add(g.name.toLowerCase());
-        toAdd.push({ ...g, from: item.name });
+        toAdd.push({ ...g, from: item.name, source });
       }
     }
     if (!keys.length) return [];
 
+    /* Recorded as given only once it is on the actor: a spell whose compendium
+       could not be read this time is tried again next time, not lost for good. */
+    let failed = new Set();
     if (toAdd.length) {
       const { SpellService } = await import('./spellService.js');
-      await SpellService.applySpellsToActor(actor, toAdd.map(g => g.uuid), {
+      const held = new Set(await SpellService.applySpellsToActor(actor, toAdd.map(g => g.uuid), {
         prepared: 2,
         flags: (uuid) => ({ grantedBy: toAdd.find(g => g.uuid === uuid)?.from ?? '' })
-      });
-      AM.log(3, `Spells from features: ${toAdd.map(g => `${g.name} (${g.from})`).join(', ')}`);
+      }) ?? toAdd.map(g => g.uuid));
+      failed = new Set(toAdd.filter(g => !held.has(g.uuid)).map(g => `${g.source}::${g.name}`));
+      const made = toAdd.filter(g => held.has(g.uuid));
+      if (made.length) AM.log(3, `Spells from features: ${made.map(g => `${g.name} (${g.from})`).join(', ')}`);
+      if (failed.size) AM.log(2, `Spells from features not added, to be tried again: ${[...failed].join(', ')}`);
     }
-    await actor.setFlag?.(AM.ID, this.FLAG, [...granted, ...keys]);
-    return toAdd.map(g => g.name);
+    await actor.setFlag?.(AM.ID, this.FLAG, [...granted, ...keys.filter(k => !failed.has(k))]);
+    return toAdd.filter(g => !failed.has(`${g.source}::${g.name}`)).map(g => g.name);
   }
 }
