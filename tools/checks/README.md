@@ -661,3 +661,18 @@ shape of the fix:
 - **Every index request brings the pack back.** A picker's, the browser's
   enrichment, a rebuilt Imported pack: each gets every entry from the server,
   hidden ones included, so each drops them again.
+
+## `featprereqs.mjs`
+
+The Add Feat filter's verdict on a prerequisite - met, not met (hidden under
+"only ones I qualify for"), or unknown (always shown) - for 24 prerequisites as
+a5e and the imported feats write them, and the unjudged count over every feat:
+a5e's 61 of 640 fell to 35, the imported feats' 26 of 112 to 4.
+
+The imported feats name a feat without the word ("Steel Protector" where a5e
+writes "War Dancer feat"), so a clause that is exactly the name of a loaded
+feat is read as one. The case to guard is the reverse of a gap: a shape newly
+read must not turn a feat the character qualifies for into "not met". "Alpha
+Wereboar, Eye of the Tiger, Moonhowler, or Werebear Emerged" is any one of
+them; split at its commas it asked for all four. A list with a name that is no
+feat stays unknown, and shown.

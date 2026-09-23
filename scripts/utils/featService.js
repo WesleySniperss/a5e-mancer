@@ -167,7 +167,17 @@ export class FeatService {
     const text = String(feat?.prerequisite ?? '').trim();
     if (!text) return { met: true, unknown: false, text: '' };
 
-    const parts = text.split(/,|;| and /i).map(s => s.trim()).filter(Boolean);
+    /* "Hibernating Affliction, Pack Initiative, Rat Within, Striped Soul, or
+       Swineheart" is one requirement - any of them - not five: a comma list whose
+       last item says "or" is read as one "or" clause, and what follows it on its
+       own. Everything else splits at commas, semicolons and "and" as before. */
+    const parts = text.split(/;/).flatMap(segment => {
+      const items = segment.split(/,/).map(s => s.trim()).filter(Boolean);
+      const orAt = items.findIndex(t => /^or\s+/i.test(t));
+      const group = orAt > 0 ? [items.slice(0, orAt + 1).map(t => t.replace(/^or\s+/i, '')).join(' or ')] : [];
+      const rest = (orAt > 0 ? items.slice(orAt + 1) : items).flatMap(t => t.split(/ and /i));
+      return [...group, ...rest];
+    }).map(s => s.trim().replace(/^and\s+/i, '')).filter(Boolean);
     const failures = [];
     let parsedAny = false;
 
@@ -193,7 +203,69 @@ export class FeatService {
     'die', 'dice', 'round', 'rounds', 'hour', 'hours', 'foot', 'feet'
   ]);
 
+  /** a5e's skills by the names prerequisites use. */
+  static #SKILLS = { acrobatics: 'acr', 'animal handling': 'ani', arcana: 'arc', athletics: 'ath', culture: 'cul', deception: 'dec',
+    engineering: 'eng', history: 'his', insight: 'ins', intimidation: 'itm', investigation: 'inv', medicine: 'med', nature: 'nat',
+    perception: 'prc', performance: 'prf', persuasion: 'per', religion: 'rel', science: 'sci', 'sleight of hand': 'slt', stealth: 'ste', survival: 'sur' };
+
   static #checkClause(actor, clause) {
+    clause = clause.replace(/\s+/g, ' ').trim();
+
+    /* "Noble background or the favor of a noble", "Proficiency in Investigation
+       or Perception": met when one of them is. Unknown when none is met and one
+       of them cannot be judged - the favor of a noble is shown, never hidden. */
+    // not "Strength 13 or higher", "8th level or above"
+    const OR = /\s+or\s+(?!higher\b|above\b|more\b|greater\b|better\b)/i;
+    if (OR.test(clause) && !/^proficiency\b/i.test(clause)) {
+      const alts = clause.split(OR).map(s => s.trim()).filter(Boolean);
+      // "Intelligence or Wisdom 13 or higher": the score is both abilities'
+      const score = /\b(\d+)(?:\s+or\s+(?:higher|above|more|greater|better))?$/i.exec(alts.at(-1) ?? '')?.[0];
+      if (score) alts.forEach((a, i) => { if (/^(strength|dexterity|constitution|intelligence|wisdom|charisma)$/i.test(a)) alts[i] = `${a} ${score}`; });
+      const checks = alts.map(a => this.#checkClause(actor, a));
+      const met = checks.find(c => c?.ok);
+      if (met) return met;
+      if (checks.some(c => c === null)) return null;
+      return { ok: false, reason: checks.map(c => c.reason).join(' or ') };
+    }
+
+    // "Proficiency with Stealth", "Proficiency in Investigation or Perception": skills only
+    let p = clause.match(/^proficiency (?:with|in) (.+)$/i);
+    if (p) {
+      const names = p[1].toLowerCase().split(/\s*,\s*|\s+or\s+/).map(s => s.trim()).filter(Boolean);
+      const keys = names.map(n => this.#SKILLS[n]);
+      if (keys.some(k => !k)) return null;                 // a tool, a vehicle, a kind of weapon: not judged
+      const ok = keys.some(k => (actor?.system?.skills?.[k]?.proficient ?? 0) > 0);
+      return { ok, reason: `proficiency in ${p[1]}` };
+    }
+
+    // "Ace Starfighter combat tradition": the character knows the tradition
+    p = clause.match(/^(.+?) combat tradition$/i);
+    if (p) {
+      const want = p[1].trim().toLowerCase();
+      const traditions = CONFIG.A5E?.maneuverTraditions ?? {};
+      const key = Object.keys(traditions).find(k => k.toLowerCase() === want.replace(/\s+/g, '')
+        || String(game.i18n?.localize?.(traditions[k]) ?? traditions[k]).toLowerCase() === want);
+      if (!key) return null;
+      const known = actor?.system?.proficiencies?.traditions ?? [];
+      return { ok: [...known].includes(key), reason: `${p[1].trim()} tradition` };
+    }
+
+    // "The ability to cast at least one spell (of 1st-level or higher)", "the ability to cast spells"
+    p = clause.match(/^(?:the )?ability to cast (?:at least one )?spells?(?: of (\d)(?:st|nd|rd|th)[- ]level or higher)?$/i);
+    if (p) {
+      const least = Number(p[1] ?? 0);
+      const ok = (actor?.items ?? []).some(i => i.type === 'spell' && Number(i.system?.level ?? 0) >= least);
+      return { ok, reason: least ? `a spell of ${p[1]}th level` : 'spellcasting' };
+    }
+
+    // "Noble background"
+    p = clause.match(/^(?:the )?(.+?) background$/i);
+    if (p) {
+      const name = p[1].trim().toLowerCase();
+      const ok = (actor?.items ?? []).some(i => i.type === 'background' && i.name.toLowerCase() === name);
+      return { ok, reason: `${p[1].trim()} background` };
+    }
+
     // "3 levels in marshal" / "3 Levels in Sorcerer"
     let m = clause.match(/^(\d+)\s+levels?\s+in\s+(.+)$/i);
     if (m) {
@@ -247,7 +319,7 @@ export class FeatService {
     }
 
     // "War Dancer feat" — a named feat the character must already have
-    m = clause.match(/^(.+?)\s+feat$/i);
+    m = clause.match(/^(.+?)\s+feats?$/i);
     if (m) {
       const name = m[1].trim().toLowerCase();
       const has  = (actor?.items ?? []).some(i =>
@@ -255,14 +327,23 @@ export class FeatService {
       return { ok: has, reason: `${m[1].trim()} feat` };
     }
 
-    // "Level 4" / "4th level"
-    m = clause.match(/^(?:character\s+)?level\s+(\d+)/i) || clause.match(/^(\d+)(?:st|nd|rd|th)\s+level$/i);
+    // "Level 4" / "4th level" / "8th level or higher"
+    m = clause.match(/^(?:character\s+)?level\s+(\d+)/i) || clause.match(/^(\d+)(?:st|nd|rd|th)\s+level(?:\s+or\s+(?:higher|above))?$/i);
     if (m) {
       const have = (actor?.items ?? [])
         .filter(i => i.type === 'class')
         .reduce((n, i) => n + (i.system?.classLevels ?? i.system?.levels ?? 0), 0);
       const need = Number(m[1]);
       return { ok: have >= need, reason: `level ${have}/${need}` };
+    }
+
+    /* A feat named without the word: "Steel Protector", "Hulking" - what the
+       imported feats write where a5e writes "War Dancer feat". Only a name the
+       feats actually loaded carry, so no stray clause is read as one. */
+    const name = clause.toLowerCase();
+    if ((this.#cache ?? []).some(f => f.name.toLowerCase() === name)) {
+      const has = (actor?.items ?? []).some(i => this.isFeat(i) && i.name.toLowerCase() === name);
+      return { ok: has, reason: `${clause} feat` };
     }
 
     return null;                                    // not a shape we can judge
