@@ -138,13 +138,106 @@ function header(text) {
 const HEADINGS = /^(ACTIONS?|BONUS ACTIONS?|REACTIONS?|LEGENDARY ACTIONS?|MYTHIC ACTIONS?|SPECIAL TRAITS?|TRAITS?|LAIR ACTIONS?|REGIONAL EFFECTS?)\b/;
 const LEAD = /^<p>\s*(?:<strong>\s*<em>|<em>\s*<strong>|<strong>|<em>)\s*([^<]{2,70}?)\s*[.:]?\s*(?:<\/strong>\s*<\/em>|<\/em>\s*<\/strong>|<\/strong>|<\/em>)/;
 const PLAIN_LEAD = /^<p>\s*((?!The\b|This\b|Each\b|When|While|If\b|At\b|On\b|As\b|A\b|An\b|In\b|Any\b|It\b|Once\b|Whenever)[A-Z][\w'’()/–-]*(?: [\w'’()/,–-]+){0,5})\s*\.\s+(?=[A-Z(])/;
+/** "@UUID[Compendium...]{Fire Bolt}" is called Fire Bolt. */
+const unlink = (s) => String(s).replace(/@UUID\[[^\]]+\]\{([^}]+)\}/g, '$1');
 const leadOf = (u) => {
   if (u.tag !== 'p') return null;
   const bold = (LEAD.exec(u.html) || [])[1];
-  if (bold) return bold.trim();
+  if (bold) return unlink(bold.trim());
   const plain = (PLAIN_LEAD.exec(u.html) || [])[1];
-  return plain && plain.trim().length > 3 && u.text.length > plain.length + 15 ? plain.trim() : null;
+  return plain && plain.trim().length > 3 && u.text.length > plain.length + 15 ? unlink(plain.trim()) : null;
 };
+
+/* ── spells ──────────────────────────────────────────────────────── */
+/** A line of a spell list, written in bold on some pages: it belongs to the Spellcasting entry above it. */
+const PER = 'day|week|month|year|long rest|short rest';
+const SPELL_GROUP = new RegExp(`^(?:constant|at will|cantrips?(?:\\s*\\(at will\\))?|\\d+\\s*\\/\\s*(?:${PER})(?:\\s+each)?(?:\\s*\\([^)]*\\))?|\\d+\\s*(?:st|nd|rd|th)[- ]?level(?:\\s*\\(\\d+\\s*slots?\\))?)\\s*:?$`, 'i');
+// [1] the label, [2] times per [3] period, [4] a spell level, [5] its slots
+const GROUP_LABEL = new RegExp(`(constant|at will|cantrips?(?:\\s*\\(at will\\))?|(\\d+)\\s*\\/\\s*(${PER})(?:\\s+each)?(?:\\s*\\([^)]*\\))?|(\\d+)\\s*(?:st|nd|rd|th)[- ]?level(?:\\s*\\((\\d+)\\s*slots?\\))?)\\s*:`, 'gi');
+/** An ability named in a spellcasting sentence, even as "In telligence". */
+const ABILITY_WORD = new RegExp(['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma']
+  .map((w) => w.split('').join(' ?')).join('|'), 'i');
+const PER_KEY = { day: 'day', week: 'week', month: 'month', year: 'year', 'long rest': 'longRest', 'short rest': 'shortRest' };
+const SPELL_LINK = /@UUID\[(Compendium\.a5e\.a5e-spells\.Item\.[A-Za-z0-9]{16})\]\{([^}]+)\}/g;
+/** Spells by name, a5e's and the imported ones, for the names a page did not link. */
+const SPELL_BY_NAME = (() => {
+  const map = new Map();
+  const imported = JSON.parse(fs.readFileSync(path.join(P.OUT, 'a5etools-content.json'), 'utf8')).filter((d) => d.type === 'spell');
+  for (const d of imported) map.set(N.norm(d.name), `Compendium.world.a5e-mancer-imported.Item.${d._id}`);
+  const a5e = JSON.parse(fs.readFileSync(path.join(P.PACKS, 'spells.json'), 'utf8'));
+  for (const d of a5e) map.set(N.norm(d.name), `Compendium.a5e.a5e-spells.Item.${d._id}`);
+  // "antipathy" is a5e's "Antipathy/Sympathy" - where one half names one spell only
+  const halves = new Map();
+  for (const d of a5e) if (d.name.includes('/')) for (const h of d.name.split('/')) {
+    const k = N.norm(h);
+    halves.set(k, halves.has(k) ? null : `Compendium.a5e.a5e-spells.Item.${d._id}`);
+  }
+  for (const [k, v] of halves) if (v && !map.has(k)) map.set(k, v);
+  return map;
+})();
+
+/**
+ * A Spellcasting or Innate Spellcasting entry: the book it makes, its slots,
+ * the caster's ability and level, and the spells it names. Null for an entry
+ * that only mentions a spell ("Foresight. The sphinx is under the effect of
+ * foresight") - a list is a label followed by names.
+ */
+function spellcastingOf(monsterId, name, html) {
+  const text = unlink(html.replace(/@UUID\[(Compendium\.a5e\.a5e-spells\.Item\.[A-Za-z0-9]{16})\]\{([^}]+)\}/g, '⟦$1|$2⟧'))
+    .replace(/<[^>]+>/g, ' ').replace(/&nbsp;|&#160;/g, ' ').replace(/&rsquo;|&#8217;/g, '’').replace(/[\u2010-\u2013]/g, '-').replace(/\s+/g, ' ');
+  const labels = [...text.matchAll(GROUP_LABEL)];
+  const prose = !labels.length && /spellcasting/i.test(name) && text.includes('⟦');
+  if ((!labels.length && !prose) || !/⟦|spellcasting/i.test(text)) return null;
+  const hasLevels = labels.some((l) => l[4]);
+  const innate = /innate/i.test(name) || /innately/i.test(text) || !hasLevels;
+  // the first ability in the sentence that names the spellcasting ability ("uses Charisma for bard spells and Wisdom for ...": Charisma)
+  const abilitySentence = (/[^.]*spellcasting ability[^.]*/i.exec(text) || [''])[0];
+  const abilityWord = (ABILITY_WORD.exec(abilitySentence) || [])[0]?.replace(/\s+/g, '');
+  // read with the spaces taken out: some pages split a word ("5th-lev el", "spe llcaster")
+  const casterLevel = Number((/(\d+)(?:st|nd|rd|th)-?levelspellcaster/i.exec(text.replace(/\s+/g, '')) || [])[1]) || 0;
+  const bookId = rid(`${monsterId}|book|${name}`, 'amB');
+  const slots = {};
+  const spells = [], unmatched = [];
+  const seen = new Set();
+  const add = (uuid, group) => {
+    if (seen.has(uuid)) return;
+    seen.add(uuid);
+    const times = group[2] ? Number(group[2]) : 0;
+    spells.push({
+      id: rid(`${monsterId}|spell|${bookId}|${uuid}`, 'amS'), uuid, book: bookId,
+      // a5e's own marks: 1 prepared, 2 always there (innate), 0 a cantrip of a prepared caster
+      prepared: innate ? 2 : /cantrip/i.test(group[1]) ? 0 : 1,
+      uses: times ? { value: times, max: String(times), per: PER_KEY[group[3].toLowerCase()] ?? 'day', recharge: { formula: '', threshold: 0 } } : null
+    });
+  };
+  labels.forEach((group, i) => {
+    if (group[4] && group[5]) slots[group[4]] = Math.max(slots[group[4]] ?? 0, Number(group[5]));
+    // the list runs to the next label, or to the end of its sentence
+    let seg = text.slice(group.index + group[0].length, i + 1 < labels.length ? labels[i + 1].index : text.length);
+    seg = seg.split(/\.\s+(?=[A-Z*])/)[0];
+    for (const m of seg.matchAll(/⟦([^|⟧]+)\|[^⟧]*⟧/g)) add(m[1], group);
+    // names the page did not link
+    for (let piece of seg.replace(/⟦[^⟧]*⟧/g, ',').replace(/\([^)]*\)/g, ' ').split(/[,;]/)) {
+      piece = piece.replace(/[*\[\]]/g, '').trim();
+      // "D" and "none" are a footnote letter and an empty list, not spells
+      if (piece.length < 3 || /^(none|and|or)$/i.test(piece) || piece.split(/\s+/).length > 5 || !/[a-z]/i.test(piece)) continue;
+      const uuid = SPELL_BY_NAME.get(N.norm(piece));
+      if (uuid) add(uuid, group);
+      else unmatched.push(piece);
+    }
+  });
+  if (prose) {
+    // no list, one sentence: every spell it names, at will or so many times a period
+    const times = /(\d+)\s*\/\s*(day|week|month|year)/i.exec(text);
+    const group = times ? [times[0], times[0], times[1], times[2]] : ['at will', 'at will'];
+    for (const m of text.matchAll(/⟦([^|⟧]+)\|[^⟧]*⟧/g)) add(m[1], group);
+  }
+  if (!spells.length) return null;
+  return {
+    book: { _id: bookId, name, img: 'icons/svg/book.svg', ability: 'default', disableSpellConsumers: false, showSpellPoints: false, showSpellSlots: Object.keys(slots).length > 0 },
+    ability: ABIL[String(abilityWord ?? '').toLowerCase()] ?? null, casterLevel, slots, spells, unmatched
+  };
+}
 
 /** "◆ Move. ... ◆ Bite (Costs 2 Actions). ..." is three entries in one paragraph. */
 function bullets(u) {
@@ -245,6 +338,7 @@ function monsterDoc(row) {
 
   // entries, by the section they are in
   const items = [];
+  const casting = [];
   const keys = new Set();
   let category = 'trait';
   let current = null;
@@ -261,6 +355,8 @@ function monsterDoc(row) {
     const act = actionOf(iid, current.name, text, category);
     const attacks = act && Object.values(act.rolls).some((r) => r.type === 'attack');
     const featureType = category === 'legendary' ? 'legendaryAction' : attacks ? 'naturalWeapon' : category === 'trait' ? '' : 'other';
+    const spells = spellcastingOf(id, current.name, htmlOf(current.units));
+    if (spells) casting.push(spells);
     items.push({
       _id: iid, name: current.name, type: 'feature', img: attacks ? 'icons/svg/sword.svg' : 'icons/svg/aura.svg',
       system: {
@@ -286,6 +382,7 @@ function monsterDoc(row) {
       continue;
     }
     const lead = leadOf(u);
+    if (lead && current && SPELL_GROUP.test(lead.replace(/[\u2010-\u2013]/g, '-'))) { current.units.push(u); continue; }
     if (lead) { push(); current = { name: lead, units: [u] }; continue; }
     if (current) current.units.push(u);
     else { if (!loose.has(heading)) loose.set(heading, []); loose.get(heading).push(u); }   // "The aboleth can take 2 legendary actions ..."
@@ -296,6 +393,8 @@ function monsterDoc(row) {
     .map((f) => (F[f] ? `<h2>${F[f].label || f.replace('monster-', '').replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}</h2>${htmlOf(cleanUnits(F[f].html.replace(/<div class="field--label[^"]*">[\s\S]*?<\/div>/, '')))}` : ''))
     .join('') + [...loose].map(([h, us]) => `${h ? `<h2>${h}</h2>` : ''}${htmlOf(us)}`).join('');
 
+  const artSrc = (/<img[^>]+src="([^"]+)"/.exec(F['monster-image']?.html ?? '') || [])[1];
+  const art = artSrc ? new URL(artSrc, 'https://a5e.tools').href : null;
   const skills = {};
   for (const [key, s] of Object.entries(head.skills)) skills[key] = { proficient: 1, expertiseDice: s.expertise };
   const pb = head.pb || 2 + Math.floor(Math.max(cr - 1, 0) / 4);
@@ -306,7 +405,7 @@ function monsterDoc(row) {
     return head.saveBonus[a] - mod(a) >= pb;
   };
   const actor = {
-    _id: id, name: row.name, type: 'npc', img: icon(creatureTypes[0]),
+    _id: id, name: row.name, type: 'npc', img: art ?? icon(creatureTypes[0]),
     system: {
       abilities: Object.fromEntries(['str', 'dex', 'con', 'int', 'wis', 'cha'].map((a) => [a, {
         value: abilities[a] ?? 10, check: { expertiseDice: 0, bonus: '' }, save: { proficient: proficientSave(a), expertiseDice: 0, bonus: '' }
@@ -331,8 +430,24 @@ function monsterDoc(row) {
     },
     items,
     effects: [],
-    flags: { 'a5e-mancer': { imported: `monsters/${slug}`, url: `https://a5e.tools${row.url}`, folder: FOLDER[creatureTypes[0]] ?? 'Humanoids' } }
+    flags: { 'a5e-mancer': { imported: `monsters/${slug}`, url: `https://a5e.tools${row.url}`, folder: FOLDER[creatureTypes[0]] ?? 'Humanoids', ...(art ? { art } : {}) } }
   };
+  if (casting.length) {
+    const slots = {};
+    for (const c of casting) for (const [lv, n] of Object.entries(c.slots)) slots[lv] = Math.max(slots[lv] ?? 0, n);
+    actor.system.spellBooks = Object.fromEntries(casting.map((c) => [c.book._id, c.book]));
+    actor.system.spellResources = {
+      slots: Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8, 9].map((lv) => [String(lv), { current: slots[lv] ?? 0, max: slots[lv] ?? 0 }])),
+      points: { current: 0, max: 0 }, artifactCharges: { current: 0, max: 0 }, inventions: { current: 0, max: 0 }
+    };
+    const main = casting.find((c) => Object.keys(c.slots).length) ?? casting[0];
+    actor.system.attributes.spellcasting = main.ability ?? casting.find((c) => c.ability)?.ability ?? 'int';
+    actor.system.attributes.casterLevel = Math.max(...casting.map((c) => c.casterLevel));
+    actor.flags['a5e-mancer'].spells = casting.flatMap((c) => c.spells);
+    const unmatched = [...new Set(casting.flatMap((c) => c.unmatched))];
+    if (unmatched.length) notes.push(`spells a5e does not have: ${unmatched.join(', ')}`);
+    if (!casting.every((c) => c.ability)) notes.push('a spellcasting ability not read');
+  }
   if (!items.length) notes.push('no traits or actions read');
   if (!head.hp) notes.push(head.hpVaries ? 'the page says the hit points vary, so they are left at 0' : 'no hit points read');
   return { actor, notes };
@@ -349,7 +464,7 @@ for (const row of want) {
   const s = actor.system;
   const attacks = actor.items.filter((i) => Object.values(i.system.actions)[0] && Object.values(Object.values(i.system.actions)[0].rolls).some((r) => r.type === 'attack')).length;
   report.push(`  ${actor.name} [${s.source}] ${s.traits.size} ${s.details.creatureTypes.join('/')} CR ${s.details.cr} · AC ${s.attributes.ac.baseFormula} · HP ${s.attributes.hp.value} · ${Object.entries(s.attributes.movement).filter(([k]) => k !== 'traits').map(([k, v]) => `${k} ${v.distance}`).join(', ')}${s.attributes.movement.traits.hover ? ' (hover)' : ''}`
-    + ` · ${actor.items.length} entries (${attacks} attacks)${Object.keys(s.skills).length ? ' · skills ' + Object.keys(s.skills).join(',') : ''}${s.proficiencies.languages.length ? ' · ' + s.proficiencies.languages.join(',') : ''}${s.details.terrain.length ? ' · ' + s.details.terrain.join(',') : ''}`);
+    + ` · ${actor.items.length} entries (${attacks} attacks)${actor.flags['a5e-mancer'].spells ? ` · ${actor.flags['a5e-mancer'].spells.length} spells` : ''}${Object.keys(s.skills).length ? ' · skills ' + Object.keys(s.skills).join(',') : ''}${s.proficiencies.languages.length ? ' · ' + s.proficiencies.languages.join(',') : ''}${s.details.terrain.length ? ' · ' + s.details.terrain.join(',') : ''}`);
   if (notes.length) { report.push('      ! ' + notes.join('; ')); withNotes++; }
 }
 fs.writeFileSync(path.join(P.CACHE, 'monsters-report.txt'), report.join('\n'));

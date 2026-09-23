@@ -32,9 +32,12 @@ const VARIES = 'Swarm of Tiny and Small Animated Objects';
   const itemIds = entries.map((i) => i._id);
   check('every trait and action has an id of its own, even where a monster names two the same',
     itemIds.every((i) => /^[A-Za-z0-9]{16}$/.test(i)) && new Set(itemIds).size === itemIds.length, `${itemIds.length} entries`);
-  const missing = [...new Set(MONSTERS.map((m) => m.img))].filter((i) => !fs.existsSync(P.PUBLIC + i));
-  check('every icon is one of Foundry\'s, and the token carries it', !missing.length
-    && MONSTERS.every((m) => m.prototypeToken.texture.src === m.img), missing.slice(0, 3).join(', '));
+  const art = MONSTERS.filter((m) => /^https:\/\//.test(m.img));
+  const missing = [...new Set(MONSTERS.flatMap((m) => [m.prototypeToken.texture.src, ...(/^https:/.test(m.img) ? [] : [m.img])]))].filter((i) => !fs.existsSync(P.PUBLIC + i));
+  check('a page\'s picture is the portrait, linked where a5e.tools keeps it; every other image and every token is one of Foundry\'s icons',
+    !missing.length && art.length === 50 && art.every((m) => m.img.startsWith('https://a5e.tools/sites/default/files/') && m.flags['a5e-mancer'].art === m.img)
+    && MONSTERS.filter((m) => !art.includes(m)).every((m) => m.prototypeToken.texture.src === m.img),
+    `${art.length} portraits${missing.length ? `; missing ${missing.slice(0, 3).join(', ')}` : ''}`);
   const leaks = bad(MONSTERS, (m) => /<(span|font|div|img)\b|style=|class=|&nbsp;|⟦L/.test(m.system.details.bio + m.items.map((i) => i.system.description).join('')));
   check('no page markup left in the text', !leaks.length, names(leaks));
   const short = bad(entries, (i) => i.system.description.replace(/<[^>]+>/g, '').trim().length < 10);
@@ -114,7 +117,40 @@ const VARIES = 'Swarm of Tiny and Small Animated Objects';
     && actions.filter((a) => Object.keys(a.ranges).length).length > 300, `${actions.filter((a) => Object.keys(a.ranges).length).length} with a range`);
 }
 
-/* D. close reads */
+/* D. spells */
+{
+  const casters = MONSTERS.filter((m) => m.flags['a5e-mancer'].spells);
+  const refs = casters.flatMap((m) => m.flags['a5e-mancer'].spells.map((r) => ({ m, r })));
+  const a5eSpells = new Set(read(path.join(P.PACKS, 'spells.json')).map((s) => `Compendium.a5e.a5e-spells.Item.${s._id}`));
+  const ours = new Set(OTHER.filter((d) => d.type === 'spell').map((d) => `Compendium.world.a5e-mancer-imported.Item.${d._id}`));
+  check('every spellcaster\'s spells are named by a5e\'s or the imported spells, in one of its books',
+    casters.length >= 75 && refs.every(({ m, r }) => (a5eSpells.has(r.uuid) || ours.has(r.uuid)) && m.system.spellBooks[r.book]),
+    `${refs.length} spells on ${casters.length} monsters, ${refs.filter(({ r }) => ours.has(r.uuid)).length} of them imported`);
+  const ids = refs.map(({ r }) => r.id).concat(MONSTERS.flatMap((m) => m.items.map((i) => i._id)));
+  check('each spell will have an id of its own on its monster', refs.every(({ r }) => /^[A-Za-z0-9]{16}$/.test(r.id)) && new Set(ids).size === ids.length);
+  const PERIODS = new Set(['day', 'week', 'month', 'year', 'shortRest', 'longRest']);
+  check('prepared as a5e marks them (1 prepared, 0 a cantrip, 2 innate) and "3/day" as uses a5e can spend',
+    refs.every(({ r }) => [0, 1, 2].includes(r.prepared) && (!r.uses || (Number(r.uses.max) > 0 && PERIODS.has(r.uses.per)))),
+    `${refs.filter(({ r }) => r.uses).length} with uses`);
+  const slotCasters = casters.filter((m) => Object.values(m.system.spellResources.slots).some((s) => s.max));
+  check('a caster with slots has them, its level and its ability; an innate caster shows no slots',
+    slotCasters.every((m) => m.system.attributes.casterLevel > 0 && ['int', 'wis', 'cha'].includes(m.system.attributes.spellcasting)
+      && Object.values(m.system.spellBooks).some((b) => b.showSpellSlots))
+    && casters.filter((m) => !slotCasters.includes(m)).every((m) => Object.values(m.system.spellBooks).every((b) => !b.showSpellSlots)),
+    `${slotCasters.length} with slots, ${casters.length - slotCasters.length} innate`);
+  const split = MONSTERS.flatMap((m) => m.items.filter((i) => /^(cantrips?|at will|constant|\d+\/day|\d+(st|nd|rd|th)[- ]level)/i.test(i.name)).map((i) => `${m.name}: ${i.name}`));
+  check('a spell list\'s lines stay in its Spellcasting entry instead of becoming entries of their own', !split.length, split.slice(0, 3).join(' | '));
+  const linkNames = MONSTERS.flatMap((m) => m.items.filter((i) => /@UUID/.test(i.name)).map((i) => `${m.name}: ${i.name}`));
+  check('no entry is named by a link\'s markup', !linkNames.length, linkNames.slice(0, 2).join(' | '));
+  const nem = monster('Vampire Lord Nemirtvi');
+  check('Vampire Lord Nemirtvi: "innately casts darkness and hallow at will", with no list, is two spells at will',
+    nem.flags['a5e-mancer'].spells?.length === 2 && nem.flags['a5e-mancer'].spells.every((r) => r.prepared === 2 && !r.uses));
+  const circe = monster('Circe').flags['a5e-mancer'].spells;
+  check('Circe: constant, at will, 3/day and 1/week', circe.length === 8 && circe.filter((r) => r.uses?.per === 'day').length === 3
+    && circe.filter((r) => r.uses?.per === 'week').length === 1 && circe.filter((r) => !r.uses).length === 4);
+}
+
+/* E. close reads */
 {
   const d = monster('Dracula');
   const leg = d.items.filter((i) => i.system.featureType === 'legendaryAction');

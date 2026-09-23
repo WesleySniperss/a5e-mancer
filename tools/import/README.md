@@ -112,6 +112,13 @@ itself in the world when its own hash changes, into a folder per kind.
   creature type, size, senses, languages, swarm and elite come off the page's
   fields. What the page does not say is not invented: a page that says the hit
   points vary leaves them at zero, and the report says so.
+  A Spellcasting or Innate Spellcasting entry becomes a spell book with its
+  slots, the caster's level and ability, and the spells it lists - at will,
+  so many a day or week, or from slots - kept in the data as references that
+  ImportedPack turns into a5e's own spells when it builds the pack, so they
+  are not copied into the module. A page's picture is the monster's portrait,
+  linked where a5e.tools keeps it (the token keeps the creature-kind icon:
+  a5e.tools sends no CORS headers, so the canvas could not draw it).
 - **Exploration challenges** are journal entries: a5e has no item type for one,
   and nothing to hang it on. Each is one page - the kind, tier, challenge
   rating and area at the top, the regions under it, then the description and

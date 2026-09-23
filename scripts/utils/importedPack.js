@@ -134,6 +134,48 @@ export class ImportedPack {
   };
   static folderOf(doc) { return doc.flags?.[AM.ID]?.folder ?? this.FOLDER_OF_TYPE[doc.type] ?? null; }
 
+  /**
+   * A monster's spells are named in the data, not copied - a5e's spell pack
+   * stays the one copy of them. Each is taken from its compendium as the actor
+   * is made and given the book, preparation and uses its stat block says.
+   * A spell that cannot be found is left off, and the log says how many.
+   */
+  static async #castSpells(actors) {
+    const refs = actors.flatMap(a => a.flags?.[AM.ID]?.spells ?? []);
+    if (!refs.length) return;
+    const wanted = new Map();                         // pack collection -> ids
+    for (const { uuid } of refs) {
+      const [, scope, name, , id] = String(uuid).split('.');   // Compendium.<scope>.<name>.Item.<id>
+      const collection = `${scope}.${name}`;
+      if (!wanted.has(collection)) wanted.set(collection, new Set());
+      wanted.get(collection).add(id);
+    }
+    const found = new Map();
+    for (const [collection, ids] of wanted) {
+      const pack = game.packs.get(collection);
+      if (!pack) { AM.log(2, `${collection} is not in this world; the monsters' spells from it are left off`); continue; }
+      let docs = await pack.getDocuments({ _id__in: [...ids] });
+      if (!docs?.length) docs = (await pack.getDocuments()).filter(d => ids.has(d.id));
+      for (const d of docs) found.set(`Compendium.${collection}.Item.${d.id}`, d);
+    }
+    let missing = 0;
+    for (const actor of actors) {
+      for (const ref of actor.flags?.[AM.ID]?.spells ?? []) {
+        const source = found.get(ref.uuid);
+        if (!source) { missing++; continue; }
+        const data = source.toObject();
+        data._id = ref.id;
+        data.folder = null;
+        data.system.spellBook = ref.book;
+        data.system.prepared = ref.prepared;
+        if (ref.uses) data.system.uses = { ...data.system.uses, ...ref.uses };
+        data._stats = { ...(data._stats ?? {}), compendiumSource: ref.uuid };
+        actor.items.push(data);
+      }
+    }
+    if (missing) AM.log(2, `${missing} of the monsters' ${refs.length} spells were not found in their compendia`);
+  }
+
   /** The document class a pack of this kind holds. */
   static #documentClass(kind) {
     return CONFIG?.[kind]?.documentClass ?? globalThis[kind] ?? foundry.documents?.[kind] ?? null;
@@ -255,6 +297,7 @@ export class ImportedPack {
       const existing = await pack.getDocuments();
       if (existing.length) await Document.deleteDocuments(existing.map(d => d.id), { pack: pack.collection });
       const docs = await this.documents(kind);
+      if (kind === 'Actor') await this.#castSpells(docs);
       const folders = await this.#folders(pack, new Set(docs.map(d => this.folderOf(d)).filter(Boolean)), kind);
       for (const d of docs) { const id = folders.get(this.folderOf(d)); if (id) d.folder = id; }
       // In batches: a thousand documents in one request is a large message to send and to validate at once

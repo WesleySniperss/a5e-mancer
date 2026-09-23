@@ -228,15 +228,21 @@ const G = (f, type) => Object.values(f?.system.grants ?? {}).filter(g => (g.prof
   globalThis.fetch = async (url) => { fetched++; return { ok: !!served[url], status: served[url] ? 200 : 404, json: async () => JSON.parse(JSON.stringify(served[url])) }; };
   const batches = [];
   const held = new Map();                                   // collection -> the documents in it
+  const asDocument = (d) => ({ ...d, id: d._id, toObject: () => JSON.parse(JSON.stringify(d)) });
+  // with no query, the documents to delete before a rebuild; with one, a lookup that takes nothing away
+  const lookupOr = (all, q, clear) => (q?._id__in ? all.filter(d => q._id__in.includes(d._id)).map(asDocument) : clear());
   const makePack = ({ name, type }) => {
     const collection = `world.${name}`;
     held.set(collection, []);
     const pack = { collection, locked: false, folder: null, folders: [], metadata: { type },
-      async getDocuments() { return held.get(collection).splice(0); }, async getIndex() { return []; }, async configure() {},
+      async getDocuments(q) { return lookupOr(held.get(collection), q, () => held.get(collection).splice(0)); },
+      async getIndex() { return []; }, async configure() {},
       async setFolder(folder) { this.folder = folder; } };
     game.packs.set(collection, pack);
     return pack;
   };
+  // a5e's spells, where the monsters' spells are taken from
+  game.packs.set('a5e.a5e-spells', { collection: 'a5e.a5e-spells', async getDocuments(q) { return lookupOr(spells, q, () => spells.map(asDocument)); } });
   const documentClass = () => ({
     createDocuments: async (docs, { pack }) => { batches.push(docs.length); held.get(pack).push(...docs); return docs; },
     deleteDocuments: async () => []
@@ -271,6 +277,18 @@ const G = (f, type) => Object.values(f?.system.grants ?? {}).filter(g => (g.prof
     monsters.length === ImportedPack.countOf('Actor') && monsters.every(d => d.type === 'npc')
     && challenges.length === ImportedPack.countOf('JournalEntry') && challenges.every(d => Array.isArray(d.pages) && d.pages.length === 1),
     `${monsters.length} actors, ${challenges.length} journal entries`);
+  const castSpells = monsters.flatMap(a => a.items.filter(i => i.type === 'spell').map(i => ({ a, i })));
+  const named = monsters.reduce((n, a) => n + (a.flags['a5e-mancer'].spells?.length ?? 0), 0);
+  const inBook = castSpells.every(({ a, i }) => a.system.spellBooks?.[i.system.spellBook] && /^Compendium\./.test(i._stats.compendiumSource));
+  const baba = monsters.find(a => a.name === 'Baba Yaga');
+  const circe = monsters.find(a => a.name === 'Circe');
+  const weather = circe.items.find(i => i.name === 'Control Weather');
+  check('the monsters\' spells are taken from the compendia as the pack is built, each in its book',
+    named > 900 && castSpells.length === named && inBook, `${castSpells.length} of ${named} spells on ${new Set(castSpells.map(x => x.a._id)).size} monsters`);
+  check('Baba Yaga casts from slots with 43 spells prepared; Circe\'s Control Weather is once a week',
+    baba.items.filter(i => i.type === 'spell').length === 43 && baba.system.spellResources.slots['9'].max === 1 && baba.system.attributes.casterLevel === 20
+    && weather?.system.uses.max === '1' && weather?.system.uses.per === 'week' && weather?.system.prepared === 2,
+    `Baba Yaga ${baba.items.filter(i => i.type === 'spell').length}, Control Weather ${JSON.stringify(weather?.system.uses)}`);
   const before = batches.length;
   await ImportedPack.ensure();
   check('with nothing changed neither is rebuilt, and the JSON not fetched again', batches.length === before && fetched === GENERATED.files.length);
