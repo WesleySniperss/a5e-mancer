@@ -63,7 +63,7 @@ async function readPack(dir, kind = 'items') {
   if (i < 0) throw new Error('a5e.js.map has no src/config.ts');
   const src = map.sourcesContent[i];
   const keys = {};
-  for (const name of ['abilities', 'skills', 'tools', 'weapons', 'skillSpecialties', 'languages', 'maneuverTraditions', 'damageTypes', 'armor', 'senses', 'movement', 'spellSchools', 'objectTypes', 'itemRarity', 'currencyDenominations', 'abilityActivationTypes', 'psionicDisciplines', 'weaponProperties', 'timePeriods', 'healingTypes', 'creatureTypes', 'terrainTypes', 'attackTypes']) {
+  for (const name of ['abilities', 'skills', 'skillDefaultAbilities', 'tools', 'weapons', 'skillSpecialties', 'languages', 'maneuverTraditions', 'damageTypes', 'armor', 'senses', 'movement', 'spellSchools', 'objectTypes', 'itemRarity', 'currencyDenominations', 'abilityActivationTypes', 'psionicDisciplines', 'weaponProperties', 'timePeriods', 'healingTypes', 'creatureTypes', 'terrainTypes', 'attackTypes']) {
     const m = new RegExp('\\nconst ' + name + '(?::[^=]+)? = \\{').exec(src);
     if (!m) throw new Error(`config.ts: no ${name}`);
     let j = m.index + m[0].length - 1, depth = 0, k = j;

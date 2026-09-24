@@ -112,6 +112,10 @@ itself in the world when its own hash changes, into a folder per kind.
   creature type, size, senses, languages, swarm and elite come off the page's
   fields. What the page does not say is not invented: a page that says the hit
   points vary leaves them at zero, and the report says so.
+  Every skill is written, proficient or not, each with a5e's default ability
+  (`skillDefaultAbilities`, read by `prepare`). a5e 1.2 filled in the rest
+  itself; 1.3 keeps only the skills the data names, and a skill named without
+  an ability passes nothing from it into the check or the passive score.
   A Spellcasting or Innate Spellcasting entry becomes a spell book with its
   slots, the caster's level and ability, and the spells it lists - at will,
   so many a day or week, or from slots - kept in the data as references that

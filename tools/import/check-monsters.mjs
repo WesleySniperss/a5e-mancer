@@ -71,9 +71,13 @@ const VARIES = 'Swarm of Tiny and Small Animated Objects';
     && MONSTERS.every((m) => m.system.details.terrain.every((t) => Object.hasOwn(K.terrainTypes, t)))
     && MONSTERS.every((m) => ['damageResistances', 'damageImmunities', 'damageVulnerabilities'].every((k) => m.system.traits[k].every((d) => Object.hasOwn(K.damageTypes, d)))));
   check('six ability scores read off every page', MONSTERS.every((m) => ['str', 'dex', 'con', 'int', 'wis', 'cha'].every((a) => Number.isInteger(m.system.abilities[a].value))));
-  check('a save is proficient or not, a skill is proficient with an expertise die of a5e\'s size',
+  check('a save is proficient or not, a skill is proficient or not with an expertise die of a5e\'s size',
     MONSTERS.every((m) => Object.values(m.system.abilities).every((a) => typeof a.save.proficient === 'boolean'))
-    && MONSTERS.every((m) => Object.entries(m.system.skills).every(([k, s]) => Object.hasOwn(K.skills, k) && s.proficient === 1 && s.expertiseDice >= 0 && s.expertiseDice <= 6)));
+    && MONSTERS.every((m) => Object.entries(m.system.skills).every(([k, s]) => Object.hasOwn(K.skills, k) && [0, 1].includes(s.proficient) && s.expertiseDice >= 0 && s.expertiseDice <= 6 && (s.proficient || !s.expertiseDice))),
+    `${MONSTERS.reduce((n, m) => n + Object.values(m.system.skills).filter((s) => s.proficient).length, 0)} proficient skills`);
+  // a5e 1.3 keeps only the skills the data names, and rolls a skill named without an ability with none
+  const partial = MONSTERS.filter((m) => Object.keys(K.skills).some((k) => m.system.skills[k]?.ability !== K.skillDefaultAbilities[k]));
+  check('every monster has every skill, each with a5e\'s default ability', !partial.length, names(partial));
   check('speeds and senses are a distance in feet, and a flyer may hover',
     MONSTERS.every((m) => Object.entries(m.system.attributes.movement).every(([k, v]) => k === 'traits' || (Number.isInteger(v.distance) && v.unit === 'feet')))
     && MONSTERS.every((m) => typeof m.system.attributes.movement.traits.hover === 'boolean')
@@ -163,12 +167,13 @@ const VARIES = 'Swarm of Tiny and Small Animated Objects';
     /<h2>Regional Effects<\/h2>/.test(d.system.details.bio) && /<h2>Legendary Actions<\/h2>/.test(d.system.details.bio)
     && !/<p>Description<\/p>/.test(d.system.details.bio),
     [...d.system.details.bio.matchAll(/<h2>([^<]*)<\/h2>/g)].map((m) => m[1]).join(' | '));
+  const proficientSkills = (m) => Object.keys(m.system.skills).filter((k) => m.system.skills[k].proficient).sort().join();
   const b = monster('Dreaming Badger');
   const bite = Object.values(b.items[0].system.actions)[0];
   check('Dreaming Badger: a newer block, where every save is listed - none of them proficient - and the skills sit in the initiative line',
-    Object.values(b.system.abilities).every((a) => !a.save.proficient) && Object.keys(b.system.skills).sort().join() === 'ins,prc'
+    Object.values(b.system.abilities).every((a) => !a.save.proficient) && proficientSkills(b) === 'ins,prc'
     && Object.values(bite.rolls).map((r) => r.bonus ?? r.formula).join(' ') === '+3 1d6 + 1',
-    JSON.stringify(Object.keys(b.system.skills)));
+    proficientSkills(b));
   const a = monster('Atalanta');
   check('Atalanta: an older block, "Armor Class 14" and "Hit Points 65", only her proficient saves listed',
     a.system.attributes.ac.baseFormula === '14' && a.system.attributes.hp.value === 65
@@ -179,7 +184,7 @@ const VARIES = 'Swarm of Tiny and Small Animated Objects';
   const ab = monster('Abtazri the Brutal');
   check('Abtazri the Brutal: read whole - huge beast, CR 6, speed 60, four skills, two languages, seven terrains, 15 entries',
     ab.system.traits.size === 'huge' && ab.system.details.cr === 6 && ab.system.attributes.movement.walk.distance === 60
-    && Object.keys(ab.system.skills).length === 4 && ab.system.proficiencies.languages.join() === 'common,sylvan'
+    && proficientSkills(ab).split(',').length === 4 && ab.system.proficiencies.languages.join() === 'common,sylvan'
     && ab.system.details.terrain.length === 7 && ab.items.length === 15,
     `${ab.items.length} entries, ${ab.system.details.terrain.join(',')}`);
 }

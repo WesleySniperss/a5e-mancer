@@ -52,6 +52,8 @@ const SKILL_BY_NAME = { acrobatics: 'acr', 'animal handling': 'ani', arcana: 'ar
   engineering: 'eng', history: 'his', insight: 'ins', intimidation: 'itm', investigation: 'inv', medicine: 'med', nature: 'nat',
   perception: 'prc', performance: 'prf', persuasion: 'per', religion: 'rel', science: 'sci', 'sleight of hand': 'slt', stealth: 'ste', survival: 'sur' };
 const EXPERTISE = { 4: 1, 6: 2, 8: 3, 10: 4, 12: 5, 20: 6 };
+const SKILL_ABILITY = K.skillDefaultAbilities;
+if (!SKILL_ABILITY) throw new Error('keys.json has no skillDefaultAbilities - rerun tools/import/prepare.cjs');
 const TERRAIN = (keys) => keys.map((k) => [k, k.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()]).sort((a, b) => b[1].length - a[1].length);
 const DMG = 'acid|bludgeoning|cold|fire|force|lightning|necrotic|piercing|poison|psychic|radiant|slashing|thunder';
 const CONDITIONS = ['blinded', 'bloodied', 'charmed', 'confused', 'deafened', 'doomed', 'encumbered', 'fatigue', 'frightened', 'grappled',
@@ -395,8 +397,12 @@ function monsterDoc(row) {
 
   const artSrc = (/<img[^>]+src="([^"]+)"/.exec(F['monster-image']?.html ?? '') || [])[1];
   const art = artSrc ? new URL(artSrc, 'https://a5e.tools').href : null;
-  const skills = {};
-  for (const [key, s] of Object.entries(head.skills)) skills[key] = { proficient: 1, expertiseDice: s.expertise };
+  // Every skill, each with its ability: a5e 1.3 keeps only the skills an actor's data names, and a
+  // skill named without an ability rolls with none. 1.2 filled both in itself.
+  const skills = Object.fromEntries(Object.keys(K.skills).map((key) => [key, {
+    ability: SKILL_ABILITY[key], proficient: head.skills[key] ? 1 : 0, expertiseDice: head.skills[key]?.expertise ?? 0,
+    specialties: [], bonuses: { check: '', passive: 0 }
+  }]));
   const pb = head.pb || 2 + Math.floor(Math.max(cr - 1, 0) / 4);
   const mod = (a) => Math.floor(((abilities[a] ?? 10) - 10) / 2);
   const proficientSave = (a) => {
