@@ -68,6 +68,41 @@
 }
 
 /* =================================================================== */
+/*  The Foundry overlay's chat texture                                 */
+/* =================================================================== */
+
+/*
+ * Your Flavor's Foundry overlay lays --yf-foundry-chat-texture (its chat tint
+ * over Foundry's parchment) on every .chat-message, !important, from a <style>
+ * outside any cascade layer. This file, like every module stylesheet, loads in
+ * @layer modules, and an !important in a layer beats one outside it - so Your
+ * Flavor's own .chat-message.yf-card { background: ... !important } in this same
+ * layer wipes the texture from every message it styles. The body class is set by
+ * YourFlavorService._watchChatTexture only while Your Flavor's texture rule is
+ * live, so this adds nothing Your Flavor did not ask for; its higher specificity
+ * wins within the layer.
+ *
+ * --a5em-yf-chat-texture is Your Flavor's texture with its URLs made absolute.
+ * Its own value says url("ui/parchment.jpg"), which read through var() here
+ * would resolve against this file's folder, not the page.
+ */
+body.a5em-yf-chat-texture .chat-message.yf-card {
+    background-image: var(--a5em-yf-chat-texture) !important;
+}
+
+/*
+ * a5e's .a5e-chat-card { background: var(--a5e-chat-card-background) !important }
+ * sits in @layer system, which beats every !important in @layer modules. So the
+ * texture goes into the variable that rule paints: its layers first, the card's
+ * colour as the last layer's colour.
+ */
+body.a5em-yf-chat-texture .chat-message.yf-card.a5e-chat-card {
+    --a5e-chat-card-background: var(--a5em-yf-chat-texture) var(--yf-chat-outer-bg, var(--yf-bg-color));
+    --a5e-chat-card-background-blind: var(--a5em-yf-chat-texture) var(--yf-chat-outer-bg, var(--yf-bg-color));
+    --a5e-chat-card-background-whisper: var(--a5em-yf-chat-texture) var(--yf-chat-outer-bg, var(--yf-bg-color));
+}
+
+/* =================================================================== */
 /*  Card header                                                        */
 /* =================================================================== */
 

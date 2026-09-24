@@ -47,6 +47,21 @@ import { AM } from '../am.js';
  * unstyled, or loses the classes or custom properties it was given, is styled
  * again, and what happened is kept for yfDiag() to show.
  *
+ * ── 5. The Foundry overlay's chat texture never shows  (either setting) ────
+ *
+ * With "Foundry customization" on, Your Flavor lays a tinted parchment over
+ * every chat message from a <style> it adds to the page - outside any cascade
+ * layer. Foundry v13+ puts module stylesheets in @layer modules and the
+ * system's in @layer system, and an !important in a layer beats an !important
+ * outside one. Your Flavor's own message style (.chat-message.yf-card
+ * { background: ... !important }, @layer modules) therefore resets the texture
+ * on every styled message, and a5e's .a5e-chat-card rule (@layer system) on
+ * every a5e card: the colours arrive, the texture never does.
+ * _watchChatTexture marks the body while Your Flavor's own texture rule is
+ * live, with the texture's URLs made absolute (_chatTexture), and
+ * styles/your-flavor.css puts it back from inside the layers - see "The
+ * Foundry overlay's chat texture" there.
+ *
  * ── Why the bridge lives here ─────────────────────────────────────────────
  *
  * Both are fixable inside Your Flavor, but Your Flavor is a module we do not
@@ -97,6 +112,14 @@ export class YourFlavorService {
   static _lossFrame = null;
   /** What the watcher saw, newest last. */
   static _lossEvents = [];
+  /** Follows Your Flavor's overlay styles; see _watchChatTexture. */
+  static _textureObserver = null;
+  static _textureFrame = null;
+  /** Your Flavor's overlay <style> elements: the saved look, and the one its editor previews. */
+  static OVERLAY_STYLE_IDS = ['your-flavor-foundry-customization', 'your-flavor-foundry-customization-preview'];
+  static TEXTURE_CLASS = 'a5em-yf-chat-texture';
+  /** Your Flavor's chat texture with absolute URLs; see _chatTexture. */
+  static TEXTURE_VAR = '--a5em-yf-chat-texture';
   static LOSS_EVENT_LIMIT = 50;
   /** How the one-shot sweep ended, so diagnose() can say so. */
   static _sweepState = 'not started';
@@ -192,6 +215,7 @@ export class YourFlavorService {
     this._sweepWhenReady();
     this._watchChatLog();
     this._observeChatLists();
+    this._watchChatTexture();
     AM.log(3, 'Your Flavor bridge installed');
   }
 
@@ -214,6 +238,82 @@ export class YourFlavorService {
     this._lossQueue.clear();
     if (this._lossFrame !== null) cancelAnimationFrame(this._lossFrame);
     this._lossFrame = null;
+    this._textureObserver?.disconnect();
+    this._textureObserver = null;
+    if (this._textureFrame !== null) cancelAnimationFrame(this._textureFrame);
+    this._textureFrame = null;
+    document.body?.classList.remove(this.TEXTURE_CLASS);
+    document.body?.style.removeProperty(this.TEXTURE_VAR);
+  }
+
+  /**
+   * Whether Your Flavor's overlay is laying its texture over chat messages right
+   * now: the overlay is on (its body class), and its live <style> - the preview
+   * one while its editor previews, the saved one otherwise - holds its texture
+   * rule for .chat-message. A switched-off chat area leaves the rule in place
+   * with a selector that matches nothing, which counts as off.
+   */
+  static _chatTextureLive() {
+    if (!document.body?.classList.contains('yf-foundry-customized')) return false;
+    for (const id of this.OVERLAY_STYLE_IDS) {
+      const style = document.getElementById(id);
+      if (!style || style.disabled || !style.textContent) continue;
+      for (const [, selector] of style.textContent.matchAll(/([^{}]*)\{\s*background-image:\s*var\(--yf-foundry-chat-texture\)/g)) {
+        if (/\.chat-message/.test(selector) && !selector.includes('yf-never-match')) return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Your Flavor's texture as it paints it, with its URLs made absolute.
+   *
+   * It writes url("ui/parchment.jpg") into a <style> on the page, where that
+   * resolves against the page. Read through var() in another stylesheet it
+   * resolves against that sheet instead - /systems/a5e/ui/..., /modules/
+   * a5e-mancer/styles/ui/... - and draws nothing. So the value is read off the
+   * body, where Your Flavor declares it, and each URL resolved against the page
+   * here, as Your Flavor's own rule would have it; a route prefix included.
+   */
+  static _chatTexture() {
+    const raw = getComputedStyle(document.body).getPropertyValue('--yf-foundry-chat-texture').trim();
+    return raw.replace(/url\(\s*(['"]?)(.*?)\1\s*\)/g, (whole, quote, src) => {
+      try { return `url("${new URL(src, document.baseURI).href}")`; }
+      catch { return whole; }
+    });
+  }
+
+  /**
+   * Keeps TEXTURE_CLASS on the body exactly while _chatTextureLive holds - see
+   * problem 5 above. Your Flavor rewrites its <style> text, adds and removes the
+   * preview one, and toggles its body class; each of those is a mutation here.
+   */
+  static _watchChatTexture() {
+    if (typeof MutationObserver !== 'function' || !document.head || !document.body) return;
+    const sync = () => {
+      if (this._textureFrame !== null) return;
+      this._textureFrame = requestAnimationFrame(() => {
+        this._textureFrame = null;
+        const texture = this._chatTextureLive() ? this._chatTexture() : '';
+        if (texture) document.body.style.setProperty(this.TEXTURE_VAR, texture);
+        else document.body.style.removeProperty(this.TEXTURE_VAR);
+        document.body.classList.toggle(this.TEXTURE_CLASS, Boolean(texture));
+      });
+    };
+    this._textureObserver = new MutationObserver((records) => {
+      for (const r of records) {
+        if (r.target === document.body) {
+          if (r.oldValue?.includes('yf-foundry-customized') !== document.body.classList.contains('yf-foundry-customized')) return sync();
+          continue;
+        }
+        const node = r.target.nodeType === 1 ? r.target : r.target.parentElement;
+        const touched = [node, ...r.addedNodes, ...r.removedNodes];
+        if (touched.some((n) => n?.nodeType === 1 && this.OVERLAY_STYLE_IDS.includes(n.id))) return sync();
+      }
+    });
+    this._textureObserver.observe(document.head, { childList: true, subtree: true, characterData: true });
+    this._textureObserver.observe(document.body, { attributes: true, attributeFilter: ['class'], attributeOldValue: true });
+    sync();
   }
 
   /**
@@ -915,6 +1015,8 @@ export class YourFlavorService {
       'bridge: YF modules from': this._modulesFrom ?? '(not requested)',
       'bridge: styled once modules arrived': this._styledOnModuleLoad ?? '(not run)',
       'bridge: import failed': this._importFailed,
+      'bridge: overlay chat texture live': this._chatTextureLive(),
+      'bridge: overlay chat texture carried': document.body?.classList.contains(this.TEXTURE_CLASS) ?? false,
 
       /* Your Flavor's side */
       'YF active': this.installed,

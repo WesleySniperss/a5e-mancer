@@ -595,10 +595,18 @@ Two things it found that nothing else would have:
   showing Bloodied. Gathered requests are redrawn after the one running.
 
 Needs a Foundry serving a **copy** of the world — it writes, and puts back what
-it wrote — and Edge. The copy used so far: a data path whose `Data/modules` and
-`Data/systems` are links to the real folders, and whose `Data/worlds/a5e` is a
-copied world, served with `node main.js --dataPath=<copy> --port=30011
---world=a5e --noupdate --noupnp`. Then:
+it wrote — and Edge. A data path of its own with **copies** of every package
+the world needs (the a5e system, this module - `git archive HEAD` is enough -
+and whatever the check touches), the copied world in `Data/worlds/a5e`, and
+`Config/license.json`, served with `node main.js --dataPath=<copy>
+--port=<a free port> --world=a5e --noupdate --noupnp`. Stop it when the check
+is done.
+
+Never links to the real `Data/systems` or `Data/modules`, as this recipe once
+said: a second server holds a LevelDB lock on every pack it opens, and when the
+desktop Foundry updated a5e meanwhile it deleted the system's files, stopped at
+the locked packs with EBUSY, and left `systems/a5e` holding only `packs` - the
+system had to be reinstalled. Then:
 
     node tools/checks/livepatch.mjs --user <a GM's user id>
 
@@ -676,3 +684,31 @@ read must not turn a feat the character qualifies for into "not met". "Alpha
 Wereboar, Eye of the Tiger, Moonhowler, or Werebear Emerged" is any one of
 them; split at its commas it asked for all four. A list with a name that is no
 feat stays unknown, and shown.
+
+## `yftexture.mjs`
+
+Your Flavor's Foundry overlay and its chat texture - its chat tint over
+Foundry's parchment - as the bridge carries it (`YourFlavorService.
+_watchChatTexture`, "The Foundry overlay's chat texture" in
+`styles/your-flavor.css`): when the texture counts as live, and the value
+handed to the CSS.
+
+Reported as "the colours work, the background texture does not". Measured in
+a copied world, with the overlay switched on through Your Flavor's own preview:
+its texture rule matched every message and `background-image` was still
+`none` on every one, plain messages as much as a5e cards. The browser's
+cascade (`CSS.getMatchedStylesForNode`) said why. The rule is `!important`
+from a `<style>` outside any cascade layer, and Foundry v13+ loads module
+stylesheets in `@layer modules` and the system's in `@layer system`; an
+`!important` in a layer beats one outside it. Your Flavor's own
+`.chat-message.yf-card { background: ... !important }` resets the texture on
+every message, a5e's `.a5e-chat-card` on every card. Official 5.0.1 has both
+rules.
+
+The first fix read Your Flavor's variable straight into our rules and drew
+nothing: a relative `url("ui/parchment.jpg")` read through `var()` resolves
+against the stylesheet that uses it - `/systems/a5e/ui/parchment.jpg`,
+`/modules/a5e-mancer/styles/ui/parchment.jpg`. The texture is now read off the
+body and its URLs made absolute against the page, a route prefix kept. Live
+after that: the parchment loads on plain messages and a5e cards, and is gone
+with the overlay off, the chat area switched off, or the preview ended.
