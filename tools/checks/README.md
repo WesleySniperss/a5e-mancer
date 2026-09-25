@@ -670,6 +670,13 @@ shape of the fix:
   enrichment, a rebuilt Imported pack: each gets every entry from the server,
   hidden ones included, so each drops them again.
 
+The stub server once answered a raw `database.get` index request with `_id`
+and `name` it had not been asked for. Foundry's answers with exactly the fields
+named, so the load-time pass - which reads the sources that way - found no
+entry to take out on a real server, and the released 2.77.0 hid nothing until
+the browser's enrichment ran. The stub now answers as Foundry does; against
+that code it fails 3 of 8.
+
 ## `featprereqs.mjs`
 
 The Add Feat filter's verdict on a prerequisite - met, not met (hidden under

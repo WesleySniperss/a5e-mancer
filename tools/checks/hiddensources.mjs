@@ -43,10 +43,13 @@ globalThis.CONFIG = { A5E: { products: {} } };
 globalThis.ui = { notifications: { warn() {}, error() {}, info() {} } };
 globalThis.Hooks = { on() {}, once() {} };
 
-/** A pack as Foundry v14 keeps one: a plain index at load, fields merged in on request. */
+/** A pack as Foundry v14 keeps one: a plain index at load, fields merged in on request.
+ *  getIndex asks the server for its compendiumIndexFields besides the ones named;
+ *  a raw database.get index request gets exactly what it names - no _id unless
+ *  asked for, which is how HiddenSources once took nothing out on a real server. */
 function makePack(collection, type, docs) {
-  const pick = (d, fields) => {
-    const e = { _id: d._id, name: d.name, type: d.type, img: d.img };
+  const pick = (d, fields, raw = false) => {
+    const e = raw ? {} : { _id: d._id, name: d.name, type: d.type, img: d.img };
     for (const f of fields) {
       const val = f.split('.').reduce((o, k) => o?.[k], d);
       if (val === undefined) continue;
@@ -59,7 +62,7 @@ function makePack(collection, type, docs) {
   const pack = {
     collection, metadata: { type, id: collection }, index: new Collection(), treeBuilt: 0,
     initializeTree() { this.treeBuilt++; },
-    documentClass: { database: { get: async (_cls, { indexFields = [] }) => docs.map(d => pick(d, indexFields)) } },
+    documentClass: { database: { get: async (_cls, { indexFields = [] }) => docs.map(d => pick(d, indexFields, true)) } },
     async getIndex({ fields = [] } = {}) {
       for (const d of docs) {                    // the server answers with every document
         const e = pick(d, fields);

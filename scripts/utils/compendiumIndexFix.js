@@ -12,10 +12,11 @@ import { HiddenSources } from './hiddenSources.js';
  * never happens, so every filter predicate reads undefined and feats, maneuvers,
  * spells etc. cannot be filtered.
  *
- * We re-run the same enrichment at `ready`, when indexes are loaded, and go one
- * better: fields are merged for the UNION of item types present in a pack, so
- * minority types in mixed packs (e.g. feats inside a features pack) are indexed
- * too — the system only ever indexed the majority type.
+ * We re-run the same enrichment when the browser first opens, and go one
+ * better: every entry gets the fields of its own type, so minority types in
+ * mixed packs (e.g. feats inside a features pack) are indexed too — the system
+ * only ever indexed the majority type. a5e 1.3's own indexing does reach its
+ * packs' majority types, so only what it left out is fetched (fillIndexFields).
  *
  * Field lists mirror the system's FIELD_MAPPINGS (a5e.js) so its filter
  * predicates find exactly the properties they expect.
@@ -100,6 +101,49 @@ export function indexFieldsFor(type) {
 }
 
 /**
+ * One field per type that only an index made with that type's fields holds.
+ * a5e 1.3 indexes its packs itself, with FIELD_MAPPINGS identical to the one
+ * above - but per pack, for its most common type only, so the few spells in a
+ * features pack go without system.level. An entry that has its marker was
+ * indexed with all of its type's fields; one without it was not.
+ */
+const INDEXED_MARKER = {
+  archetype: 'system.class', feature: 'system.featureType', interaction: 'system.interactionType',
+  maneuver: 'system.degree', npc: 'system.details.cr', spell: 'system.level', object: 'system.objectType'
+};
+const isIndexed = (entry) => foundry.utils.hasProperty(entry, INDEXED_MARKER[entry.type] ?? 'system.description');
+
+/**
+ * Give every entry of a pack's index the fields its type's filters read,
+ * fetching only what is missing. Re-indexing the whole of a5e's class features
+ * for its one maneuver and two archetypes read 4,055 documents and took 15.7 s
+ * of the browser's first opening; asking for those three by id takes 1.4 s.
+ * Most of a pack missing its fields - one this module built, one a5e's own
+ * indexing never reached - is indexed whole, in one read.
+ * @returns {Promise<number>} how many entries were fetched
+ */
+async function fillIndexFields(pack) {
+  const lacking = [...pack.index.values()].filter(e => e.type && !isIndexed(e));
+  if (!lacking.length) return 0;
+  const fields = [...new Set(lacking.flatMap(e => indexFieldsFor(e.type)))];
+  if (lacking.length > pack.index.size / 2) {
+    await pack.getIndex({ fields });
+    return lacking.length;
+  }
+  /* A raw index request returns exactly the fields it names - _id included
+     only when asked for, as getIndex asks for it. */
+  const cls = pack.documentClass;
+  const fetched = await cls.database.get(cls, {
+    query: { _id__in: lacking.map(e => e._id) }, index: true, indexFields: ['_id', ...fields], pack: pack.collection
+  }, game.user);
+  for (const entry of fetched) {
+    const existing = pack.index.get(entry._id);
+    if (existing) foundry.utils.mergeObject(existing, entry);
+  }
+  return fetched.length;
+}
+
+/**
  * Enrich every compendium pack's index with the fields the a5e compendium
  * browser filters on. Safe to run repeatedly (merge is idempotent).
  */
@@ -110,15 +154,10 @@ export async function enrichCompendiumIndexes() {
     try {
       if (!pack?.metadata?.type || !pack.index?.size) return;
 
-      // Union of field lists for every item type present in this pack
-      const types = new Set([...pack.index].map(e => e.type).filter(Boolean));
-      const fields = new Set();
-      for (const t of types) {
-        for (const f of (FIELD_MAPPINGS[t] ?? FIELD_MAPPINGS.generic)) fields.add(f);
-      }
-      if (!fields.size) return;
-
-      const fresh = await pack.getIndex({ fields: [...fields] });
+      // Every entry with the fields of its own type - minority types in mixed
+      // packs (feats inside a features pack) included
+      await fillIndexFields(pack);
+      const fresh = [...pack.index.values()];
 
       /* Data shims (INDEX only — the database is untouched). Real pack data,
          verified by dumping the LevelDB: only the ~27 synergy feats carry
@@ -196,9 +235,7 @@ export async function enrichCompendiumIndexes() {
           }
         }
 
-        const existing = pack.index.get(entry._id);
-        entry.uuid = pack.getUuid(entry._id);
-        pack.index.set(entry._id, existing ? foundry.utils.mergeObject(existing, entry) : entry);
+        entry.uuid ??= pack.getUuid(entry._id);
       }
 
       // The roots themselves carry no feat-prerequisite, so the loop above

@@ -100,7 +100,9 @@ export class HiddenSources {
         await pack.getIndex();                    // the plain one, loaded at world load already
         const field = pack.metadata.type === 'JournalEntry' ? `flags.${AM.ID}.challenge.source` : 'system.source';
         const cls = pack.documentClass;
-        const sources = await cls.database.get(cls, { query: {}, index: true, indexFields: [field], pack: pack.collection }, game.user);
+        /* _id named too: a raw index request returns only the fields it names,
+           and without it no entry could be found in the index to take out. */
+        const sources = await cls.database.get(cls, { query: {}, index: true, indexFields: ['_id', field], pack: pack.collection }, game.user);
         const hidden = new Set(sources.filter(e => this.isHidden(e, keys)).map(e => e._id));
         for (const id of hidden) pack.index.delete(id);
         if (hidden.size) {
