@@ -103,6 +103,45 @@ body.a5em-yf-chat-texture .chat-message.yf-card.a5e-chat-card {
 }
 
 /* =================================================================== */
+/*  The Foundry overlay over a styled message                          */
+/* =================================================================== */
+
+/*
+ * Reported as "the colours are there, but muted by the main colour": with the
+ * overlay on, a message came out unlike Your Flavor's own preview of its style.
+ * The overlay's chat rules - !important, outside any layer - reach every
+ * .chat-message, and beat Your Flavor's message rules wherever those are not
+ * !important: the glow and shadow give way to the overlay's shadow, a hover
+ * lays the accent colour over the whole card, the message's own colour becomes
+ * the overlay's font colour (anything that inherits it follows), the whisper
+ * line and the flavour text take its secondary colour, and the header's
+ * buttons take the accent.
+ *
+ * On a message Your Flavor has styled (.yf-card) the style decides, as it does
+ * in the preview; an unstyled message keeps the overlay's look. These sit in
+ * @layer modules and are !important, which beats the overlay's !important
+ * outside it. Border, background, name and time are already Your Flavor's:
+ * its own rules for them are !important in this layer.
+ */
+body.yf-foundry-customized .chat-message.yf-card {
+    color: var(--yf-chat-content-text, var(--yf-text-color)) !important;
+    box-shadow: var(--yf-chat-box-shadow, var(--yf-box-shadow)) !important;
+}
+
+body.yf-foundry-customized .chat-message.yf-card .flavor-text {
+    color: var(--yf-chat-content-text, var(--yf-text-color)) !important;
+}
+
+body.yf-foundry-customized .chat-message.yf-card .whisper-to,
+body.yf-foundry-customized .chat-message.yf-card .message-header :is([data-action], button, [data-action] *, button *) {
+    color: var(--yf-chat-header-metadata, var(--yf-timestamp-color, var(--yf-text-color))) !important;
+    fill: currentColor !important;
+    stroke: currentColor !important;
+    --fa-primary-color: currentColor !important;
+    --fa-secondary-color: currentColor !important;
+}
+
+/* =================================================================== */
 /*  Card header                                                        */
 /* =================================================================== */
 
