@@ -1930,6 +1930,17 @@
   overflow-y: auto;
 }
 
+/* ── Tables in written text ───────────────────────────────────────────────
+   Tidy gives its editors and rendered text `overflow-wrap: anywhere`, which a
+   table cell inherits. Unlike break-word, anywhere also lets the browser count
+   a cell's narrowest width as one character, and a table laid out
+   automatically then squeezes a short column to that: the DC column of
+   "Rare Spell Crafting" stood "1" over "5". break-word still breaks a word
+   too long for its cell, and leaves numbers and short words whole. */
+.tidy5e-sheet.application.a5e-mancer-sheet :is(td, th) {
+  overflow-wrap: break-word;
+}
+
 /* ── The Features filter chips ────────────────────────────────────────────
    A row under the search: one chip per source, and one for "things you do".
    Compact, because they sit above ninety rows and are not the point of the
