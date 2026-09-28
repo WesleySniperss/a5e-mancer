@@ -1768,11 +1768,12 @@
 }
 
 /* ── Ideals, bonds, flaws and goals ────────────────────────────────────────
-   Four short pieces of writing, so they sit as a wrapping grid rather than
-   four full-width blocks down the page. */
+   Four short pieces of writing. Side by side while they were textareas; the
+   editor's toolbar folds away all but four buttons at half the tab's width,
+   so each takes a row unless the sheet is wide enough for two whole ones. */
 .tidy5e-sheet.application.a5e-mancer-sheet .am-personality {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(28rem, 1fr));
   gap: var(--t5e-size-2x) var(--t5e-size-3x);
 }
 
@@ -1868,19 +1869,39 @@
 /* ── Room to write ─────────────────────────────────────────────────────────
    Every long field of this tab was Tidy's field height, two rows, 50px: the
    Notes page used 74px of a tab 430px tall, and a backstory was written
-   through a slot. Now each field starts at a size fit for writing and grows
-   with what is in it (field-sizing), so a long backstory is read whole rather
-   than scrolled inside a box. */
-.tidy5e-sheet.application.a5e-mancer-sheet .am-bio-input {
-  field-sizing: content;
+   through a slot. The fields are Foundry's rich text editor now
+   (partial-note-field): its toolbar on top, and under it the page, which
+   starts at a size fit for writing and grows with what is in it, so a long
+   backstory is read whole rather than scrolled inside a box. */
+.tidy5e-sheet.application.a5e-mancer-sheet prose-mirror.am-bio-editor {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--t5e-faint-color, rgba(255, 255, 255, 0.15));
+  border-radius: var(--t5e-border-radius, 4px);
+  background: var(--t5e-component-field-background, rgba(0, 0, 0, 0.15));
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet prose-mirror.am-bio-editor .editor-content {
+  flex: 1 1 auto;
   min-height: 8lh;
+  padding: var(--t5e-size-2x, 0.5rem);
   line-height: 1.45;
-  resize: vertical;
+  color: var(--t5e-color-text-longform, inherit);
 }
 
 /* Ideals, bonds, flaws and goals: a few lines each, side by side. */
-.tidy5e-sheet.application.a5e-mancer-sheet .am-personality .am-bio-input {
+.tidy5e-sheet.application.a5e-mancer-sheet .am-personality prose-mirror.am-bio-editor .editor-content {
   min-height: 5lh;
+}
+
+/* The place an editor goes in once it is on screen: the editor's own size, so
+   nothing moves when it arrives. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-bio-editor-slot {
+  min-height: calc(8lh + 2.5rem);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-personality .am-bio-editor-slot {
+  min-height: calc(5lh + 2.5rem);
 }
 
 /* A page that is one field - Notes, Private Notes - is that field: it takes
@@ -1898,11 +1919,15 @@
   min-height: 0;
 }
 
-.tidy5e-sheet.application.a5e-mancer-sheet .am-notes-pane:is([data-notes-tab="notes"], [data-notes-tab="privateNotes"]) .am-bio-input {
-  field-sizing: fixed;
+.tidy5e-sheet.application.a5e-mancer-sheet .am-notes-pane:is([data-notes-tab="notes"], [data-notes-tab="privateNotes"]) :is(prose-mirror.am-bio-editor, .am-bio-editor-slot) {
   flex: 1 1 0;
   min-height: 12lh;
-  resize: none;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-notes-pane:is([data-notes-tab="notes"], [data-notes-tab="privateNotes"]) prose-mirror.am-bio-editor .editor-content {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 /* ── The Features filter chips ────────────────────────────────────────────

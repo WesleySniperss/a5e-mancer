@@ -1325,13 +1325,13 @@ export class A5eCharacterSheet extends ActorSheet {
     details.hasFields = details.fields.some(f => f.value);
     /* Only a character has these; the NPC schema has bio, notes and
        privateNotes and nothing else of the kind. */
-    /* Every written page twice over: as stored, for reading, and as plain
-       text, for the editor.
+    /* Every written page twice over: as stored, and as plain text (the
+       search below reads that).
 
-       These are HTMLFields. The editor is a textarea, so it has to be handed
-       text and not markup, and what it hands back is turned into paragraphs
-       again by the detail-html handler. The two conversions are inverses, so
-       opening a page and saving it unchanged stores what was already there.
+       These are HTMLFields, edited as markup in Foundry's rich text editor
+       (partial-note-field). It was a textarea handed the plain text, and each
+       edit wrapped the lines in paragraphs again - every bold word, list and
+       link was lost on the first save.
 
        `…Shown` says whether the block is drawn at all: unlocked, every page
        is, empty or not, because an empty one has to be reachable to be
@@ -3633,14 +3633,45 @@ export class A5eCharacterSheet extends ActorSheet {
        typed into a textarea — otherwise the paragraph breaks are lost the
        moment a5e’s own editor opens the same field. The path is given whole
        on the element, because these are not all under one prefix. */
-    el.querySelectorAll('[data-action="detail-html"]').forEach(inp =>
-      inp.addEventListener('change', async (e) => {
-        const raw = String(e.target.value ?? '').trim();
-        const html = raw
-          ? raw.split(/\n{2,}/).map(p => `<p>${p.trim().split(/\n/).join('<br>')}</p>`).join('')
-          : '';
-        await this.actor.update({ [e.target.dataset.path]: html });
-      }));
+    /* The written pages are Foundry's rich text editor now (partial-note-field),
+       and what it holds is the stored markup itself, so it is written back as
+       it is. It reports a change when it saves: on Ctrl+S or its save button,
+       and when it leaves the page - the sheet re-rendering, the padlock, the
+       window closing - so nothing typed is lost to a re-render. Leaving the
+       field saves as well, which is when a textarea used to. */
+    /* The template renders a slot per page; the editor goes in when the slot
+       is first on screen, so its toolbar measures itself while it can be seen
+       (see partial-note-field) - and a pane nobody opens builds no editor. */
+    this._amEditorObserver?.disconnect();
+    const ProseMirrorElement = foundry.applications.elements.HTMLProseMirrorElement;
+    const mountEditor = (slot) => {
+      const pm = new ProseMirrorElement({ value: slot.dataset.value ?? '', toggled: false });
+      pm.className = 'am-bio-editor';
+      pm.dataset.action = 'detail-html';
+      pm.dataset.path = slot.dataset.path;
+      pm.setAttribute('aria-label', slot.dataset.label ?? '');
+      pm.addEventListener('change', () => {
+        const path = pm.dataset.path;
+        const html = String(pm.value ?? '').trim();
+        if (html === String(foundry.utils.getProperty(this.actor, path) ?? '').trim()) return;
+        this.actor.update({ [path]: html });
+      });
+      pm.addEventListener('focusout', (e) => {
+        if (!pm.contains(e.relatedTarget)) pm.save?.();
+      });
+      slot.replaceWith(pm);
+    };
+    const slots = el.querySelectorAll('.am-bio-editor-slot[data-action="detail-html"]');
+    if (slots.length && ProseMirrorElement) {
+      this._amEditorObserver = new IntersectionObserver((entries, observer) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          observer.unobserve(entry.target);
+          mountEditor(entry.target);
+        }
+      });
+      slots.forEach(slot => this._amEditorObserver.observe(slot));
+    }
 
     /* The trait lists in the sidebar. Every one of these is a dialog a5e
        already has on the actor, so what opens is its own window writing its

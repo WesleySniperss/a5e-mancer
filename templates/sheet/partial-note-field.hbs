@@ -16,18 +16,30 @@
      editor, and it holds what is there; locked, the text is shown as a5e
      enriched it.
 
+     The editor is Foundry's own rich text editor (<prose-mirror>), the one a
+     journal page uses. It was a textarea handed the page as plain text, and
+     what came back was wrapped in paragraphs again: bold, italics, lists,
+     headings and links were gone the moment a page was edited. It edits the
+     stored markup itself now, and hands it back unchanged. Saving: see the
+     detail-html listener in A5eCharacterSheet.
+
+     What is rendered is a slot holding the markup, not the editor: the sheet
+     puts the editor in when the slot is first on screen. The editor's toolbar
+     measures its buttons once, as it is made, and in a pane or tab that is
+     not showing every button measures nothing - it came up with Format, clear,
+     save and source only, no bold, no lists, no links.
+
      Takes:  label   the heading
-             text    the field as plain text, for the editor
-             html    the field as stored, for reading
+             html    the field as stored
              path    where to write it, e.g. system.details.bio
-             hint    placeholder for an empty one
+             hint    placeholder for an empty one (shown by CSS)
              flat    true to leave the heading off (the four personality
                      fields sit under one shared heading)
      ─────────────────────────────────────────────────────────────────────── --}}
 {{#if @root.unlocked}}
-  <textarea class="am-bio-input" data-action="detail-html"
-    data-path="{{path}}" aria-label="{{label}}"
-    placeholder="{{hint}}">{{text}}</textarea>
+  <div class="am-bio-editor-slot" data-action="detail-html"
+    data-path="{{path}}" data-label="{{label}}" data-hint="{{hint}}"
+    data-value="{{html}}"></div>
 {{else if html}}
   <div class="am-origin-desc">{{{html}}}</div>
 {{/if}}
