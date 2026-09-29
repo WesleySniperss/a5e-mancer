@@ -27,6 +27,7 @@
   "styles": [
     "styles/a5e-mancer.css",
     "styles/beyond20.css",
+    "styles/polyglot.css",
     "styles/your-flavor.css",
     "tidy/quadrone.css",
     "styles/tidy-a5e.css",

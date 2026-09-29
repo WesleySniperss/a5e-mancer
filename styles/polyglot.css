@@ -1,0 +1,18 @@
+/* Polyglot's scrambled text keeps its language's script.
+ *
+ * Polyglot draws a message in a language the reader does not know as
+ * <div class="polyglot-original-text" style="font: 150% Espruar"> holding the
+ * scrambled message, tags and all. Foundry 14's chat input is an editor, so a
+ * typed message arrives as <p>…</p> and the scrambled text sits in a <p>
+ * inside that div. The div's font reaches the <p> only by inheritance, and any
+ * rule that names the <p> itself outranks it: Carolingian UI (its chat styles
+ * and UI font, both on by default) sets its UI font on every p, span, a, b,
+ * strong, li, ol and ul in a message's content. The text came out in Work
+ * Sans, latin letters at the script's size.
+ *
+ * Everything inside the scrambled text takes the font the div was given;
+ * icons (Font Awesome's fa-* classes) keep theirs. Sizes and weights are left
+ * alone, so a bold word stays bold. */
+.chat-message .polyglot-original-text :not([class*="fa-"]) {
+    font-family: inherit !important;
+}
