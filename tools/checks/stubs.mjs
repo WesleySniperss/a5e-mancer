@@ -26,7 +26,10 @@ globalThis.foundry = {
     objectsEqual: (a, b) => JSON.stringify(a) === JSON.stringify(b),
     escapeHTML: (s) => String(s)
   },
-  applications: { api: { DialogV2: { confirm: async () => false }, ApplicationV2: class {}, HandlebarsApplicationMixin: (b) => b } },
+  applications: {
+    api: { DialogV2: { confirm: async () => false }, ApplicationV2: class {}, HandlebarsApplicationMixin: (b) => b },
+    ux: { TextEditor: { implementation: { enrichHTML: async (h) => h } } }
+  },
   documents: { collections: { Actors: { unregisterSheet(){}, registerSheet(){} }, Items: { unregisterSheet(){}, registerSheet(){} } } }
 };
 
@@ -110,7 +113,7 @@ const _node = () => {
     setAttribute(){}, getAttribute: () => null, removeAttribute(){},
     insertAdjacentHTML(){}, scrollIntoView(){},
     classList: { add(){}, remove(){}, toggle(){}, contains: () => false },
-    dataset: {}, style: {}, value: '', textContent: '', innerHTML: '',
+    dataset: {}, style: { setProperty(){}, removeProperty(){}, getPropertyValue: () => '' }, value: '', textContent: '', innerHTML: '',
     children: [], parentElement: null, offsetWidth: 800, offsetHeight: 600,
     getBoundingClientRect: () => ({ width: 800, height: 600, top: 0, left: 0, right: 800, bottom: 600 })
   };

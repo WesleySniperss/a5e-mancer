@@ -24,7 +24,9 @@ for (const c of chars) {
   const root = await render();
   const blocks = [];
   for (const pane of q(root, 'div[data-notes-tab]')) {
-    for (const b of [...q(pane, '.am-origin-desc'), ...q(pane, '.list-content'), ...q(pane, '.trait-pill')]) {
+    /* .am-bio-editor, a <prose-mirror>: a written page, for anyone who may write on
+       the sheet (2.78.2), its text shown inside the editor. */
+    for (const b of [...q(pane, '.am-origin-desc'), ...q(pane, '.am-bio-editor'), ...q(pane, '.list-content'), ...q(pane, '.trait-pill')]) {
       /* A block inside another counts once: .list-content also carries
          .am-origin-desc. */
       if (blocks.some((x) => x.el === b)) continue;
