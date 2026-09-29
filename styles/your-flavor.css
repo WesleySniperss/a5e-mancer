@@ -464,8 +464,17 @@ body.crlngn-ui.crlngn-chat .chat-message.yf-card {
     color: var(--yf-card-button-text, var(--yf-chat-content-text, var(--yf-text-color)));
 }
 
+/* The row under the pointer: the style's text colour, faint, over its button
+ * tint. The tint alone is the border colour at 18%, and a dark border on a dark
+ * card left nothing to see - #333333 on 5,5,5 came out 13,13,13, "the
+ * highlight strip is invisible". The text colour is the one colour a style
+ * keeps legible against its own card. */
 .chat-message.yf-card.a5e-chat-card:not(.yf-message-safe-fallback) .damage-buttons__item:hover {
     background: var(--yf-card-button-bg, rgba(255, 255, 255, 0.08));
+    background:
+        linear-gradient(color-mix(in srgb, var(--yf-chat-content-text, var(--yf-text-color)) 16%, transparent),
+            color-mix(in srgb, var(--yf-chat-content-text, var(--yf-text-color)) 16%, transparent)),
+        var(--yf-card-button-bg, rgba(255, 255, 255, 0.08));
     color: var(--yf-chat-header-text, var(--yf-name-color));
 }
 
