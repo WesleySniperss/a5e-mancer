@@ -65,7 +65,9 @@ export function registerSettings() {
   // See YourFlavorService._applyPaper.
   game.settings.register(AM.ID, 'yourFlavorPreviewPaper', {
     name: 'am.settings.your-flavor-paper.name', hint: 'am.settings.your-flavor-paper.hint',
-    scope: 'client', config: true, type: Boolean, default: true,
+    /* Off by default: under a see-through style the paper reads as a brown
+       tint on every message - "this brown on the chat messages, what is it?" */
+    scope: 'client', config: true, type: Boolean, default: false,
     onChange: () => import('./utils/yourFlavorService.js').then(m => m.YourFlavorService._applyPaper())
   });
 
