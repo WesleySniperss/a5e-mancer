@@ -1869,16 +1869,30 @@
 /* ── Room to write ─────────────────────────────────────────────────────────
    Every long field of this tab was Tidy's field height, two rows, 50px: the
    Notes page used 74px of a tab 430px tall, and a backstory was written
-   through a slot. The fields are Foundry's rich text editor now
-   (partial-note-field): its toolbar on top, and under it the page, which
-   starts at a size fit for writing and grows with what is in it, so a long
-   backstory is read whole rather than scrolled inside a box. */
+   through a slot. The fields are Foundry's editor now, toggled as on a
+   journal page (partial-note-field): the text, with the pencil at its corner,
+   and once opened the toolbar on top and the page under it. The page starts
+   at a size fit for writing and grows with what is in it, so a long backstory
+   is read whole rather than scrolled inside a box. */
 .tidy5e-sheet.application.a5e-mancer-sheet prose-mirror.am-bio-editor {
+  position: relative;
   display: flex;
   flex-direction: column;
   border: 1px solid var(--t5e-faint-color, rgba(255, 255, 255, 0.15));
   border-radius: var(--t5e-border-radius, 4px);
   background: var(--t5e-component-field-background, rgba(0, 0, 0, 0.15));
+}
+
+/* Open, the pencil has nothing to do and sits on the toolbar's last buttons. */
+.tidy5e-sheet.application.a5e-mancer-sheet prose-mirror.am-bio-editor.active > button.toggle {
+  display: none;
+}
+
+/* An empty page says what goes in it, until the pencil opens it. */
+.tidy5e-sheet.application.a5e-mancer-sheet prose-mirror.am-bio-editor.inactive .editor-content:empty::before {
+  content: var(--am-hint, "");
+  color: var(--t5e-color-text-lighter, rgba(255, 255, 255, 0.4));
+  font-style: italic;
 }
 
 .tidy5e-sheet.application.a5e-mancer-sheet prose-mirror.am-bio-editor .editor-content {
@@ -1892,16 +1906,6 @@
 /* Ideals, bonds, flaws and goals: a few lines each, side by side. */
 .tidy5e-sheet.application.a5e-mancer-sheet .am-personality prose-mirror.am-bio-editor .editor-content {
   min-height: 5lh;
-}
-
-/* The place an editor goes in once it is on screen: the editor's own size, so
-   nothing moves when it arrives. */
-.tidy5e-sheet.application.a5e-mancer-sheet .am-bio-editor-slot {
-  min-height: calc(8lh + 2.5rem);
-}
-
-.tidy5e-sheet.application.a5e-mancer-sheet .am-personality .am-bio-editor-slot {
-  min-height: calc(5lh + 2.5rem);
 }
 
 /* A page that is one field - Notes, Private Notes - is that field: it takes
@@ -1919,7 +1923,7 @@
   min-height: 0;
 }
 
-.tidy5e-sheet.application.a5e-mancer-sheet .am-notes-pane:is([data-notes-tab="notes"], [data-notes-tab="privateNotes"]) :is(prose-mirror.am-bio-editor, .am-bio-editor-slot) {
+.tidy5e-sheet.application.a5e-mancer-sheet .am-notes-pane:is([data-notes-tab="notes"], [data-notes-tab="privateNotes"]) prose-mirror.am-bio-editor {
   flex: 1 1 0;
   min-height: 12lh;
 }

@@ -12,34 +12,29 @@
      rendered with nothing between its tags anyway, so even that first write
      started from blank no matter what was already stored.
 
-     One place now, and the rule is the other way round: unlocked, there is an
-     editor, and it holds what is there; locked, the text is shown as a5e
-     enriched it.
+     A page works as a journal page's text does: Foundry's own editor
+     (<prose-mirror>) in its toggled form - the text shown as written, links
+     live, and the pencil opens the editor on the stored markup, which its save
+     writes back unchanged. For anyone who may write on the sheet, padlock or
+     not; everyone else reads the text. Saving: see the detail-html listener in
+     A5eCharacterSheet.
 
-     The editor is Foundry's own rich text editor (<prose-mirror>), the one a
-     journal page uses. It was a textarea handed the page as plain text, and
-     what came back was wrapped in paragraphs again: bold, italics, lists,
-     headings and links were gone the moment a page was edited. It edits the
-     stored markup itself now, and hands it back unchanged. Saving: see the
-     detail-html listener in A5eCharacterSheet.
+     It was a textarea handed the page as plain text, behind the padlock, and
+     each edit wrapped the lines in paragraphs again: bold, italics, lists and
+     links were gone the moment a page was edited.
 
-     What is rendered is a slot holding the markup, not the editor: the sheet
-     puts the editor in when the slot is first on screen. The editor's toolbar
-     measures its buttons once, as it is made, and in a pane or tab that is
-     not showing every button measures nothing - it came up with Format, clear,
-     save and source only, no bold, no lists, no links.
-
-     Takes:  label   the heading
-             html    the field as stored
-             path    where to write it, e.g. system.details.bio
-             hint    placeholder for an empty one (shown by CSS)
-             flat    true to leave the heading off (the four personality
-                     fields sit under one shared heading)
+     Takes:  label     the heading
+             html      the field as stored, for the editor
+             enriched  the field enriched, for reading
+             path      where to write it, e.g. system.details.bio
+             hint      shown in an empty page
+             flat      true to leave the heading off (the four personality
+                       fields sit under one shared heading)
      ─────────────────────────────────────────────────────────────────────── --}}
-{{#if @root.unlocked}}
-  <div class="am-bio-editor-slot" data-action="detail-html"
-    data-path="{{path}}" data-label="{{label}}" data-hint="{{hint}}"
-    data-value="{{html}}"></div>
+{{#if @root.details.canWrite}}
+  <prose-mirror class="am-bio-editor" toggled data-action="detail-html"
+    data-path="{{path}}" aria-label="{{label}}" style='--am-hint: "{{hint}}"'
+    value="{{html}}">{{{enriched}}}</prose-mirror>
 {{else if html}}
-  <div class="am-origin-desc">{{{html}}}</div>
+  <div class="am-origin-desc">{{{enriched}}}</div>
 {{/if}}

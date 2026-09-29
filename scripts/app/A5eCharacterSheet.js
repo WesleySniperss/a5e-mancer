@@ -1325,17 +1325,23 @@ export class A5eCharacterSheet extends ActorSheet {
     details.hasFields = details.fields.some(f => f.value);
     /* Only a character has these; the NPC schema has bio, notes and
        privateNotes and nothing else of the kind. */
-    /* Every written page twice over: as stored, and as plain text (the
-       search below reads that).
+    /* Every written page three times over: as stored (the editor edits it),
+       enriched (what is shown, links live), and as plain text (the search
+       below reads that).
 
-       These are HTMLFields, edited as markup in Foundry's rich text editor
-       (partial-note-field). It was a textarea handed the plain text, and each
-       edit wrapped the lines in paragraphs again - every bold word, list and
-       link was lost on the first save.
+       These are HTMLFields, and they work as a journal page's text does:
+       shown, with Foundry's editor a pencil away (partial-note-field). Not
+       behind the padlock - writing a note is not the kind of change the
+       padlock guards. It was a textarea handed the plain text, and each edit
+       wrapped the lines in paragraphs again - every bold word, list and link
+       was lost on the first save.
 
-       `…Shown` says whether the block is drawn at all: unlocked, every page
-       is, empty or not, because an empty one has to be reachable to be
-       filled in; locked, only the ones with something in them.
+       `…Shown` says whether the block is drawn at all: for someone who may
+       write in it, every page is, empty or not, because an empty one has to
+       be reachable to be filled in; for anyone else, only the ones with
+       something in them. */
+    details.canWrite = this.isEditable;
+    /*
 
        That is the whole of the bug this replaces. The editor used to appear
        only while a field was EMPTY — `{{#if details.bio}}` read-only
@@ -1359,7 +1365,11 @@ export class A5eCharacterSheet extends ActorSheet {
          and on the Backstory page it was said three times. */
       if (/^\s*(<p>)?\s*\[object Object\]\s*(<\/p>)?\s*$/i.test(String(details[key] ?? ''))) details[key] = '';
       details[`${key}Text`]  = htmlToText(details[key]);
-      details[`${key}Shown`] = unlocked || !!details[key];
+      details[`${key}Enriched`] = details[key]
+        ? await foundry.applications.ux.TextEditor.implementation.enrichHTML(details[key], {
+            secrets: actor.isOwner, relativeTo: actor, rollData: actor.getRollData?.() })
+        : '';
+      details[`${key}Shown`] = details.canWrite || !!details[key];
     }
 
     /* The four personality fields as one list, because the template drew each
@@ -1370,8 +1380,8 @@ export class A5eCharacterSheet extends ActorSheet {
       ['flaws', 'Flaws'],   ['goals', 'Goals']
     ].map(([key, label]) => ({
       key, label, path: `system.details.${key}`,
-      html: details[key], text: details[`${key}Text`]
-    })).filter((f) => unlocked || !!f.html);
+      html: details[key], text: details[`${key}Text`], enriched: details[`${key}Enriched`]
+    })).filter((f) => details.canWrite || !!f.html);
     details.personalityShown = details.personality.length > 0;
 
     details.isCharacter = actor.type === 'character';
@@ -1457,13 +1467,11 @@ export class A5eCharacterSheet extends ActorSheet {
     );
 
     /* The written pages carry @UUID links, inline rolls and tables, and none of
-       it renders until enrichHTML has run over it. */
-    details.bio          = await enrichDesc(details.bio, actor);
-    details.notes        = await enrichDesc(details.notes, actor);
-    details.privateNotes = await enrichDesc(details.privateNotes, actor);
-    for (const k of ['appearance', 'bonds', 'flaws', 'ideals', 'goals']) {
-      details[k] = await enrichDesc(details[k], actor);
-    }
+       it renders until enrichHTML has run over it. The pages a player writes
+       in are enriched above, beside the markup they keep (`…Enriched`): this
+       used to overwrite the markup itself with its enriched form, and the
+       editor, handed that, saved every @UUID link back as the <a> it had
+       become. The creation write-ups below are only ever read. */
     for (const k of ['backstory', 'traits', 'connections', 'mementos',
                      'motivation', 'goals', 'connection', 'fulfillment']) {
       bio[k] = await enrichDesc(bio[k], actor);
@@ -3633,45 +3641,19 @@ export class A5eCharacterSheet extends ActorSheet {
        typed into a textarea — otherwise the paragraph breaks are lost the
        moment a5e’s own editor opens the same field. The path is given whole
        on the element, because these are not all under one prefix. */
-    /* The written pages are Foundry's rich text editor now (partial-note-field),
-       and what it holds is the stored markup itself, so it is written back as
-       it is. It reports a change when it saves: on Ctrl+S or its save button,
-       and when it leaves the page - the sheet re-rendering, the padlock, the
-       window closing - so nothing typed is lost to a re-render. Leaving the
-       field saves as well, which is when a textarea used to. */
-    /* The template renders a slot per page; the editor goes in when the slot
-       is first on screen, so its toolbar measures itself while it can be seen
-       (see partial-note-field) - and a pane nobody opens builds no editor. */
-    this._amEditorObserver?.disconnect();
-    const ProseMirrorElement = foundry.applications.elements.HTMLProseMirrorElement;
-    const mountEditor = (slot) => {
-      const pm = new ProseMirrorElement({ value: slot.dataset.value ?? '', toggled: false });
-      pm.className = 'am-bio-editor';
-      pm.dataset.action = 'detail-html';
-      pm.dataset.path = slot.dataset.path;
-      pm.setAttribute('aria-label', slot.dataset.label ?? '');
+    /* The written pages are Foundry's own editor in its toggled form
+       (partial-note-field): the pencil opens it on the stored markup, and its
+       save hands the markup back as it is. It reports a change when it saves -
+       its save button or Ctrl+S - and when it leaves the page while open (the
+       sheet re-rendering, the window closing), so nothing typed is lost to a
+       re-render. */
+    el.querySelectorAll('prose-mirror[data-action="detail-html"]').forEach(pm =>
       pm.addEventListener('change', () => {
         const path = pm.dataset.path;
         const html = String(pm.value ?? '').trim();
         if (html === String(foundry.utils.getProperty(this.actor, path) ?? '').trim()) return;
         this.actor.update({ [path]: html });
-      });
-      pm.addEventListener('focusout', (e) => {
-        if (!pm.contains(e.relatedTarget)) pm.save?.();
-      });
-      slot.replaceWith(pm);
-    };
-    const slots = el.querySelectorAll('.am-bio-editor-slot[data-action="detail-html"]');
-    if (slots.length && ProseMirrorElement) {
-      this._amEditorObserver = new IntersectionObserver((entries, observer) => {
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          observer.unobserve(entry.target);
-          mountEditor(entry.target);
-        }
-      });
-      slots.forEach(slot => this._amEditorObserver.observe(slot));
-    }
+      }));
 
     /* The trait lists in the sidebar. Every one of these is a dialog a5e
        already has on the actor, so what opens is its own window writing its

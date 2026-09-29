@@ -1548,7 +1548,7 @@
         <section class="am-bio-card">
           <h3 class="font-title-small">Appearance</h3>
           {{~> am-note-field label="Appearance" path="system.details.appearance"
-                html=details.appearance text=details.appearanceText
+                html=details.appearance enriched=details.appearanceEnriched
                 hint="What they look like"}}
         </section>
       {{/if}}
@@ -1566,7 +1566,7 @@
         <section class="am-bio-card">
           <h3 class="font-title-small">{{#if details.isCharacter}}Backstory{{else}}Bio{{/if}}</h3>
           {{~> am-note-field label="Backstory" path="system.details.bio"
-                html=details.bio text=details.bioText
+                html=details.bio enriched=details.bioEnriched
                 hint="Who they are and where they came from"}}
         </section>
       {{/if}}
@@ -1585,7 +1585,7 @@
               <div class="am-personality-part">
                 <h4 class="font-label-medium color-text-gold">{{this.label}}</h4>
                 {{~> am-note-field label=this.label path=this.path
-                      html=this.html text=this.text hint=this.label}}
+                      html=this.html enriched=this.enriched hint=this.label}}
               </div>
             {{/each}}
           </section>
@@ -1680,7 +1680,7 @@
         {{#if details.notesShown}}
           <section class="am-bio-card">
             {{~> am-note-field label="Notes" path="system.details.notes"
-                  html=details.notes text=details.notesText
+                  html=details.notes enriched=details.notesEnriched
                   hint="Anything worth keeping"}}
           </section>
         {{else}}
@@ -1701,7 +1701,7 @@
             <section class="am-bio-card">
               <h3 class="font-title-small">Private <i class="fa-solid fa-user-secret"></i></h3>
               {{~> am-note-field label="Private Notes" path="system.details.privateNotes"
-                    html=details.privateNotes text=details.privateNotesText
+                    html=details.privateNotes enriched=details.privateNotesEnriched
                     hint="Only the owner sees this"}}
             </section>
           {{else}}
