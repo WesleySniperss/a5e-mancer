@@ -179,6 +179,43 @@ body.yf-foundry-customized .chat-message.yf-card .message-header :is([data-actio
 }
 
 /* =================================================================== */
+/*  Carolingian UI over a styled message                               */
+/* =================================================================== */
+
+/*
+ * Reported as "the colour in the chat is not the one in the settings": with
+ * Carolingian UI's chat styles on (its default), a styled message had
+ * Carolingian's text colour, font and shadow, and a border in its author's
+ * player colour, where the style says otherwise.
+ *
+ *   text    Carolingian colours the message and every p, ul, strong ... in it
+ *           with --cui-chat-text-primary, set on the theme's container.
+ *   font    its UI font, --crlngn-font-family, on every p, span, a, b, strong,
+ *           li, ol and ul in a message's content - and a typed message is a <p>.
+ *   shadow  --cui-chat-card-shadow, !important outside any layer; this one is
+ *           !important in @layer modules, which beats it.
+ *   border  "player colour" borders: border-color: var(--user-color-<author>)
+ *           !important in the message's style attribute, which no stylesheet
+ *           outranks. YourFlavorService._keepBorder points that variable, on a
+ *           styled message, at the style's border colour.
+ *
+ * Carolingian's own variables are pointed at the style's values on the message,
+ * so its rules paint the style. A message Your Flavor has not styled keeps
+ * Carolingian's look.
+ */
+body.crlngn-ui .chat-message.yf-card {
+    --cui-chat-text-primary: var(--yf-chat-content-text, var(--yf-text-color));
+}
+
+body.crlngn-ui .chat-message.yf-card .message-content {
+    --crlngn-font-family: var(--yf-chat-font-family, var(--yf-font-family));
+}
+
+body.crlngn-ui.crlngn-chat .chat-message.yf-card {
+    box-shadow: var(--yf-chat-box-shadow, var(--yf-box-shadow)) !important;
+}
+
+/* =================================================================== */
 /*  Card header                                                        */
 /* =================================================================== */
 

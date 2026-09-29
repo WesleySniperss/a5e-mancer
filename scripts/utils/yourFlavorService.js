@@ -62,6 +62,16 @@ import { AM } from '../am.js';
  * styles/your-flavor.css puts it back from inside the layers - see "The
  * Foundry overlay's chat texture" there.
  *
+ * ── 6. Carolingian UI's player-colour borders  (either setting) ───────────
+ *
+ * Carolingian UI, set to colour message borders by player, writes
+ * border-color: var(--user-color-<author>) !important into each message's
+ * style attribute, which outranks Your Flavor's border rule and any other
+ * stylesheet. _keepBorder points that variable, on a message Your Flavor has
+ * styled, at the style's border colour. The rest of what Carolingian's chat
+ * styles change on a styled message is answered in styles/your-flavor.css,
+ * "Carolingian UI over a styled message".
+ *
  * ── Why the bridge lives here ─────────────────────────────────────────────
  *
  * Both are fixable inside Your Flavor, but Your Flavor is a module we do not
@@ -196,6 +206,9 @@ export class YourFlavorService {
       this._renderHook = Hooks.on('renderChatMessageHTML', (message, html) => {
         try {
           const element = html?.jquery ? html[0] : html;
+          /* After every hook of this render: Your Flavor's, which styles it,
+             and Carolingian's, which sets the border. */
+          queueMicrotask(() => this._keepBorder(message, element));
           const isA5e = this._isA5eCard(message, element);
           if (this._isPreview(message)) {
             if (isA5e ? a5e : this.restyleEnabled) queueMicrotask(() => this._adoptPreview(message, element));
@@ -684,7 +697,23 @@ export class YourFlavorService {
 
     this._resolveAvatar(message, element);
     element.classList.add('yf-processed');
+    this._keepBorder(message, element);
     return 'styled';
+  }
+
+  /**
+   * The style's border on a styled message, under Carolingian UI's player-colour
+   * borders (header section 6). Its border-color is var(--user-color-<author>)
+   * in the style attribute, so the variable is what can be given the style's
+   * colour - on this message only; Foundry keeps the real one on the root for
+   * everything else. Where Carolingian is off, nothing reads the variable, and
+   * nothing is set.
+   */
+  static _keepBorder(message, element) {
+    const id = message?.author?.id;
+    if (!id || !element?.classList?.contains('yf-card')) return;
+    if (!game.modules.get('crlngn-ui')?.active) return;
+    element.style.setProperty(`--user-color-${id}`, 'var(--yf-chat-outer-border-color, var(--yf-border-color))');
   }
 
   /** Built style declarations by config; see _applyStyles. */
