@@ -60,17 +60,6 @@ export function registerSettings() {
     scope: 'client', config: true, type: Boolean, default: true, requiresReload: true
   });
 
-  // Your Flavor previews a style on its own paper; a card that is not fully
-  // opaque shows that paper through it, and the chat log's dark panel instead.
-  // See YourFlavorService._applyPaper.
-  game.settings.register(AM.ID, 'yourFlavorPreviewPaper', {
-    name: 'am.settings.your-flavor-paper.name', hint: 'am.settings.your-flavor-paper.hint',
-    /* Off by default: under a see-through style the paper reads as a brown
-       tint on every message - "this brown on the chat messages, what is it?" */
-    scope: 'client', config: true, type: Boolean, default: false,
-    onChange: () => import('./utils/yourFlavorService.js').then(m => m.YourFlavorService._applyPaper())
-  });
-
   // The third of the workarounds for other people's code, and the most
   // intrusive: it wraps `stage.off` and `stage.removeAllListeners` and polls
   // once a second. Nothing here is a5e-mancer's own feature, so all three can

@@ -130,10 +130,6 @@ export class YourFlavorService {
   static TEXTURE_CLASS = 'a5em-yf-chat-texture';
   /** Your Flavor's chat texture with absolute URLs; see _chatTexture. */
   static TEXTURE_VAR = '--a5em-yf-chat-texture';
-  /** The preview's paper under a styled message; see _applyPaper. */
-  static PAPER_CLASS = 'a5em-yf-paper';
-  static PAPER_VAR = '--a5em-yf-paper';
-  static PAPER_ASSET = 'modules/your-flavor/assets/ui/overview/textures/paper-grain-v2.webp';
   static LOSS_EVENT_LIMIT = 50;
   /** How the one-shot sweep ended, so diagnose() can say so. */
   static _sweepState = 'not started';
@@ -233,7 +229,6 @@ export class YourFlavorService {
     this._watchChatLog();
     this._observeChatLists();
     this._watchChatTexture();
-    this._applyPaper();
     AM.log(3, 'Your Flavor bridge installed');
   }
 
@@ -262,33 +257,6 @@ export class YourFlavorService {
     this._textureFrame = null;
     document.body?.classList.remove(this.TEXTURE_CLASS);
     document.body?.style.removeProperty(this.TEXTURE_VAR);
-    document.body?.classList.remove(this.PAPER_CLASS);
-    document.body?.style.removeProperty(this.PAPER_VAR);
-  }
-
-  /**
-   * Your Flavor previews a style on its own paper (its --yf-shell-paper-panel),
-   * and a card that is not fully opaque is drawn over it: the user's #202028
-   * at 80% read 72,70,70 there, warm and grained, and 26,26,34 in the chat,
-   * over the log's dark panel - "the colours are there, but muted, and the
-   * texture is missing". So a styled message gets the same paper beneath its
-   * own colour (styles/your-flavor.css, "The preview's paper"), and looks as
-   * its preview does; an opaque style covers the paper and is unchanged.
-   *
-   * The paper's image is given by an absolute URL, for the reason in
-   * _chatTexture: through var() in a5e's stylesheet a relative one would
-   * resolve against a5e's folder.
-   */
-  static _applyPaper() {
-    const body = document.body; if (!body) return;
-    let on = false;
-    try {
-      on = this.installed && (this.enabled || this.restyleEnabled)
-        && game.settings.get(AM.ID, 'yourFlavorPreviewPaper') !== false;
-    } catch { on = false; }
-    body.classList.toggle(this.PAPER_CLASS, on);
-    if (on) body.style.setProperty(this.PAPER_VAR, `url("${new URL(foundry.utils.getRoute(this.PAPER_ASSET), location.origin).href}")`);
-    else body.style.removeProperty(this.PAPER_VAR);
   }
 
   /**

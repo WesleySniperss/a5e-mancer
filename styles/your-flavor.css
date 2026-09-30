@@ -68,43 +68,6 @@
 }
 
 /* =================================================================== */
-/*  The preview's paper                                                */
-/* =================================================================== */
-
-/*
- * Your Flavor previews a style on its own paper (--yf-shell-paper-panel in its
- * shell stylesheet), so a card that is not fully opaque shows that paper
- * through it: warm, lighter, grained. In the chat the same card showed the
- * log's dark panel instead. With a5em-yf-paper on the body (the setting "Cards
- * on the Preview's Paper", YourFlavorService._applyPaper) a styled message has
- * the same paper beneath its own colour - the card's colour as the top layer,
- * the paper's layers under it - and looks as its preview does. An opaque style
- * covers the paper completely.
- *
- * The plain message: Your Flavor's own background rule is !important in this
- * layer, and this one outranks it by specificity. The Foundry overlay's
- * texture, when live, comes after and replaces these layers.
- */
-body.a5em-yf-paper .chat-message.yf-card {
-    background:
-        linear-gradient(var(--yf-chat-outer-bg, var(--yf-bg-color)), var(--yf-chat-outer-bg, var(--yf-bg-color))),
-        linear-gradient(rgba(250, 243, 228, 0.68), rgba(232, 212, 175, 0.62)),
-        var(--a5em-yf-paper, none) center / 680px auto repeat,
-        #f2e7d1 !important;
-}
-
-/* The a5e card: through the variable a5e's own !important background paints. */
-body.a5em-yf-paper .chat-message.yf-card.a5e-chat-card {
-    --a5e-chat-card-background:
-        linear-gradient(var(--yf-chat-outer-bg, var(--yf-bg-color)), var(--yf-chat-outer-bg, var(--yf-bg-color))),
-        linear-gradient(rgba(250, 243, 228, 0.68), rgba(232, 212, 175, 0.62)),
-        var(--a5em-yf-paper, none) center / 680px auto repeat,
-        #f2e7d1;
-    --a5e-chat-card-background-blind: var(--a5e-chat-card-background);
-    --a5e-chat-card-background-whisper: var(--a5e-chat-card-background);
-}
-
-/* =================================================================== */
 /*  The Foundry overlay's chat texture                                 */
 /* =================================================================== */
 
