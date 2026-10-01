@@ -11,6 +11,7 @@ import { installCompendiumFilterFix } from './utils/compendiumIndexFix.js';
 import { HiddenSources } from './utils/hiddenSources.js';
 import { ConditionSource } from './utils/conditionSource.js';
 import { ItemRepair } from './utils/itemRepair.js';
+import { FreshStyles } from './utils/freshStyles.js';
 
 /* AM moved to scripts/am.js, where it imports nothing and so cannot be part
    of an import cycle. Re-exported here so the old path keeps resolving. */
@@ -22,6 +23,12 @@ export { AM } from './am.js';
    ============================================================ */
 
 Hooks.on('init', () => {
+  /* Before anything renders: a host that caches the module's stylesheets by
+     their bare path can serve last version's under this version's markup.
+     See FreshStyles. Runs whether or not the module is enabled - the styles
+     load either way. */
+  FreshStyles.install().catch((err) => console.warn('a5e-mancer | fresh styles:', err));
+
   try {
     /* Settings first: AM.init reads them. It used to call registerSettings
        itself, which is why AM could not live outside this file. */
