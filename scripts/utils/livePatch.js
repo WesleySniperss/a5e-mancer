@@ -26,7 +26,9 @@
  *
  * Adding a rule: name the paths it owns, and return false from apply() for any
  * change of SHAPE — a block that appears or disappears, a row count that moves.
- * Only a number, a class or an attribute may be set here. tools/checks/
+ * Only a number, a class or an attribute may be set here. A rule that has set
+ * its numbers but knows a block is to follow may return 'soon': the sheet then
+ * redraws with the rest of the burst instead of at once (REDRAW_SOON). tools/checks/
  * livepatch.mjs holds the patched sheet against a full redraw of the same
  * actor, in the browser, and any difference is a failed check.
  */
@@ -75,6 +77,13 @@ const hitPoints = {
     /* The temporary block is drawn only when there is a temporary pool. Its
        coming and going is a change of shape, so it is a redraw. */
     if (!meter || (!!temp !== !!chip)) return false;
+    /* So is the death-save overlay over the portrait at 0 hit points - but
+       reaching 0 is the start of a burst: a5e adds Unconscious and
+       Incapacitated next, each a redraw. A redraw now would be one more than
+       the burst costs (3 measured, against the 1-2 allowed), so the numbers
+       are set here and the redraw is held for the burst's ('soon'). */
+    const dying = max > 0 && value <= 0;
+    const soon = dying !== !!el.querySelector('.actor-vitals-container .death-saves-overlay');
 
     meter.style.setProperty('--bar-percentage', `${pct01(value, max)}%`);
     setText(meter.querySelector('.label .value'), value);
@@ -86,7 +95,7 @@ const hitPoints = {
       setText(chip.querySelector('.am-temp-value'), temp);
       setAttr(chip, 'data-tooltip', `Temporary hit points: ${temp}`);
     }
-    return true;
+    return soon ? 'soon' : true;
   }
 };
 
@@ -252,8 +261,20 @@ export function patchInPlace(sheet, options = {}, drawn = null) {
     work.get(rule).push(path);
   }
 
+  let soon = false;
   for (const [rule, owned] of work) {
-    if (!rule.apply(sheet, el, owned)) return null;
+    const drawnHere = rule.apply(sheet, el, owned);
+    if (!drawnHere) return null;
+    if (drawnHere === 'soon') soon = true;
   }
+  if (soon) now[REDRAW_SOON] = true;
   return now;
 }
+
+/**
+ * On a snapshot patchInPlace returns: the numbers are drawn, but a block is to
+ * come or go with them, so the sheet should redraw once the burst it starts has
+ * gone quiet - see A5eCharacterSheet#gather. A symbol, so no snapshot
+ * comparison ever sees it as a path.
+ */
+export const REDRAW_SOON = Symbol('a5e-mancer.redrawSoon');

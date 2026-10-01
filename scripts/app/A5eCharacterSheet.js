@@ -9,7 +9,7 @@ import { FeatService } from '../utils/featService.js';
 import { ManeuverService } from '../utils/maneuverService.js';
 import { ConditionSource } from '../utils/conditionSource.js';
 import { ItemRepair } from '../utils/itemRepair.js';
-import { patchInPlace, snapshot } from '../utils/livePatch.js';
+import { patchInPlace, snapshot, REDRAW_SOON } from '../utils/livePatch.js';
 
 const MODULE_ID = 'a5e-mancer';
 
@@ -292,6 +292,12 @@ export class A5eCharacterSheet extends ActorSheet {
           if (shown) {
             this.#drawn = shown;
             this.#lastActivity = performance.now();
+            /* Drawn, but a block is to follow (the death-save overlay at 0 hit
+               points): held, so the burst this starts redraws once. */
+            if (shown[REDRAW_SOON]) {
+              clearTimeout(this.#gathered);
+              this.#gathered = setTimeout(() => this.#flush(), A5eCharacterSheet.REDRAW_QUIET);
+            }
             return;
           }
         } catch (err) {
@@ -530,7 +536,7 @@ export class A5eCharacterSheet extends ActorSheet {
       strife:  sys.attributes?.strife  ?? 0,
       profBonus: sign(profBonus),
       inspiration: !!(sys.attributes?.inspiration ?? sys.inspiration),
-      deathSaves: sys.attributes?.death ?? null
+      deathSaves: A5eCharacterSheet.#deathSaves(sys.attributes?.death, hp)
     };
 
     /* Items categorised — A5e uses type='object' + system.objectType for all physical items */
@@ -4346,6 +4352,30 @@ export class A5eCharacterSheet extends ActorSheet {
       });
     }
 
+    /* Death saving throws, on the portrait at 0 hit points. The skull rolls
+       through a5e's own rollDeathSavingThrow, which tallies the result and
+       opens its dialog - right-click rolls without it, as everywhere else on
+       this sheet. A pip sets the tally to itself, or back below it when it is
+       the last one set, as Tidy's do. */
+    el.querySelectorAll('[data-action="death-roll"]').forEach((b) => {
+      b.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.actor.rollDeathSavingThrow?.({});
+      });
+      b.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        this.actor.rollDeathSavingThrow?.({ skipRollDialog: true });
+      });
+    });
+    el.querySelectorAll('[data-action="death-mark"]').forEach((b) =>
+      b.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const kind = b.dataset.kind === 'failure' ? 'failure' : 'success';
+        const n    = Number(b.dataset.count) || 0;
+        const have = Number(this.actor.system?.attributes?.death?.[kind] ?? 0);
+        await this.actor.update({ [`system.attributes.death.${kind}`]: have >= n ? n - 1 : n });
+      }));
+
     /* Sidebar collapse. Tidy stores this per tab as a user preference; we
        keep it for the life of the sheet, which is the part that shows. */
     el.querySelector('.sidebar-toggle')?.addEventListener('click', (e) => {
@@ -5047,6 +5077,27 @@ export class A5eCharacterSheet extends ActorSheet {
         }
       }
     });
+  }
+
+  /**
+   * a5e's death saving throws, as the portrait's overlay draws them: open at 0
+   * hit points, as a5e's own sheet opens its ActorDeathSaveOverlay; three pips
+   * a side; dead at three failures. With a5e's "blind death saves" on, a player
+   * sees the skull to roll but not the tally, as on a5e's sheet; the GM sees it.
+   */
+  static #deathSaves(death, hp) {
+    const success = Number(death?.success ?? 0);
+    const failure = Number(death?.failure ?? 0);
+    let blind = false;
+    try { blind = !!game.settings.get('a5e', 'blindDeathSaves') && !game.user?.isGM; } catch { /* a5e without the setting */ }
+    const pips = (have) => [1, 2, 3].map((n) => ({ n, checked: !blind && have >= n }));
+    return {
+      open: Number(hp?.max ?? 0) > 0 && Number(hp?.value ?? 0) <= 0,
+      dead: !blind && failure >= 3,
+      success, failure,
+      successes: pips(success),
+      failures: pips(failure)
+    };
   }
 
   #openFeatPicker() {

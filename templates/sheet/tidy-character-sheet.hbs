@@ -280,9 +280,43 @@
 
     {{!-- ── Portrait and vitals ──────────────────────────────────────────── --}}
     <div class="actor-vitals-container">
-      <div class="actor-image {{tidy.portrait.shape}}" style="position: relative;">
+      <div class="actor-image {{tidy.portrait.shape}}{{#if resources.deathSaves.open}} death-saves-open{{/if}}{{#if resources.deathSaves.dead}} dead{{/if}}" style="position: relative;">
         <img src="{{actor.img}}" alt="{{actor.name}}" class="pointer" data-edit="img" />
       </div>
+
+      {{!-- Death saving throws, over the portrait at 0 hit points, as a5e's own
+           sheet puts them there (ActorDeathSaveOverlay) - in Tidy's markup for
+           it: failures on the left, successes on the right, the skull between
+           rolls. A pip sets the count to itself, or back below it when it is
+           the last one set. The overlay comes and goes with the hit points,
+           which is shape, so livePatch redraws for it. --}}
+      {{#if resources.deathSaves.open}}
+        <div class="death-saves-overlay">
+          <div class="failures flexcol">
+            {{#each resources.deathSaves.failures}}
+              <button type="button" class="button{{#if this.checked}} checked{{/if}}"
+                data-action="death-mark" data-kind="failure" data-count="{{this.n}}"
+                data-tooltip="Failed death saving throws: {{this.n}}" aria-label="Failed death saving throws: {{this.n}}">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            {{/each}}
+          </div>
+          <button type="button" class="death-save-roll-button button button-borderless button-icon-only"
+            data-action="death-roll"
+            data-tooltip="Death saving throw (right-click: no dialog)" aria-label="Roll a death saving throw">
+            <i class="fa-solid fa-skull"></i>
+          </button>
+          <div class="successes flexcol">
+            {{#each resources.deathSaves.successes}}
+              <button type="button" class="button{{#if this.checked}} checked{{/if}}"
+                data-action="death-mark" data-kind="success" data-count="{{this.n}}"
+                data-tooltip="Successful death saving throws: {{this.n}}" aria-label="Successful death saving throws: {{this.n}}">
+                <i class="fa-solid fa-check"></i>
+              </button>
+            {{/each}}
+          </div>
+        </div>
+      {{/if}}
 
       <div class="actor-vitals theme-dark">
         {{!-- Hit points.
