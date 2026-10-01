@@ -138,7 +138,12 @@ export class A5eCharacterSheet extends ActorSheet {
          use data-sidebar-tab and are switched in activateListeners, because a
          second group nested inside .main-content would be caught by this one. */
       tabs: [{ navSelector: '.actor-tabs', contentSelector: '.main-content', initial: 'favorites' }],
-      dragDrop: [{ dragSelector: '.tidy-table-row-container[data-item-id]', dropSelector: '.main-content' }]
+      dragDrop: [{ dragSelector: '.tidy-table-row-container[data-item-id]', dropSelector: '.main-content' }],
+      /* What scrolls, kept across a redraw. Empty, Foundry's v1 render put every
+         tab and the sidebar back at the top whenever the sheet was redrawn -
+         "you click something and it all jumps up". Measured: the sidebar and
+         each tab are the scrolling boxes; Foundry pairs them by order. */
+      scrollY: ['.sidebar', '.tab.tidy-tab', '.am-notes-pane .editor-content']
     });
   }
 
@@ -317,6 +322,41 @@ export class A5eCharacterSheet extends ActorSheet {
     const S = this.constructor.RENDER_STATES;
     if (this._state !== S.RENDERING && this._state !== S.CLOSING) this.#drawn = snapshot(this.actor);
     return super._render(force, options);
+  }
+
+  /**
+   * Put each scrolled box back where it was, and keep putting it back while the
+   * page grows to its height.
+   *
+   * Foundry restores the positions once, at the end of the render - when a
+   * Tidy table is still opening on its height transition, so a tab read 456 of
+   * 456 pixels tall and a scroll of 365 was clamped to 0: Features came back at
+   * the top after every redraw. It is tried again over the next half second,
+   * only ever downwards, and given up on a box the moment its reader scrolls
+   * it themselves.
+   */
+  _restoreScrollPositions(html) {
+    super._restoreScrollPositions(html);
+    const positions = this._scrollPositions ?? {};
+    const boxes = [];
+    for (const sel of this.options.scrollY ?? []) {
+      html.find(sel).each((i, el) => {
+        const want = positions[sel]?.[i] ?? 0;
+        if (want > 0 && el.scrollTop < want) boxes.push({ el, want });
+      });
+    }
+    if (!boxes.length) return;
+    const stop = (box) => () => { box.done = true; };
+    for (const box of boxes) {
+      for (const type of ['wheel', 'touchstart', 'keydown', 'pointerdown']) {
+        box.el.addEventListener(type, stop(box), { once: true, passive: true });
+      }
+    }
+    const again = () => {
+      for (const box of boxes) if (!box.done && box.el.isConnected && box.el.scrollTop < box.want) box.el.scrollTop = box.want;
+    };
+    requestAnimationFrame(again);
+    for (const ms of [120, 300, 600]) setTimeout(again, ms);
   }
 
   /* What the sheet on screen was drawn from — see snapshot in livePatch. */
