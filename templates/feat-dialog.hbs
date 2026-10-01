@@ -11,7 +11,8 @@
         placeholder="{{localize 'am.asi.feat-search'}}" value="{{featSearch}}" autocomplete="off">
       <button type="button"
         class="am-filter-pill {{#if featOnlyEligible}}am-pill-active{{/if}}"
-        data-action="fdToggle" data-filter="eligible">
+        data-action="fdToggle" data-filter="eligible"
+        data-tooltip="{{localize 'am.asi.feat-eligible-hint'}}">
         <i class="fa-solid fa-filter"></i> {{localize 'am.asi.feat-eligible-only'}}
       </button>
       <button type="button"
@@ -27,6 +28,9 @@
         <i class="fa-solid fa-door-open"></i> {{localize 'am.asi.feat-ungated'}}
       </button>
     </div>
+    {{#if featUnchecked}}
+      <p class="am-hint am-feat-unchecked">{{localize 'am.asi.feat-unchecked-hidden' count=featUnchecked}}</p>
+    {{/if}}
 
     <div class="am-feat-sorts">
       <span class="am-hint">{{localize 'am.app.sort-label'}}:</span>

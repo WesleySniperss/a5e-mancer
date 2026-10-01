@@ -41,7 +41,10 @@ export class FeatService {
           const key  = entry.name.toLowerCase();
           if (seen.has(key)) continue;              // same feat in two packs
           seen.add(key);
-          const prerequisite = entry.system?.prerequisite ?? '';
+          /* The field, or failing it the "Prerequisite: ..." a description
+             opens with - Eldritch Rager keeps its Wrathful Bargainer there. */
+          const prerequisite = String(entry.system?.prerequisite ?? '').trim()
+            || this.#prerequisiteInText(entry.system?.description);
           out.push({
             uuid,
             name:         entry.name,
@@ -60,10 +63,43 @@ export class FeatService {
       }
     }
 
+    /* A sub-feat - "Bear Grab (Hibernating Affliction)", "Burning Hatred (True
+       Revenant)" - is one of the options its parent feat opens, and a5e writes no
+       prerequisite on it: every one of them passed every filter, "no
+       prerequisite" included. The parent is in the name; a parent that is no
+       feat ("Lycanthropy") still gates it, as a requirement that cannot be
+       checked. */
+    const names = new Set(out.map(f => f.name.toLowerCase()));
+    for (const f of out) {
+      if (f.prerequisite) continue;
+      const parent = /\(([^)]+)\)\s*$/.exec(f.name)?.[1]?.trim();
+      if (!parent) continue;
+      f.prerequisite = names.has(parent.toLowerCase()) ? `${parent} feat` : parent;
+      f.classes = this.classesInPrerequisite(f.prerequisite);
+      f.gated = true;
+    }
+
     out.sort((a, b) => a.name.localeCompare(b.name));
     this.#cache = out;
     AM.log(out.length ? 3 : 2, `Loaded ${out.length} feat(s)`);
     return out;
+  }
+
+  /** "Prerequisite: X" at the head of a description, as text; '' when there is none. */
+  static #prerequisiteInText(html) {
+    const m = /prerequisites?\s*:\s*(?:<\/?(?:em|strong|b|i|span)\b[^>]*>\s*)*([^<]+)/i.exec(String(html ?? ''));
+    if (!m || m.index > 200) return '';
+    return m[1].replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim().replace(/[.;:,]\s*$/, '');
+  }
+
+  /** CONFIG.A5E.classes by every name a prerequisite may use: its key and its label, spaced or not. */
+  static #classNames() {
+    const map = new Map();
+    for (const [key, label] of Object.entries(CONFIG.A5E?.classes ?? {})) {
+      const shown = String(game.i18n?.localize?.(label) ?? label ?? '').toLowerCase();
+      for (const n of [key.toLowerCase(), shown, shown.replace(/\s+/g, '')]) if (n) map.set(n, key);
+    }
+    return map;
   }
 
   /** Drop the cache so a newly installed module's feats show up. */
@@ -80,17 +116,23 @@ export class FeatService {
    */
   static classesInPrerequisite(prereq) {
     if (!prereq) return [];
-    const keys = new Map(
-      Object.keys(CONFIG.A5E?.classes ?? {}).map(k => [k.toLowerCase(), k])
-    );
+    const keys = this.#classNames();
     const found = [];
-    const re = /\blevels?\s+in\s+([a-z]+(?:\s+[a-z]+)?)/gi;
-    let m;
-    while ((m = re.exec(prereq))) {
-      const two = m[1].toLowerCase().replace(/\s+/g, '');
-      const one = m[1].toLowerCase().split(/\s+/)[0];
-      const key = keys.get(two) ?? keys.get(one);
+    const add = (raw) => {
+      const words = String(raw).toLowerCase().trim();
+      const key = keys.get(words.replace(/\s+/g, '')) ?? keys.get(words.split(/\s+/)[0]);
       if (key && !found.includes(key)) found.push(key);
+    };
+    /* Every way a5e writes it: "3 levels in marshal", "3 levels of cleric",
+       "Artificer level 3", "3 herald", and a class named on its own -
+       "warlock (diabolist archetype) and witch". Missing all but the first
+       let "For my class" keep a cleric's Anointed Bearer for anybody. */
+    for (const m of prereq.matchAll(/\blevels?\s+(?:in|of)\s+([a-z]+(?:\s+[a-z]+)?)/gi)) add(m[1]);
+    for (const m of prereq.matchAll(/\b([a-z]+)\s+level\s+\d+/gi)) add(m[1]);
+    for (const m of prereq.matchAll(/\b\d+\s+([a-z][a-z'-]+)/gi)) add(m[1]);
+    for (const clause of prereq.split(/[,;]|\band\b|\bor\b/i)) {
+      const bare = clause.trim().replace(/\s*\([^)]*\)\s*$/, '');
+      if (bare && keys.has(bare.toLowerCase())) add(bare);
     }
     return found;
   }
@@ -209,7 +251,23 @@ export class FeatService {
     perception: 'prc', performance: 'prf', persuasion: 'per', religion: 'rel', science: 'sci', 'sleight of hand': 'slt', stealth: 'ste', survival: 'sur' };
 
   static #checkClause(actor, clause) {
-    clause = clause.replace(/\s+/g, ' ').trim();
+    clause = clause.replace(/\s+/g, ' ').trim()
+      // "You must have the spellcasting feature", "either the Spellcasting feature"
+      .replace(/^(?:you\s+)?(?:must\s+)?(?:have\s+)?(?:either\s+)?/i, '').trim();
+
+    /* "Exertion pool of at least 4 and either the Spellcasting feature, the
+       Magic Wielding feature, or the Pact Magic feature": the first, and any
+       one of the rest - not three alternatives, the first of them glued to
+       the exertion pool. */
+    const either = /^(.+?)\s+and\s+either\s+(.+)$/i.exec(clause);
+    if (either) {
+      const a = this.#checkClause(actor, either[1]);
+      const b = this.#checkClause(actor, either[2]);
+      if (a && !a.ok) return a;
+      if (b && !b.ok) return b;
+      if (!a || !b) return null;
+      return { ok: true, reason: `${a.reason}, ${b.reason}` };
+    }
 
     /* "Noble background or the favor of a noble", "Proficiency in Investigation
        or Perception": met when one of them is. Unknown when none is met and one
@@ -228,12 +286,25 @@ export class FeatService {
       return { ok: false, reason: checks.map(c => c.reason).join(' or ') };
     }
 
-    // "Proficiency with Stealth", "Proficiency in Investigation or Perception": skills only
+    // "Proficiency with Stealth", "Proficiency in Investigation or Perception",
+    // "Proficiency with the Survival skill", "Proficiency with medium armor",
+    // "Proficiency with shields", "Proficiency with at least one martial weapon"
     let p = clause.match(/^proficiency (?:with|in) (.+)$/i);
     if (p) {
-      const names = p[1].toLowerCase().split(/\s*,\s*|\s+or\s+/).map(s => s.trim()).filter(Boolean);
+      const what = p[1].trim().replace(/^(?:the|a|an|at least one)\s+/i, '');
+      const profs = actor?.system?.proficiencies ?? {};
+      const armor = /^(light|medium|heavy) armou?r$/i.exec(what)?.[1]?.toLowerCase()
+        ?? (/^shields?$/i.test(what) ? 'shield' : null);
+      if (armor) return { ok: [...(profs.armor ?? [])].includes(armor), reason: `proficiency with ${what}` };
+      const category = /^(simple|martial|rare|exotic) weapons?$/i.exec(what)?.[1]?.toLowerCase();
+      if (category) {
+        const kinds = Object.keys(CONFIG.A5E?.weapons?.[category] ?? {});
+        return { ok: [...(profs.weapons ?? [])].some(w => kinds.includes(w)), reason: `proficiency with ${what}` };
+      }
+      const names = what.replace(/\s+skills?$/i, '').toLowerCase().split(/\s*,\s*|\s+or\s+/)
+        .map(s => s.trim().replace(/^the\s+/, '')).filter(Boolean);
       const keys = names.map(n => this.#SKILLS[n]);
-      if (keys.some(k => !k)) return null;                 // a tool, a vehicle, a kind of weapon: not judged
+      if (keys.some(k => !k)) return null;                 // a tool, a vehicle: not judged
       const ok = keys.some(k => (actor?.system?.skills?.[k]?.proficient ?? 0) > 0);
       return { ok, reason: `proficiency in ${p[1]}` };
     }
@@ -258,16 +329,51 @@ export class FeatService {
       return { ok, reason: least ? `a spell of ${p[1]}th level` : 'spellcasting' };
     }
 
-    // "Noble background"
-    p = clause.match(/^(?:the )?(.+?) background$/i);
+    /* "Noble background", "Seal skin feature from the selkie heritage", "X
+       culture", "X destiny": the character's own origin, by name. Only
+       backgrounds were read before, so a heritage's or a culture's feat was
+       unjudged - and kept - for everybody. */
+    p = clause.match(/^(?:.+?\s+from\s+)?(?:the\s+|an?\s+)?(.+?)\s+(heritage|culture|background|destiny)$/i);
     if (p) {
-      const name = p[1].trim().toLowerCase();
-      const ok = (actor?.items ?? []).some(i => i.type === 'background' && i.name.toLowerCase() === name);
-      return { ok, reason: `${p[1].trim()} background` };
+      const want = p[1].trim().toLowerCase();
+      const kind = p[2].toLowerCase();
+      const have = (actor?.items ?? []).filter(i => i.type === kind).map(i => i.name.toLowerCase());
+      const ok = have.some(n => n === want || n.includes(want) || want.includes(n));
+      return { ok, reason: `${p[1].trim()} ${kind}` };
     }
 
-    // "3 levels in marshal" / "3 Levels in Sorcerer"
-    let m = clause.match(/^(\d+)\s+levels?\s+in\s+(.+)$/i);
+    // "The Spellcasting feature", "the Pact Magic feature", "the Relentless feature"
+    p = clause.match(/^(?:the\s+)?(.+?)\s+feature$/i);
+    if (p && !/\sand\s/i.test(p[1])) {
+      const want = p[1].trim().toLowerCase();
+      const items = actor?.items ?? [];
+      let ok = items.some(i => i.name.toLowerCase() === want || i.name.toLowerCase().startsWith(`${want} (`));
+      if (!ok && want === 'spellcasting') {
+        ok = items.some(i => i.type === 'class'
+          && !['', 'none', 'psion'].includes(String(i.system?.spellcasting?.casterType ?? 'none')));
+      }
+      return { ok, reason: `the ${p[1].trim()} feature` };
+    }
+
+    // "Exertion pool of at least 4"
+    p = clause.match(/^exertion pool of at least (\d+)$/i);
+    if (p) {
+      // a5e's pool is twice the proficiency bonus; a stored max counts when there is one
+      const have = Number(actor?.system?.attributes?.exertion?.max ?? 0)
+        || 2 * Number(actor?.system?.attributes?.prof ?? 0);
+      return { ok: have >= Number(p[1]), reason: `exertion ${have}/${p[1]}` };
+    }
+
+    // "No levels in non-wielder classes": that class and no other
+    p = clause.match(/^no levels in non-([a-z]+) class(?:es)?$/i);
+    if (p) {
+      const only = p[1].toLowerCase();
+      const others = (actor?.items ?? []).filter(i => i.type === 'class' && i.name.toLowerCase() !== only);
+      return { ok: others.length === 0, reason: `no class but ${p[1]}` };
+    }
+
+    // "3 levels in marshal" / "3 Levels in Sorcerer" / "3 levels of cleric"
+    let m = clause.match(/^(\d+)\s+levels?\s+(?:in|of)\s+(.+)$/i);
     if (m) {
       const need = Number(m[1]);
       const name = m[2].trim().toLowerCase();
@@ -308,6 +414,35 @@ export class FeatService {
       return { ok: true, reason: `${m[2]} ${have}/${need}` };
     }
 
+    const classes = this.#classNames();
+    const levelsIn = (name) => {
+      const cls = (actor?.items ?? []).find(i => i.type === 'class' && i.name.toLowerCase() === name);
+      return cls?.system?.classLevels ?? cls?.system?.levels ?? 0;
+    };
+
+    // "Artificer level 3"
+    m = clause.match(/^([a-z][a-z' -]*?)\s+level\s+(\d+)$/i);
+    if (m && classes.has(m[1].toLowerCase())) {
+      const have = levelsIn(m[1].toLowerCase());
+      const need = Number(m[2]);
+      return { ok: have >= need, reason: `${m[1]} ${have}/${need}` };
+    }
+
+    // "warlock (diabolist archetype)": levels in the class, in that archetype
+    m = clause.match(/^([a-z][a-z' -]*?)\s*\(\s*(.+?)\s+archetype\s*\)$/i);
+    if (m && classes.has(m[1].toLowerCase())) {
+      const have = levelsIn(m[1].toLowerCase());
+      const arch = m[2].trim().toLowerCase();
+      const hasArch = (actor?.items ?? []).some(i => i.type === 'archetype' && i.name.toLowerCase() === arch);
+      return { ok: have > 0 && hasArch, reason: `${m[1]} (${m[2].trim()})` };
+    }
+
+    // "witch" on its own: a level in the class
+    if (classes.has(clause.toLowerCase())) {
+      const have = levelsIn(clause.toLowerCase());
+      return { ok: have > 0, reason: clause };
+    }
+
     // "Strength 13 or higher" / "Dexterity 13"
     m = clause.match(/^(strength|dexterity|constitution|intelligence|wisdom|charisma)\s+(\d+)/i);
     if (m) {
@@ -321,7 +456,7 @@ export class FeatService {
     // "War Dancer feat" — a named feat the character must already have
     m = clause.match(/^(.+?)\s+feats?$/i);
     if (m) {
-      const name = m[1].trim().toLowerCase();
+      const name = this.#featNamed(m[1].trim()) ?? m[1].trim().toLowerCase();
       const has  = (actor?.items ?? []).some(i =>
         this.isFeat(i) && i.name.toLowerCase() === name);
       return { ok: has, reason: `${m[1].trim()} feat` };
@@ -340,13 +475,41 @@ export class FeatService {
     /* A feat named without the word: "Steel Protector", "Hulking" - what the
        imported feats write where a5e writes "War Dancer feat". Only a name the
        feats actually loaded carry, so no stray clause is read as one. */
-    const name = clause.toLowerCase();
-    if ((this.#cache ?? []).some(f => f.name.toLowerCase() === name)) {
+    const name = this.#featNamed(clause);
+    if (name) {
       const has = (actor?.items ?? []).some(i => this.isFeat(i) && i.name.toLowerCase() === name);
       return { ok: has, reason: `${clause} feat` };
     }
 
     return null;                                    // not a shape we can judge
+  }
+
+  /**
+   * The loaded feat a prerequisite names, lower-cased; null when none. Near
+   * misses count for a long name: "Pack Initiative" is how a5e writes the Pack
+   * Initiate feat in four lycanthrope prerequisites.
+   */
+  static #featNamed(raw) {
+    const want = String(raw ?? '').toLowerCase().trim();
+    if (!want) return null;
+    const names = (this.#cache ?? []).map(f => f.name.toLowerCase());
+    if (names.includes(want)) return want;
+    if (want.length < 8) return null;
+    return names.find(n => Math.abs(n.length - want.length) <= 2 && this.#distance(n, want) <= 2) ?? null;
+  }
+
+  /** Edit distance, for #featNamed. */
+  static #distance(a, b) {
+    const row = Array.from({ length: b.length + 1 }, (_, j) => j);
+    for (let i = 1; i <= a.length; i++) {
+      let prev = row[0]; row[0] = i;
+      for (let j = 1; j <= b.length; j++) {
+        const cur = row[j];
+        row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+        prev = cur;
+      }
+    }
+    return row[b.length];
   }
 
   /** Feats as a UI model, each carrying its prerequisite verdict. */
@@ -375,9 +538,16 @@ export class FeatService {
         };
       });
 
-    // "Only ones I qualify for" keeps the unknown ones: they are unjudged, not
-    // failed, and dropping them would hide perfectly legal picks.
-    if (onlyEligible) rows = rows.filter(f => f.met);
+    /* "Only ones I qualify for" means ones the character is known to qualify
+       for. It used to keep the unjudged ones too, and a requirement the parser
+       could not read - a heritage, a culture, "3 levels of cleric" - passed every
+       filter: "they fall under no filter at all". They are still there with the
+       filter off, marked; the count of those it hides goes out with the rows. */
+    let unchecked = 0;
+    if (onlyEligible) {
+      unchecked = rows.filter(f => f.met && f.unknown).length;
+      rows = rows.filter(f => f.met && !f.unknown);
+    }
     /* A feat nobody gates is open to this character too, so it stays. */
     if (onlyMyClass)  rows = rows.filter(f => f.forMyClass || !f.classes.length);
     if (onlyUngated)  rows = rows.filter(f => !f.gated);
@@ -385,6 +555,7 @@ export class FeatService {
     const cmp = (this.SORTS[sort] ?? this.SORTS.name).cmp;
     rows.sort(cmp);
     if (dir === 'desc') rows.reverse();
+    rows.unchecked = unchecked;
     return rows;
   }
 

@@ -1501,6 +1501,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       context.featOnlyEligible = !!this._featOnlyEligible;
       context.featMyClassOnly  = !!this._featMyClassOnly;
       context.featUngatedOnly  = !!this._featUngatedOnly;
+      context.featUnchecked    = feats.unchecked ?? 0;
       context.featSortDir      = this._featSortDir ?? 'asc';
       /* Built here rather than in the template so the labels and the active
          mark come from one place — FeatService owns what the orders are. */

@@ -34,7 +34,10 @@ const pack = { collection: 'check.feats', metadata: { type: 'Item', label: 'Feat
 globalThis.foundry = { utils: { hasProperty: () => false } };
 globalThis.game = { i18n: { localize: (k) => k, format: (k) => k }, user: { isGM: true }, modules: new Map(),
   packs: new Collection([['check.feats', pack]]), settings: { get: () => false, storage: new Map() } };
-globalThis.CONFIG = { A5E: { products: {}, classes: {}, maneuverTraditions: { aceStarfighter: 'Ace Starfighter', adamantMountain: 'Adamant Mountain' } } };
+globalThis.CONFIG = { A5E: { products: {},
+  classes: { artificer: 'Artificer', bard: 'Bard', cleric: 'Cleric', fighter: 'Fighter', herald: 'Herald', savant: 'Savant', scholar: 'Scholar', warlock: 'Warlock', wielder: 'Wielder', witch: 'Witch', wizard: 'Wizard' },
+  weapons: { simple: { club: 'Club', dagger: 'Dagger' }, martial: { longsword: 'Longsword', rapier: 'Rapier' } },
+  maneuverTraditions: { aceStarfighter: 'Ace Starfighter', adamantMountain: 'Adamant Mountain' } } };
 globalThis.ui = { notifications: { warn() {}, error() {}, info() {} } };
 globalThis.Hooks = { on() {}, once() {} };
 const { AM } = await import(pathToFileURL(path.join(R, 'scripts', 'am.js')).href);
@@ -44,17 +47,24 @@ await FeatService.loadAll();
 
 const results = [];
 const check = (n, ok, d = '') => results.push(`${ok ? 'PASS' : 'FAIL'}  ${n}${d ? '  — ' + d : ''}`);
-const actor = ({ cls = 'Fighter', level = 1, score = 10, scores = {}, skills = {}, traditions = [], feats: owned = [], spells = [], background = null } = {}) => ({
+const actor = ({ cls = 'Fighter', level = 1, more = [], caster = 'none', archetype = null, score = 10, scores = {}, skills = {}, traditions = [],
+  feats: owned = [], spells = [], background = null, heritage = null, culture = null, destiny = null, armor = [], weapons = [], prof = 2 } = {}) => ({
   items: [
-    { type: 'class', name: cls, system: { classLevels: level } },
+    { type: 'class', name: cls, system: { classLevels: level, spellcasting: { casterType: caster } } },
+    ...more.map(([name, lv]) => ({ type: 'class', name, system: { classLevels: lv, spellcasting: { casterType: 'none' } } })),
+    ...(archetype ? [{ type: 'archetype', name: archetype, system: {} }] : []),
     ...owned.map(n => ({ type: 'feature', name: n, system: { featureType: 'feat' } })),
     ...spells.map(l => ({ type: 'spell', name: `Spell ${l}`, system: { level: l } })),
-    ...(background ? [{ type: 'background', name: background, system: {} }] : [])
+    ...(background ? [{ type: 'background', name: background, system: {} }] : []),
+    ...(heritage ? [{ type: 'heritage', name: heritage, system: {} }] : []),
+    ...(culture ? [{ type: 'culture', name: culture, system: {} }] : []),
+    ...(destiny ? [{ type: 'destiny', name: destiny, system: {} }] : [])
   ],
   system: {
     abilities: Object.fromEntries(['str', 'dex', 'con', 'int', 'wis', 'cha'].map(a => [a, { value: scores[a] ?? score }])),
     skills: Object.fromEntries(skills.map ? skills.map(k => [k, { proficient: 1 }]) : []),
-    proficiencies: { traditions }
+    proficiencies: { traditions, armor, weapons },
+    attributes: { prof, exertion: { max: 0 } }
   }
 });
 const verdict = (a, prerequisite) => {
@@ -72,7 +82,9 @@ const CASES = [
   ['a feat named without the word, not had', 'Steel Protector', actor(), 'not met'],
   ['"A, B, C, or D": any one of them is enough', 'Alpha Wereboar, Eye of the Tiger, Moonhowler, Rodent Embraced, or Werebear Emerged', actor({ feats: ['Moonhowler'] }), 'met'],
   ['"A, B, C, or D": none of them', 'Alpha Wereboar, Eye of the Tiger, Moonhowler, Rodent Embraced, or Werebear Emerged', actor(), 'not met'],
-  ['"A, B, or D" with a name that is no feat: shown, not hidden', 'Hibernating Affliction, Pack Initiative, Rat Within, Striped Soul, or Swineheart', actor(), 'unknown'],
+  // "Pack Initiative" is how a5e writes the Pack Initiate feat there: read as it
+  ['"A, B, or D" with a near miss of a feat name: judged, none had', 'Hibernating Affliction, Pack Initiative, Rat Within, Striped Soul, or Swineheart', actor(), 'not met'],
+  ['...and met by the feat the near miss names', 'Hibernating Affliction, Pack Initiative, Rat Within, Striped Soul, or Swineheart', actor({ feats: ['Pack Initiate'] }), 'met'],
   ['...and met by the feat that is one', 'Hibernating Affliction, Pack Initiative, Rat Within, Striped Soul, or Swineheart', actor({ feats: ['Striped Soul'] }), 'met'],
   ['"A, B, and C feats" needs all three', 'Holy Warrior, Fighting Idealist, and Sworn Chaplain feats', actor({ feats: ['Holy Warrior', 'Fighting Idealist'] }), 'not met'],
   ['"Intelligence or Wisdom 13 or higher": the score is both\'s', 'Intelligence or Wisdom 13 or higher', actor({ scores: { wis: 14 } }), 'met'],
@@ -86,12 +98,42 @@ const CASES = [
   ['...with a 1st-level spell', 'The ability to cast at least one spell of 1st-level or higher', actor({ spells: [0, 1] }), 'met'],
   ['"Noble background or the favor of a noble", noble', 'Noble background or the favor of a noble', actor({ background: 'Noble' }), 'met'],
   ['...not noble: the favor cannot be judged, so shown', 'Noble background or the favor of a noble', actor(), 'unknown'],
-  ['"Power Caster, proficiency in Arcana", neither', 'Power Caster , proficiency in Arcana', actor(), 'not met']
+  ['"Power Caster, proficiency in Arcana", neither', 'Power Caster , proficiency in Arcana', actor(), 'not met'],
+  // the shapes that used to go unjudged, and so passed every filter
+  ['"3 levels of cleric, 3 levels of wielder", both', '3 levels of cleric, 3 levels of wielder', actor({ cls: 'Cleric', level: 3, more: [['Wielder', 3]] }), 'met'],
+  ['...a cleric alone', '3 levels of cleric, 3 levels of wielder', actor({ cls: 'Cleric', level: 5 }), 'not met'],
+  ['"Artificer level 3, Savant level 3", both', 'Artificer level 3, Savant level 3', actor({ cls: 'Artificer', level: 3, more: [['Savant', 3]] }), 'met'],
+  ['...a fighter', 'Artificer level 3, Savant level 3', actor(), 'not met'],
+  ['"warlock (diabolist archetype) and witch", both', 'warlock (diabolist archetype) and witch', actor({ cls: 'Warlock', level: 3, archetype: 'Diabolist', more: [['Witch', 1]] }), 'met'],
+  ['...the wrong archetype', 'warlock (diabolist archetype) and witch', actor({ cls: 'Warlock', level: 3, archetype: 'Fiend', more: [['Witch', 1]] }), 'not met'],
+  ['"Seal skin feature from the selkie heritage", a selkie', 'Seal skin feature from the selkie heritage', actor({ heritage: 'Selkie' }), 'met'],
+  ['...a dwarf', 'Seal skin feature from the selkie heritage', actor({ heritage: 'Dwarf' }), 'not met'],
+  ['"X culture", "X destiny": the character\'s own', 'Stoic Orc culture, Saint destiny', actor({ culture: 'Stoic Orc', destiny: 'Saint' }), 'met'],
+  ['...another culture', 'Stoic Orc culture', actor({ culture: 'Deep Gnome' }), 'not met'],
+  ['"Proficiency with medium armor"', 'Proficiency with medium armor', actor({ armor: ['light', 'medium'] }), 'met'],
+  ['...light only', 'Proficiency with medium armor', actor({ armor: ['light'] }), 'not met'],
+  ['"Proficiency with shields"', 'Proficiency with shields', actor({ armor: ['shield'] }), 'met'],
+  ['"Proficiency with at least one martial weapon"', 'Proficiency with at least one martial weapon', actor({ weapons: ['dagger', 'rapier'] }), 'met'],
+  ['...simple weapons only', 'Proficiency with at least one martial weapon', actor({ weapons: ['dagger'] }), 'not met'],
+  ['"Proficiency with the Arcana or Religion skill"', 'Proficiency with the Arcana or Religion skill', actor({ skills: ['rel'] }), 'met'],
+  ['"You must have the spellcasting feature", a caster', 'You must have the spellcasting feature', actor({ cls: 'Cleric', caster: 'full' }), 'met'],
+  ['...a fighter', 'You must have the spellcasting feature', actor(), 'not met'],
+  ['"Exertion pool of at least 4 and either the Spellcasting feature, ... or the Pact Magic feature", a caster', 'Exertion pool of at least 4 and either the Spellcasting feature, the Magic Wielding feature, or the Pact Magic feature', actor({ cls: 'Cleric', caster: 'full' }), 'met'],
+  ['...a fighter', 'Exertion pool of at least 4 and either the Spellcasting feature, the Magic Wielding feature, or the Pact Magic feature', actor(), 'not met'],
+  ['"4 levels in wielder, no levels in non-wielder classes", a multiclass', '4 levels in wielder, no levels in non-wielder classes', actor({ cls: 'Wielder', level: 4, more: [['Fighter', 1]] }), 'not met']
 ];
 for (const [label, prereq, a, want] of CASES) {
   const got = verdict(a, prereq);
   check(label, got === want, got === want ? '' : `"${prereq}" -> ${got}, not ${want}`);
 }
+/* A sub-feat's parent is its prerequisite, and a description's "Prerequisite:" is one. */
+const loaded = await FeatService.loadAll({ force: true });
+const byName = (name) => loaded.find(x => x.name === name);
+check('"Bear Grab (Hibernating Affliction)" is gated on its parent feat', byName('Bear Grab (Hibernating Affliction)')?.prerequisite === 'Hibernating Affliction feat', byName('Bear Grab (Hibernating Affliction)')?.prerequisite);
+check('...and so kept by no "no prerequisite" filter', byName('Bear Grab (Hibernating Affliction)')?.gated === true);
+check('Eldritch Rager takes its prerequisite from its description', byName('Eldritch Rager')?.prerequisite === 'Wrathful Bargainer feat', byName('Eldritch Rager')?.prerequisite);
+const eligibleFighter = await FeatService.optionsFor(actor(), { onlyEligible: true });
+check('"only ones I qualify for" keeps no unjudged feat', eligibleFighter.every(x => x.met && !x.unknown), `${eligibleFighter.length} kept, ${eligibleFighter.unchecked} unjudged hidden`);
 const unknown = (list) => list.filter(d => FeatService.checkPrerequisite(actor(), { prerequisite: d.system.prerequisite ?? '' }).unknown);
 check('of a5e\'s feats no more than 40 go unjudged (61 before)', unknown(a5eFeats).length <= 40, `${unknown(a5eFeats).length} of ${a5eFeats.length}`);
 check('of the imported feats no more than 15 go unjudged (26 before)', unknown(imported).length <= 15, `${unknown(imported).length} of ${imported.length}`);

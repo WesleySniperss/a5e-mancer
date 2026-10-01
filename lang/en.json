@@ -491,6 +491,8 @@
   "am.asi.mode-feat": "Take a feat instead",
   "am.asi.feat-search": "Search feats…",
   "am.asi.feat-eligible-only": "Only ones I qualify for",
+  "am.asi.feat-eligible-hint": "Only feats whose prerequisite is checked and met by this character: class levels, heritage, culture, background, destiny, feats, ability scores, proficiencies, spellcasting. A prerequisite that cannot be checked automatically hides the feat; turn this off to see it.",
+  "am.asi.feat-unchecked-hidden": "{count} more feats have a prerequisite that can't be checked automatically. Turn off \"Only ones I qualify for\" to see them.",
   "am.asi.feat-chosen": "Taking",
   "am.asi.feat-none": "No feat matches that search.",
   "am.asi.feat-error": "The feats could not be loaded — see the console.",

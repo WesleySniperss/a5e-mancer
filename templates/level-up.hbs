@@ -445,7 +445,8 @@
             placeholder="{{localize 'am.asi.feat-search'}}" value="{{featSearch}}" autocomplete="off">
           <button type="button"
             class="am-filter-pill {{#if featOnlyEligible}}am-pill-active{{/if}}"
-            data-action="luToggleFeatEligible">
+            data-action="luToggleFeatEligible"
+            data-tooltip="{{localize 'am.asi.feat-eligible-hint'}}">
             <i class="fa-solid fa-filter"></i> {{localize 'am.asi.feat-eligible-only'}}
           </button>
           <button type="button"
@@ -461,6 +462,9 @@
             <i class="fa-solid fa-door-open"></i> {{localize 'am.asi.feat-ungated'}}
           </button>
         </div>
+        {{#if featUnchecked}}
+          <p class="am-hint am-feat-unchecked">{{localize 'am.asi.feat-unchecked-hidden' count=featUnchecked}}</p>
+        {{/if}}
 
         {{!-- Six hundred feats in one alphabetical column is a list you
               scroll, not one you use. These are the orders the service knows;

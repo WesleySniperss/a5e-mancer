@@ -95,6 +95,7 @@ export class FeatDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       featOnlyEligible: this._onlyEligible,
       featMyClassOnly:  this._onlyMyClass,
       featUngatedOnly:  this._onlyUngated,
+      featUnchecked:    feats.unchecked ?? 0,
       featSortDir:      this._dir,
       featSorts: Object.entries(FeatService.SORTS).map(([key, s]) => ({
         key, label: s.label, active: this._sort === key
