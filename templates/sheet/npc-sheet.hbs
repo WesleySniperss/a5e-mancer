@@ -1122,7 +1122,7 @@
         {{#if spellsPrepared}}
           <span class="am-prepared-count{{#if spellsPrepared.over}} am-over{{/if}}"
             data-tooltip="Prepared spells, against the most you can hold prepared. Always-prepared spells are not counted.">
-            <i class="fa-solid fa-book"></i> Prepared {{spellsPrepared.held}} / {{spellsPrepared.cap}}
+            <i class="fa-solid fa-book"></i> Prepared <span class="am-prepared-held">{{spellsPrepared.held}}</span> / <span class="am-prepared-cap">{{spellsPrepared.cap}}</span>
           </span>
         {{/if}}
       </div>

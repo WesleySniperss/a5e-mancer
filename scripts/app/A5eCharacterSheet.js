@@ -9,7 +9,7 @@ import { FeatService } from '../utils/featService.js';
 import { ManeuverService } from '../utils/maneuverService.js';
 import { ConditionSource } from '../utils/conditionSource.js';
 import { ItemRepair } from '../utils/itemRepair.js';
-import { patchInPlace, snapshot, REDRAW_SOON } from '../utils/livePatch.js';
+import { patchInPlace, snapshot } from '../utils/livePatch.js';
 
 const MODULE_ID = 'a5e-mancer';
 
@@ -297,12 +297,6 @@ export class A5eCharacterSheet extends ActorSheet {
           if (shown) {
             this.#drawn = shown;
             this.#lastActivity = performance.now();
-            /* Drawn, but a block is to follow (the death-save overlay at 0 hit
-               points): held, so the burst this starts redraws once. */
-            if (shown[REDRAW_SOON]) {
-              clearTimeout(this.#gathered);
-              this.#gathered = setTimeout(() => this.#flush(), A5eCharacterSheet.REDRAW_QUIET);
-            }
             return;
           }
         } catch (err) {
@@ -5131,13 +5125,66 @@ export class A5eCharacterSheet extends ActorSheet {
     let blind = false;
     try { blind = !!game.settings.get('a5e', 'blindDeathSaves') && !game.user?.isGM; } catch { /* a5e without the setting */ }
     const pips = (have) => [1, 2, 3].map((n) => ({ n, checked: !blind && have >= n }));
+    const dead   = !blind && failure >= 3;
+    const stable = !blind && !dead && success >= 3;
     return {
       open: Number(hp?.max ?? 0) > 0 && Number(hp?.value ?? 0) <= 0,
-      dead: !blind && failure >= 3,
+      dead, stable,
+      label: dead ? 'Dead' : stable ? 'Stable' : 'Dying',
       success, failure,
       successes: pips(success),
       failures: pips(failure)
     };
+  }
+
+  /* ── For livePatch: what getData would draw, one value at a time ─────────
+     The rules in utils/livePatch.js set a changed value in place instead of
+     redrawing the sheet; these hand them the same values getData computes,
+     from the same code, so a patched sheet and a redrawn one cannot differ. */
+
+  /** The death-save panel. */
+  liveDeathSaves() {
+    const attrs = this.actor.system?.attributes ?? {};
+    return A5eCharacterSheet.#deathSaves(attrs.death, attrs.hp);
+  }
+
+  /** An item row's state badges: equipped, damaged, prepared - as the row builders give them. */
+  liveItemState(item) {
+    const sys = item.system ?? {};
+    const prepared = Number(sys.prepared ?? 0);
+    const key = CONFIG?.A5E?.preparedStates?.[prepared];
+    return {
+      ...this.#stateBadges(item),
+      equipped:       (sys.equippedState ?? 1) === 2,
+      prepared:       prepared > 0,
+      preparedState:  prepared,
+      preparedOnly:   prepared === 1,
+      alwaysPrepared: prepared === 2,
+      preparedIcon:   prepared === 2 ? 'fa-book-sparkles' : 'fa-book',
+      preparedLabel:  key ? game.i18n.localize(key)
+                          : (['Unprepared', 'Prepared', 'Always prepared'][prepared] ?? 'Unprepared')
+    };
+  }
+
+  /** The carried weight in the inventory footer. */
+  liveCarried() {
+    return this.#carriedWeight(this.actor, this.actor.items.contents);
+  }
+
+  /** The prepared count on the Magic tab, or null where it is not drawn. */
+  liveSpellsPrepared() {
+    const cap = SpellService.preparedCap(this.actor);
+    if (cap === null) return null;
+    const held = SpellService.preparedHeld(this.actor);
+    return { held, cap, over: held > cap };
+  }
+
+  /** The conditions lit in the Traits sidebar. */
+  liveActiveConditions() {
+    return new Set([
+      ...(this.actor.statuses ?? []),
+      ...(this.actor.effects ?? []).filter((e) => !e.disabled && e.conditionId).map((e) => e.conditionId)
+    ]);
   }
 
   #openFeatPicker() {

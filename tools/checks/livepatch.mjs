@@ -107,8 +107,12 @@ try {
       /* Set the actor to a state and draw it the slow way: the ground truth.
          render: false keeps this write from drawing, but not the effects a5e
          writes after it, so those are waited out before the redraw. */
+      /* A write to the actor, or to one of its items: { __item: id, data }. */
+      const write = (data, options) => (data && data.__item
+        ? st.actor.items.get(data.__item).update(data.data, options)
+        : st.actor.update(data, options));
       const full = async (data) => {
-        await st.actor.update(data, { render: false });
+        await write(data, { render: false });
         await quiet();
         await st.sheet.render(true);
         await new Promise((r) => setTimeout(r, 900));
@@ -120,7 +124,7 @@ try {
          that lands REDRAW_QUIET after the last of them. */
       const live = async (data) => {
         const before = st.redraws;
-        await st.actor.update(data);
+        await write(data);
         await quiet();
         return { html: markup(), redraws: st.redraws - before };
       };
@@ -135,19 +139,37 @@ try {
     { name: 'a point of damage', redraws: 0,
       from: (a) => ({ 'system.attributes.hp.value': a.hpMax }),
       to:   (a) => ({ 'system.attributes.hp.value': a.hpMax - 1 }) },
-    /* To 0 a5e adds Unconscious and Incapacitated, one write each; back up it
-       takes them off. Each asked for a redraw of its own — four, before —
-       and gathered they are one: three trials on Casxangil, requests 250–300ms
-       apart, one redraw each time. Gathering waits REDRAW_QUIET for the next,
-       so a server slow enough to leave a longer gap splits the burst in two;
-       measured once, with four other checks loading the machine. Two is
-       allowed; three would mean the gathering is not working. */
-    { name: 'down to nothing', redraws: { max: 2 },
-      from: (a) => ({ 'system.attributes.hp.value': a.hpMax }),
+    /* To 0 a5e adds Unconscious and Incapacitated, one write each, and the
+       death-save panel opens; back up it takes them off and clears the tally.
+       The conditions are tiles and the panel is drawn always, so none of it is
+       a redraw now - one or two were, gathered from four. */
+    { name: 'down to nothing', redraws: 0,
+      from: (a) => ({ 'system.attributes.hp.value': a.hpMax, 'system.attributes.death': { success: 0, failure: 0 } }),
       to:   () => ({ 'system.attributes.hp.value': 0 }) },
-    { name: 'back up from nothing', redraws: { max: 2 },
-      from: () => ({ 'system.attributes.hp.value': 0 }),
+    { name: 'back up from nothing', redraws: 0,
+      from: () => ({ 'system.attributes.hp.value': 0, 'system.attributes.death': { success: 1, failure: 2 } }),
       to:   (a) => ({ 'system.attributes.hp.value': a.hpMax }) },
+    /* A pip on the death-save panel, and the dead state at three. */
+    { name: 'a death save failure marked', redraws: 0, skipUnless: 'character',
+      from: () => ({ 'system.attributes.hp.value': 0, 'system.attributes.death': { success: 0, failure: 0 } }),
+      to:   () => ({ 'system.attributes.death.failure': 1 }) },
+    { name: 'a third failure: dead', redraws: 0, skipUnless: 'character',
+      from: () => ({ 'system.attributes.hp.value': 0, 'system.attributes.death': { success: 1, failure: 2 } }),
+      to:   () => ({ 'system.attributes.death.failure': 3 }) },
+    /* An item's state: the row's buttons and classes, the armour class it
+       moves, the carried weight and the prepared count. */
+    { name: 'armour taken off', redraws: 0, skipUnless: 'armor',
+      from: (a) => ({ __item: a.armorId, data: { 'system.equippedState': 2 } }),
+      to:   (a) => ({ __item: a.armorId, data: { 'system.equippedState': 0 } }) },
+    { name: 'a weapon equipped', redraws: 0, skipUnless: 'weapon',
+      from: (a) => ({ __item: a.weaponId, data: { 'system.equippedState': 1 } }),
+      to:   (a) => ({ __item: a.weaponId, data: { 'system.equippedState': 2 } }) },
+    { name: 'an item damaged', redraws: 0, skipUnless: 'weapon',
+      from: (a) => ({ __item: a.weaponId, data: { 'system.damagedState': 0 } }),
+      to:   (a) => ({ __item: a.weaponId, data: { 'system.damagedState': 1 } }) },
+    { name: 'a spell prepared', redraws: 0, skipUnless: 'spell',
+      from: (a) => ({ __item: a.spellId, data: { 'system.prepared': 0 } }),
+      to:   (a) => ({ __item: a.spellId, data: { 'system.prepared': 1 } }) },
     { name: 'temporary hit points appearing', redraws: 1,
       from: () => ({ 'system.attributes.hp.temp': 0 }),
       to:   () => ({ 'system.attributes.hp.temp': 6 }) },
@@ -204,6 +226,13 @@ try {
                slotLevel: slots?.[0] ?? null, slotMax: slots?.[1]?.max ?? null,
                slotDrawn: !!slots && window.__am.st.sheet.element[0].querySelectorAll(
                  '[data-action="slot-pip"][data-level="' + slots[0] + '"], [data-action="slot-field"][data-level="' + slots[0] + '"]').length > 0,
+               /* Items to toggle: drawn on the sheet, outside any container. */
+               ...(() => {
+                 const drawn = (i) => !!window.__am.st.sheet.element[0].querySelector('[data-item-id="' + i.id + '"]');
+                 const obj = (kind) => a.items.find(i => i.type === 'object' && i.system?.objectType === kind && !i.system?.containerId && drawn(i));
+                 const spell = a.items.find(i => i.type === 'spell' && Number(i.system?.level ?? 0) > 0 && Number(i.system?.prepared ?? 0) < 2 && drawn(i));
+                 return { armorId: obj('armor')?.id ?? null, weaponId: obj('weapon')?.id ?? null, spellId: spell?.id ?? null };
+               })(),
                nodes: window.__am.st.sheet.element[0].querySelectorAll('*').length };
     })()`);
 
@@ -217,14 +246,21 @@ try {
       if (lv) r['system.spellResources.slots.' + lv + '.current'] = a.system.spellResources.slots[lv].current;
       const ex = a.flags?.['a5e-mancer']?.exertion;
       if (a.type === 'npc') r['flags.a5e-mancer.exertion'] = ex ?? { current: 0, max: 0 };
+      if (a.type === 'character') r['system.attributes.death'] = { success: a.system.attributes.death?.success ?? 0, failure: a.system.attributes.death?.failure ?? 0 };
       return r; })()`);
+    /* And every item a case toggles, as it was. */
+    const itemRestore = await ev(`(() => { const a = game.actors.get('${who.id}');
+      return [${JSON.stringify(facts.armorId)}, ${JSON.stringify(facts.weaponId)}, ${JSON.stringify(facts.spellId)}].filter(Boolean)
+        .map(id => { const s = a.items.get(id).system; return { __item: id, data: { 'system.equippedState': s.equippedState, 'system.damagedState': s.damagedState, 'system.prepared': s.prepared } }; }); })()`);
 
     for (const c of CASES) {
       if (c.skipUnless === 'exertion' && facts.exertion === null) continue;
       if (c.skipUnless === 'slot' && !facts.slotLevel) continue;
       if (c.skipUnless === 'npcExertion' && facts.type !== 'npc') continue;
-      /* Below 4, a point off full can already be half: Bloodied, a redraw. */
-      if (c.name === 'a point of damage' && facts.hpMax < 4) continue;
+      if (c.skipUnless === 'character' && facts.type !== 'character') continue;
+      if (c.skipUnless === 'armor' && !facts.armorId) continue;
+      if (c.skipUnless === 'weapon' && !facts.weaponId) continue;
+      if (c.skipUnless === 'spell' && !facts.spellId) continue;
       const from = JSON.stringify(c.from(facts));
       const to   = JSON.stringify(c.to(facts));
       step(`${facts.name}: ${c.name}`);
@@ -246,15 +282,16 @@ try {
       check(`${who_} — drawn the same as a redraw`, out.same,
         out.same ? '' : `at ${out.at?.i}\n        patched … ${out.at?.live}\n        redrawn … ${out.at?.truth}`);
       /* A write whose preparing moved a condition — the monster that goes
-         deaf at 269 — is no longer a number: it has to cost the redraw. */
-      let want = typeof c.redraws === 'function' ? c.redraws(facts) : c.redraws;
-      if (out.moved && want === 0) want = 1;
+         deaf at 269 — used to have to cost a redraw. The conditions are drawn
+         in place now, so it is held to the same count as any other. */
+      const want = typeof c.redraws === 'function' ? c.redraws(facts) : c.redraws;
       const ok = typeof want === 'object' ? out.redraws >= 1 && out.redraws <= want.max : out.redraws === want;
       const said = typeof want === 'object' ? `1–${want.max} redraws` : want ? `${want} redraw` : 'no redraw';
       check(`${who_} — ${said}${out.moved ? ' (a condition moved)' : ''}`, ok, `redrew ${out.redraws} time(s)`);
     }
 
     await ev(`window.__am.full(${JSON.stringify(restore)}).then(() => null)`);
+    for (const r of itemRestore ?? []) await ev(`window.__am.full(${JSON.stringify(r)}).then(() => null)`);
   }
 } finally {
   b.close();

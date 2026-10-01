@@ -280,43 +280,45 @@
 
     {{!-- ── Portrait and vitals ──────────────────────────────────────────── --}}
     <div class="actor-vitals-container">
-      <div class="actor-image {{tidy.portrait.shape}}{{#if resources.deathSaves.open}} death-saves-open{{/if}}{{#if resources.deathSaves.dead}} dead{{/if}}" style="position: relative;">
+      <div class="actor-image {{tidy.portrait.shape}}{{#if resources.deathSaves.open}} am-dying{{/if}}{{#if resources.deathSaves.dead}} am-dead{{/if}}" style="position: relative;">
         <img src="{{actor.img}}" alt="{{actor.name}}" class="pointer" data-edit="img" />
       </div>
 
       {{!-- Death saving throws, over the portrait at 0 hit points, as a5e's own
-           sheet puts them there (ActorDeathSaveOverlay) - in Tidy's markup for
-           it: failures on the left, successes on the right, the skull between
-           rolls. A pip sets the count to itself, or back below it when it is
-           the last one set. The overlay comes and goes with the hit points,
-           which is shape, so livePatch redraws for it. --}}
-      {{#if resources.deathSaves.open}}
-        <div class="death-saves-overlay">
-          <div class="failures flexcol">
-            {{#each resources.deathSaves.failures}}
-              <button type="button" class="button{{#if this.checked}} checked{{/if}}"
-                data-action="death-mark" data-kind="failure" data-count="{{this.n}}"
-                data-tooltip="Failed death saving throws: {{this.n}}" aria-label="Failed death saving throws: {{this.n}}">
-                <i class="fa-solid fa-xmark"></i>
-              </button>
-            {{/each}}
-          </div>
-          <button type="button" class="death-save-roll-button button button-borderless button-icon-only"
-            data-action="death-roll"
-            data-tooltip="Death saving throw (right-click: no dialog)" aria-label="Roll a death saving throw">
-            <i class="fa-solid fa-skull"></i>
-          </button>
-          <div class="successes flexcol">
-            {{#each resources.deathSaves.successes}}
-              <button type="button" class="button{{#if this.checked}} checked{{/if}}"
-                data-action="death-mark" data-kind="success" data-count="{{this.n}}"
-                data-tooltip="Successful death saving throws: {{this.n}}" aria-label="Successful death saving throws: {{this.n}}">
-                <i class="fa-solid fa-check"></i>
-              </button>
-            {{/each}}
-          </div>
+           sheet puts them there (ActorDeathSaveOverlay): failures on the left,
+           successes on the right, the d20 between rolls, and what the tally
+           comes to under it. A pip sets the count to itself, or back below it
+           when it is the last one set.
+
+           Drawn always and shown by its open class, so dropping to 0, a pip, a
+           roll and the heal are classes and a word that livePatch sets in
+           place - the sheet is never redrawn for them. The look is ours
+           (tidy-a5e.css, "Death saving throws"), not Tidy's overlay. --}}
+      <div class="am-death-saves{{#if resources.deathSaves.open}} open{{/if}}{{#if resources.deathSaves.dead}} dead{{else if resources.deathSaves.stable}} stable{{/if}}">
+        <div class="am-ds-track am-ds-fails">
+          {{#each resources.deathSaves.failures}}
+            <button type="button" class="am-ds-pip{{#if this.checked}} checked{{/if}}"
+              data-action="death-mark" data-kind="failure" data-count="{{this.n}}"
+              data-tooltip="Failures: {{this.n}}" aria-label="Failed death saving throws: {{this.n}}">
+              <i class="fa-solid fa-skull"></i>
+            </button>
+          {{/each}}
         </div>
-      {{/if}}
+        <button type="button" class="am-ds-roll" data-action="death-roll"
+          data-tooltip="Death saving throw (right-click: no dialog)" aria-label="Roll a death saving throw">
+          <i class="fa-solid fa-dice-d20"></i>
+          <span class="am-ds-state">{{resources.deathSaves.label}}</span>
+        </button>
+        <div class="am-ds-track am-ds-saves">
+          {{#each resources.deathSaves.successes}}
+            <button type="button" class="am-ds-pip{{#if this.checked}} checked{{/if}}"
+              data-action="death-mark" data-kind="success" data-count="{{this.n}}"
+              data-tooltip="Successes: {{this.n}}" aria-label="Successful death saving throws: {{this.n}}">
+              <i class="fa-solid fa-heart"></i>
+            </button>
+          {{/each}}
+        </div>
+      </div>
 
       <div class="actor-vitals theme-dark">
         {{!-- Hit points.
@@ -1164,7 +1166,7 @@
         {{#if spellsPrepared}}
           <span class="am-prepared-count{{#if spellsPrepared.over}} am-over{{/if}}"
             data-tooltip="Prepared spells, against the most you can hold prepared. Always-prepared spells are not counted.">
-            <i class="fa-solid fa-book"></i> Prepared {{spellsPrepared.held}} / {{spellsPrepared.cap}}
+            <i class="fa-solid fa-book"></i> Prepared <span class="am-prepared-held">{{spellsPrepared.held}}</span> / <span class="am-prepared-cap">{{spellsPrepared.cap}}</span>
           </span>
         {{/if}}
       </div>

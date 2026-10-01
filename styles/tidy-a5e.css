@@ -2489,3 +2489,186 @@
   flex: 0 0 auto;
   transition: none;
 }
+
+/* ── Death saving throws ───────────────────────────────────────────────────
+   Over the portrait at 0 hit points, as a5e's own sheet opens them. Tidy's
+   overlay was two columns of plain gold rings with a check and a cross, and a
+   faint skull - "terribly ugly, not styled, not cool". This is the sheet's
+   own: failures as skulls that light blood red, successes as hearts that
+   light green, a d20 between them that beats like a heart while the
+   character is dying, and a word under it for what the tally comes to.
+
+   The panel is always in the markup and shown by .open, so livePatch sets its
+   classes in place and the sheet is never redrawn for a pip or a roll. */
+.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals-container .am-death-saves {
+  position: absolute;
+  inset-block: 0 var(--t5e-size-8x, 2rem);
+  inset-inline: 0;
+  z-index: 3;
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding-inline: 0.15rem;
+  pointer-events: none;
+}
+.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals-container .am-death-saves.open {
+  display: flex;
+}
+.tidy5e-sheet.application.a5e-mancer-sheet .am-death-saves > * {
+  pointer-events: auto;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-ds-track {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 0.4rem;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-ds-pip {
+  --pip: #c0392b;
+  display: grid;
+  place-items: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--pip) 40%, #000);
+  background:
+    radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.07), transparent 60%),
+    rgba(12, 9, 12, 0.78);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.55);
+  color: color-mix(in srgb, var(--pip) 45%, #777);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+.tidy5e-sheet.application.a5e-mancer-sheet .am-ds-saves .am-ds-pip { --pip: #2ea86a; }
+.tidy5e-sheet.application.a5e-mancer-sheet .am-ds-pip i {
+  font-size: 0.78rem;
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+}
+.tidy5e-sheet.application.a5e-mancer-sheet .am-ds-pip:hover,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-ds-pip:focus-visible {
+  transform: scale(1.1);
+  outline: none;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.55), 0 0 9px color-mix(in srgb, var(--pip) 75%, transparent);
+}
+.tidy5e-sheet.application.a5e-mancer-sheet .am-ds-pip.checked {
+  border-color: color-mix(in srgb, var(--pip) 70%, #fff);
+  background:
+    radial-gradient(circle at 35% 28%, color-mix(in srgb, var(--pip) 70%, #fff) 0%, var(--pip) 48%, color-mix(in srgb, var(--pip) 55%, #000) 100%);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--pip) 80%, transparent), inset 0 1px 1px rgba(255, 255, 255, 0.35);
+  color: #fff;
+}
+.tidy5e-sheet.application.a5e-mancer-sheet .am-ds-pip.checked i {
+  opacity: 1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-ds-roll {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  cursor: pointer;
+}
+.tidy5e-sheet.application.a5e-mancer-sheet .am-ds-roll i {
+  font-size: 2.6rem;
+  color: #f2e6d4;
+  filter: drop-shadow(0 0 6px rgba(192, 57, 43, 0.95)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.85));
+  animation: am-ds-heartbeat 1.6s ease-in-out infinite;
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+.tidy5e-sheet.application.a5e-mancer-sheet .am-ds-roll:hover i,
+.tidy5e-sheet.application.a5e-mancer-sheet .am-ds-roll:focus-visible i {
+  animation: none;
+  transform: scale(1.12) rotate(-14deg);
+  color: #fff;
+}
+.tidy5e-sheet.application.a5e-mancer-sheet .am-ds-roll:focus-visible { outline: none; }
+.tidy5e-sheet.application.a5e-mancer-sheet .am-ds-state {
+  padding: 0.05rem 0.5rem;
+  border: 1px solid rgba(192, 57, 43, 0.65);
+  border-radius: 999px;
+  background: rgba(24, 4, 6, 0.72);
+  color: #f5d9d4;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.4;
+  text-transform: uppercase;
+  text-shadow: 0 1px 2px #000;
+  white-space: nowrap;
+}
+
+/* Three successes: stable. The beat stops and the light turns green. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-death-saves.stable .am-ds-roll i {
+  animation: none;
+  filter: drop-shadow(0 0 6px rgba(46, 168, 106, 0.9)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.85));
+}
+.tidy5e-sheet.application.a5e-mancer-sheet .am-death-saves.stable .am-ds-state {
+  border-color: rgba(46, 168, 106, 0.7);
+  color: #d6f5e4;
+}
+
+/* Three failures: dead. The d20 becomes a skull and crossbones (\f714). */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-death-saves.dead .am-ds-roll i {
+  animation: none;
+  color: #cfcfcf;
+  filter: drop-shadow(0 0 8px rgba(110, 0, 0, 0.95)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.9));
+}
+.tidy5e-sheet.application.a5e-mancer-sheet .am-death-saves.dead .am-ds-roll i::before {
+  content: "\f714";
+}
+.tidy5e-sheet.application.a5e-mancer-sheet .am-death-saves.dead .am-ds-state {
+  border-color: rgba(120, 120, 120, 0.7);
+  color: #e0e0e0;
+}
+
+/* The portrait: drained and ringed in a slow red pulse while dying, grey once dead. */
+.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals-container .actor-image.am-dying img {
+  filter: saturate(0.35) brightness(0.72);
+  transition: filter 0.4s ease;
+}
+.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals-container .actor-image.am-dying::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 26px 6px rgba(150, 0, 10, 0.85);
+  pointer-events: none;
+  animation: am-ds-pulse 2.4s ease-in-out infinite;
+}
+.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals-container .actor-image.am-dead img {
+  filter: grayscale(1) brightness(0.5);
+}
+.tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals-container .actor-image.am-dead::after {
+  animation: none;
+  box-shadow: inset 0 0 30px 8px rgba(40, 0, 0, 0.9);
+}
+
+@keyframes am-ds-heartbeat {
+  0%, 100% { transform: scale(1); }
+  12% { transform: scale(1.13); }
+  24% { transform: scale(1); }
+  36% { transform: scale(1.08); }
+  48% { transform: scale(1); }
+}
+@keyframes am-ds-pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tidy5e-sheet.application.a5e-mancer-sheet .am-ds-roll i,
+  .tidy5e-sheet.application.a5e-mancer-sheet .actor-vitals-container .actor-image.am-dying::after {
+    animation: none;
+  }
+}

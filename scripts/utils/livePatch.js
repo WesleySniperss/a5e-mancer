@@ -17,8 +17,11 @@
  * a document update renders its apps with `renderContext: "updateActor"` and
  * `renderData` holding the diff (ClientDocument#_onUpdate). Where every changed
  * path is one this file knows how to draw, the elements holding that number are
- * set in place and the redraw is skipped; where anything else changed — an item,
- * a class, a name, a flag nobody here claims — the sheet redraws as before.
+ * set in place and the redraw is skipped; where anything else changed — a new
+ * item, a class, a name, a flag nobody here claims — the sheet redraws as before.
+ * An item's own update ("updateitems") is read the same way, its paths as
+ * items.<id>.<path>, and a change of conditions (the effects a5e writes at 0 hit
+ * points) by the statuses it moves.
  *
  * The rules read their values off the ACTOR, never out of the diff: a write of
  * `system.attributes.hp.value` may be clamped, and `baseMax` moves the derived
@@ -26,10 +29,9 @@
  *
  * Adding a rule: name the paths it owns, and return false from apply() for any
  * change of SHAPE — a block that appears or disappears, a row count that moves.
- * Only a number, a class or an attribute may be set here. A rule that has set
- * its numbers but knows a block is to follow may return 'soon': the sheet then
- * redraws with the rest of the burst instead of at once (REDRAW_SOON). tools/checks/
- * livepatch.mjs holds the patched sheet against a full redraw of the same
+ * Only a number, a class or an attribute may be set here - so a block that
+ * comes and goes with a value (the death-save panel) is drawn always and shown
+ * by a class. tools/checks/livepatch.mjs holds the patched sheet against a full redraw of the same
  * actor, in the browser, and any difference is a failed check.
  */
 
@@ -52,6 +54,13 @@ const setValue = (el, value) => {
 };
 
 const setAttr = (el, name, value) => { if (el && el.getAttribute(name) !== String(value)) el.setAttribute(name, String(value)); };
+
+/** A class attribute written in the template's order, the falsy entries dropped. */
+const setClassName = (el, parts) => {
+  if (!el) return;
+  const value = parts.filter(Boolean).join(' ');
+  if (el.className !== value) el.className = value;
+};
 
 /* ── The rules ──────────────────────────────────────────────────────────── */
 
@@ -77,13 +86,9 @@ const hitPoints = {
     /* The temporary block is drawn only when there is a temporary pool. Its
        coming and going is a change of shape, so it is a redraw. */
     if (!meter || (!!temp !== !!chip)) return false;
-    /* So is the death-save overlay over the portrait at 0 hit points - but
-       reaching 0 is the start of a burst: a5e adds Unconscious and
-       Incapacitated next, each a redraw. A redraw now would be one more than
-       the burst costs (3 measured, against the 1-2 allowed), so the numbers
-       are set here and the redraw is held for the burst's ('soon'). */
-    const dying = max > 0 && value <= 0;
-    const soon = dying !== !!el.querySelector('.actor-vitals-container .death-saves-overlay');
+    /* The death-save panel opens at 0 and shuts on a heal, which also clears
+       the tally (a5e): classes and a word, set by drawDeathSaves. */
+    if (!drawDeathSaves(sheet, el)) return false;
 
     meter.style.setProperty('--bar-percentage', `${pct01(value, max)}%`);
     setText(meter.querySelector('.label .value'), value);
@@ -95,7 +100,154 @@ const hitPoints = {
       setText(chip.querySelector('.am-temp-value'), temp);
       setAttr(chip, 'data-tooltip', `Temporary hit points: ${temp}`);
     }
-    return soon ? 'soon' : true;
+    return true;
+  }
+};
+
+/**
+ * The death-save panel over the portrait, and the portrait under it: open at
+ * 0 hit points, the pips lit to the tally, dead or stable, and the word for it.
+ * Every class is rebuilt in the template's order, so a patched panel and a
+ * redrawn one are the same markup. A sheet without the panel - a monster's -
+ * has nothing here to draw.
+ */
+function drawDeathSaves(sheet, el) {
+  const panel = el.querySelector('.actor-vitals-container .am-death-saves');
+  if (!panel) return true;
+  const ds = sheet.liveDeathSaves?.();
+  if (!ds) return false;
+
+  setClassName(panel, ['am-death-saves', ds.open && 'open', ds.dead ? 'dead' : (ds.stable && 'stable')]);
+  const image = el.querySelector('.actor-vitals-container .actor-image');
+  if (image) {
+    const base = [...image.classList].filter((c) => c !== 'am-dying' && c !== 'am-dead');
+    setClassName(image, [...base, ds.open && 'am-dying', ds.dead && 'am-dead']);
+  }
+  for (const pip of panel.querySelectorAll('.am-ds-pip')) {
+    const list = pip.dataset.kind === 'failure' ? ds.failures : ds.successes;
+    setClassName(pip, ['am-ds-pip', list[num(pip.dataset.count) - 1]?.checked && 'checked']);
+  }
+  setText(panel.querySelector('.am-ds-state'), ds.label);
+  return true;
+}
+
+/** The death-save tally: a pip clicked, a roll made. */
+const deathSaves = {
+  owns: (path) => path === 'system.attributes.death' || path.startsWith('system.attributes.death.'),
+  apply: (sheet, el) => drawDeathSaves(sheet, el)
+};
+
+/**
+ * Conditions: the tiles lit in the Traits sidebar. a5e puts a character under
+ * Unconscious and Incapacitated at 0 hit points and takes them off on a heal -
+ * four writes of effects, each a redraw before. The Effects tab leaves
+ * conditions out, so the tiles are all that show them; see EFFECTS below.
+ */
+const conditions = {
+  owns: (path) => path === 'statuses',
+  apply(sheet, el) {
+    const active = sheet.liveActiveConditions?.();
+    if (!active) return false;
+    for (const tile of el.querySelectorAll('.conditions-list .condition[data-condition-id]')) {
+      const on = active.has(tile.dataset.conditionId);
+      setClassName(tile, ['condition', on && 'active']);
+      setAttr(tile.querySelector('[data-action="toggle-condition"]'), 'aria-pressed', on ? 'true' : 'false');
+    }
+    return true;
+  }
+};
+
+/** Armour class: the figure on the shield. Its breakdown is read on hover, from the actor. */
+const armorClass = {
+  owns: (path) => path === 'system.attributes.ac' || path.startsWith('system.attributes.ac.'),
+  apply(sheet, el) {
+    const value = el.querySelector('.ac-container .ac-value');
+    if (!value) return false;
+    const ac = sheet.actor.system?.attributes?.ac;
+    setText(value, ac?.value ?? ac ?? 10);
+    return true;
+  }
+};
+
+/**
+ * An item's state: equipped, damaged, prepared - the buttons on its rows
+ * (Inventory and Favorites both draw it), the row's own classes, and what
+ * those states feed: the carried weight (only what is carried counts) and the
+ * prepared count. Picking a spell or equipping gear redrew the whole sheet;
+ * "I click something and it all jumps up". The values come from the sheet's
+ * own builders (liveItemState and the rest), so they cannot drift from getData.
+ */
+const ITEM_STATE = /^items\.([^.]+)\.system\.(equippedState|prepared|damagedState)$/;
+const ROW_CLASSES = ['tidy-table-row', 'tidy-table-row-v2', 'equipped', 'attunement-problem', 'am-always-prepared', 'am-prepared'];
+const itemStates = {
+  owns: (path) => ITEM_STATE.test(path),
+  apply(sheet, el, paths) {
+    if (!sheet.liveItemState) return false;
+    const ids = new Set(paths.map((p) => p.match(ITEM_STATE)[1]));
+    const fields = new Set(paths.map((p) => p.match(ITEM_STATE)[2]));
+
+    for (const id of ids) {
+      const item = sheet.actor.items.get(id);
+      if (!item) return false;
+      const st = sheet.liveItemState(item);
+      for (const box of el.querySelectorAll(`.tidy-table-row-container[data-item-id="${id}"]`)) {
+        const row = box.querySelector(':scope > .tidy-table-row');
+        if (row) {
+          /* Only on the rows whose builder gives the state: a spell is drawn in
+             four rows (Favorites and Magic, each with its action's row), and
+             only the one with the prepare button wears am-prepared; equipped
+             goes with the equip and damaged buttons the same way. */
+          const want = {};
+          if (box.querySelector('[data-action="item-equip"], [data-action="item-damaged"]')) want.equipped = st.equipped;
+          if (box.querySelector('[data-action="item-prepare"]')) {
+            want['am-always-prepared'] = st.alwaysPrepared;
+            want['am-prepared'] = !st.alwaysPrepared && st.preparedOnly;
+          }
+          const runtime = [...row.classList].filter((c) => !ROW_CLASSES.includes(c));
+          setClassName(row, [...ROW_CLASSES.filter((c) => (c in want ? want[c] : (c.startsWith('tidy-table-row') || row.classList.contains(c)))), ...runtime]);
+        }
+        const lit = (on) => (on ? 'color-icon-theme-highlight highlighted' : 'color-text-lightest');
+        const equip = box.querySelector('[data-action="item-equip"]');
+        if (equip) {
+          setAttr(equip, 'aria-label', `Equipped state: ${st.equipLabel}`);
+          setAttr(equip, 'data-tooltip', st.equipLabel);
+          setClassName(equip.querySelector('i'), ['fa-solid', st.equipIcon, lit(st.equipActive)]);
+        }
+        const damaged = box.querySelector('[data-action="item-damaged"]');
+        if (damaged) {
+          setAttr(damaged, 'aria-label', `Condition: ${st.damagedLabel}`);
+          setAttr(damaged, 'data-tooltip', st.damagedLabel);
+          setClassName(damaged.querySelector('i'), ['fa-solid', st.damagedIcon, lit(st.damagedActive)]);
+        }
+        for (const prep of box.querySelectorAll('[data-action="item-prepare"]')) {
+          setAttr(prep, 'aria-label', `Prepared state: ${st.preparedLabel}`);
+          if (prep.classList.contains('am-prepare')) {
+            setClassName(prep, ['button', 'button-borderless', 'button-icon-only', 'am-prepare', `am-prepare-${st.preparedState}`]);
+            setAttr(prep, 'data-tooltip', `${st.preparedLabel} — click to change`);
+            setClassName(prep.querySelector('i'), ['fa-solid', st.preparedIcon]);
+          } else {
+            setAttr(prep, 'data-tooltip', st.preparedLabel);
+            setClassName(prep.querySelector('i'), ['fa-solid', st.preparedIcon, lit(st.prepared)]);
+          }
+        }
+      }
+    }
+
+    if (fields.has('prepared')) {
+      const count = el.querySelector('.am-prepared-count');
+      const sp = sheet.liveSpellsPrepared?.();
+      if (!!count !== !!sp) return false;
+      if (count) {
+        setClassName(count, ['am-prepared-count', sp.over && 'am-over']);
+        setText(count.querySelector('.am-prepared-held'), sp.held);
+        setText(count.querySelector('.am-prepared-cap'), sp.cap);
+      }
+    }
+    if (fields.has('equippedState')) {
+      const carried = el.querySelector('.am-carried .am-a5e-value');
+      if (carried && sheet.liveCarried) setText(carried, sheet.liveCarried());
+    }
+    return true;
   }
 };
 
@@ -177,7 +329,7 @@ const spellSlots = {
   }
 };
 
-const RULES = [hitPoints, exertion, spellSlots];
+const RULES = [hitPoints, deathSaves, conditions, armorClass, itemStates, exertion, spellSlots];
 
 /* Foundry's own bookkeeping rides along in every diff and means nothing here. */
 const IGNORED = new Set(['_id', '_stats']);
@@ -227,7 +379,50 @@ const differences = (a, b) => [...new Set([...Object.keys(a), ...Object.keys(b)]
   .filter((k) => !Object.is(a[k], b[k]));
 
 /**
- * Draw an actor update in place, or say that it needs a redraw.
+ * What a render request writes, as paths: an actor's own update, an item's
+ * (as items.<id>.<path>), or nothing for a change of conditions - whose effect
+ * documents no rule draws, and whose consequence, the statuses, the snapshot
+ * diff brings in. null when the request is of a kind no rule can answer.
+ */
+const EFFECTS = /^(create|update|delete)effects$/;
+function writtenPaths(sheet, el, options) {
+  const ctx  = options.renderContext;
+  const data = options.renderData;
+  if (ctx === 'updateActor') {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+    return Object.keys(foundry.utils.flattenObject(data));
+  }
+  if (ctx === 'updateitems') {
+    if (!Array.isArray(data)) return null;
+    const out = [];
+    for (const change of data) {
+      const id = change?._id;
+      if (!id) return null;
+      for (const key of Object.keys(foundry.utils.flattenObject(change))) {
+        if (key === '_id' || key.startsWith('_stats.')) continue;
+        out.push(`items.${id}.${key}`);
+      }
+    }
+    return out;
+  }
+  /* A condition is an effect a5e marks effectType 'condition', and the Effects
+     tab leaves those out. Any other effect is a row there - shape. One that is
+     gone is judged by whether the tab still draws it. */
+  if (EFFECTS.test(ctx ?? '')) {
+    if (!Array.isArray(data)) return null;
+    for (const entry of data) {
+      const id = typeof entry === 'string' ? entry : entry?._id;
+      if (!id) return null;
+      const effect = sheet.actor.effects?.get(id);
+      if (effect ? effect.system?.effectType !== 'condition' : !!el.querySelector(`[data-effect-id="${id}"]`)) return null;
+    }
+    return [];
+  }
+  return null;
+}
+
+/**
+ * Draw an update in place, or say that it needs a redraw.
  *
  * @param {object} sheet    the rendered v1 sheet
  * @param {object} options  the render options Foundry passed, carrying
@@ -237,18 +432,16 @@ const differences = (a, b) => [...new Set([...Object.keys(a), ...Object.keys(b)]
  *                         change and no redraw is needed; null otherwise
  */
 export function patchInPlace(sheet, options = {}, drawn = null) {
-  if (!drawn || options.renderContext !== 'updateActor') return null;
-  const changed = options.renderData;
-  if (!changed || typeof changed !== 'object' || Array.isArray(changed)) return null;
-
+  if (!drawn) return null;
   const el = sheet.element?.[0] ?? sheet.element;
   if (!el?.querySelector) return null;
 
+  const written = writtenPaths(sheet, el, options);
+  if (!written) return null;
+
   const now = snapshot(sheet.actor);
-  const paths = [...new Set([
-    ...Object.keys(foundry.utils.flattenObject(changed)),
-    ...differences(drawn, now)
-  ])].filter((p) => !IGNORED.has(p.split('.')[0]));
+  const paths = [...new Set([...written, ...differences(drawn, now)])]
+    .filter((p) => !IGNORED.has(p.split('.')[0]));
   if (!paths.length) return now;
 
   /* Every path has to be claimed before anything is drawn: a change that is
@@ -261,20 +454,8 @@ export function patchInPlace(sheet, options = {}, drawn = null) {
     work.get(rule).push(path);
   }
 
-  let soon = false;
   for (const [rule, owned] of work) {
-    const drawnHere = rule.apply(sheet, el, owned);
-    if (!drawnHere) return null;
-    if (drawnHere === 'soon') soon = true;
+    if (!rule.apply(sheet, el, owned)) return null;
   }
-  if (soon) now[REDRAW_SOON] = true;
   return now;
 }
-
-/**
- * On a snapshot patchInPlace returns: the numbers are drawn, but a block is to
- * come or go with them, so the sheet should redraw once the burst it starts has
- * gone quiet - see A5eCharacterSheet#gather. A symbol, so no snapshot
- * comparison ever sees it as a path.
- */
-export const REDRAW_SOON = Symbol('a5e-mancer.redrawSoon');
