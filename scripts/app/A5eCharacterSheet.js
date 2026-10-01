@@ -2417,34 +2417,46 @@ export class A5eCharacterSheet extends ActorSheet {
     }
     out.rangeTip = labels.rangeLabel;
 
-    /* Target: how many, or the area when there is no count to give. */
+    /* Target: the area when the spell has one, how many otherwise.
+
+       "Some spells don't show the radius when there is an area": the area
+       showed only where there was no count to give, so Fire Storm said "0",
+       Antimagic Zone and Holy Aura "Other", Detonating Shard "1" - 19 of a5e's
+       spells and the imported ones - and a spell whose area sits in a later
+       action (Clangorous Blow's Strike, Seed Bomb's throws) showed nothing.
+       The area is what the table measures, so it comes first, with its unit:
+       a bare "20" read as twenty targets. The count stays in the tooltip. */
     const t = action?.target ?? {};
-    const area = action?.area ?? {};
+    const area = action?.area?.shape ? action.area
+      : (Object.values(item.system?.actions ?? {}).find((a) => a?.area?.shape)?.area ?? {});
     const SIZE = { circle: 'radius', cylinder: 'radius', emanation: 'radius', sphere: 'radius',
                    cone: 'length', line: 'length', wall: 'length', cube: 'width', square: 'width' };
     const SHAPE_ICON = { circle: 'fa-circle', cylinder: 'fa-circle', emanation: 'fa-circle-dot',
                          sphere: 'fa-circle', cone: 'fa-play fa-rotate-270', line: 'fa-minus',
                          wall: 'fa-grip-lines-vertical', cube: 'fa-square', square: 'fa-square' };
-    const areaSize = Number(area[SIZE[area.shape]]);
-    const hasArea  = !!SIZE[area.shape] && areaSize > 0;
+    const areaSize = Number(area[SIZE[area.shape]]) || 0;
+    // A shape a5e gives no size (Move Earth, Private Sanctum) is still an area: its icon alone.
+    const hasArea  = !!SHAPE_ICON[area.shape];
     const tq = t.quantity === 0 || t.quantity === '0' ? 0 : (Number(t.quantity) || 1);
     const areaTip = hasArea
-      ? `${loc(A.areaTypes?.[area.shape]) || area.shape} ${areaSize} ${ft}${Number(area.quantity) > 1 ? ` × ${area.quantity}` : ''}`
+      ? `${loc(A.areaTypes?.[area.shape]) || area.shape}${areaSize > 0 ? ` ${areaSize} ${ft}` : ''}${Number(area.quantity) > 1 ? ` × ${area.quantity}` : ''}`
       : null;
     let targetTip = null;
     if (t.type === 'self') {
       out.target = loc(A.targetTypes?.self) || 'Self';
       targetTip = out.target;
     } else if (['creature', 'object', 'creatureObject'].includes(t.type)) {
-      out.target = String(tq);
-      const table = tq === 1 ? A.targetTypes : A.targetTypesPlural;
-      targetTip = `${tq} ${loc(table?.[t.type]) || t.type}`;
+      /* A quantity of 0 is a5e's "not given" (Cure Wounds), not no targets:
+         it printed "0". */
+      out.target = tq > 0 ? String(tq) : '—';
+      const table = tq === 1 || tq === 0 ? A.targetTypes : A.targetTypesPlural;
+      targetTip = tq > 0 ? `${tq} ${loc(table?.[t.type]) || t.type}` : (loc(table?.[t.type]) || t.type);
     } else if (t.type === 'other') {
       out.target = t.otherText || loc(A.targetTypes?.other) || 'Other';
       targetTip = out.target;
     }
-    if (hasArea && (!out.target || out.target === (loc(A.targetTypes?.self) || 'Self'))) {
-      out.target = `${areaSize}`;
+    if (hasArea) {
+      out.target = areaSize > 0 ? `${areaSize} ${ft}` : '';
       out.targetIcon = `fa-solid ${SHAPE_ICON[area.shape]}`;
     }
     out.targetTip = [targetTip, areaTip].filter(Boolean).join(', ') || null;

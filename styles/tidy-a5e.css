@@ -294,11 +294,11 @@
   --am-col-prep:    1.75rem;   /* a spell's prepared toggle, before those */
 
   /* The spell table, in short forms — see #spellColumns. Sized to the
-     longest value a5e's pack gives each: "10 min", "120 ft", "20" and
+     longest value a5e's pack gives each: "10 min", "120 ft", "100 ft" and
      a shape, "24 hr", "DEX". */
   --am-col-time:    3.25rem;
   --am-col-range:   3.75rem;
-  --am-col-target:  3rem;
+  --am-col-target:  4.5rem;
   --am-col-dur:     3.5rem;
   --am-col-roll:    2.75rem;
 }
