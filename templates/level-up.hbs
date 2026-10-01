@@ -12,13 +12,136 @@
         <i class="fa-solid fa-code-branch"></i>
         {{localize 'am.levelup.mode-multiclass'}}
       </button>
+      <button type="button" class="lu-mode-btn lu-mode-down {{#if (eq mode 'leveldown')}}lu-mode-active{{/if}}" data-mode="leveldown">
+        <i class="fa-solid fa-arrow-down"></i>
+        {{localize 'am.levelup.mode-leveldown'}}
+      </button>
     </div>
   </section>
 
   <hr />
 
+  {{!-- ═══════════════════════════════════════════════════════ LEVEL-DOWN MODE
+        A class back down to a lower level. What a5e removes with the levels is
+        listed and locked; the picks it does not track - maneuvers, spells, a
+        feat taken for an ASI - are rows to keep or remove, with the plan's
+        suggestion marked. See LevelDownService. --}}
+  {{#if (eq mode 'leveldown')}}
+
+  {{#if downNothing}}
+  <section class="lu-section">
+    <h3><i class="fa-solid fa-arrow-down"></i> {{localize 'am.leveldown.title'}}</h3>
+    <p class="am-hint"><i class="fa-solid fa-circle-info"></i> {{localize 'am.leveldown.nothing'}}</p>
+  </section>
+  {{else}}
+  <section class="lu-section">
+    <h3><i class="fa-solid fa-arrow-down"></i> {{localize 'am.leveldown.title'}}</h3>
+    <p class="am-hint">{{localize 'am.leveldown.hint'}}</p>
+
+    {{#if multiclass}}
+      <div class="form-row flex items-center gap-sm mb-sm">
+        <label for="lu-down-class-select">{{localize 'am.levelup.class-label'}}</label>
+        <select id="lu-down-class-select" class="form-select">
+          {{#each down.classes}}
+            <option value="{{this.id}}" {{#if this.selected}}selected{{/if}}>
+              {{this.name}} ({{localize 'am.levelup.level'}} {{this.level}})
+            </option>
+          {{/each}}
+        </select>
+      </div>
+    {{/if}}
+    <div class="form-row flex items-center gap-sm mb-sm">
+      <label for="lu-down-target">{{localize 'am.leveldown.to-level'}}</label>
+      <select id="lu-down-target" class="form-select">
+        {{#each down.targets}}
+          <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+        {{/each}}
+      </select>
+    </div>
+
+    <div class="lu-level-badge flex items-center gap-sm">
+      <span class="lu-badge">
+        {{down.className}}: {{down.current}} → {{#if down.removesClass}}—{{else}}{{down.target}}{{/if}}
+      </span>
+      <span class="lu-badge">{{localize 'am.levelup.total-level'}}: {{down.charBefore}} → {{down.charAfter}}</span>
+      {{#if down.hpDrop}}
+        <span class="lu-badge lu-badge-red" data-tooltip="{{localize 'am.leveldown.hp-hint'}}">
+          <i class="fa-solid fa-heart"></i> {{down.hp.before}} → {{down.hp.after}}
+        </span>
+      {{/if}}
+    </div>
+  </section>
+
+  <hr />
+
+  <section class="lu-section lu-down-section">
+    <h3><i class="fa-solid fa-box-archive"></i> {{localize 'am.leveldown.goes-title'}}</h3>
+    <p class="am-hint">{{localize 'am.leveldown.goes-hint'}}</p>
+    {{#if down.features.length}}
+      <div class="am-replace-list">
+        {{#each down.features}}
+          <div class="am-replace-row am-replace-marked lu-down-fixed" data-uuid="{{this.uuid}}">
+            <img src="{{this.img}}" alt="" class="am-replace-img">
+            <span class="am-replace-name">{{this.name}}</span>
+            <i class="fa-solid fa-lock"></i>
+          </div>
+        {{/each}}
+      </div>
+    {{/if}}
+    {{#if down.benefits.length}}
+      <ul class="lu-down-benefits">
+        {{#each down.benefits}}
+          <li><span class="lu-down-lvl">{{this.level}}</span>{{#if this.source}}<strong>{{this.source}}</strong> · {{/if}}{{this.text}}</li>
+        {{/each}}
+      </ul>
+    {{/if}}
+    {{#if down.guardArchetype}}
+      <p class="am-hint"><i class="fa-solid fa-shield-halved"></i> {{localize 'am.leveldown.archetype-kept' name=down.archetype.name}}</p>
+    {{/if}}
+    {{#unless (or down.features.length down.benefits.length)}}
+      <p class="am-hint">{{localize 'am.leveldown.goes-none'}}</p>
+    {{/unless}}
+  </section>
+
+  {{#each down.groups}}
+  <hr />
+  <section class="lu-section lu-down-section" data-group="{{this.key}}">
+    <h3>
+      <i class="fa-solid fa-hand-pointer"></i> {{this.title}}
+      <span class="am-counter-badge {{#if this.short}}am-badge-pending{{else}}am-badge-success{{/if}}">
+        {{localize 'am.leveldown.removing' n=this.removing}}
+      </span>
+    </h3>
+    {{#if this.note}}<p class="am-hint">{{this.note}}</p>{{/if}}
+    {{#if @first}}<p class="am-hint">{{localize 'am.leveldown.row-hint'}}</p>{{/if}}
+    <div class="am-replace-list">
+      {{#each this.items}}
+        <button type="button"
+                class="am-replace-row {{#if this.removing}}am-replace-marked{{/if}} {{#if this.forced}}lu-down-forced{{/if}}"
+                data-action="luDownToggle" data-item-id="{{this.id}}" data-forced="{{this.forced}}"
+                data-uuid="{{this.uuid}}"
+                {{#if this.forced}}data-tooltip="{{localize 'am.leveldown.forced'}}"{{/if}}>
+          <img src="{{this.img}}" alt="" class="am-replace-img">
+          <span class="am-replace-name">{{this.name}}</span>
+          {{#if this.note}}<span class="am-hint">{{this.note}}</span>{{/if}}
+          <i class="fa-solid {{#if this.forced}}fa-lock{{else if this.removing}}fa-rotate-left{{else}}fa-xmark{{/if}}"></i>
+        </button>
+      {{/each}}
+    </div>
+  </section>
+  {{/each}}
+
+  <hr />
+  <section class="lu-section">
+    <label class="lu-down-backup">
+      <input type="checkbox" id="lu-down-backup" {{#if down.backup}}checked{{/if}} />
+      {{localize 'am.leveldown.backup'}}
+    </label>
+  </section>
+  {{/if}}{{!-- /downNothing --}}
+
   {{!-- ═══════════════════════════════════════════════════════ MULTICLASS MODE --}}
-  {{#if (eq mode 'multiclass')}}
+  {{else if (eq mode 'multiclass')}}
 
   <section class="lu-section">
     <h3><i class="fa-solid fa-code-branch"></i> {{localize 'am.levelup.multiclass-title'}}</h3>
@@ -666,6 +789,17 @@
     <button type="button" class="lu-cancel" data-action="luCancel">
       {{localize 'am.app.cancel'}}
     </button>
+    {{#if (eq mode 'leveldown')}}
+    <button type="button" data-action="luApplyLevelDown" class="am-footer-submit lu-submit lu-down-submit"
+      {{#unless down}}disabled{{/unless}}>
+      <i class="fa-solid fa-arrow-down"></i>
+      {{#if down.removesClass}}
+        {{localize 'am.leveldown.submit-remove' cls=down.className}}
+      {{else}}
+        {{localize 'am.leveldown.submit-lower' n=down.target}}
+      {{/if}}
+    </button>
+    {{else}}
     <button type="submit" data-action="submit" class="am-footer-submit lu-submit">
       {{#if (eq mode 'multiclass')}}
         <i class="fa-solid fa-code-branch"></i>
@@ -675,6 +809,7 @@
         {{localize 'am.levelup.submit'}}
       {{/if}}
     </button>
+    {{/if}}
   </div>
 
 </div>

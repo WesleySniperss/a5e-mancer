@@ -1364,6 +1364,71 @@ img[src*="a5e-mancer/assets/icons/"] {
   color: var(--am-accent);
 }
 
+.lu-badge-red {
+  background: rgba(224,80,64,0.12);
+  border-color: #e05040;
+  color: #f0a090;
+}
+
+/* ── Lower level ────────────────────────────────────────────────────────────
+   The trade-in rows' look: marked red and struck through is "goes". What a5e
+   takes with the levels is a plain row with a lock, not a control; a pick the
+   new level cannot have is locked marked. */
+.lu-mode-btn.lu-mode-down.lu-mode-active {
+  background: rgba(224,80,64,0.14);
+  border-color: #e05040;
+  color: #f0a090;
+}
+
+.lu-down-section .am-replace-row.lu-down-fixed { cursor: default; }
+.lu-down-section .am-replace-row.lu-down-fixed:hover { color: var(--am-text-dim); }
+.lu-down-section .am-replace-row.lu-down-forced { cursor: not-allowed; }
+.lu-down-section .am-replace-row > i { flex: 0 0 auto; opacity: 0.7; }
+.lu-down-section h3 .am-counter-badge { margin-inline-start: auto; }
+
+.lu-down-benefits {
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+  color: var(--am-text-dim);
+
+  li { display: flex; align-items: baseline; gap: 0.4rem; min-width: 0; overflow-wrap: anywhere; }
+  strong { color: var(--am-text-primary); font-weight: 600; }
+}
+
+/* The level a benefit came at */
+.lu-down-lvl {
+  flex: 0 0 auto;
+  min-width: 1.5rem;
+  padding: 0 0.3rem;
+  border: 1px solid var(--am-gold-border);
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--am-gold);
+}
+
+.lu-down-backup {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  input { margin: 0; }
+}
+
+.lu-footer .lu-down-submit {
+  background: rgba(224,80,64,0.18) !important;
+  border-color: #e05040 !important;
+  color: #f5c0b5 !important;
+}
+.lu-footer .lu-down-submit:hover { background: rgba(224,80,64,0.3) !important; }
+.lu-footer .lu-down-submit[disabled] { opacity: 0.45; cursor: default; }
+
 .lu-hp-methods {
   display: grid;
   grid-template-columns: 1fr 1fr;

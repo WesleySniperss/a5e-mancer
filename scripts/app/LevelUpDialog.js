@@ -7,6 +7,7 @@ import { ItemDescPanel } from '../utils/itemDescPanel.js';
 import { GrantAbsorber } from '../utils/grantAbsorber.js';
 import { ProficiencyLedger } from '../utils/proficiencyLedger.js';
 import { MulticlassRules } from '../utils/multiclassRules.js';
+import { LevelDownService } from '../utils/levelDownService.js';
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -51,6 +52,14 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     this._allSpellsData    = null;
     this._loadingManeuvers = false;
     this._loadingSpells    = false;
+
+    // Level-down mode: which class, down to what, and the picks to remove with it
+    this._downClassId = null;
+    this._downTarget  = null;
+    this._downKey     = null;     // the class:target the picks below were made for
+    this._downRemove  = new Set();
+    this._downBackup  = true;
+    this._downPlan    = null;
   }
 
   static DEFAULT_OPTIONS = {
@@ -78,6 +87,8 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       luToggleFeatUngated:       LevelUpDialog.luToggleFeatUngated,
       luFeatSort:                LevelUpDialog.luFeatSort,
       luFeatPage:                LevelUpDialog.luFeatPage,
+      luDownToggle:              LevelUpDialog.luDownToggle,
+      luApplyLevelDown:          LevelUpDialog.luApplyLevelDown,
     },
     classes: ['a5e-mancer-app', 'am-app', 'am-levelup-dialog'],
     position: { width: 680, height: 760 },
@@ -136,6 +147,8 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!this._selectedClassId && classes.length) {
       this._selectedClassId = classes[0].id;
     }
+
+    if (this._mode === 'leveldown') return this.#levelDownContext(classes);
 
     /* ── Multiclass mode ─────────────────────────────────────────────── */
     if (this._mode === 'multiclass') {
@@ -359,6 +372,77 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     await this.#addLevelGrantContext(context, selectedClass, newClassLevel);
     await this.#addBonusSpellContext(context, selectedClass, newClassLevel, newTotalLevel);
     return context;
+  }
+
+  /**
+   * Level-down mode: a class, the level to take it to, and what goes with the
+   * levels in between. What a5e removes by itself is listed; the picks it
+   * knows nothing about - maneuvers, spells, a feat taken for an ASI - are
+   * rows to keep or remove, the plan's suggestion ticked. See LevelDownService.
+   */
+  async #levelDownContext(classes) {
+    const base = { actor: this.actor, classes, mode: 'leveldown', multiclass: classes.length > 1 };
+    if (!this._downClassId || !classes.some(c => c.id === this._downClassId)) {
+      // The highest class: the one a level-down most likely means
+      this._downClassId = [...classes].sort((a, b) => b.level - a.level)[0]?.id ?? null;
+    }
+    const cls = classes.find(c => c.id === this._downClassId);
+    const minTarget = classes.length > 1 ? 0 : 1;
+    if (!cls || cls.level <= minTarget) { this._downPlan = null; return { ...base, down: null, downNothing: true }; }
+
+    if (this._downTarget === null || this._downTarget >= cls.level || this._downTarget < minTarget) {
+      this._downTarget = cls.level - 1;
+    }
+    const plan = await LevelDownService.plan(this.actor, cls.id, this._downTarget);
+    this._downPlan = plan;
+    if (!plan) return { ...base, down: null, downNothing: true };
+
+    const groupsOf = (p) => [...(p.picks.maneuvers ?? []), ...(p.picks.spells ?? []), p.picks.feats].filter(Boolean);
+    const key = `${plan.classId}:${plan.target}`;
+    if (this._downKey !== key) {
+      this._downKey = key;
+      this._downRemove = new Set(groupsOf(plan).flatMap(g => g.selected));
+    }
+    // A forced one goes whatever was clicked
+    for (const g of groupsOf(plan)) for (const id of g.forced) this._downRemove.add(id);
+
+    const L = (k, data) => (data ? game.i18n.format(`am.leveldown.${k}`, data) : game.i18n.localize(`am.leveldown.${k}`));
+    const groups = groupsOf(plan).map(g => {
+      const removing = g.items.filter(i => this._downRemove.has(i.id)).length;
+      // One line: the count, what the levels gave of it, what is now out of reach
+      const notes = [];
+      if (g.allowed !== null && g.allowed !== undefined) notes.push(L('known-at', { have: g.total, n: g.allowed, level: plan.target }));
+      if (g.gave) notes.push(L('levels-gave', { n: g.gave }));
+      if (Number.isFinite(g.maxDegree)) notes.push(L('max-degree', { n: g.maxDegree }));
+      if (Number.isFinite(g.maxLevel) && g.key !== 'cantrips') notes.push(L('max-spell-level', { n: g.maxLevel }));
+      if (g.key === 'feats' && g.asiLost) notes.push(L('asi-lost', { n: g.asiLost }));
+      return {
+        key: g.key,
+        title: L(`group-${g.key}`),
+        note: notes.join(' '),
+        removing,
+        // Fewer marked than the levels gave: the badge says so, nothing blocks it
+        short: Number.isFinite(g.gave) && removing < g.gave,
+        items: g.items.map(i => ({ ...i, removing: this._downRemove.has(i.id) }))
+      };
+    });
+
+    const targets = [];
+    for (let n = cls.level - 1; n >= minTarget; n--) {
+      targets.push({ value: n, label: n === 0 ? L('remove-class') : L('level-n', { n }), selected: n === plan.target });
+    }
+
+    return {
+      ...base,
+      down: {
+        ...plan,
+        classes: classes.map(c => ({ id: c.id, name: c.name, level: c.level, selected: c.id === plan.classId })),
+        targets,
+        groups,
+        backup: this._downBackup,
+        hpDrop: plan.hp.before !== plan.hp.after
+      }
+    };
   }
 
   /**
@@ -1072,6 +1156,20 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       });
     });
 
+    /* ── Level-down mode: class, level, backup ── */
+    this.element.querySelector('#lu-down-class-select')?.addEventListener('change', async (e) => {
+      this._downClassId = e.target.value;
+      this._downTarget  = null;
+      await this.render(true);
+    });
+    this.element.querySelector('#lu-down-target')?.addEventListener('change', async (e) => {
+      this._downTarget = Number(e.target.value);
+      await this.render(true);
+    });
+    this.element.querySelector('#lu-down-backup')?.addEventListener('change', (e) => {
+      this._downBackup = !!e.target.checked;
+    });
+
     /* ── Existing class selector (levelup mode) ── */
     const classSelect = this.element.querySelector('#lu-class-select');
     if (classSelect) {
@@ -1770,6 +1868,67 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     dialog.render(false);
   }
 
+  /* ── Static actions: level down ─────────────────────────────────────── */
+
+  /** Keep or remove one pick. What the new level cannot have stays removed. */
+  static luDownToggle(_event, btn) {
+    const dialog = AM.levelUpDialog;
+    const id = btn?.dataset?.itemId;
+    if (!dialog || !id || btn.dataset.forced === 'true') return;
+    if (dialog._downRemove.has(id)) dialog._downRemove.delete(id);
+    else dialog._downRemove.add(id);
+    dialog.render(false);
+  }
+
+  /**
+   * Lower the class. Not the form's submit: a level-down asks first, and a
+   * "no" has to leave this window open, which a submit handler cannot.
+   */
+  static async luApplyLevelDown(_event, btn) {
+    const dialog = AM.levelUpDialog;
+    const plan = dialog?._downPlan;
+    if (!dialog || !plan || dialog._downBusy) return;
+    const remove = [...dialog._downRemove];
+    const L = (k, data) => (data ? game.i18n.format(`am.leveldown.${k}`, data) : game.i18n.localize(`am.leveldown.${k}`));
+
+    const esc = (s) => foundry.utils.escapeHTML?.(String(s)) ?? String(s);
+    const content = [
+      `<p>${plan.removesClass
+        ? L('confirm-remove', { cls: esc(plan.className), from: plan.current })
+        : L('confirm-lower', { cls: esc(plan.className), from: plan.current, to: plan.target })}</p>`,
+      `<p>${L('confirm-level', { from: plan.charBefore, to: plan.charAfter })}</p>`,
+      (plan.features.length || remove.length)
+        ? `<p>${L('confirm-items', { n: plan.features.length + remove.filter(id => !plan.removeIds.includes(id)).length })}</p>` : '',
+      `<p><strong>${dialog._downBackup ? L('confirm-backup') : L('confirm-final')}</strong></p>`
+    ].join('');
+    const ok = await foundry.applications.api.DialogV2.confirm({
+      window: { title: L('confirm-title'), icon: 'fa-solid fa-arrow-down' },
+      content, rejectClose: false, modal: true
+    });
+    if (!ok) return;
+
+    dialog._downBusy = true;
+    if (btn) btn.disabled = true;
+    let done = false;
+    try {
+      done = await LevelDownService.apply(dialog.actor, plan, { remove, backup: dialog._downBackup });
+    } catch (err) {
+      AM.log(1, 'Level down failed:', err);
+      ui.notifications.error(L('failed'));
+    } finally {
+      dialog._downBusy = false;
+    }
+    if (done) {
+      AM.levelUpDialog = null;
+      AM.levelUpGrants = null;
+      dialog.close();
+    } else {
+      if (btn) btn.disabled = false;
+      dialog._downKey = null;
+      dialog.render(true);
+    }
+  }
+
   /* ── Static action: cancel ──────────────────────────────────────────── */
 
   /**
@@ -1843,6 +2002,13 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     AM.levelUpDialog = null;
 
     const conMod = dialog.#getConMod();
+    // Lowering has its own button; Enter in a field must not level up instead
+    if (dialog._mode === 'leveldown') { AM.levelUpDialog = dialog; throw new Error(game.i18n.localize('am.leveldown.use-button')); }
+
+    /* What this level-up adds is recorded on it, so lowering the level later
+       knows which maneuvers, spells and feat came with which level. */
+    const itemsBefore = new Set(dialog.actor.items.map(i => i.id));
+    const totalBefore = LevelUpService.getTotalLevel(dialog.actor);
 
     /* ── Multiclass submit ── */
     if (dialog._mode === 'multiclass') {
@@ -1875,6 +2041,11 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         );
       }
       await LevelUpDialog.#featureSpells(dialog);
+      const added = dialog.actor.items.find(i => i.type === 'class' && !itemsBefore.has(i.id));
+      if (added) {
+        await LevelDownService.recordLevelUp(dialog.actor, itemsBefore,
+          { classId: added.id, classLevel: 1, charLevel: totalBefore + 1 });
+      }
       return;
     }
 
@@ -1925,6 +2096,8 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     // through the maneuver path above like every other maneuver.
 
     await LevelUpDialog.#featureSpells(dialog);
+    await LevelDownService.recordLevelUp(dialog.actor, itemsBefore,
+      { classId: cls.id, classLevel: cls.level + 1, charLevel: totalBefore + 1 });
   }
 
   /**

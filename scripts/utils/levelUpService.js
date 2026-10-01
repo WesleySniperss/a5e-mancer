@@ -38,7 +38,7 @@ const HIT_DICE = {
 // at 4, 8, 12, 16, 19 — there are NO class-specific extras. Verified against the
 // official Fighter/Rogue/Wizard tables on a5e.tools: the 5e Fighter +6/+14 and
 // Rogue +10 ASIs do not exist in A5e (those levels grant other features instead).
-const ASI_LEVELS = [4, 8, 12, 16, 19];
+export const ASI_LEVELS = [4, 8, 12, 16, 19];
 
 /**
  * Multiclass prerequisites per A5e (Level Up: Advanced 5e) rules.
