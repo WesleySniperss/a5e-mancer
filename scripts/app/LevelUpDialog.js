@@ -65,7 +65,11 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     // Down to a character level instead of one class: from the level list
     this._downCharTarget = null;  // the character level to come down to
     this._downRebuild    = false; // and then take the levels again, one by one
-    this._historyLevel   = null;  // the past level the list has open
+    this._buildFocus     = null;  // the level the build overview was opened on
+    this._buildScroll    = null;  // where to scroll once it is drawn: a level, 'future' or 'top'
+    this._buildFutureClass = null; // whose levels ahead are shown
+    this._futureCache    = null;  // { key, levels } - the levels ahead, read once a class and level
+    this._futureLoadingKey = null;
     this._upTo           = null;  // level-up mode: keep going to this level
 
     /* A run of levels in progress - a rebuild from the level list, or "up to
@@ -113,6 +117,9 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       luDownToggle:              LevelUpDialog.luDownToggle,
       luApplyLevelDown:          LevelUpDialog.luApplyLevelDown,
       luShowLevel:               LevelUpDialog.luShowLevel,
+      luShowBuild:               LevelUpDialog.luShowBuild,
+      luToggleFuture:            LevelUpDialog.luToggleFuture,
+      luLevelUpNow:              LevelUpDialog.luLevelUpNow,
       luShowNext:                LevelUpDialog.luShowNext,
       luRebuildFrom:             LevelUpDialog.luRebuildFrom,
       luRemoveAbove:             LevelUpDialog.luRemoveAbove,
@@ -176,7 +183,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     const context = await this.#modeContext(options);
     const levels = LevelHistory.levels(this.actor);
     const total = levels.length;
-    const viewing = this._mode === 'history' ? this._historyLevel : null;
+    const viewing = this._mode === 'build' ? this._buildFocus : null;
     const downTo = this._mode === 'leveldown' && this._downCharTarget !== null ? this._downCharTarget : null;
     context.levelList = levels.map(l => ({
       ...l,
@@ -209,7 +216,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     if (this._mode === 'leveldown') return this.#levelDownContext(classes);
-    if (this._mode === 'history') return this.#historyContext(classes);
+    if (this._mode === 'build') return this.#buildContext(classes);
 
     /* ── Multiclass mode ─────────────────────────────────────────────── */
     if (this._mode === 'multiclass') {
@@ -576,21 +583,68 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /**
-   * A past level from the list: what it gave, and the ways to change the
-   * build from there - take the levels above it off, or rebuild from it.
+   * The whole build, as D&D Beyond lists a class's levels: every level the
+   * character has and what it gave, all at once - the page it replaces took a
+   * click for every level - and, at the press of the button under them, the
+   * levels still ahead with the features and choices they will bring, to plan
+   * the build or just to see what is coming (asked 2026-10-03). The levels
+   * ahead are read from the compendium the first time, in the background;
+   * the window does not wait for them.
    */
-  #historyContext(classes) {
+  #buildContext(classes) {
     const levels = LevelHistory.levels(this.actor);
-    if (!levels.some(l => l.charLevel === this._historyLevel)) this._historyLevel = levels.at(-1)?.charLevel ?? null;
-    const summary = this._historyLevel ? LevelHistory.summary(this.actor, this._historyLevel) : null;
+    const past = levels.map(l => {
+      const s = LevelHistory.summary(this.actor, l.charLevel);
+      return {
+        ...s,
+        features: s.gained,
+        focus: l.charLevel === this._buildFocus,
+        canRebuild: !s.isFirst,
+        canRemoveAbove: !s.isLast,
+        empty: !s.gained.length && !s.origins.length && !s.picks.length && !s.benefits.length
+      };
+    });
+
+    const showFuture = !!AM.buildFuture && levels.length < 20;
+    let future = null;
+    if (showFuture) {
+      const pick = classes.find(c => c.id === this._buildFutureClass) ?? [...classes].sort((x, y) => y.level - x.level)[0];
+      if (pick) {
+        this._buildFutureClass = pick.id;
+        const key = `${pick.id}|${pick.level}|${levels.length}`;
+        if (this._futureCache?.key === key) future = this._futureCache.levels;
+        else if (this._futureLoadingKey !== key) {
+          this._futureLoadingKey = key;
+          LevelHistory.future(this.actor, pick.id).then(list => {
+            if (this._futureLoadingKey !== key) return;
+            this._futureCache = { key, levels: list };
+            this._futureLoadingKey = null;
+            if (this.rendered && this._mode === 'build') this.render(false);
+          }).catch(err => {
+            AM.log(1, 'Build: the levels ahead could not be read', err);
+            this._futureCache = { key, levels: [] };
+            this._futureLoadingKey = null;
+            if (this.rendered && this._mode === 'build') this.render(false);
+          });
+        }
+      }
+    }
+    const ahead = (future ?? []).map((x, i) => ({
+      ...x,
+      isNext: i === 0,
+      firstFuture: i === 0,
+      benefits: x.benefits.map(text => ({ source: '', text })),
+      empty: !x.features.length && !x.choices.length && !x.benefits.length && !x.notes.length
+    }));
+
     return {
-      actor: this.actor, classes, mode: 'history', multiclass: classes.length > 1,
-      history: summary && {
-        ...summary,
-        // Level 1 is where the character was made; there is nothing below it to rebuild on
-        canRebuild: !summary.isFirst,
-        canRemoveAbove: !summary.isLast,
-        nothing: !summary.gained.length && !summary.picks.length && !summary.benefits.length
+      actor: this.actor, classes, mode: 'build', multiclass: classes.length > 1,
+      build: {
+        levels: [...past, ...ahead],
+        showFuture,
+        loading: showFuture && !future,
+        futureClasses: classes.map(c => ({ id: c.id, name: c.name, level: c.level, selected: c.id === this._buildFutureClass })),
+        atCap: levels.length >= 20
       }
     };
   }
@@ -1293,7 +1347,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     this._detachDescPanel?.();
     this._detachDescPanel = ItemDescPanel.attach(
       this.element,
-      '.am-card[data-uuid], .am-maneuver-card[data-uuid], .am-spell-card[data-uuid], .am-replace-row[data-uuid], [data-lore]'
+      '.am-card[data-uuid], .am-maneuver-card[data-uuid], .am-spell-card[data-uuid], .am-replace-row[data-uuid], .lu-build-chip[data-uuid], [data-lore]'
     );
 
     /* ── Feat search ── */
@@ -1328,6 +1382,24 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         await this.render(true);
       });
     });
+
+    /* ── The build: whose levels ahead, and where to scroll to ── */
+    this.element.querySelector('#lu-build-future-class')?.addEventListener('change', (e) => {
+      this._buildFutureClass = e.target.value;
+      this.render(false);
+    });
+    if (this._mode === 'build' && this._buildScroll !== null) {
+      const where = this._buildScroll;
+      this._buildScroll = null;
+      // After the part's own scroll restore (#syncPartState runs on the next frame)
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const content = this.element?.querySelector('.window-content');
+        const target = where === 'future' ? this.element?.querySelector('.lu-build-divider, .lu-build-more')
+          : (typeof where === 'number' ? this.element?.querySelector(`#lu-build-L${where}`) : null);
+        if (target) target.scrollIntoView({ block: 'start' });
+        else if (where === 'top' && content) content.scrollTop = 0;
+      }));
+    }
 
     /* ── Level-up mode: keep going to a later level ── */
     this.element.querySelector('#lu-up-to')?.addEventListener('change', (e) => {
@@ -2147,16 +2219,52 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
   /* ── Static actions: the level list ─────────────────────────────────── */
 
-  /** A past level: what it gave, and the ways to change the build from it. */
+  /** A level in the list: the whole build, at that level. */
   static luShowLevel(_event, btn) {
     const dialog = AM.levelUpDialog;
     const level = Number(btn?.dataset?.level);
     if (!dialog || !level) return;
     if (['levelup', 'multiclass'].includes(dialog._mode)) dialog.#resetSelections();
-    dialog._mode = 'history';
-    dialog._historyLevel = level;
+    dialog._mode = 'build';
+    dialog._buildFocus = level;
+    dialog._buildScroll = level;
     dialog._downCharTarget = null;
     dialog._downRebuild = false;
+    dialog.render(true);
+  }
+
+  /** The list's heading: the whole build, from the top. */
+  static luShowBuild(_event, _btn) {
+    const dialog = AM.levelUpDialog;
+    if (!dialog) return;
+    if (['levelup', 'multiclass'].includes(dialog._mode)) dialog.#resetSelections();
+    dialog._mode = 'build';
+    dialog._buildFocus = null;
+    dialog._buildScroll = 'top';
+    dialog._downCharTarget = null;
+    dialog._downRebuild = false;
+    dialog.render(true);
+  }
+
+  /** Show or hide the levels ahead. Remembered for the session. */
+  static luToggleFuture(_event, _btn) {
+    const dialog = AM.levelUpDialog;
+    if (!dialog) return;
+    AM.buildFuture = !AM.buildFuture;
+    if (AM.buildFuture) dialog._buildScroll = 'future';
+    dialog.render(false);
+  }
+
+  /** The next level, from the levels ahead: the level-up for that class. */
+  static luLevelUpNow(_event, btn) {
+    const dialog = AM.levelUpDialog;
+    if (!dialog) return;
+    const id = btn?.dataset?.classId;
+    dialog._mode = 'levelup';
+    if (id && dialog.actor.items.get(id)) dialog._selectedClassId = id;
+    dialog._downCharTarget = null;
+    dialog._downRebuild = false;
+    dialog.#resetSelections();
     dialog.render(true);
   }
 
@@ -2320,9 +2428,9 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
     const conMod = dialog.#getConMod();
     // Lowering has its own button; Enter in a field must not level up instead
-    if (dialog._mode === 'leveldown' || dialog._mode === 'history') {
+    if (dialog._mode === 'leveldown' || dialog._mode === 'build') {
       AM.levelUpDialog = dialog;
-      throw new Error(game.i18n.localize(dialog._mode === 'history' ? 'am.levels.pick-next' : 'am.leveldown.use-button'));
+      throw new Error(game.i18n.localize(dialog._mode === 'build' ? 'am.levels.pick-next' : 'am.leveldown.use-button'));
     }
 
     /* What this level-up adds is recorded on it, so lowering the level later

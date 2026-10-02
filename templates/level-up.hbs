@@ -5,7 +5,9 @@
         click on a past level shows what it gave and lets the build be redone
         from there; the last entry is the next level, the level-up itself. --}}
   <nav class="lu-levels" aria-label="{{localize 'am.levels.title'}}">
-    <h4 class="lu-levels-title">{{localize 'am.levels.title'}}</h4>
+    <button type="button" class="lu-levels-title" data-action="luShowBuild" data-tooltip="{{localize 'am.build.open'}}">
+      <i class="fa-solid fa-route"></i> {{localize 'am.levels.title'}}
+    </button>
     {{#each levelList}}
       <button type="button"
               class="lu-level {{#if this.active}}lu-level-active{{/if}} {{#if this.going}}lu-level-going{{/if}}"
@@ -46,7 +48,7 @@
   {{/if}}
 
   {{!-- Mode Toggle: what to do with the next level. Not shown on a past level. --}}
-  {{#unless (eq mode 'history')}}
+  {{#unless (eq mode 'build')}}
   <section class="lu-section lu-mode-section">
     <div class="lu-mode-toggle">
       <button type="button" class="lu-mode-btn {{#if (eq mode 'levelup')}}lu-mode-active{{/if}}" data-mode="levelup">
@@ -67,70 +69,140 @@
   <hr />
   {{/unless}}
 
-  {{!-- ═══════════════════════════════════════════════════════ A PAST LEVEL
-        What it gave - the features and items its grants handed out, the
-        benefits with no item, the picks our level-up recorded - and the two
-        ways to change the build from it. --}}
-  {{#if (eq mode 'history')}}
-  {{#with history}}
-  <section class="lu-section lu-history">
-    <h3>
-      <img src="{{img}}" alt="" class="lu-history-img">
-      {{title}}
-      <span class="lu-badge">{{localize 'am.levels.char-level' n=charLevel}}</span>
-    </h3>
-    {{#if hp}}<p class="am-hint"><i class="fa-solid fa-heart"></i> {{localize 'am.levels.hp' n=hp}}</p>{{/if}}
+  {{!-- ═══════════════════════════════════════════════════════ THE BUILD
+        Every level the character has and what it gave, all at once, as D&D
+        Beyond lists a class's levels; under them a button for the levels
+        ahead, with the features and choices each will bring - for planning,
+        or just to see what is coming. Right-click a chip for its text. --}}
+  {{#if (eq mode 'build')}}
+  <section class="lu-section lu-build-intro">
+    <h3><i class="fa-solid fa-route"></i> {{localize 'am.build.title'}}</h3>
+    <p class="am-hint">{{localize 'am.build.hint'}}</p>
+  </section>
 
-    {{#if gained.length}}
-      <h4 class="lu-history-sub">{{localize 'am.levels.gained'}}</h4>
-      <div class="am-replace-list">
-        {{#each gained}}
-          <div class="am-replace-row lu-down-fixed" data-uuid="{{this.uuid}}">
-            <img src="{{this.img}}" alt="" class="am-replace-img">
-            <span class="am-replace-name">{{this.name}}</span>
-          </div>
+  {{#each build.levels}}
+  {{#if this.firstFuture}}
+    <div class="lu-build-divider"><span>{{localize 'am.build.ahead'}}</span></div>
+  {{/if}}
+  <section id="lu-build-L{{this.charLevel}}"
+           class="lu-section lu-build-level {{#if this.future}}lu-build-future{{/if}} {{#if this.focus}}lu-build-focus{{/if}}">
+    <header class="lu-build-head">
+      <span class="lu-level-n">{{this.charLevel}}</span>
+      <span class="lu-build-title">{{this.title}}</span>
+      {{#if this.hp}}
+        <span class="lu-build-hp" data-tooltip="{{localize 'am.build.hp-tip'}}"><i class="fa-solid fa-heart"></i> {{this.hp}}</span>
+      {{/if}}
+      <span class="lu-build-actions">
+        {{#if this.isNext}}
+          <button type="button" class="lu-build-act lu-build-levelup" data-action="luLevelUpNow" data-class-id="{{this.classId}}">
+            <i class="fa-solid fa-arrow-up"></i> {{localize 'am.build.level-up'}}
+          </button>
+        {{/if}}
+        {{#if this.canRebuild}}
+          <button type="button" class="lu-build-act" data-action="luRebuildFrom" data-level="{{this.charLevel}}"
+                  data-tooltip="{{localize 'am.levels.rebuild' n=this.charLevel}}" aria-label="{{localize 'am.levels.rebuild' n=this.charLevel}}">
+            <i class="fa-solid fa-rotate"></i>
+          </button>
+        {{/if}}
+        {{#if this.canRemoveAbove}}
+          <button type="button" class="lu-build-act" data-action="luRemoveAbove" data-level="{{this.charLevel}}"
+                  data-tooltip="{{localize 'am.levels.remove-above' n=this.charLevel}}" aria-label="{{localize 'am.levels.remove-above' n=this.charLevel}}">
+            <i class="fa-solid fa-arrow-down"></i>
+          </button>
+        {{/if}}
+      </span>
+    </header>
+
+    {{#if this.features.length}}
+      <div class="lu-build-chips">
+        {{#each this.features}}
+          <span class="lu-build-chip" data-uuid="{{this.uuid}}" data-name="{{this.name}}">
+            {{#if this.img}}<img src="{{this.img}}" alt="">{{/if}}{{this.name}}
+          </span>
         {{/each}}
       </div>
     {{/if}}
-    {{#if benefits.length}}
+
+    {{#if this.origins.length}}
+      <div class="lu-build-chips lu-build-origins">
+        <span class="lu-build-picks-label">{{localize 'am.build.origins'}}:</span>
+        {{#each this.origins}}
+          <span class="lu-build-chip" data-uuid="{{this.uuid}}" data-name="{{this.name}}">
+            {{#if this.img}}<img src="{{this.img}}" alt="">{{/if}}{{this.name}}
+          </span>
+        {{/each}}
+      </div>
+    {{/if}}
+
+    {{#each this.choices}}
+      <div class="lu-build-choice">
+        <span class="lu-build-choice-label">
+          <i class="fa-solid fa-list-check"></i> {{this.label}} · {{localize 'am.build.choose' n=this.count}}{{#if this.asi}} · {{localize 'am.build.or-feat'}}{{/if}}
+        </span>
+        <div class="lu-build-chips">
+          {{#each this.options}}
+            <span class="lu-build-chip lu-build-option" {{#if this.uuid}}data-uuid="{{this.uuid}}"{{/if}} data-name="{{this.name}}">
+              {{#if this.img}}<img src="{{this.img}}" alt="">{{/if}}{{this.name}}
+            </span>
+          {{/each}}
+        </div>
+      </div>
+    {{/each}}
+
+    {{#if this.benefits.length}}
       <ul class="lu-down-benefits">
-        {{#each benefits}}
+        {{#each this.benefits}}
           <li>{{#if this.source}}<strong>{{this.source}}</strong> · {{/if}}{{this.text}}</li>
         {{/each}}
       </ul>
     {{/if}}
-    {{#if picks.length}}
-      <h4 class="lu-history-sub">{{localize 'am.levels.picked'}}</h4>
-      <div class="am-replace-list">
-        {{#each picks}}
-          <div class="am-replace-row lu-down-fixed" data-uuid="{{this.uuid}}">
-            <img src="{{this.img}}" alt="" class="am-replace-img">
-            <span class="am-replace-name">{{this.name}}</span>
-          </div>
+
+    {{#each this.notes}}
+      <p class="lu-build-note"><i class="fa-solid fa-wand-sparkles"></i> {{this}}</p>
+    {{/each}}
+
+    {{#if this.picks.length}}
+      <div class="lu-build-chips lu-build-picks">
+        <span class="lu-build-picks-label">{{localize 'am.levels.picked'}}:</span>
+        {{#each this.picks}}
+          <span class="lu-build-chip" data-uuid="{{this.uuid}}" data-name="{{this.name}}">
+            {{#if this.img}}<img src="{{this.img}}" alt="">{{/if}}{{this.name}}
+          </span>
         {{/each}}
       </div>
     {{/if}}
-    {{#if nothing}}<p class="am-hint">{{localize 'am.levels.nothing'}}</p>{{/if}}
-    {{#if isFirst}}<p class="am-hint"><i class="fa-solid fa-circle-info"></i> {{localize 'am.levels.first'}}</p>{{/if}}
-  </section>
 
-  {{#if (or canRebuild canRemoveAbove)}}
-  <hr />
-  <section class="lu-section lu-history-actions">
-    {{#if canRebuild}}
-      <button type="button" class="lu-history-btn lu-history-rebuild" data-action="luRebuildFrom" data-level="{{charLevel}}">
-        <i class="fa-solid fa-rotate"></i> {{localize 'am.levels.rebuild' n=charLevel}}
+    {{#if this.empty}}<p class="am-hint">{{localize 'am.build.nothing'}}</p>{{/if}}
+  </section>
+  {{/each}}
+
+  <section class="lu-section lu-build-more">
+    {{#if build.showFuture}}
+      {{#if multiclass}}
+        <div class="form-row flex items-center gap-sm">
+          <label for="lu-build-future-class">{{localize 'am.build.future-of'}}</label>
+          <select id="lu-build-future-class" class="form-select">
+            {{#each build.futureClasses}}
+              <option value="{{this.id}}" {{#if this.selected}}selected{{/if}}>{{this.name}} ({{localize 'am.levelup.level'}} {{this.level}})</option>
+            {{/each}}
+          </select>
+        </div>
+      {{/if}}
+      {{#if build.loading}}
+        <p class="am-hint"><i class="fas fa-spinner fa-spin"></i> {{localize 'am.build.loading'}}</p>
+      {{/if}}
+      <button type="button" class="lu-build-toggle" data-action="luToggleFuture">
+        <i class="fa-solid fa-eye-slash"></i> {{localize 'am.build.hide-future'}}
       </button>
-      <p class="am-hint">{{localize 'am.levels.rebuild-hint' n=charLevel total=total}}</p>
-    {{/if}}
-    {{#if canRemoveAbove}}
-      <button type="button" class="lu-history-btn" data-action="luRemoveAbove" data-level="{{charLevel}}">
-        <i class="fa-solid fa-arrow-down"></i> {{localize 'am.levels.remove-above' n=charLevel}}
+    {{else if build.atCap}}
+      <p class="am-hint">{{localize 'am.build.at-cap'}}</p>
+    {{else}}
+      <button type="button" class="lu-build-toggle" data-action="luToggleFuture">
+        <i class="fa-solid fa-eye"></i> {{localize 'am.build.show-future'}}
       </button>
+      <p class="am-hint">{{localize 'am.build.future-hint'}}</p>
     {{/if}}
   </section>
-  {{/if}}
-  {{/with}}
 
   {{!-- ═══════════════════════════════════════════════════════ LEVEL-DOWN MODE
         A class back down to a lower level, or the character down to a
@@ -923,7 +995,7 @@
     <button type="button" class="lu-cancel" data-action="luCancel">
       {{localize 'am.app.cancel'}}
     </button>
-    {{#if (eq mode 'history')}}
+    {{#if (eq mode 'build')}}
     {{!-- A past level is changed with its own buttons above; nothing to submit here --}}
     {{else if (eq mode 'leveldown')}}
     <button type="button" data-action="luApplyLevelDown" class="am-footer-submit lu-submit lu-down-submit"

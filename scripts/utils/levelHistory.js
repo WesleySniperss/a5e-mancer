@@ -1,4 +1,9 @@
+import { AM } from '../am.js';
 import { LevelDownService } from './levelDownService.js';
+import { GrantAbsorber } from './grantAbsorber.js';
+import { LevelUpService } from './levelUpService.js';
+import { SpellService } from './spellService.js';
+import { ManeuverService } from './maneuverService.js';
 
 /**
  * A character's levels one by one, as Level Up Gateway's builder lists them -
@@ -125,9 +130,32 @@ export class LevelHistory {
     };
 
     const mine = grants.filter((g) => levelOf(g) === charLevel);
-    const itemIds = new Set();
-    for (const g of mine) for (const id of docs(g)) if (actor.items.get(id)) itemIds.add(id);
-    const gained = [...itemIds].map((id) => actor.items.get(id));
+
+    /* Heritage, culture, background and destiny arrive with the first level,
+       and their size, movement and languages are not the class's progression -
+       which is what this page is read for. Their features are shown apart and
+       their small print not at all: the sheet already shows it. A grant counts
+       as an origin's when the chain of items that handed it out starts at one. */
+    const ORIGINS = new Set(['heritage', 'culture', 'background', 'destiny']);
+    const isOrigin = (g, depth = 0) => {
+      const src = source(g);
+      if (!src) return false;
+      if (ORIGINS.has(src.type)) return true;
+      const parent = parentOf.get(src.id);
+      if (parent && parent !== g && depth < 8) return isOrigin(parent, depth + 1);
+      return ORIGINS.has(String(src.system?.featureType ?? ''));
+    };
+    const classGrants = mine.filter((g) => !isOrigin(g));
+    const originGrants = mine.filter((g) => isOrigin(g));
+    const idsOf = (list) => {
+      const ids = new Set();
+      for (const g of list) for (const id of docs(g)) if (actor.items.get(id)) ids.add(id);
+      return ids;
+    };
+    const itemIds = idsOf(mine);
+    const originIds = idsOf(originGrants);
+    const gained = [...idsOf(classGrants)].filter((id) => !originIds.has(id)).map((id) => actor.items.get(id));
+    const origins = [...originIds].map((id) => actor.items.get(id));
 
     // Picks our level-up recorded at this level that no grant accounts for
     const picks = actor.items.filter((i) => {
@@ -143,8 +171,9 @@ export class LevelHistory {
       ...entry,
       title: `${this.ordinal(entry.classLevel)} Level ${entry.className}`,
       gained: gained.sort(sort).map(row),
+      origins: origins.sort(sort).map(row),
       picks: picks.sort(sort).map(row),
-      benefits: mine.filter((g) => !['feature', 'item'].includes(g.grantType))
+      benefits: classGrants.filter((g) => !['feature', 'item'].includes(g.grantType))
         .map((g) => ({ source: source(g)?.name ?? '', text: LevelDownService.describeGrant(actor, g) }))
         .filter((b) => b.text),
       isFirst: charLevel === 1,
@@ -162,5 +191,132 @@ export class LevelHistory {
     const out = new Map(actor.items.filter((i) => i.type === 'class').map((c) => [c.id, 0]));
     for (const l of this.levels(actor)) if (l.charLevel <= charLevel) out.set(l.classId, l.classLevel);
     return out;
+  }
+
+  /**
+   * The levels still ahead for one class, with what each will bring: the
+   * features its grants hand out, the choices they ask (a fighting style, a
+   * knack, the ability points), the archetype to pick, and what the level
+   * adds to spells and maneuvers. Read from the class and the archetype the
+   * character has, the same tree the level-up reads for its own level
+   * (GrantAbsorber.describeTreeForLevel). For looking over the build and
+   * planning it, as D&D Beyond shows its levels ahead; nothing is applied.
+   * Asked for 2026-10-03.
+   *
+   * The documents are read once for every level ahead, a tier at a time, and
+   * what an option holds is left unread until it is picked. Foundry keeps
+   * them for the session, like any compendium document read.
+   *
+   * @param {Actor} actor
+   * @param {string} classId  the class the levels ahead go to
+   * @param {object} [opts]
+   * @param {number} [opts.to]  the last class level to show (20)
+   */
+  static async future(actor, classId, { to = 20 } = {}) {
+    const cls = actor?.items?.get(classId);
+    if (!cls || cls.type !== 'class') return [];
+    const total = this.levels(actor).length;
+    const cur = this.#classLevel(cls);
+    // The character stops at 20, whatever the class could still take
+    const last = Math.min(20, to, cur + (20 - total));
+    if (last <= cur) return [];
+    const archetypeLevel = Number(cls.system?.archetypeLevel ?? 0) || 0;
+    const archetype = cls.archetype ?? null;
+
+    await GrantAbsorber.prefetchTree([cls, archetype],
+      { clsLevel: last, charLevel: total + (last - cur) }, { deepOptions: false });
+
+    const T = (k, data) => (data ? game.i18n.format(`am.build.${k}`, data) : game.i18n.localize(`am.build.${k}`));
+    const out = [];
+    for (let n = cur + 1; n <= last; n++) {
+      const lv = { clsLevel: n, charLevel: total + (n - cur) };
+      const trees = [await GrantAbsorber.describeTreeForLevel(cls, lv, {})];
+      if (archetype) trees.push(await GrantAbsorber.describeTreeForLevel(archetype, lv, {}));
+
+      const features = [], choices = [], benefits = [];
+      const shown = new Set();
+      for (const tree of trees) {
+        // Only what fires at this level; the trees also carry every earlier grant
+        for (const f of tree.features ?? []) {
+          if (!f.firesNow) continue;
+          for (const e of f.baseEntries ?? []) {
+            if (shown.has(e.key)) continue;
+            shown.add(e.key);
+            features.push({ uuid: e.key, name: e.label, img: e.img });
+          }
+          if (f.options?.length) {
+            choices.push({ label: f.label, count: f.total || 1,
+              options: f.options.map(o => ({ uuid: o.key, name: o.label, img: o.img })) });
+          }
+        }
+        for (const g of tree.grants ?? []) {
+          if (!g.firesNow || !g.options?.length) continue;
+          /* a5e writes an ability score improvement as one grant a point -
+             "8th Level ASI (1st Point)", "(2nd Point)" - which read as two
+             questions. It is one: points to spend, or a feat instead. */
+          if (g.type === 'ability') {
+            const asi = choices.find(c => c.asi);
+            if (asi) {
+              asi.count += g.total || 1;
+              for (const o of g.options) if (!asi.options.some(x => x.name === o.label)) asi.options.push({ name: o.label });
+              continue;
+            }
+            choices.push({ label: T('asi'), count: g.total || 1, asi: true, options: g.options.map(o => ({ name: o.label })) });
+            continue;
+          }
+          choices.push({ label: g.label, count: g.total || 1, options: g.options.map(o => ({ name: o.label })) });
+        }
+        for (const a of tree.fixedAbilities ?? []) {
+          if (!a.firesNow) continue;
+          const bonus = String(a.grant?.bonus ?? '').trim();
+          const sign = bonus ? `${/^[+-]/.test(bonus) ? bonus : `+${bonus}`} ` : '';
+          benefits.push(`${a.label}: ${sign}${(a.base ?? []).map(k => String(k).toUpperCase()).join(', ')}`);
+        }
+      }
+      // An archetype still to choose: the list to choose from, not its features
+      if (archetypeLevel === n && !archetype) {
+        const list = await LevelUpService.getArchetypesForClass(cls);
+        if (list.length) {
+          choices.push({ label: T('archetype'), count: 1,
+            options: list.map(x => ({ uuid: x.uuid, name: x.name, img: x.img })) });
+        }
+      }
+
+      out.push({
+        charLevel: lv.charLevel, classLevel: n, classId: cls.id, className: cls.name, img: cls.img,
+        title: `${this.ordinal(n)} Level ${cls.name}`,
+        future: true,
+        features, choices, benefits,
+        notes: await this.#progressNotes(actor, cls, n)
+      });
+    }
+    return out;
+  }
+
+  /** What a class level adds to spells and maneuvers, as a line each. */
+  static async #progressNotes(actor, cls, n) {
+    const T = (k, data) => game.i18n.format(`am.build.${k}`, data ?? {});
+    const notes = [];
+    const owed = SpellService.newAtLevel(cls.name, n);
+    const max = SpellService.maxSpellLevelFor(cls.name, n);
+    const before = SpellService.maxSpellLevelFor(cls.name, n - 1);
+    const spells = [];
+    if (owed?.cantrips) spells.push(T('cantrips', { n: owed.cantrips }));
+    if (owed?.spells) spells.push(T('spells', { n: owed.spells }));
+    if (max > before) spells.push(T('spell-level', { n: max }));
+    if (spells.length) notes.push(`${T('spells-title')}: ${spells.join(' · ')}`);
+    try {
+      const budget = await ManeuverService.maneuverBudget(actor, { classId: cls.id, newLevel: n });
+      for (const [kind, k] of Object.entries(budget?.kinds ?? {})) {
+        if (!k.levelling) continue;
+        const bits = [];
+        if (k.gained > 0) bits.push(T('maneuvers', { n: k.gained }));
+        if (k.maxDegree > k.prevMaxDegree) bits.push(T('degree', { n: k.maxDegree }));
+        if (bits.length) notes.push(`${game.i18n.localize(`am.maneuvers.kind-${kind}`)}: ${bits.join(' · ')}`);
+      }
+    } catch (err) {
+      AM.log(3, `Build: no maneuver progression for ${cls.name} ${n}`, err);
+    }
+    return notes;
   }
 }

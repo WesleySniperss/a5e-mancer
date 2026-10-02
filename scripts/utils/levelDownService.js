@@ -108,11 +108,11 @@ export class LevelDownService {
       }
       case 'proficiency': {
         const d = g.proficiencyData ?? {};
-        return `${d.proficiencyType || 'proficiency'}: ${join(d.keys)}`;
+        return join(d.keys) ? `${d.proficiencyType || 'proficiency'}: ${join(d.keys)}` : '';
       }
       case 'trait': {
         const d = g.traitData ?? {};
-        return `${d.traitType || 'trait'}: ${join(d.traits)}`;
+        return join(d.traits) ? `${d.traitType || 'trait'}: ${join(d.traits)}` : '';
       }
       case 'expertiseDice': return `expertise: ${join(g.expertiseDiceData?.keys)}`;
       case 'skillSpecialty': return `${g.specialtyData?.skill ?? ''} specialty: ${join(g.specialtyData?.specialties)}`.trim();

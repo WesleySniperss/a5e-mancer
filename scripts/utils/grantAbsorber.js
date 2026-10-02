@@ -1018,26 +1018,29 @@ export class GrantAbsorber {
    * measured 2026-10-02). Read by tier, a level's tree is two or three
    * requests instead of one per branch.
    */
-  static async prefetchTree(docs, lv = {}) {
+  static async prefetchTree(docs, lv = {}, { deepOptions = true } = {}) {
     let tier = (docs ?? []).filter(Boolean);
     const seen = new Set();
     for (let depth = 0; tier.length && depth <= this.#MAX_DEPTH; depth++) {
       const uuids = [];
+      const walk = [];          // the next tier: every document read, or only the granted-outright ones
       for (const doc of tier) {
         for (const [, grant] of this.#preparedGrants(doc)) {
           if (grant?.grantType !== 'feature' && grant?.grantType !== 'item') continue;
           if (!this.#appliesAtLevel(grant, lv)) continue;
           const spec = this.#specOf(grant);
-          for (const uuid of [...(spec?.base ?? []), ...(spec?.options ?? [])]) {
+          for (const [uuid, isBase] of [...(spec?.base ?? []).map(u => [u, true]), ...(spec?.options ?? []).map(u => [u, false])]) {
             if (seen.has(uuid)) continue;
             seen.add(uuid);
             uuids.push(uuid);
+            if (isBase || deepOptions) walk.push(uuid);
           }
         }
       }
       if (!uuids.length) break;
       await PackFilter.prefetch(uuids);
-      tier = (await Promise.all(uuids.map(u => fromUuid(u).catch(() => null)))).filter(Boolean);
+      // An option is read for its name and picture; what it holds only matters once picked (describeTree)
+      tier = (await Promise.all(walk.map(u => fromUuid(u).catch(() => null)))).filter(Boolean);
     }
   }
 
