@@ -94,7 +94,7 @@ export class LevelDownService {
   }
 
   /** A grant's effect in a few words, for the list of what goes. */
-  static #describe(actor, g) {
+  static describeGrant(actor, g) {
     const join = (a) => (Array.isArray(a) ? a.filter(Boolean).join(', ') : '');
     switch (g.grantType) {
       case 'bonus': {
@@ -214,7 +214,7 @@ export class LevelDownService {
       .filter((g) => !['feature', 'item'].includes(g.grantType))
       .map((g) => {
         const src = this.#source(g);
-        return { source: src?.name ?? '', level: Number(g.level) || 1, text: this.#describe(actor, g) };
+        return { source: src?.name ?? '', level: Number(g.level) || 1, text: this.describeGrant(actor, g) };
       })
       .sort((a, b) => a.level - b.level || a.source.localeCompare(b.source));
 

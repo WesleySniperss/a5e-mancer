@@ -8,6 +8,8 @@ import { GrantAbsorber } from '../utils/grantAbsorber.js';
 import { ProficiencyLedger } from '../utils/proficiencyLedger.js';
 import { MulticlassRules } from '../utils/multiclassRules.js';
 import { LevelDownService } from '../utils/levelDownService.js';
+import { LevelHistory } from '../utils/levelHistory.js';
+import { PackFilter } from '../utils/packFilter.js';
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -60,6 +62,27 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     this._downRemove  = new Set();
     this._downBackup  = true;
     this._downPlan    = null;
+    // Down to a character level instead of one class: from the level list
+    this._downCharTarget = null;  // the character level to come down to
+    this._downRebuild    = false; // and then take the levels again, one by one
+    this._historyLevel   = null;  // the past level the list has open
+    this._upTo           = null;  // level-up mode: keep going to this level
+
+    /* A run of levels in progress - a rebuild from the level list, or "up to
+       level N" - picks this level's class itself. See #continueQueue. */
+    const queue = AM.levelQueue;
+    if (queue?.actorId === actor.id) {
+      const at = LevelUpService.getTotalLevel(actor) + 1;
+      const step = queue.order?.find(o => o.charLevel === at) ?? null;
+      const found = LevelUpDialog.#queueClass(actor, step, queue);
+      if (found) this._selectedClassId = found;
+      else if (step) {
+        // The class this level went to is off the character now: taken again as a new class
+        this._mode = 'multiclass';
+        this._queueClassUuid = step.classUuid ?? null;
+        this._queueClassName = step.className ?? null;
+      }
+    }
   }
 
   static DEFAULT_OPTIONS = {
@@ -89,9 +112,14 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       luFeatPage:                LevelUpDialog.luFeatPage,
       luDownToggle:              LevelUpDialog.luDownToggle,
       luApplyLevelDown:          LevelUpDialog.luApplyLevelDown,
+      luShowLevel:               LevelUpDialog.luShowLevel,
+      luShowNext:                LevelUpDialog.luShowNext,
+      luRebuildFrom:             LevelUpDialog.luRebuildFrom,
+      luRemoveAbove:             LevelUpDialog.luRemoveAbove,
+      luStopQueue:               LevelUpDialog.luStopQueue,
     },
     classes: ['a5e-mancer-app', 'am-app', 'am-levelup-dialog'],
-    position: { width: 680, height: 760 },
+    position: { width: 880, height: 780 },
     window: { icon: 'fa-solid fa-arrow-up', resizable: true, minimizable: false }
   };
 
@@ -140,7 +168,39 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     return game.i18n.format('am.levelup.title', { name: this.actor.name });
   }
 
-  async _prepareContext(_options) {
+  /**
+   * Every mode's context, with the level list beside it: the character's
+   * levels as Level Up Gateway's builder lists them, and the next one.
+   */
+  async _prepareContext(options) {
+    const context = await this.#modeContext(options);
+    const levels = LevelHistory.levels(this.actor);
+    const total = levels.length;
+    const viewing = this._mode === 'history' ? this._historyLevel : null;
+    const downTo = this._mode === 'leveldown' && this._downCharTarget !== null ? this._downCharTarget : null;
+    context.levelList = levels.map(l => ({
+      ...l,
+      label: `${LevelHistory.ordinal(l.classLevel)} ${l.className}`,
+      active: l.charLevel === viewing,
+      // On its way out in the level-down being previewed
+      going: downTo !== null && l.charLevel > downTo
+    }));
+    context.levelNext = { charLevel: total + 1, active: ['levelup', 'multiclass'].includes(this._mode) };
+    const queue = AM.levelQueue;
+    if (queue?.actorId === this.actor.id && ['levelup', 'multiclass'].includes(this._mode)) {
+      context.levelQueue = { at: total + 1, until: queue.until, rebuild: !!queue.rebuild };
+      // The levels still to come in this run, under the one being taken
+      const named = this.actor.items.get(queue.classId)?.name ?? '';
+      context.levelQueued = [];
+      for (let n = total + 2; n <= queue.until; n++) {
+        const step = queue.order?.find(o => o.charLevel === n);
+        context.levelQueued.push({ charLevel: n, label: step?.className ?? named });
+      }
+    }
+    return context;
+  }
+
+  async #modeContext(_options) {
     const classes = LevelUpService.getActorClasses(this.actor);
     const total   = LevelUpService.getTotalLevel(this.actor);
 
@@ -149,6 +209,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     if (this._mode === 'leveldown') return this.#levelDownContext(classes);
+    if (this._mode === 'history') return this.#historyContext(classes);
 
     /* ── Multiclass mode ─────────────────────────────────────────────── */
     if (this._mode === 'multiclass') {
@@ -161,6 +222,13 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         .filter(c => !existingNames.has(c.name.toLowerCase()))
         .map(c => ({ ...c, prereqs: LevelUpService.checkPrerequisites(this.actor, c.name) }));
 
+      if ((this._queueClassUuid || this._queueClassName) && !this._newClassUuid) {
+        const want = this._queueClassUuid ? PackFilter.normalizeSource(this._queueClassUuid) : null;
+        this._newClassUuid = (want && availableClasses.find(c => PackFilter.normalizeSource(c.uuid) === want)?.uuid)
+          || availableClasses.find(c => c.name === this._queueClassName)?.uuid
+          || null;
+        this._queueClassUuid = this._queueClassName = null;
+      }
       const newClass = this._newClassUuid
         ? (availableClasses.find(c => c.uuid === this._newClassUuid) ?? null)
         : null;
@@ -219,6 +287,8 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       : { gainsASI: false, gainsKnack: false, avgHP: 5, hitDie: 8 };
 
     const avgHP       = info.avgHP + this.#getConMod();
+    // The slowest read of the window, started first so the steps below run beside it
+    this.#warmGrantTree(selectedClass, newClassLevel, newTotalLevel);
     const maneuverInfo = await this.#getManeuverInfo(selectedClass, newClassLevel);
 
     // The class's knack, features and ASI/feat are granted by a5e itself when the
@@ -230,6 +300,13 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     const classKey        = (selectedClass?.name ?? '').toLowerCase();
     const grantsTraditions = !!CLASS_MANEUVER_TABLES[classKey];
 
+    // "Up to level": the levels this run can still reach, this one first
+    if (!(this._upTo > newTotalLevel)) this._upTo = newTotalLevel;
+    const upToOptions = [];
+    if (!AM.levelQueue || AM.levelQueue.actorId !== this.actor.id) {
+      for (let n = newTotalLevel; n <= 20; n++) upToOptions.push({ value: n, selected: n === this._upTo });
+    }
+
     const context = {
       actor:                this.actor,
       classes,
@@ -237,6 +314,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       selectedClass,
       newClassLevel,
       newTotalLevel,
+      upToOptions,
       info,
       grantsFeatures,
       grantsTraditions,
@@ -375,74 +453,164 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /**
-   * Level-down mode: a class, the level to take it to, and what goes with the
-   * levels in between. What a5e removes by itself is listed; the picks it
-   * knows nothing about - maneuvers, spells, a feat taken for an ASI - are
-   * rows to keep or remove, the plan's suggestion ticked. See LevelDownService.
+   * Level-down mode: what goes with the levels taken off, and the picks to
+   * keep or remove. Two ways in:
+   *   - the Lower Level button: one class, down to a level picked here;
+   *   - the level list: the character down to a character level, every class
+   *     with a level above it lowered - "remove the levels above this one", or
+   *     a rebuild, which then takes those levels again one by one.
+   * What a5e removes by itself is listed; the picks it knows nothing about -
+   * maneuvers, spells, a feat taken for an ASI - are rows to keep or remove,
+   * the plan's suggestion ticked. See LevelDownService.
    */
   async #levelDownContext(classes) {
     const base = { actor: this.actor, classes, mode: 'leveldown', multiclass: classes.length > 1 };
-    if (!this._downClassId || !classes.some(c => c.id === this._downClassId)) {
-      // The highest class: the one a level-down most likely means
-      this._downClassId = [...classes].sort((a, b) => b.level - a.level)[0]?.id ?? null;
-    }
-    const cls = classes.find(c => c.id === this._downClassId);
-    const minTarget = classes.length > 1 ? 0 : 1;
-    if (!cls || cls.level <= minTarget) { this._downPlan = null; return { ...base, down: null, downNothing: true }; }
+    const L = (k, data) => (data ? game.i18n.format(`am.leveldown.${k}`, data) : game.i18n.localize(`am.leveldown.${k}`));
+    const byLevel = this._downCharTarget !== null;
+    const plans = [];
+    const targets = [];
 
-    if (this._downTarget === null || this._downTarget >= cls.level || this._downTarget < minTarget) {
-      this._downTarget = cls.level - 1;
+    if (byLevel) {
+      const at = LevelHistory.classLevelsAt(this.actor, this._downCharTarget);
+      for (const c of classes) {
+        const t = at.get(c.id) ?? 0;
+        if (t >= c.level) continue;
+        const plan = await LevelDownService.plan(this.actor, c.id, t);
+        if (plan) plans.push(plan);
+      }
+    } else {
+      if (!this._downClassId || !classes.some(c => c.id === this._downClassId)) {
+        // The highest class: the one a level-down most likely means
+        this._downClassId = [...classes].sort((a, b) => b.level - a.level)[0]?.id ?? null;
+      }
+      const cls = classes.find(c => c.id === this._downClassId);
+      const minTarget = classes.length > 1 ? 0 : 1;
+      if (cls && cls.level > minTarget) {
+        if (this._downTarget === null || this._downTarget >= cls.level || this._downTarget < minTarget) {
+          this._downTarget = cls.level - 1;
+        }
+        const plan = await LevelDownService.plan(this.actor, cls.id, this._downTarget);
+        if (plan) plans.push(plan);
+        for (let n = cls.level - 1; n >= minTarget; n--) {
+          targets.push({ value: n, label: n === 0 ? L('remove-class') : L('level-n', { n }), selected: n === plan?.target });
+        }
+      }
     }
-    const plan = await LevelDownService.plan(this.actor, cls.id, this._downTarget);
-    this._downPlan = plan;
-    if (!plan) return { ...base, down: null, downNothing: true };
+    this._downPlans = plans;
+    this._downPlan = plans[0] ?? null;
+    if (!plans.length) return { ...base, down: null, downNothing: true };
 
+    // Picks across every plan, each item once: two caster classes see the same book
     const groupsOf = (p) => [...(p.picks.maneuvers ?? []), ...(p.picks.spells ?? []), p.picks.feats].filter(Boolean);
-    const key = `${plan.classId}:${plan.target}`;
+    const key = (byLevel ? `L${this._downCharTarget}:` : '') + plans.map(p => `${p.classId}:${p.target}`).join('|');
     if (this._downKey !== key) {
       this._downKey = key;
-      this._downRemove = new Set(groupsOf(plan).flatMap(g => g.selected));
+      this._downRemove = new Set(plans.flatMap(p => groupsOf(p).flatMap(g => g.selected)));
     }
     // A forced one goes whatever was clicked
-    for (const g of groupsOf(plan)) for (const id of g.forced) this._downRemove.add(id);
+    for (const p of plans) for (const g of groupsOf(p)) for (const id of g.forced) this._downRemove.add(id);
 
-    const L = (k, data) => (data ? game.i18n.format(`am.leveldown.${k}`, data) : game.i18n.localize(`am.leveldown.${k}`));
-    const groups = groupsOf(plan).map(g => {
-      const removing = g.items.filter(i => this._downRemove.has(i.id)).length;
-      // One line: the count, what the levels gave of it, what is now out of reach
-      const notes = [];
-      if (g.allowed !== null && g.allowed !== undefined) notes.push(L('known-at', { have: g.total, n: g.allowed, level: plan.target }));
-      if (g.gave) notes.push(L('levels-gave', { n: g.gave }));
-      if (Number.isFinite(g.maxDegree)) notes.push(L('max-degree', { n: g.maxDegree }));
-      if (Number.isFinite(g.maxLevel) && g.key !== 'cantrips') notes.push(L('max-spell-level', { n: g.maxLevel }));
-      if (g.key === 'feats' && g.asiLost) notes.push(L('asi-lost', { n: g.asiLost }));
-      return {
-        key: g.key,
-        title: L(`group-${g.key}`),
-        note: notes.join(' '),
-        removing,
-        // Fewer marked than the levels gave: the badge says so, nothing blocks it
-        short: Number.isFinite(g.gave) && removing < g.gave,
-        items: g.items.map(i => ({ ...i, removing: this._downRemove.has(i.id) }))
-      };
-    });
-
-    const targets = [];
-    for (let n = cls.level - 1; n >= minTarget; n--) {
-      targets.push({ value: n, label: n === 0 ? L('remove-class') : L('level-n', { n }), selected: n === plan.target });
+    const shown = new Set();
+    const groups = [];
+    for (const p of plans) {
+      for (const g of groupsOf(p)) {
+        const items = g.items.filter(i => !shown.has(i.id));
+        items.forEach(i => shown.add(i.id));
+        if (!items.length) continue;
+        const removing = items.filter(i => this._downRemove.has(i.id)).length;
+        // One line: the count, what the levels gave of it, what is now out of reach
+        const notes = [];
+        if (g.allowed !== null && g.allowed !== undefined) notes.push(L('known-at', { have: g.total, n: g.allowed, level: p.target }));
+        if (g.gave) notes.push(L('levels-gave', { n: g.gave }));
+        if (Number.isFinite(g.maxDegree)) notes.push(L('max-degree', { n: g.maxDegree }));
+        if (Number.isFinite(g.maxLevel) && g.key !== 'cantrips') notes.push(L('max-spell-level', { n: g.maxLevel }));
+        if (g.key === 'feats' && g.asiLost) notes.push(L('asi-lost', { n: g.asiLost }));
+        groups.push({
+          key: g.key,
+          title: plans.length > 1 ? `${L(`group-${g.key}`)} · ${p.className}` : L(`group-${g.key}`),
+          note: notes.join(' '),
+          removing,
+          // Fewer marked than the levels gave: the badge says so, nothing blocks it
+          short: Number.isFinite(g.gave) && removing < g.gave,
+          items: items.map(i => ({ ...i, removing: this._downRemove.has(i.id) }))
+        });
+      }
     }
+
+    const first = plans[0];
+    const charBefore = first.charBefore;
+    const charAfter = byLevel ? this._downCharTarget : first.charAfter;
+    const hpBefore = first.hp.before;
+    const hpAfter = Math.max(1, hpBefore - plans.reduce((n, p) => n + p.hp.loss, 0));
+    let submit;
+    if (byLevel && this._downRebuild) submit = L('submit-rebuild', { n: charAfter + 1 });
+    else if (byLevel) submit = L('submit-above', { n: charAfter });
+    else submit = first.removesClass ? L('submit-remove', { cls: first.className }) : L('submit-lower', { n: first.target });
 
     return {
       ...base,
       down: {
-        ...plan,
-        classes: classes.map(c => ({ id: c.id, name: c.name, level: c.level, selected: c.id === plan.classId })),
+        byLevel,
+        rebuild: byLevel && this._downRebuild,
+        charTarget: this._downCharTarget,
+        rebuildFrom: charAfter + 1,
+        charBefore, charAfter,
+        // single-class mode: its pickers
+        className: first.className, current: first.current, target: first.target,
+        removesClass: first.removesClass,
+        classes: classes.map(c => ({ id: c.id, name: c.name, level: c.level, selected: c.id === first.classId })),
         targets,
+        sections: plans.map(p => ({
+          classId: p.classId, className: p.className, current: p.current, target: p.target,
+          removesClass: p.removesClass, features: p.features, benefits: p.benefits,
+          guardArchetype: p.guardArchetype, archetype: p.archetype,
+          empty: !p.features.length && !p.benefits.length
+        })),
         groups,
         backup: this._downBackup,
-        hpDrop: plan.hp.before !== plan.hp.after
+        hp: { before: hpBefore, after: hpAfter },
+        hpDrop: hpBefore !== hpAfter,
+        submit
       }
     };
+  }
+
+  /**
+   * A past level from the list: what it gave, and the ways to change the
+   * build from there - take the levels above it off, or rebuild from it.
+   */
+  #historyContext(classes) {
+    const levels = LevelHistory.levels(this.actor);
+    if (!levels.some(l => l.charLevel === this._historyLevel)) this._historyLevel = levels.at(-1)?.charLevel ?? null;
+    const summary = this._historyLevel ? LevelHistory.summary(this.actor, this._historyLevel) : null;
+    return {
+      actor: this.actor, classes, mode: 'history', multiclass: classes.length > 1,
+      history: summary && {
+        ...summary,
+        // Level 1 is where the character was made; there is nothing below it to rebuild on
+        canRebuild: !summary.isFirst,
+        canRemoveAbove: !summary.isLast,
+        nothing: !summary.gained.length && !summary.picks.length && !summary.benefits.length
+      }
+    };
+  }
+
+  /**
+   * Start reading the level's grant tree (GrantAbsorber.prefetchTree) without
+   * waiting for it. Each read of a5e's class-features pack costs the server
+   * about a second, and the maneuver and spell steps before
+   * #addLevelGrantContext have reads of their own; side by side they overlap.
+   * The key is #addLevelGrantContext's absorbKey, so it waits on this one.
+   */
+  #warmGrantTree(selectedClass, newLevel, newTotal) {
+    const classItem = selectedClass ? this.actor.items.get(selectedClass.id) : null;
+    if (!classItem || !AM.deferToSystemGrants) return;
+    const archLevel = LevelUpService.archetypeLevelOf(classItem);
+    const ownedArch = archLevel && newLevel > archLevel ? GrantAbsorber.archetypeOf(this.actor, classItem) : null;
+    const key = `${classItem.id}|${newLevel}|${newTotal}|${ownedArch?.id ?? ''}`;
+    if (this._warm?.key === key) return;
+    this._warm = { key, done: GrantAbsorber.prefetchTree([classItem, ownedArch], { charLevel: newTotal, clsLevel: newLevel })
+      .catch(err => AM.log(2, 'Level grant prefetch failed:', err)) };
   }
 
   /**
@@ -475,6 +643,9 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       // verdict cannot change while the dialog is open.
       const absorbKey = `${classItem.id}|${newLevel}|${context.newTotalLevel}|${ownedArch?.id ?? ''}`;
       if (this._absorbCache?.key !== absorbKey) {
+        // The documents both walks below read, a tier at a time - see prefetchTree.
+        // Usually already under way from #warmGrantTree.
+        await (this._warm?.key === absorbKey ? this._warm.done : GrantAbsorber.prefetchTree([classItem, ownedArch], lv));
         let ok = await GrantAbsorber.canAbsorb(classItem, lv);
         if (ok && ownedArch && !await GrantAbsorber.canAbsorb(ownedArch, lv)) {
           AM.log(3, `${ownedArch.name} level ${newLevel}: archetype grants left to a5e`);
@@ -1148,12 +1319,19 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     this.element.querySelectorAll('.lu-mode-section .lu-mode-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
         const newMode = btn.dataset.mode;
-        if (newMode === this._mode) return;
+        if (newMode === this._mode && this._downCharTarget === null) return;
         this._mode      = newMode;
+        this._downCharTarget = null;
+        this._downRebuild    = false;
         this._rolledHP  = null;
         this.#resetSelections();
         await this.render(true);
       });
+    });
+
+    /* ── Level-up mode: keep going to a later level ── */
+    this.element.querySelector('#lu-up-to')?.addEventListener('change', (e) => {
+      this._upTo = Number(e.target.value) || null;
     });
 
     /* ── Level-down mode: class, level, backup ── */
@@ -1881,52 +2059,185 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /**
-   * Lower the class. Not the form's submit: a level-down asks first, and a
-   * "no" has to leave this window open, which a submit handler cannot.
+   * Lower the class, or the character to a level. Not the form's submit: a
+   * level-down asks first, and a "no" has to leave this window open, which a
+   * submit handler cannot. A rebuild then opens the level-up for the first of
+   * the levels taken off, and #continueQueue takes it from there.
    */
   static async luApplyLevelDown(_event, btn) {
     const dialog = AM.levelUpDialog;
-    const plan = dialog?._downPlan;
-    if (!dialog || !plan || dialog._downBusy) return;
+    const plans = dialog?._downPlans ?? [];
+    if (!dialog || !plans.length || dialog._downBusy) return;
+    const actor = dialog.actor;
+    const byLevel = dialog._downCharTarget !== null;
+    const rebuild = byLevel && dialog._downRebuild;
     const remove = [...dialog._downRemove];
     const L = (k, data) => (data ? game.i18n.format(`am.leveldown.${k}`, data) : game.i18n.localize(`am.leveldown.${k}`));
+    const esc = (v) => foundry.utils.escapeHTML?.(String(v)) ?? String(v);
 
-    const esc = (s) => foundry.utils.escapeHTML?.(String(s)) ?? String(s);
+    const first = plans[0];
+    const charBefore = first.charBefore;
+    const charAfter = byLevel ? dialog._downCharTarget : first.charAfter;
+    let lead;
+    if (rebuild) lead = L('confirm-rebuild', { from: charAfter + 1, to: charBefore });
+    else if (byLevel) lead = L('confirm-above', { n: charAfter });
+    else if (first.removesClass) lead = L('confirm-remove', { cls: esc(first.className), from: first.current });
+    else lead = L('confirm-lower', { cls: esc(first.className), from: first.current, to: first.target });
+    const planned = new Set(plans.flatMap(p => p.removeIds));
+    const count = plans.reduce((n, p) => n + p.features.length, 0) + remove.filter(id => !planned.has(id)).length;
     const content = [
-      `<p>${plan.removesClass
-        ? L('confirm-remove', { cls: esc(plan.className), from: plan.current })
-        : L('confirm-lower', { cls: esc(plan.className), from: plan.current, to: plan.target })}</p>`,
-      `<p>${L('confirm-level', { from: plan.charBefore, to: plan.charAfter })}</p>`,
-      (plan.features.length || remove.length)
-        ? `<p>${L('confirm-items', { n: plan.features.length + remove.filter(id => !plan.removeIds.includes(id)).length })}</p>` : '',
+      `<p>${lead}</p>`,
+      `<p>${L('confirm-level', { from: charBefore, to: charAfter })}</p>`,
+      count ? `<p>${L('confirm-items', { n: count })}</p>` : '',
       `<p><strong>${dialog._downBackup ? L('confirm-backup') : L('confirm-final')}</strong></p>`
     ].join('');
     const ok = await foundry.applications.api.DialogV2.confirm({
-      window: { title: L('confirm-title'), icon: 'fa-solid fa-arrow-down' },
+      window: { title: L(rebuild ? 'confirm-title-rebuild' : 'confirm-title'), icon: 'fa-solid fa-arrow-down' },
       content, rejectClose: false, modal: true
     });
     if (!ok) return;
 
+    // Read before anything changes: the levels are renumbered as they go
+    const order = rebuild
+      ? LevelHistory.levels(actor).filter(l => l.charLevel > charAfter)
+          .map(l => ({ charLevel: l.charLevel, classId: l.classId, classUuid: l.classUuid, className: l.className }))
+      : null;
+    const targets = byLevel ? LevelHistory.classLevelsAt(actor, charAfter) : null;
+
     dialog._downBusy = true;
     if (btn) btn.disabled = true;
-    let done = false;
+    let done = true;
     try {
-      done = await LevelDownService.apply(dialog.actor, plan, { remove, backup: dialog._downBackup });
+      if (byLevel) {
+        let backup = dialog._downBackup;
+        for (const cls of actor.items.filter(i => i.type === 'class')) {
+          const to = targets.get(cls.id) ?? 0;
+          const plan = await LevelDownService.plan(actor, cls.id, to);
+          if (!plan || plan.target !== to) continue;
+          const okOne = await LevelDownService.apply(actor, plan, { remove: remove.filter(id => actor.items.get(id)), backup });
+          backup = false;
+          if (!okOne) { done = false; break; }
+        }
+      } else {
+        done = await LevelDownService.apply(actor, first, { remove, backup: dialog._downBackup });
+      }
     } catch (err) {
+      done = false;
       AM.log(1, 'Level down failed:', err);
       ui.notifications.error(L('failed'));
     } finally {
       dialog._downBusy = false;
     }
+
     if (done) {
       AM.levelUpDialog = null;
       AM.levelUpGrants = null;
-      dialog.close();
+      await dialog.close();
+      if (rebuild && order?.length) {
+        AM.levelQueue = { actorId: actor.id, until: charBefore, rebuild: true, order };
+        ui.notifications.info(game.i18n.format('am.levels.rebuild-start', { from: charAfter + 1, to: charBefore }));
+        setTimeout(() => AM.openLevelUp(actor), 300);
+      }
     } else {
       if (btn) btn.disabled = false;
       dialog._downKey = null;
       dialog.render(true);
     }
+  }
+
+  /* ── Static actions: the level list ─────────────────────────────────── */
+
+  /** A past level: what it gave, and the ways to change the build from it. */
+  static luShowLevel(_event, btn) {
+    const dialog = AM.levelUpDialog;
+    const level = Number(btn?.dataset?.level);
+    if (!dialog || !level) return;
+    if (['levelup', 'multiclass'].includes(dialog._mode)) dialog.#resetSelections();
+    dialog._mode = 'history';
+    dialog._historyLevel = level;
+    dialog._downCharTarget = null;
+    dialog._downRebuild = false;
+    dialog.render(true);
+  }
+
+  /** The next level: the level-up itself. */
+  static luShowNext(_event, _btn) {
+    const dialog = AM.levelUpDialog;
+    if (!dialog || ['levelup', 'multiclass'].includes(dialog._mode)) return;
+    dialog._mode = 'levelup';
+    dialog._downCharTarget = null;
+    dialog._downRebuild = false;
+    dialog.#resetSelections();
+    dialog.render(true);
+  }
+
+  /** Take this level and every one above it off, then take them again one by one. */
+  static luRebuildFrom(_event, btn) {
+    const dialog = AM.levelUpDialog;
+    const level = Number(btn?.dataset?.level);
+    if (!dialog || !(level > 1)) return;
+    dialog._mode = 'leveldown';
+    dialog._downCharTarget = level - 1;
+    dialog._downRebuild = true;
+    dialog._downKey = null;
+    dialog.render(true);
+  }
+
+  /** Take every level above this one off. */
+  static luRemoveAbove(_event, btn) {
+    const dialog = AM.levelUpDialog;
+    const level = Number(btn?.dataset?.level);
+    if (!dialog || !level) return;
+    dialog._mode = 'leveldown';
+    dialog._downCharTarget = level;
+    dialog._downRebuild = false;
+    dialog._downKey = null;
+    dialog.render(true);
+  }
+
+  /** End a run of levels here; this level is still taken as normal. */
+  static luStopQueue(_event, _btn) {
+    const dialog = AM.levelUpDialog;
+    AM.levelQueue = null;
+    dialog?.render(true);
+  }
+
+  /**
+   * The class a run of levels takes at this step: the one it went to before,
+   * by id while it is on the character, then by compendium source or name -
+   * a class the rebuild took off and has already taken again has a new id.
+   * @returns {string|null} a class item id, or null for a class not on the character
+   */
+  static #queueClass(actor, step, queue) {
+    const classes = actor.items.filter(i => i.type === 'class');
+    const id = step?.classId ?? queue?.classId ?? null;
+    if (id && actor.items.get(id)) return id;
+    if (step?.classUuid) {
+      const want = PackFilter.normalizeSource(step.classUuid);
+      const bySource = classes.find(c => PackFilter.normalizeSource(c._stats?.compendiumSource ?? c.flags?.core?.sourceId ?? '') === want);
+      if (bySource) return bySource.id;
+    }
+    if (step?.className) {
+      const byName = classes.find(c => c.name === step.className);
+      if (byName) return byName.id;
+    }
+    return step ? null : (classes[0]?.id ?? null);
+  }
+
+  /**
+   * After a level-up: the next level of a run, or its end. The window that
+   * just submitted closes itself; the next one opens once it has.
+   */
+  static async #continueQueue(actor) {
+    const queue = AM.levelQueue;
+    if (!queue || queue.actorId !== actor.id) return;
+    const total = LevelUpService.getTotalLevel(actor);
+    if (total >= queue.until) {
+      AM.levelQueue = null;
+      ui.notifications.info(game.i18n.format(queue.rebuild ? 'am.levels.rebuilt' : 'am.levels.reached', { n: total }));
+      return;
+    }
+    setTimeout(() => AM.openLevelUp(actor), 300);
   }
 
   /* ── Static action: cancel ──────────────────────────────────────────── */
@@ -1940,6 +2251,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     const dialog = AM.levelUpDialog;
     AM.levelUpDialog = null;
     AM.levelUpGrants = null;   // nothing was applied; don't leak picks to the next run
+    AM.levelQueue = null;      // nor carry on a run of levels the player walked away from
     dialog?.close();
   }
 
@@ -1980,6 +2292,11 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   async _preClose(options) {
     this._detachDescPanel?.();
     this._detachDescPanel = null;
+    /* Closed without taking the level - the header's ✕ as much as Cancel - ends
+       a run of levels. Left standing, it waited for the next time anyone
+       levelled this character and took that over. A submit closes with
+       `submitted`, and #continueQueue carries the run on from there. */
+    if (!options?.submitted && AM.levelQueue?.actorId === this.actor?.id) AM.levelQueue = null;
     return super._preClose?.(options);
   }
 
@@ -2003,7 +2320,10 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
     const conMod = dialog.#getConMod();
     // Lowering has its own button; Enter in a field must not level up instead
-    if (dialog._mode === 'leveldown') { AM.levelUpDialog = dialog; throw new Error(game.i18n.localize('am.leveldown.use-button')); }
+    if (dialog._mode === 'leveldown' || dialog._mode === 'history') {
+      AM.levelUpDialog = dialog;
+      throw new Error(game.i18n.localize(dialog._mode === 'history' ? 'am.levels.pick-next' : 'am.leveldown.use-button'));
+    }
 
     /* What this level-up adds is recorded on it, so lowering the level later
        knows which maneuvers, spells and feat came with which level. */
@@ -2046,6 +2366,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         await LevelDownService.recordLevelUp(dialog.actor, itemsBefore,
           { classId: added.id, classLevel: 1, charLevel: totalBefore + 1 });
       }
+      await LevelUpDialog.#continueQueue(dialog.actor);
       return;
     }
 
@@ -2058,6 +2379,12 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     const hpGained = dialog.#systemOwnsHp()
       ? 0
       : Math.max(1, LevelUpDialog.#hpFor(dialog, cls.hitDie, conMod));
+
+    // "Up to level N": this level starts a run that keeps to this class
+    if (AM.levelQueue?.actorId === dialog.actor.id) AM.levelQueue.classId = cls.id;
+    else if (dialog._upTo > totalBefore + 1) {
+      AM.levelQueue = { actorId: dialog.actor.id, until: dialog._upTo, classId: cls.id, rebuild: false };
+    }
 
     await LevelUpService.applyLevelUp(
       dialog.actor, cls.id, hpGained
@@ -2098,6 +2425,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     await LevelUpDialog.#featureSpells(dialog);
     await LevelDownService.recordLevelUp(dialog.actor, itemsBefore,
       { classId: cls.id, classLevel: cls.level + 1, charLevel: totalBefore + 1 });
+    await LevelUpDialog.#continueQueue(dialog.actor);
   }
 
   /**
