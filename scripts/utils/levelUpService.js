@@ -167,7 +167,7 @@ export class LevelUpService {
         /* Through PackFilter: it reads the cheap index first and pays for the
            heavy one only when the pack actually holds this type. Most packs in
            an a5e world hold no classes at all. */
-        const index = await PackFilter.indexOf(pack, ['name', 'type', 'img', 'system'], { types: ['class'] });
+        const index = await PackFilter.indexOf(pack, ['name', 'type', 'img', 'system.hp.hitDiceSize'], { types: ['class'] });
         for (const entry of index) {
           if (entry.type !== 'class') continue;
           // As in the builder: A5e replaced the 5e barbarian, monk and paladin
@@ -390,7 +390,7 @@ export class LevelUpService {
            used to pull full system data out of every item pack each time. Three
            packs in this world hold an archetype; the rest now cost the plain
            index and nothing more. */
-        const index = await PackFilter.indexOf(pack, ['name', 'type', 'img', 'system'], { types: ['archetype'] });
+        const index = await PackFilter.indexOf(pack, ['name', 'type', 'img', 'system.class'], { types: ['archetype'] });
         for (const entry of index) {
           if (entry.type !== 'archetype') continue;
           if (entry.system?.class !== slug) continue;
@@ -449,7 +449,7 @@ export class LevelUpService {
       const out = [], seen = new Set();
       for (const pack of packs) {
         try {
-          const index = await PackFilter.indexOf(pack, ['name', 'type', 'img', 'system'], { types: ['feature'] });
+          const index = await PackFilter.indexOf(pack, ['name', 'type', 'img', 'system.classes', 'system.featureType'], { types: ['feature'] });
           for (const entry of index) {
             if (entry.type !== 'feature' || !predicate(entry)) continue;
             const uuid = `Compendium.${pack.collection}.${entry._id}`;

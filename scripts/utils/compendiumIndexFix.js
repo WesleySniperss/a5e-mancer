@@ -101,6 +101,16 @@ export function indexFieldsFor(type) {
 }
 
 /**
+ * Every field a5e's index asks for, whatever the type. Foundry keeps one set
+ * of indexed fields per pack - the last one asked for - so an index the module
+ * rebuilds asks for these alongside its own: a5e's next look at the pack then
+ * finds its fields already there instead of fetching the whole pack again.
+ */
+export function allIndexFields() {
+  return [...new Set(Object.values(FIELD_MAPPINGS).flat())];
+}
+
+/**
  * One field per type that only an index made with that type's fields holds.
  * a5e 1.3 indexes its packs itself, with FIELD_MAPPINGS identical to the one
  * above - but per pack, for its most common type only, so the few spells in a

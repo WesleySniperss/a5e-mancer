@@ -338,10 +338,10 @@ export class ManeuverService {
     report.packs = packs.length;
     for (const pack of packs) {
       try {
-        // flags is needed for the magic-maneuver check below — the index omits
-        // it unless asked, so without it every one of them would slip through.
+        // The fields read below - a5e's own maneuver index already carries them
         const index = await PackFilter.indexOf(pack,
-          ['name', 'type', 'img', 'system', 'flags'], { types: ['maneuver'] });
+          ['name', 'type', 'img', 'system.tradition', 'system.degree', 'system.exertionCost', 'system.description'],
+          { types: ['maneuver'] });
         for (const entry of index) {
           if (entry.type !== 'maneuver') continue;
           // Magic maneuvers are not filtered out: their school IS their tradition,
@@ -678,6 +678,7 @@ export class ManeuverService {
     const read = async (uuid) => { try { return await fromUuid(uuid); } catch { return null; } };
     let found = null;
     const visit = async (entries, depth, parentOptional = false) => {
+      await PackFilter.prefetch(entries.map(e => e.uuid));   // the tier in one read
       for (const { uuid, level, optional } of entries) {
         if (found) return;
         const doc = await read(uuid);

@@ -338,7 +338,7 @@ export class SpellService {
     const nonCasters = new Set(), casters = new Set();
     for (const pack of packs) {
       let index;
-      try { index = await PackFilter.indexOf(pack, ['name', 'type', 'system'], { types: ['class'] }); } catch { continue; }
+      try { index = await PackFilter.indexOf(pack, ['name', 'type', 'system.spellcasting.casterType'], { types: ['class'] }); } catch { continue; }
       for (const entry of index) {
         if (entry.type !== 'class') continue;
         const type = entry.system?.spellcasting?.casterType;
@@ -992,8 +992,11 @@ export class SpellService {
 
     for (const pack of packs) {
       try {
+        // The fields read below - a5e's own spell index already carries them
         const index = await PackFilter.indexOf(pack,
-          ['name', 'type', 'img', 'system'], { types: ['spell'] });
+          ['name', 'type', 'img', 'system.level', 'system.classes', 'system.schools', 'system.rare',
+           'system.ritual', 'system.concentration', 'system.description'],
+          { types: ['spell'] });
         for (const entry of index) {
           if (entry.type !== 'spell') continue;
           /* No class list at all means the index arrived without its system

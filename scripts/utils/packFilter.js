@@ -1,5 +1,6 @@
 import { AM } from '../am.js';
 import { HiddenSources } from './hiddenSources.js';
+import { allIndexFields } from './compendiumIndexFix.js';
 
 /**
  * Which compendiums the module reads content from.
@@ -52,38 +53,46 @@ export class PackFilter {
   }
 
   /**
-   * A pack's index, with the fields asked for where that is possible.
+   * A pack's index, carrying the fields asked for.
    *
-   * getIndex({fields}) asks Foundry to merge the extra fields into an index it
-   * has already built, and on a5e's packs that throws — 'Cannot add property
-   * price, object is not extensible'. The entries in a loaded index are not
-   * open to having a whole system object folded into them. One pack throwing
-   * took its whole catalogue out of the manage dialogs, which is why they
-   * opened empty.
+   * Ask for the system fields the caller reads - 'system.level',
+   * 'system.classes' - not for 'system'. Measured 2026-10-02 on the test world,
+   * the level-up window's first open took 38 s, and most of it was this method
+   * asking for whole system objects:
    *
-   * The plain index was the fallback, and the note that used to stand here
-   * said it was a good one because the module enriches every pack index at
-   * ready. It does not. That enrichment was moved off the world-load path and
-   * now runs the first time the a5e compendium browser is opened — so in a
-   * session where nobody opens it, the fallback index carries `_id`, `name`,
-   * `type` and `img` and no system data whatsoever.
+   *   - a5e indexes every pack at world load with the fields its browser
+   *     reads (indexCompendiaFields; descriptions included, about 12 MB held
+   *     for the session). For a5e-spells that is already the level, classes
+   *     and schools the spell picker filters on. Asking for 'system' fetched
+   *     all 895 spells again (6.9 s) and the 1758 entries of the imported pack
+   *     (11.4 s), and doubled what those indexes hold.
+   *   - Foundry keeps ONE set of indexed fields per pack, the last asked for.
+   *     A request for 'system' replaced a5e's set, so a5e's next look at the
+   *     pack fetched it whole again.
+   *   - The class-features pack holds one maneuver among 4055 entries; the
+   *     maneuver picker re-indexed all of it to read that one.
+   *   - The single feature documents the level's grants read waited behind
+   *     those fetches on the server, a second or more each.
    *
-   * The loaders read that index for system.tradition, system.degree,
-   * system.classes, system.level. Every one of them came back undefined, and
-   * undefined is not an error — it is a maneuver with no tradition and a spell
-   * on no class list. So the windows filled up and every filter in them was
-   * dead: 343 maneuvers under one blank tradition, 895 spells where the
-   * character's class allows 52. That is the manage dialogs "not working" and
-   * the window "covered by something" — it was covered by everything.
+   * So, in order:
+   *   1. a pack holding nothing of `types` is skipped on its plain index;
+   *   2. an index that already carries every field asked for is used as it is
+   *      - a5e's own index usually does - and nothing is fetched;
+   *   3. when the wanted entries are a small share of a big pack, only those
+   *      documents are read;
+   *   4. otherwise the pack is indexed once more with the fields asked for
+   *      AND a5e's own, so Foundry's one set of fields still covers a5e's next
+   *      request and the next request here: one fetch a pack per session.
+   * Whatever is read stays only as long as Foundry keeps its pack indexes and
+   * documents - the session - as for every compendium the world uses.
    *
-   * So an index is now checked for what was asked of it, and a pack whose
-   * index will not carry its system data has its documents read instead. That
-   * is the expensive path, which is why `types` exists: the plain index always
-   * carries `type`, so a pack holding nothing the caller wants is skipped
-   * before any of this costs anything. The result is cached per pack.
+   * getIndex({fields}) once threw on a5e's packs ('Cannot add property price,
+   * object is not extensible') and an index could come back without its system
+   * data. Either way the documents are read instead, as before.
    *
    * @param {CompendiumCollection} pack
-   * @param {string[]} fields   index fields wanted, e.g. ['name','type','system']
+   * @param {string[]} fields   index fields wanted, e.g. ['name', 'type', 'system.level']
+   *                            ('system' alone still means all of it - avoid)
    * @param {object}   [opts]
    * @param {string[]} [opts.types]  only these item types matter to the caller
    */
@@ -100,23 +109,30 @@ export class PackFilter {
 
     /* Nothing here for this caller: hand back the cheap index and spend
        nothing. Most packs in an a5e world take this exit. */
-    if (types?.length) {
-      let any = false;
-      for (const entry of plain) if (types.includes(entry.type)) { any = true; break; }
-      if (!any) return plain;
+    const wanted = types?.length ? [...plain].filter(e => types.includes(e.type)) : [...plain];
+    if (types?.length && !wanted.length) return plain;
+
+    // Only system fields and flags can be missing; name, type and img are in every index
+    const paths = (fields ?? []).filter(f => f === 'system' || f === 'flags'
+      || f.startsWith('system.') || f.startsWith('flags.'));
+    if (!paths.length || this.#covers(wanted, paths)) return plain;
+
+    /* A few entries in a big pack: those documents, not the whole pack again.
+       A small pack is indexed like any other - one cheap request. */
+    if (types?.length && plain.size >= this.BIG && wanted.length <= Math.max(this.FEW, plain.size * this.FEW_SHARE)) {
+      return HiddenSources.filter(await this.#documentIndex(pack, plain, types));
     }
 
     try {
-      const rich = await pack.getIndex({ fields });
+      const ask = new Set([...(fields ?? []), ...allIndexFields()]);
+      const rich = await pack.getIndex({ fields: [...ask] });
       // The server hands back the whole pack, hidden sources included: out again
       HiddenSources.drop(pack);
-      if (this.#carriesFields(rich, fields)) return rich;
+      const richWanted = types?.length ? [...rich].filter(e => types.includes(e.type)) : [...rich];
+      if (this.#covers(richWanted, paths)) return rich;
       AM.log(2, `${pack?.collection}: the index came back without its system data; `
              + `reading the documents instead`);
     } catch (err) {
-      /* Foundry merges the extra fields into an index it has already built, and
-         on a5e's packs that throws — 'Cannot add property price, object is not
-         extensible'. */
       AM.log(2, `${pack?.collection}: the index would not take the extra fields `
              + `— ${err.message}`);
     }
@@ -124,22 +140,25 @@ export class PackFilter {
     return HiddenSources.filter(await this.#documentIndex(pack, plain, types));
   }
 
+  /** In a pack of BIG entries or more, up to FEW wanted entries, or FEW_SHARE of it, are read as documents. */
+  static BIG = 300;
+  static FEW = 40;
+  static FEW_SHARE = 0.15;
+
   /**
-   * Does this index actually carry the system data that was asked for?
-   *
-   * Sampled across several entries rather than read off the first, because a
-   * single document may legitimately lack a field the rest of the pack has.
-   * Only `system` is checked: `flags` is genuinely absent on most documents,
-   * and demanding it would send every pack down the expensive path.
+   * Does this index carry what was asked for? Each field is looked for across
+   * a sample of the wanted entries rather than on the first one, because a
+   * single document may lack a field the rest have. 'system' alone asks for
+   * all of it, which a5e's partial index does not count as.
    */
-  static #carriesFields(index, fields) {
-    if (!fields?.some(f => f === 'system' || f.startsWith('system.'))) return true;
-    let seen = 0;
-    for (const entry of index) {
-      if (entry?.system !== undefined) return true;
-      if (++seen >= 8) break;
-    }
-    return seen === 0;   // an empty pack has nothing to be missing
+  static #covers(entries, paths) {
+    if (!entries.length) return true;
+    const sample = entries.slice(0, 16);
+    return paths.every((p) => {
+      if (p === 'system') return sample.some(e => e?.system && Object.keys(e.system).length > 12);
+      const keys = p.split('.');
+      return sample.some(e => keys.reduce((o, k) => (o && typeof o === 'object' && k in o ? o[k] : undefined), e) !== undefined);
+    });
   }
 
   /** Documents read once per pack and set of types, shaped like index entries. */
@@ -195,6 +214,32 @@ export class PackFilter {
     }
     this.#docIndexCache.set(key, built);
     return built;
+  }
+
+  /**
+   * Read these compendium documents in one request a pack, so the fromUuid
+   * calls after it find them in Foundry's cache (a pack keeps every document
+   * it has read for the session). A read of a5e's class-features pack costs
+   * the server about a second however few documents it names - it scans the
+   * 4055 entries - so it is the number of requests that is slow, not their
+   * size: the level-up read a level's features one at a time, sixty-odd
+   * requests on the first open of a session (measured 2026-10-02). World and
+   * already cached uuids are left to fromUuid.
+   */
+  static async prefetch(uuids) {
+    const byPack = new Map();
+    for (const uuid of uuids ?? []) {
+      if (typeof uuid !== 'string' || !uuid.startsWith('Compendium.')) continue;
+      const parts = uuid.split('.');
+      const pack = game.packs.get(`${parts[1]}.${parts[2]}`);
+      const id = parts.at(-1);
+      if (!pack || !id || pack.get(id) instanceof foundry.abstract.Document) continue;
+      if (!byPack.has(pack)) byPack.set(pack, new Set());
+      byPack.get(pack).add(id);
+    }
+    await Promise.all([...byPack].map(([pack, ids]) =>
+      pack.getDocuments({ _id__in: [...ids] }).catch((err) =>
+        AM.log(2, `${pack.collection}: batch read failed, read one at a time - ${err.message}`))));
   }
 
   /** Same, for any document type. */

@@ -1,6 +1,6 @@
 import { AM } from '../am.js';
-import { ItemDescPanel } from './itemDescPanel.js';
 import { applyItemIcon } from '../data/a5eIcons.js';
+import { PackFilter } from './packFilter.js';
 
 /**
  * Lets the builder ask for an item's grant choices itself, so a5e does not have to
@@ -315,23 +315,6 @@ export class GrantAbsorber {
     if (raw && typeof raw === 'object' && raw.label) return game.i18n.localize(raw.label);
     // Fall back to a readable form of the key
     return String(key).replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
-  }
-
-  /**
-   * A document's description, enriched so @UUID links and embeds resolve.
-   * a5e declares description as a plain HTMLField — there is no .
-   */
-  static async #enrich(doc) {
-    const raw = typeof doc?.system?.description === 'string'
-      ? doc.system.description
-      : (doc?.system?.description?.value ?? '');
-    if (!raw) return '';
-    try {
-      const TE = foundry.applications?.ux?.TextEditor?.implementation ?? TextEditor;
-      return await TE.enrichHTML(raw, { async: true, relativeTo: doc });
-    } catch {
-      return raw;
-    }
   }
 
   /**
@@ -1025,10 +1008,44 @@ export class GrantAbsorber {
     return true;
   }
 
+  /**
+   * The documents a level's grant tree names, read a tier at a time: every
+   * feature the items' grants at this level hand out (options included, as
+   * canAbsorb walks them), then every feature those hand out, and so on.
+   * The walks after it - canAbsorb, describeTree - read one branch at a time
+   * and each read of a5e's class-features pack costs the server about a
+   * second however few documents it asks for (it scans the 4055 entries;
+   * measured 2026-10-02). Read by tier, a level's tree is two or three
+   * requests instead of one per branch.
+   */
+  static async prefetchTree(docs, lv = {}) {
+    let tier = (docs ?? []).filter(Boolean);
+    const seen = new Set();
+    for (let depth = 0; tier.length && depth <= this.#MAX_DEPTH; depth++) {
+      const uuids = [];
+      for (const doc of tier) {
+        for (const [, grant] of this.#preparedGrants(doc)) {
+          if (grant?.grantType !== 'feature' && grant?.grantType !== 'item') continue;
+          if (!this.#appliesAtLevel(grant, lv)) continue;
+          const spec = this.#specOf(grant);
+          for (const uuid of [...(spec?.base ?? []), ...(spec?.options ?? [])]) {
+            if (seen.has(uuid)) continue;
+            seen.add(uuid);
+            uuids.push(uuid);
+          }
+        }
+      }
+      if (!uuids.length) break;
+      await PackFilter.prefetch(uuids);
+      tier = (await Promise.all(uuids.map(u => fromUuid(u).catch(() => null)))).filter(Boolean);
+    }
+  }
+
   /** Every feature this grant can hand out must itself be absorbable. */
   static async #featuresAbsorbable(grant, lv, depth, seen) {
     const props = this.#specOf(grant);
     const uuids = [...(props?.base ?? []), ...(props?.options ?? [])];
+    await PackFilter.prefetch(uuids.filter(u => !seen.has(u)));
 
     for (const uuid of uuids) {
       if (seen.has(uuid)) continue;                  // already cleared (or cycling)
@@ -1068,23 +1085,32 @@ export class GrantAbsorber {
     // banked for the panel at the same time. Right-clicking a row then shows
     // text we already hold instead of resolving the uuid a second time.
     // null for a link that cannot be read - such an entry is dropped below, not drawn as its uuid
+    /* The description is not enriched here. Enriching resolves every @UUID
+       link in it - more documents read - for text only a right-click shows,
+       and the panel reads and enriches it then (ItemDescPanel.#load). The
+       prose check needs only the words, which the raw text has. */
     const entryFor = async (uuid) => {
       try {
         const d = await fromUuid(uuid);
         if (!d) return null;
-        const html = await this.#enrich(d);
-        ItemDescPanel.seeded.set(uuid, html);
+        const raw = typeof d.system?.description === 'string'
+          ? d.system.description : (d.system?.description?.value ?? '');
         return {
           key: uuid,
           label: d.name ?? uuid,
           img:   d.img ?? '',            // the cards show it
-          asksInProse: this.#asksInProse(d, html)
+          asksInProse: this.#asksInProse(d, raw)
         };
       } catch {
         return null;
       }
     };
     const readable = async (uuids) => (await Promise.all(uuids.map(entryFor))).filter(Boolean);
+
+    // Every document the grants below name, in one request a pack
+    await PackFilter.prefetch(this.#preparedGrants(doc)
+      .filter(([, g]) => g?.grantType === 'feature' || g?.grantType === 'item')
+      .flatMap(([, g]) => { const sp = this.#specOf(g); return [...(sp?.base ?? []), ...(sp?.options ?? [])]; }));
 
     for (const [id, grant] of this.#preparedGrants(doc)) {
       /* Item grants too: they hand out documents the same way - a maneuver from
@@ -1097,6 +1123,7 @@ export class GrantAbsorber {
       if (!this.#appliesAtLevel(grant, lv)) continue;   // a later level's feature
 
       const spec = this.#specOf(grant) ?? { base: [], options: [], total: 0 };
+      const baseEntries = await readable(spec.base);
       out.push({
         id,
         grant,                       // kept so the level can be re-checked later
@@ -1105,9 +1132,9 @@ export class GrantAbsorber {
         total: spec.total,
         base:      spec.base,
         baseUuids: spec.base,        // describeTree walks these for nested grants
-        baseLabels: (await readable(spec.base)).map(e => e.label),
+        baseLabels: baseEntries.map(e => e.label),
         // Granted outright, but still the thing the player wants to read about
-        baseEntries: await readable(spec.base),
+        baseEntries,
         options:     await readable(spec.options)
       });
     }

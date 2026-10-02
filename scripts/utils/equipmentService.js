@@ -1,6 +1,5 @@
 import { AM } from '../am.js';
 import { PackFilter } from './packFilter.js';
-import { HiddenSources } from './hiddenSources.js';
 import { iconForItem } from '../data/a5eIcons.js';
 
 /** Resolve an equipment item's display icon (site override → compendium → default). */
@@ -101,8 +100,10 @@ export class EquipmentService {
 
     for (const pack of packs) {
       try {
-        const index = await pack.getIndex({ fields: ['name', 'type', 'system'] });
-        HiddenSources.drop(pack);                   // the server sent the whole pack back
+        /* The description is all this reads that the plain index lacks, and
+           a5e's own index carries it. Asking for 'system' fetched every item
+           pack whole, one after another, until three gifts turned up. */
+        const index = await PackFilter.indexOf(pack, ['name', 'type', 'system.description'], { types: ['feature'] });
         for (const entry of index) {
           if (entry.type !== 'feature') continue;
           const entryName = entry.name.toLowerCase();

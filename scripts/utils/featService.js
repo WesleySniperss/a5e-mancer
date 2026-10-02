@@ -33,8 +33,10 @@ export class FeatService {
            checks that the index it hands back really carries the system data,
            and reads the documents when it does not. Measured against the real
            packs: 0 feats before, 625 after. */
+        // The fields read below - a5e's own feature index already carries them
         const index = await PackFilter.indexOf(pack,
-          ['name', 'type', 'img', 'system'], { types: ['feature'] });
+          ['name', 'type', 'img', 'system.featureType', 'system.prerequisite', 'system.description', 'system.source'],
+          { types: ['feature'] });
         for (const entry of index) {
           if (!this.isFeat(entry)) continue;
           const uuid = entry.uuid ?? `Compendium.${pack.collection}.Item.${entry._id}`;
