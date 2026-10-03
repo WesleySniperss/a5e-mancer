@@ -375,6 +375,7 @@
   "am.build.at-cap": "Level 20: there are no levels ahead.",
   "am.build.nothing": "No class features at this level.",
   "am.build.reading": "Reading the class features…",
+  "am.build.your-levels": "Your levels ({n})",
   "am.build.missing": "The class gives this at this level, and the character does not have it",
   "am.build.unrecorded": "not on record",
   "am.build.hp-tip": "Hit points from the die at this level (Constitution comes on top)",
