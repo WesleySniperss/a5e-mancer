@@ -67,7 +67,6 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     this._downRebuild    = false; // and then take the levels again, one by one
     this._buildFocus     = null;  // the level the build overview was opened on
     this._buildScroll    = null;  // where to scroll once it is drawn: a level, 'future' or 'top'
-    this._buildFutureClass = null; // whose levels ahead are shown
     this._upTo           = null;  // level-up mode: keep going to this level
 
     /* A run of levels in progress - a rebuild from the level list, or "up to
@@ -118,6 +117,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       luShowBuild:               LevelUpDialog.luShowBuild,
       luToggleFuture:            LevelUpDialog.luToggleFuture,
       luTogglePast:              LevelUpDialog.luTogglePast,
+      luResetPlan:               LevelUpDialog.luResetPlan,
       luLevelUpNow:              LevelUpDialog.luLevelUpNow,
       luShowNext:                LevelUpDialog.luShowNext,
       luRebuildFrom:             LevelUpDialog.luRebuildFrom,
@@ -282,7 +282,19 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       this.#addManeuverBrowserContext(context, maneuverInfo);
       this.#addSpellBrowserContext(context, spellInfo);
       const cards = this.#levelCards();
-      context.levelCards = { past: cards.past, reading: cards.reading, collapsed: !!AM.buildPastCollapsed, ahead: [], noAhead: true };
+      const showAhead = !!AM.buildFuture && !!newClass && newTotalLevel < 20;
+      let ahead = null;
+      if (showAhead) {
+        const counters = new Map(classes.map(c => [c.id, c.level]));
+        counters.set(newClass.uuid, 1);                          // its 1st level, being taken
+        ahead = await this.#aheadCards({ from: newTotalLevel + 1, counters, defaultKey: newClass.uuid });
+      }
+      context.levelCards = {
+        past: cards.past, reading: cards.reading, collapsed: !!AM.buildPastCollapsed,
+        ahead: ahead?.cards ?? [], planOptions: ahead?.options ?? null, planned: !!ahead?.planned,
+        showFuture: showAhead, loading: !!ahead?.loading, atCap: newTotalLevel >= 20,
+        noAhead: !newClass
+      };
       return context;
     }
 
@@ -462,13 +474,21 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
        ahead under it on a button. What this level brings is that class's own
        entry for it, shown even when a5e will be the one to ask the choices. */
     const showAhead = !!AM.buildFuture && newTotalLevel < 20 && !!selectedClass;
-    const cards = this.#levelCards({ aheadClassId: selectedClass?.id ?? null, aheadFrom: newClassLevel + 1 });
+    const cards = this.#levelCards();
+    let ahead = null;
+    if (showAhead) {
+      const counters = new Map(classes.map(c => [c.id, c.level]));
+      counters.set(selectedClass.id, newClassLevel);            // the level being taken
+      ahead = await this.#aheadCards({ from: newTotalLevel + 1, counters, defaultKey: selectedClass.id });
+    }
     context.levelCards = {
       past: cards.past,
-      ahead: showAhead ? cards.ahead : [],
+      ahead: ahead?.cards ?? [],
+      planOptions: ahead?.options ?? null,
+      planned: !!ahead?.planned,
       reading: cards.reading,
       showFuture: showAhead,
-      loading: showAhead && cards.loadingAhead,
+      loading: !!ahead?.loading,
       collapsed: !!AM.buildPastCollapsed,
       atCap: newTotalLevel >= 20
     };
@@ -608,24 +628,26 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
    * ahead are read from the compendium the first time, in the background;
    * the window does not wait for them.
    */
-  #buildContext(classes) {
+  async #buildContext(classes) {
     const total = LevelHistory.levels(this.actor).length;
-    const showFuture = !!AM.buildFuture && total < 20;
-    let futurePick = null;
-    if (showFuture) {
-      futurePick = classes.find(c => c.id === this._buildFutureClass) ?? [...classes].sort((x, y) => y.level - x.level)[0] ?? null;
-      if (futurePick) this._buildFutureClass = futurePick.id;
-    }
-    const cards = this.#levelCards({ aheadClassId: futurePick?.id ?? null, aheadFrom: (futurePick?.level ?? 0) + 1 });
-    const ahead = cards.ahead.map((x, i) => ({ ...x, isNext: i === 0 }));
+    const showFuture = !!AM.buildFuture && total < 20 && classes.length > 0;
+    const cards = this.#levelCards();
+    const ahead = showFuture
+      ? await this.#aheadCards({
+          from: total + 1,
+          counters: new Map(classes.map(c => [c.id, c.level])),
+          defaultKey: [...classes].sort((x, y) => y.level - x.level)[0].id,
+          nextButton: true })
+      : null;
     return {
       actor: this.actor, classes, mode: 'build', multiclass: classes.length > 1,
       build: {
-        levels: [...cards.past.map(p => ({ ...p, focus: p.charLevel === this._buildFocus })), ...ahead],
+        levels: [...cards.past.map(p => ({ ...p, focus: p.charLevel === this._buildFocus })), ...(ahead?.cards ?? [])],
+        planOptions: ahead?.options ?? null,
+        planned: !!ahead?.planned,
         showFuture,
         reading: cards.reading,
-        loading: cards.loadingAhead,
-        futureClasses: classes.map(c => ({ id: c.id, name: c.name, level: c.level, selected: c.id === this._buildFutureClass })),
+        loading: !!ahead?.loading,
         atCap: total >= 20
       }
     };
@@ -633,26 +655,22 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
   /**
    * The levels the character has, each from its class's definition and the
-   * records (LevelHistory.mergeLevel), and - when asked - one class's levels
-   * ahead from `aheadFrom` on. Shared by the build page and the level-up
-   * page, which shows them above and below the level being taken (asked
+   * records (LevelHistory.mergeLevel). Shared by the build page and the
+   * level-up page, which shows them above the level being taken (asked
    * 2026-10-03: "the level-up shows only the hit points"). Until a class's
    * definition is read the records alone are shown.
    */
-  #levelCards({ aheadClassId = null, aheadFrom = 1 } = {}) {
+  #levelCards() {
     const levels = LevelHistory.levels(this.actor);
     const total = levels.length;
     const owned = LevelHistory.ownedKeys(this.actor);
-    const wanted = new Set(levels.map(l => l.classId));
-    if (aheadClassId) wanted.add(aheadClassId);
     const plans = new Map();
     let reading = false;
-    for (const id of wanted) {
+    for (const id of new Set(levels.map(l => l.classId))) {
       const plan = this.#planOf(id, total);
       if (plan) plans.set(id, plan);
       else reading = true;
     }
-
     const past = levels.map(l => {
       const def = plans.get(l.classId)?.find(x => x.classLevel === l.classLevel) ?? null;
       const m = LevelHistory.mergeLevel(LevelHistory.summary(this.actor, l.charLevel), def, owned);
@@ -665,17 +683,103 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
                && !(m.choices ?? []).length && !(m.notes ?? []).length
       };
     });
+    return { past, plans, total, reading };
+  }
 
-    const ahead = (aheadClassId ? (plans.get(aheadClassId) ?? []) : [])
-      .filter(x => x.future && x.classLevel >= aheadFrom)
-      .map((x, i) => ({
-        ...x,
-        firstFuture: i === 0,
-        benefits: x.benefits.map(text => ({ source: '', text })),
-        empty: !x.features.length && !x.choices.length && !x.benefits.length && !x.notes.length
-      }));
+  /* ── Planning the levels ahead ──────────────────────────────────────── */
 
-    return { past, ahead, plans, total, reading, loadingAhead: !!aheadClassId && !plans.get(aheadClassId) };
+  /**
+   * The class planned for each level ahead, per character: character level
+   * -> a class item id, or a compendium class's uuid for a class not taken
+   * yet. Asked 2026-10-03 for multiclass planning: "let me choose which
+   * class a level goes to, not only the one being levelled". Kept for the
+   * session; nothing is written to the character.
+   */
+  static #buildPlans = new Map();
+
+  #plan() {
+    const all = LevelUpDialog.#buildPlans;
+    if (!all.has(this.actor.id)) all.set(this.actor.id, new Map());
+    return all.get(this.actor.id);
+  }
+
+  /** A planned compendium class the character has taken since, as its class item. */
+  #resolveKey(key) {
+    if (!String(key ?? '').startsWith('Compendium.')) return key;
+    const want = PackFilter.normalizeSource(key);
+    const name = (this._compendiumClasses ?? []).find(c => c.uuid === key)?.name;
+    const owned = this.actor.items.find(i => i.type === 'class'
+      && (PackFilter.normalizeSource(i._stats?.compendiumSource ?? i.flags?.core?.sourceId ?? '') === want
+          || (name && i.name === name)));
+    return owned?.id ?? key;
+  }
+
+  /**
+   * The levels ahead, each going to the class planned for it. A level with
+   * nothing planned follows the one before it, so picking a class for one
+   * level sends the rest of the way that class too, and a few picks make a
+   * mixed build: 5th Gambler, 6th to 8th Illrigger. Each class counts its own
+   * levels; a new class starts at its 1st, with its multiclass prerequisite
+   * checked there.
+   *
+   * @param {object} o
+   * @param {number} o.from              the first character level ahead
+   * @param {Map<string, number>} o.counters  each class's level before `from`
+   * @param {string} o.defaultKey        where the first level goes when nothing is planned
+   * @param {boolean} [o.nextButton]     the first card offers to level up now (build page)
+   */
+  async #aheadCards({ from, counters, defaultKey, nextButton = false }) {
+    if (!this._compendiumClasses) {
+      try { this._compendiumClasses = await LevelUpService.getCompendiumClasses(); }
+      catch { this._compendiumClasses = []; }
+    }
+    const total = LevelHistory.levels(this.actor).length;
+    const plan = this.#plan();
+    const owned = this.actor.items.filter(i => i.type === 'class');
+    const ownedNames = new Set(owned.map(c => c.name.toLowerCase()));
+    const nameOf = (key) => this.actor.items.get(key)?.name
+      ?? this._compendiumClasses.find(c => c.uuid === key)?.name ?? '?';
+    const options = {
+      owned: owned.map(c => ({ key: c.id, name: c.name })),
+      fresh: this._compendiumClasses.filter(c => !ownedNames.has(c.name.toLowerCase()))
+        .map(c => ({ key: c.uuid, name: c.name, meets: LevelUpService.checkPrerequisites(this.actor, c.name).meets }))
+    };
+    const valid = (key) => !!key && (String(key).startsWith('Compendium.') || !!this.actor.items.get(key));
+    const start = this.#resolveKey(defaultKey);
+
+    const level = new Map(counters);
+    const cards = [];
+    let loading = false;
+    let prev = start;
+    for (let L = from; L <= 20; L++) {
+      let key = this.#resolveKey(plan.get(L) ?? prev);
+      if (!valid(key)) key = start;                    // a class removed since it was planned
+      const n = (level.get(key) ?? 0) + 1;
+      level.set(key, n);
+      const levels = this.#planOf(key, total);
+      if (!levels) loading = true;
+      const def = levels?.find(x => x.classLevel === n) ?? null;
+      const fresh = String(key).startsWith('Compendium.');
+      const prereq = fresh && n === 1 ? LevelUpService.checkPrerequisites(this.actor, nameOf(key)) : null;
+      cards.push({
+        features: def?.features ?? [],
+        choices: def?.choices ?? [],
+        benefits: (def?.benefits ?? []).map(text => ({ source: '', text })),
+        notes: def?.notes ?? [],
+        charLevel: L, classLevel: n, className: nameOf(key),
+        title: `${LevelHistory.ordinal(n)} Level ${nameOf(key)}`,
+        future: true,
+        planKey: key, classId: key,
+        planned: plan.has(L),
+        firstFuture: L === from,
+        isNext: nextButton && L === from,
+        pending: !levels,
+        prereqFail: prereq && !prereq.meets ? prereq.missingText : '',
+        empty: !!levels && !def?.features?.length && !def?.choices?.length && !def?.benefits?.length && !def?.notes?.length
+      });
+      prev = key;
+    }
+    return { cards, loading, options, planned: plan.size > 0 };
   }
 
   /**
@@ -692,12 +796,14 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   static #plans = new Map();
 
   #planOf(classId, total) {
-    const cls = this.actor.items.get(classId);
-    if (!cls) return null;
+    // A class item of the character's, or a compendium class's uuid (a class planned, not taken)
+    const fresh = String(classId ?? '').startsWith('Compendium.');
+    const cls = fresh ? null : this.actor.items.get(classId);
+    if (!fresh && !cls) return null;
     const plans = LevelUpDialog.#plans;
     const slot = `${this.actor.id}|${classId}`;
     // Anything that changes what the class gives at a level: its level, the character's, the archetype
-    const key = `${cls.system?.classLevels}|${total}|${cls.archetype?.id ?? ''}`;
+    const key = fresh ? `new|${total}` : `${cls.system?.classLevels}|${total}|${cls.archetype?.id ?? ''}`;
     const hit = plans.get(slot);
     const redraw = () => {
       if (this.rendered && ['build', 'levelup', 'multiclass'].includes(this._mode)) this.render(false);
@@ -716,7 +822,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     }
     plans.delete(slot);
     const entry = { key, levels: null, promise: null };
-    entry.promise = LevelHistory.classLevels(this.actor, classId)
+    entry.promise = (fresh ? LevelHistory.newClassLevels(this.actor, classId) : LevelHistory.classLevels(this.actor, classId))
       .catch(err => { AM.log(1, 'Build: the class levels could not be read', err); return []; })
       .then(levels => { if (plans.get(slot) === entry) entry.levels = levels; });
     plans.set(slot, entry);
@@ -1472,10 +1578,12 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     });
 
     /* ── The build: whose levels ahead, and where to scroll to ── */
-    this.element.querySelector('#lu-build-future-class')?.addEventListener('change', (e) => {
-      this._buildFutureClass = e.target.value;
+    this.element.querySelectorAll('.lu-plan-class').forEach(sel => sel.addEventListener('change', () => {
+      const level = Number(sel.dataset.level);
+      if (!level) return;
+      this.#plan().set(level, sel.value);
       this.render(false);
-    });
+    }));
     if (['build', 'levelup'].includes(this._mode) && this._buildScroll !== null) {
       const where = this._buildScroll;
       this._buildScroll = null;
@@ -2351,11 +2459,29 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     dialog.render(false);
   }
 
+  /** Forget the classes planned for the levels ahead. */
+  static luResetPlan(_event, _btn) {
+    const dialog = AM.levelUpDialog;
+    if (!dialog) return;
+    LevelUpDialog.#buildPlans.delete(dialog.actor.id);
+    dialog.render(false);
+  }
+
   /** The next level, from the levels ahead: the level-up for that class. */
   static luLevelUpNow(_event, btn) {
     const dialog = AM.levelUpDialog;
     if (!dialog) return;
     const id = btn?.dataset?.classId;
+    // A class planned and not taken: the new class page, with it picked
+    if (String(id ?? '').startsWith('Compendium.')) {
+      dialog._mode = 'multiclass';
+      dialog._downCharTarget = null;
+      dialog._downRebuild = false;
+      dialog.#resetSelections();
+      dialog._newClassUuid = id;
+      dialog.render(true);
+      return;
+    }
     dialog._mode = 'levelup';
     if (id && dialog.actor.items.get(id)) dialog._selectedClassId = id;
     dialog._downCharTarget = null;

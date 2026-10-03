@@ -1418,6 +1418,21 @@ button.lu-levels-title {
 .lu-ahead-list { display: flex; flex-direction: column; gap: 0.35rem; }
 .lu-grants-note .lu-build-chips { margin-block: 0.3rem; }
 
+/* The class a level ahead goes to */
+.lu-build-head select.lu-plan-class {
+  flex: 0 1 auto;
+  width: auto;
+  max-width: 11rem;
+  height: 1.6rem;
+  padding: 0 0.3rem;
+  font-size: 0.75rem;
+  border-color: var(--am-gold-border);
+}
+.lu-build-head select.lu-plan-class.lu-plan-set { border-color: var(--am-gold); color: var(--am-gold); }
+.lu-build-note.lu-build-warn { color: #f0a090; }
+.lu-build-note.lu-build-warn i { color: #e05040; }
+.am-hint.lu-plan-hint { margin: 0; }
+
 /* A run of levels in progress */
 .lu-section.lu-queue {
   display: flex;

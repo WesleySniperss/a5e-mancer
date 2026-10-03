@@ -234,8 +234,29 @@ export class LevelHistory {
     const charAt = (n) => (n <= cur
       ? (levels.find(l => l.classId === cls.id && l.classLevel === n)?.charLevel ?? n)
       : total + (n - cur));
+    return this.#levelsOf(actor, cls, { cur, charAt, archetype: cls.archetype ?? null, from, last, owned: true });
+  }
+
+  /**
+   * The same for a class the character does not have yet - a compendium
+   * class, for planning a multiclass (asked 2026-10-03: "let me choose which
+   * class the levels ahead go to"). Its levels run from 1 to what the
+   * character can still take. Its 1st level shows the class's features only:
+   * a second class hands over fewer proficiencies than a first, and the Add
+   * New Class page is where that share is worked out.
+   */
+  static async newClassLevels(actor, uuid) {
+    let cls = null;
+    try { cls = await fromUuid(uuid); } catch { cls = null; }
+    if (!cls || cls.type !== 'class') return [];
+    const total = this.levels(actor).length;
+    const last = Math.min(20, 20 - total);
+    if (last < 1) return [];
+    return this.#levelsOf(actor, cls, { cur: 0, charAt: (n) => total + n, archetype: null, from: 1, last, owned: false });
+  }
+
+  static async #levelsOf(actor, cls, { cur, charAt, archetype, from, last, owned }) {
     const archetypeLevel = Number(cls.system?.archetypeLevel ?? 0) || 0;
-    const archetype = cls.archetype ?? null;
 
     await GrantAbsorber.prefetchTree([cls, archetype],
       { clsLevel: last, charLevel: charAt(last) }, { deepOptions: false });
@@ -265,6 +286,8 @@ export class LevelHistory {
         }
         for (const g of tree.grants ?? []) {
           if (!g.firesNow || !g.options?.length) continue;
+          // A new class's starting proficiencies are not a second class's - see newClassLevels
+          if (!owned && n === 1 && g.type !== 'ability') continue;
           /* a5e writes an ability score improvement as one grant a point -
              "8th Level ASI (1st Point)", "(2nd Point)" - which read as two
              questions. It is one: points to spend, or a feat instead. */
@@ -301,12 +324,13 @@ export class LevelHistory {
         }
       }
 
+      const notes = await this.#progressNotes(actor, cls, n, owned);
+      if (!owned && n === 1) notes.push(T('second-class'));
       out.push({
-        charLevel: lv.charLevel, classLevel: n, classId: cls.id, className: cls.name, img: cls.img,
+        charLevel: lv.charLevel, classLevel: n, classId: owned ? cls.id : null, className: cls.name, img: cls.img,
         title: `${this.ordinal(n)} Level ${cls.name}`,
         future: n > cur,
-        features, choices, benefits,
-        notes: await this.#progressNotes(actor, cls, n)
+        features, choices, benefits, notes
       });
     }
     return out;
@@ -384,7 +408,7 @@ export class LevelHistory {
   }
 
   /** What a class level adds to spells and maneuvers, as a line each. */
-  static async #progressNotes(actor, cls, n) {
+  static async #progressNotes(actor, cls, n, owned = true) {
     const T = (k, data) => game.i18n.format(`am.build.${k}`, data ?? {});
     const notes = [];
     const owed = SpellService.newAtLevel(cls.name, n);
@@ -395,6 +419,20 @@ export class LevelHistory {
     if (owed?.spells) spells.push(T('spells', { n: owed.spells }));
     if (max > before) spells.push(T('spell-level', { n: max }));
     if (spells.length) notes.push(`${T('spells-title')}: ${spells.join(' · ')}`);
+    if (!owned) {
+      /* Not on the character: no budget to ask, so the class's own tables -
+         its combat table, and the schools' one if it learns them. */
+      const at = (t, fld, l) => Number(t?.[fld]?.[Math.max(0, Math.min(20, l))] ?? 0) || 0;
+      for (const [kind, table] of [['combat', ManeuverService.tableFor(cls.name, cls)], ['magic', ManeuverService.magicTableFor(cls.name)]]) {
+        if (!table) continue;
+        const bits = [];
+        const gained = at(table, 'maneuversKnown', n) - at(table, 'maneuversKnown', n - 1);
+        if (gained > 0) bits.push(T('maneuvers', { n: gained }));
+        if (at(table, 'maxDegree', n) > at(table, 'maxDegree', n - 1)) bits.push(T('degree', { n: at(table, 'maxDegree', n) }));
+        if (bits.length) notes.push(`${game.i18n.localize(`am.maneuvers.kind-${kind}`)}: ${bits.join(' · ')}`);
+      }
+      return notes;
+    }
     try {
       const budget = await ManeuverService.maneuverBudget(actor, { classId: cls.id, newLevel: n });
       for (const [kind, k] of Object.entries(budget?.kinds ?? {})) {

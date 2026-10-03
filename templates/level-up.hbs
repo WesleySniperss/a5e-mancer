@@ -9,6 +9,19 @@
       {{#if this.hp}}
         <span class="lu-build-hp" data-tooltip="{{localize 'am.build.hp-tip'}}"><i class="fa-solid fa-heart"></i> {{this.hp}}</span>
       {{/if}}
+      {{#if (and this.future this.planOptions)}}
+        <select class="lu-plan-class {{#if this.planned}}lu-plan-set{{/if}}" data-level="{{this.charLevel}}"
+                data-tooltip="{{localize 'am.build.plan-class'}}" aria-label="{{localize 'am.build.plan-class'}}">
+          <optgroup label="{{localize 'am.build.your-classes'}}">
+            {{#each this.planOptions.owned}}<option value="{{this.key}}" {{#if (eq this.key ../planKey)}}selected{{/if}}>{{this.name}}</option>{{/each}}
+          </optgroup>
+          {{#if this.planOptions.fresh.length}}
+          <optgroup label="{{localize 'am.build.new-class'}}">
+            {{#each this.planOptions.fresh}}<option value="{{this.key}}" {{#if (eq this.key ../planKey)}}selected{{/if}}>{{this.name}}{{#unless this.meets}} ✗{{/unless}}</option>{{/each}}
+          </optgroup>
+          {{/if}}
+        </select>
+      {{/if}}
       <span class="lu-build-actions">
         {{#if this.isNext}}
           <button type="button" class="lu-build-act lu-build-levelup" data-action="luLevelUpNow" data-class-id="{{this.classId}}">
@@ -29,6 +42,13 @@
         {{/if}}
       </span>
     </header>
+
+    {{#if this.prereqFail}}
+      <p class="lu-build-note lu-build-warn"><i class="fa-solid fa-triangle-exclamation"></i> {{localize 'am.build.prereq' req=this.prereqFail}}</p>
+    {{/if}}
+    {{#if this.pending}}
+      <p class="am-hint"><i class="fas fa-spinner fa-spin"></i> {{localize 'am.build.reading'}}</p>
+    {{/if}}
 
     {{#if this.features.length}}
       <div class="lu-build-chips">
@@ -79,6 +99,44 @@
 
     {{#if this.empty}}<p class="am-hint">{{localize 'am.build.nothing'}}</p>{{/if}}
   </section>
+{{/inline}}
+{{!-- The levels still ahead, under the level being taken: each with the class
+      planned for it, which a player can change level by level --}}
+{{#*inline "luAhead"}}
+  {{#unless levelCards.noAhead}}
+  <hr />
+  <section class="lu-section lu-build-more lu-ahead">
+    {{#if levelCards.showFuture}}
+      {{#if levelCards.loading}}
+        <p class="am-hint"><i class="fas fa-spinner fa-spin"></i> {{localize 'am.build.loading'}}</p>
+      {{/if}}
+      <div class="lu-ahead-list">
+        {{#each levelCards.ahead}}
+          {{#if this.firstFuture}}
+            <div class="lu-build-divider"><span>{{localize 'am.build.ahead'}}</span></div>
+            {{#if ../levelCards.planOptions}}<p class="am-hint lu-plan-hint">{{localize 'am.build.plan-hint'}}</p>{{/if}}
+          {{/if}}
+          {{> luLevelCard planOptions=../levelCards.planOptions}}
+        {{/each}}
+      </div>
+      {{#if levelCards.planned}}
+        <button type="button" class="lu-build-toggle" data-action="luResetPlan">
+          <i class="fa-solid fa-rotate-left"></i> {{localize 'am.build.reset-plan'}}
+        </button>
+      {{/if}}
+      <button type="button" class="lu-build-toggle" data-action="luToggleFuture">
+        <i class="fa-solid fa-eye-slash"></i> {{localize 'am.build.hide-future'}}
+      </button>
+    {{else if levelCards.atCap}}
+      <p class="am-hint">{{localize 'am.build.at-cap'}}</p>
+    {{else}}
+      <button type="button" class="lu-build-toggle" data-action="luToggleFuture">
+        <i class="fa-solid fa-eye"></i> {{localize 'am.build.show-future'}}
+      </button>
+      <p class="am-hint">{{localize 'am.build.future-hint'}}</p>
+    {{/if}}
+  </section>
+  {{/unless}}
 {{/inline}}
 {{!-- One choice a level asks: the options, or the one taken --}}
 {{#*inline "luChoice"}}
@@ -182,21 +240,17 @@
   {{#each build.levels}}
   {{#if this.firstFuture}}
     <div class="lu-build-divider"><span>{{localize 'am.build.ahead'}}</span></div>
+    {{#if ../build.planOptions}}<p class="am-hint lu-plan-hint">{{localize 'am.build.plan-hint'}}</p>{{/if}}
   {{/if}}
-  {{> luLevelCard}}
+  {{> luLevelCard planOptions=../build.planOptions}}
   {{/each}}
 
   <section class="lu-section lu-build-more">
     {{#if build.showFuture}}
-      {{#if multiclass}}
-        <div class="form-row flex items-center gap-sm">
-          <label for="lu-build-future-class">{{localize 'am.build.future-of'}}</label>
-          <select id="lu-build-future-class" class="form-select">
-            {{#each build.futureClasses}}
-              <option value="{{this.id}}" {{#if this.selected}}selected{{/if}}>{{this.name}} ({{localize 'am.levelup.level'}} {{this.level}})</option>
-            {{/each}}
-          </select>
-        </div>
+      {{#if build.planned}}
+        <button type="button" class="lu-build-toggle" data-action="luResetPlan">
+          <i class="fa-solid fa-rotate-left"></i> {{localize 'am.build.reset-plan'}}
+        </button>
       {{/if}}
       {{#if build.loading}}
         <p class="am-hint"><i class="fas fa-spinner fa-spin"></i> {{localize 'am.build.loading'}}</p>
@@ -536,6 +590,8 @@
   {{/unless}}
 
   {{/if}}{{!-- /newClass --}}
+
+  {{> luAhead}}
 
   {{!-- ═══════════════════════════════════════════════════ LEVEL-UP MODE --}}
   {{else}}
@@ -1050,33 +1106,7 @@
     {{#each maneuverSections}}{{> am-maneuver-picker}}{{/each}}
   {{/if}}
 
-  {{!-- The levels still ahead for this class, past the one being taken --}}
-  {{#unless levelCards.noAhead}}
-  <hr />
-  <section class="lu-section lu-build-more lu-ahead">
-    {{#if levelCards.showFuture}}
-      {{#if levelCards.loading}}
-        <p class="am-hint"><i class="fas fa-spinner fa-spin"></i> {{localize 'am.build.loading'}}</p>
-      {{/if}}
-      <div class="lu-ahead-list">
-        {{#each levelCards.ahead}}
-          {{#if this.firstFuture}}<div class="lu-build-divider"><span>{{localize 'am.build.ahead'}}</span></div>{{/if}}
-          {{> luLevelCard}}
-        {{/each}}
-      </div>
-      <button type="button" class="lu-build-toggle" data-action="luToggleFuture">
-        <i class="fa-solid fa-eye-slash"></i> {{localize 'am.build.hide-future'}}
-      </button>
-    {{else if levelCards.atCap}}
-      <p class="am-hint">{{localize 'am.build.at-cap'}}</p>
-    {{else}}
-      <button type="button" class="lu-build-toggle" data-action="luToggleFuture">
-        <i class="fa-solid fa-eye"></i> {{localize 'am.build.show-future'}}
-      </button>
-      <p class="am-hint">{{localize 'am.build.future-hint'}}</p>
-    {{/if}}
-  </section>
-  {{/unless}}
+  {{> luAhead}}
 
   {{/if}}{{!-- /mode toggle --}}
 
