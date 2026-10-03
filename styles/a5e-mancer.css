@@ -1365,6 +1365,10 @@ button.lu-levels-title {
   &:has(img) { padding-inline-start: 0.15rem; }
 }
 .lu-build-choice { display: flex; flex-direction: column; gap: 0.25rem; }
+/* The class gives it at this level and the character does not have it */
+.lu-build-chip.lu-build-missing { opacity: 0.5; border-style: dashed; }
+/* A choice the class asks whose answer is not on the character */
+.lu-build-choice.lu-build-unrecorded .lu-build-chip { opacity: 0.6; }
 .lu-build-choice-label {
   font-size: 0.78rem;
   font-weight: 600;

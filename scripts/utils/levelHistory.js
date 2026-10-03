@@ -4,6 +4,7 @@ import { GrantAbsorber } from './grantAbsorber.js';
 import { LevelUpService } from './levelUpService.js';
 import { SpellService } from './spellService.js';
 import { ManeuverService } from './maneuverService.js';
+import { PackFilter } from './packFilter.js';
 
 /**
  * A character's levels one by one, as Level Up Gateway's builder lists them -
@@ -164,7 +165,8 @@ export class LevelHistory {
       return rec && Number(rec.charLevel) === charLevel && i.type !== 'class';
     });
 
-    const row = (i) => ({ id: i.id, uuid: i.uuid, name: i.name, img: i.img, type: i.type });
+    const row = (i) => ({ id: i.id, uuid: i.uuid, name: i.name, img: i.img, type: i.type,
+      source: PackFilter.normalizeSource(i._stats?.compendiumSource ?? i.flags?.core?.sourceId ?? '') });
     const order = { archetype: 0, feature: 1, maneuver: 2, spell: 3 };
     const sort = (a, b) => (order[a.type] ?? 9) - (order[b.type] ?? 9) || a.name.localeCompare(b.name);
     return {
@@ -194,42 +196,54 @@ export class LevelHistory {
   }
 
   /**
-   * The levels still ahead for one class, with what each will bring: the
-   * features its grants hand out, the choices they ask (a fighting style, a
-   * knack, the ability points), the archetype to pick, and what the level
-   * adds to spells and maneuvers. Read from the class and the archetype the
-   * character has, the same tree the level-up reads for its own level
-   * (GrantAbsorber.describeTreeForLevel). For looking over the build and
-   * planning it, as D&D Beyond shows its levels ahead; nothing is applied.
-   * Asked for 2026-10-03.
+   * A class's levels as the class itself defines them: the features its
+   * grants hand out at each level, the choices they ask (a fighting style, a
+   * knack, the ability points, the archetype), and what the level adds to
+   * spells and maneuvers. Read from the class and the archetype the character
+   * has, the same tree the level-up reads for its own level
+   * (GrantAbsorber.describeTreeForLevel).
    *
-   * The documents are read once for every level ahead, a tier at a time, and
-   * what an option holds is left unread until it is picked. Foundry keeps
-   * them for the session, like any compendium document read.
+   * For the levels ahead it is the plan (asked 2026-10-03, as D&D Beyond
+   * shows them). For the levels had it is what the build page shows whatever
+   * a5e recorded: a character made before the grants were recorded, or
+   * imported, has an empty system.grants, and the page showed its levels with
+   * their hit points and nothing else (reported the same day).
+   *
+   * The documents are read once for every level, a tier at a time, and what
+   * an option holds is left unread until it is picked. Foundry keeps them for
+   * the session, like any compendium document read.
    *
    * @param {Actor} actor
-   * @param {string} classId  the class the levels ahead go to
+   * @param {string} classId
    * @param {object} [opts]
-   * @param {number} [opts.to]  the last class level to show (20)
+   * @param {number} [opts.from]  the first class level (1)
+   * @param {number} [opts.to]    the last class level (20); never past character level 20
+   * @returns {Promise<object[]>} one entry a class level: { classLevel, charLevel, future,
+   *   features: [{uuid, name, img}], choices: [{label, count, options, asi?, chosen?}],
+   *   benefits: string[], notes: string[] }
    */
-  static async future(actor, classId, { to = 20 } = {}) {
+  static async classLevels(actor, classId, { from = 1, to = 20 } = {}) {
     const cls = actor?.items?.get(classId);
     if (!cls || cls.type !== 'class') return [];
-    const total = this.levels(actor).length;
+    const levels = this.levels(actor);
+    const total = levels.length;
     const cur = this.#classLevel(cls);
     // The character stops at 20, whatever the class could still take
     const last = Math.min(20, to, cur + (20 - total));
-    if (last <= cur) return [];
+    if (last < from) return [];
+    const charAt = (n) => (n <= cur
+      ? (levels.find(l => l.classId === cls.id && l.classLevel === n)?.charLevel ?? n)
+      : total + (n - cur));
     const archetypeLevel = Number(cls.system?.archetypeLevel ?? 0) || 0;
     const archetype = cls.archetype ?? null;
 
     await GrantAbsorber.prefetchTree([cls, archetype],
-      { clsLevel: last, charLevel: total + (last - cur) }, { deepOptions: false });
+      { clsLevel: last, charLevel: charAt(last) }, { deepOptions: false });
 
     const T = (k, data) => (data ? game.i18n.format(`am.build.${k}`, data) : game.i18n.localize(`am.build.${k}`));
     const out = [];
-    for (let n = cur + 1; n <= last; n++) {
-      const lv = { clsLevel: n, charLevel: total + (n - cur) };
+    for (let n = Math.max(1, from); n <= last; n++) {
+      const lv = { clsLevel: n, charLevel: charAt(n) };
       const trees = [await GrantAbsorber.describeTreeForLevel(cls, lv, {})];
       if (archetype) trees.push(await GrantAbsorber.describeTreeForLevel(archetype, lv, {}));
 
@@ -266,31 +280,107 @@ export class LevelHistory {
           }
           choices.push({ label: g.label, count: g.total || 1, options: g.options.map(o => ({ name: o.label })) });
         }
-        for (const a of tree.fixedAbilities ?? []) {
-          if (!a.firesNow) continue;
-          const bonus = String(a.grant?.bonus ?? '').trim();
+        for (const x of tree.fixedAbilities ?? []) {
+          if (!x.firesNow) continue;
+          const bonus = String(x.grant?.bonus ?? '').trim();
           const sign = bonus ? `${/^[+-]/.test(bonus) ? bonus : `+${bonus}`} ` : '';
-          benefits.push(`${a.label}: ${sign}${(a.base ?? []).map(k => String(k).toUpperCase()).join(', ')}`);
+          benefits.push(`${x.label}: ${sign}${(x.base ?? []).map(k => String(k).toUpperCase()).join(', ')}`);
         }
       }
-      // An archetype still to choose: the list to choose from, not its features
-      if (archetypeLevel === n && !archetype) {
-        const list = await LevelUpService.getArchetypesForClass(cls);
-        if (list.length) {
-          choices.push({ label: T('archetype'), count: 1,
-            options: list.map(x => ({ uuid: x.uuid, name: x.name, img: x.img })) });
+      // The archetype's level: the one taken, or the list to take one from
+      if (archetypeLevel === n) {
+        if (archetype) {
+          choices.push({ label: T('archetype'), count: 1, chosen: [{
+            uuid: archetype._stats?.compendiumSource ?? archetype.uuid, name: archetype.name, img: archetype.img }] });
+        } else {
+          const list = await LevelUpService.getArchetypesForClass(cls);
+          if (list.length) {
+            choices.push({ label: T('archetype'), count: 1,
+              options: list.map(x => ({ uuid: x.uuid, name: x.name, img: x.img })) });
+          }
         }
       }
 
       out.push({
         charLevel: lv.charLevel, classLevel: n, classId: cls.id, className: cls.name, img: cls.img,
         title: `${this.ordinal(n)} Level ${cls.name}`,
-        future: true,
+        future: n > cur,
         features, choices, benefits,
         notes: await this.#progressNotes(actor, cls, n)
       });
     }
     return out;
+  }
+
+  /** The levels still ahead for one class - see classLevels. */
+  static async future(actor, classId, { to = 20 } = {}) {
+    const cls = actor?.items?.get(classId);
+    if (!cls) return [];
+    return this.classLevels(actor, classId, { from: this.#classLevel(cls) + 1, to });
+  }
+
+  /** What the character holds, as keys to match a definition against: compendium sources and names. */
+  static ownedKeys(actor) {
+    const keys = new Set();
+    for (const i of actor?.items ?? []) {
+      const src = PackFilter.normalizeSource(i._stats?.compendiumSource ?? i.flags?.core?.sourceId ?? '');
+      if (src) keys.add(src);
+      if (i.name) keys.add(i.name.toLowerCase());
+    }
+    return keys;
+  }
+
+  /**
+   * A level the character has, from both sides: what the class gives at that
+   * level, marked had or missing, with each choice answered by the option the
+   * character holds - and what the records add that the class does not name
+   * (a feat, the origins, the picks). Without a definition (not read yet, or
+   * a class with no grants) the records alone, as before.
+   *
+   * @param {object} summary  from summary()
+   * @param {object|null} def  that class level's entry from classLevels()
+   * @param {Set<string>} owned  from ownedKeys()
+   */
+  static mergeLevel(summary, def, owned) {
+    if (!def) return summary;
+    const lc = (v) => String(v ?? '').toLowerCase();
+    const has = (x) => owned.has(PackFilter.normalizeSource(x?.uuid ?? '')) || owned.has(lc(x?.name));
+    const features = def.features.map(f => ({ ...f, missing: !has(f) }));
+    const named = new Set(features.flatMap(f => [PackFilter.normalizeSource(f.uuid ?? ''), lc(f.name)]).filter(Boolean));
+    const extra = (summary.gained ?? []).filter(g => !(g.source && named.has(g.source)) && !named.has(lc(g.name)));
+
+    const choices = [];
+    for (const c of def.choices) {
+      if (c.chosen) { choices.push({ label: c.label, count: c.count, options: c.chosen, resolved: true }); continue; }
+      if (c.asi) {
+        // The points show as the level's benefits, a feat taken instead as one of its picks
+        if (summary.benefits?.length || (summary.picks ?? []).some(p => p.type === 'feature')) continue;
+        choices.push({ ...c, unrecorded: true });
+        continue;
+      }
+      /* A choice of proficiencies, skills or traditions hands out no item: its
+         answer is in the grant records, shown as the level's benefits
+         ("weapon: blowgun, club, …"). With records it is answered there; only
+         a level with none says the answer is not on record. */
+      if (!c.options.some(o => o.uuid)) {
+        if (summary.benefits?.length) continue;
+        choices.push({ ...c, unrecorded: true });
+        continue;
+      }
+      const picked = c.options.filter(has);
+      if (picked.length) choices.push({ label: c.label, count: c.count, options: picked, resolved: true });
+      else choices.push({ ...c, unrecorded: true });
+    }
+
+    return {
+      ...summary,
+      gained: [...features, ...extra],
+      choices,
+      // A character with records has them; one without gets what the class states
+      benefits: summary.benefits?.length ? summary.benefits : def.benefits.map(text => ({ source: '', text })),
+      notes: def.notes,
+      defined: true
+    };
   }
 
   /** What a class level adds to spells and maneuvers, as a line each. */

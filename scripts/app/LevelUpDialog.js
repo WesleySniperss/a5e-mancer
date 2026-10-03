@@ -68,8 +68,6 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     this._buildFocus     = null;  // the level the build overview was opened on
     this._buildScroll    = null;  // where to scroll once it is drawn: a level, 'future' or 'top'
     this._buildFutureClass = null; // whose levels ahead are shown
-    this._futureCache    = null;  // { key, levels } - the levels ahead, read once a class and level
-    this._futureLoadingKey = null;
     this._upTo           = null;  // level-up mode: keep going to this level
 
     /* A run of levels in progress - a rebuild from the level list, or "up to
@@ -593,43 +591,44 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
    */
   #buildContext(classes) {
     const levels = LevelHistory.levels(this.actor);
+    const total = levels.length;
+    const owned = LevelHistory.ownedKeys(this.actor);
+
+    const showFuture = !!AM.buildFuture && total < 20;
+    let futurePick = null;
+    if (showFuture) {
+      futurePick = classes.find(c => c.id === this._buildFutureClass) ?? [...classes].sort((x, y) => y.level - x.level)[0] ?? null;
+      if (futurePick) this._buildFutureClass = futurePick.id;
+    }
+
+    /* Each class's own definition, read once (#planOf): the levels had are
+       drawn from it whatever a5e recorded, and the levels ahead come from the
+       same read. Until it arrives the records alone are shown. */
+    const wanted = new Set(levels.map(l => l.classId));
+    if (futurePick) wanted.add(futurePick.id);
+    const plans = new Map();
+    let reading = false;
+    for (const id of wanted) {
+      const plan = this.#planOf(id, total);
+      if (plan) plans.set(id, plan);
+      else reading = true;
+    }
+
     const past = levels.map(l => {
-      const s = LevelHistory.summary(this.actor, l.charLevel);
+      const def = plans.get(l.classId)?.find(x => x.classLevel === l.classLevel) ?? null;
+      const m = LevelHistory.mergeLevel(LevelHistory.summary(this.actor, l.charLevel), def, owned);
       return {
-        ...s,
-        features: s.gained,
+        ...m,
+        features: m.gained,
         focus: l.charLevel === this._buildFocus,
-        canRebuild: !s.isFirst,
-        canRemoveAbove: !s.isLast,
-        empty: !s.gained.length && !s.origins.length && !s.picks.length && !s.benefits.length
+        canRebuild: !m.isFirst,
+        canRemoveAbove: !m.isLast,
+        empty: !m.gained.length && !m.origins.length && !m.picks.length && !m.benefits.length
+               && !(m.choices ?? []).length && !(m.notes ?? []).length
       };
     });
 
-    const showFuture = !!AM.buildFuture && levels.length < 20;
-    let future = null;
-    if (showFuture) {
-      const pick = classes.find(c => c.id === this._buildFutureClass) ?? [...classes].sort((x, y) => y.level - x.level)[0];
-      if (pick) {
-        this._buildFutureClass = pick.id;
-        const key = `${pick.id}|${pick.level}|${levels.length}`;
-        if (this._futureCache?.key === key) future = this._futureCache.levels;
-        else if (this._futureLoadingKey !== key) {
-          this._futureLoadingKey = key;
-          LevelHistory.future(this.actor, pick.id).then(list => {
-            if (this._futureLoadingKey !== key) return;
-            this._futureCache = { key, levels: list };
-            this._futureLoadingKey = null;
-            if (this.rendered && this._mode === 'build') this.render(false);
-          }).catch(err => {
-            AM.log(1, 'Build: the levels ahead could not be read', err);
-            this._futureCache = { key, levels: [] };
-            this._futureLoadingKey = null;
-            if (this.rendered && this._mode === 'build') this.render(false);
-          });
-        }
-      }
-    }
-    const ahead = (future ?? []).map((x, i) => ({
+    const ahead = (futurePick ? (plans.get(futurePick.id) ?? []) : []).filter(x => x.future).map((x, i) => ({
       ...x,
       isNext: i === 0,
       firstFuture: i === 0,
@@ -642,11 +641,45 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       build: {
         levels: [...past, ...ahead],
         showFuture,
-        loading: showFuture && !future,
+        reading,
+        loading: showFuture && !!futurePick && !plans.get(futurePick.id),
         futureClasses: classes.map(c => ({ id: c.id, name: c.name, level: c.level, selected: c.id === this._buildFutureClass })),
-        atCap: levels.length >= 20
+        atCap: total >= 20
       }
     };
+  }
+
+  /**
+   * A class's levels as the class defines them (LevelHistory.classLevels),
+   * read in the background the first time. Kept for the session, a few per
+   * character and class - names, pictures and uuids, a few kilobytes - so the
+   * build opens at once the next time. Returns null while it is being read;
+   * the window draws again when it arrives.
+   */
+  static #plans = new Map();
+
+  #planOf(classId, total) {
+    const cls = this.actor.items.get(classId);
+    if (!cls) return null;
+    const plans = LevelUpDialog.#plans;
+    const slot = `${this.actor.id}|${classId}`;
+    // Anything that changes what the class gives at a level: its level, the character's, the archetype
+    const key = `${cls.system?.classLevels}|${total}|${cls.archetype?.id ?? ''}`;
+    const hit = plans.get(slot);
+    if (hit?.key === key) return hit.levels ?? null;
+    plans.delete(slot);
+    plans.set(slot, { key, levels: null });
+    while (plans.size > 24) plans.delete(plans.keys().next().value);
+    const done = (levels) => {
+      if (plans.get(slot)?.key !== key) return;
+      plans.set(slot, { key, levels });
+      if (this.rendered && this._mode === 'build') this.render(false);
+    };
+    LevelHistory.classLevels(this.actor, classId).then(done).catch(err => {
+      AM.log(1, 'Build: the class levels could not be read', err);
+      done([]);
+    });
+    return null;
   }
 
   /**

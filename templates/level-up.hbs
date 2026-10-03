@@ -78,6 +78,9 @@
   <section class="lu-section lu-build-intro">
     <h3><i class="fa-solid fa-route"></i> {{localize 'am.build.title'}}</h3>
     <p class="am-hint">{{localize 'am.build.hint'}}</p>
+    {{#if build.reading}}
+      <p class="am-hint"><i class="fas fa-spinner fa-spin"></i> {{localize 'am.build.reading'}}</p>
+    {{/if}}
   </section>
 
   {{#each build.levels}}
@@ -116,7 +119,8 @@
     {{#if this.features.length}}
       <div class="lu-build-chips">
         {{#each this.features}}
-          <span class="lu-build-chip" data-uuid="{{this.uuid}}" data-name="{{this.name}}">
+          <span class="lu-build-chip {{#if this.missing}}lu-build-missing{{/if}}" data-uuid="{{this.uuid}}" data-name="{{this.name}}"
+                {{#if this.missing}}data-tooltip="{{localize 'am.build.missing'}}"{{/if}}>
             {{#if this.img}}<img src="{{this.img}}" alt="">{{/if}}{{this.name}}
           </span>
         {{/each}}
@@ -135,13 +139,13 @@
     {{/if}}
 
     {{#each this.choices}}
-      <div class="lu-build-choice">
+      <div class="lu-build-choice {{#if this.unrecorded}}lu-build-unrecorded{{/if}}">
         <span class="lu-build-choice-label">
-          <i class="fa-solid fa-list-check"></i> {{this.label}} · {{localize 'am.build.choose' n=this.count}}{{#if this.asi}} · {{localize 'am.build.or-feat'}}{{/if}}
+          <i class="fa-solid {{#if this.resolved}}fa-check{{else}}fa-list-check{{/if}}"></i> {{this.label}}{{#unless this.resolved}} · {{localize 'am.build.choose' n=this.count}}{{/unless}}{{#if this.asi}} · {{localize 'am.build.or-feat'}}{{/if}}{{#if this.unrecorded}} · {{localize 'am.build.unrecorded'}}{{/if}}
         </span>
         <div class="lu-build-chips">
           {{#each this.options}}
-            <span class="lu-build-chip lu-build-option" {{#if this.uuid}}data-uuid="{{this.uuid}}"{{/if}} data-name="{{this.name}}">
+            <span class="lu-build-chip {{#unless ../resolved}}lu-build-option{{/unless}}" {{#if this.uuid}}data-uuid="{{this.uuid}}"{{/if}} data-name="{{this.name}}">
               {{#if this.img}}<img src="{{this.img}}" alt="">{{/if}}{{this.name}}
             </span>
           {{/each}}
