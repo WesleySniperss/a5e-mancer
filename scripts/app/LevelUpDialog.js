@@ -250,6 +250,14 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         : null;
       const avgHP = Math.ceil((newClass?.hitDie ?? 8) / 2) + 1 + this.#getConMod();
 
+      // "Take levels up to", from the new class's 1st level on - see the level-up page
+      if (!(this._upTo > newTotalLevel)) this._upTo = newTotalLevel;
+      const upToOptions = [];
+      if (newClass && (!AM.levelQueue || AM.levelQueue.actorId !== this.actor.id)) {
+        for (let n = newTotalLevel; n <= 20; n++) upToOptions.push({ value: n, selected: n === this._upTo, only: n === newTotalLevel });
+      }
+      const upToPathList = upToOptions.length ? this.#upToPath(newTotalLevel, newClass.uuid) : [];
+
       const context = {
         actor:                this.actor,
         classes,
@@ -257,6 +265,9 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         availableClasses,
         newClass,
         newTotalLevel,
+        upToOptions,
+        upToNote:             LevelUpDialog.#upToNote(newTotalLevel, this._upTo, upToPathList),
+        upToPath:             JSON.stringify(upToPathList),
         deferHp:              this.#systemOwnsHp(),
         hpMethod:             this._hpMethod,
         avgHP,
@@ -320,12 +331,18 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     const classKey        = (selectedClass?.name ?? '').toLowerCase();
     const grantsTraditions = !!CLASS_MANEUVER_TABLES[classKey];
 
-    // "Up to level": the levels this run can still reach, this one first
+    /* "Take levels up to": the levels this run can still reach, this one
+       first - "just this one". Asked 2026-10-03 "what is the point of
+       picking a level here?": the tooltip was the only place that said, so
+       the line under it now says what the pick will do. */
     if (!(this._upTo > newTotalLevel)) this._upTo = newTotalLevel;
     const upToOptions = [];
     if (!AM.levelQueue || AM.levelQueue.actorId !== this.actor.id) {
-      for (let n = newTotalLevel; n <= 20; n++) upToOptions.push({ value: n, selected: n === this._upTo });
+      for (let n = newTotalLevel; n <= 20; n++) upToOptions.push({ value: n, selected: n === this._upTo, only: n === newTotalLevel });
     }
+    const upToPathList = upToOptions.length ? this.#upToPath(newTotalLevel, selectedClass?.id) : [];
+    const upToNote = LevelUpDialog.#upToNote(newTotalLevel, this._upTo, upToPathList);
+    const upToPath = JSON.stringify(upToPathList);
 
     const context = {
       actor:                this.actor,
@@ -335,6 +352,8 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       newClassLevel,
       newTotalLevel,
       upToOptions,
+      upToNote,
+      upToPath,
       info,
       grantsFeatures,
       grantsTraditions,
@@ -707,7 +726,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
   #resolveKey(key) {
     if (!String(key ?? '').startsWith('Compendium.')) return key;
     const want = PackFilter.normalizeSource(key);
-    const name = (this._compendiumClasses ?? []).find(c => c.uuid === key)?.name;
+    const name = this.#className(key);
     const owned = this.actor.items.find(i => i.type === 'class'
       && (PackFilter.normalizeSource(i._stats?.compendiumSource ?? i.flags?.core?.sourceId ?? '') === want
           || (name && i.name === name)));
@@ -728,6 +747,52 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
    * @param {string} o.defaultKey        where the first level goes when nothing is planned
    * @param {boolean} [o.nextButton]     the first card offers to level up now (build page)
    */
+  /** A planned class's name: the character's class, or the compendium's (its index entry). */
+  #className(key) {
+    const fresh = String(key ?? '').startsWith('Compendium.');
+    if (!fresh) return this.actor.items.get(key)?.name ?? '?';
+    const listed = (this._compendiumClasses ?? []).find(c => c.uuid === key)?.name;
+    if (listed) return listed;
+    try { return fromUuidSync(key)?.name ?? '?'; } catch { return '?'; }
+  }
+
+  /**
+   * The class each level from `from` to `to` goes to: the one picked for it
+   * in the plan, else the one before it, starting from `defaultKey`.
+   */
+  #planKeys({ from, to, defaultKey }) {
+    const plan = this.#plan();
+    const valid = (key) => !!key && (String(key).startsWith('Compendium.') || !!this.actor.items.get(key));
+    const start = this.#resolveKey(defaultKey);
+    const keys = [];
+    let prev = start;
+    for (let L = from; L <= to; L++) {
+      let key = this.#resolveKey(plan.get(L) ?? prev);
+      if (!valid(key)) key = start;                    // a class removed since it was planned
+      keys.push({ L, key, planned: plan.has(L) });
+      prev = key;
+    }
+    return keys;
+  }
+
+  /**
+   * The same levels as steps of a run (AM.levelQueue.order), as the rebuild
+   * writes them: a class of the character's by its id, a class not taken yet
+   * by its compendium uuid - the run opens Add New Class with it picked.
+   */
+  #planSteps(o) {
+    return this.#planKeys(o).map(({ L, key }) => {
+      const fresh = String(key).startsWith('Compendium.');
+      const item = fresh ? null : this.actor.items.get(key);
+      return {
+        charLevel: L,
+        classId: fresh ? null : key,
+        classUuid: fresh ? key : (item?._stats?.compendiumSource ?? item?.flags?.core?.sourceId ?? null),
+        className: this.#className(key)
+      };
+    });
+  }
+
   async #aheadCards({ from, counters, defaultKey, nextButton = false }) {
     if (!this._compendiumClasses) {
       try { this._compendiumClasses = await LevelUpService.getCompendiumClasses(); }
@@ -737,23 +802,16 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     const plan = this.#plan();
     const owned = this.actor.items.filter(i => i.type === 'class');
     const ownedNames = new Set(owned.map(c => c.name.toLowerCase()));
-    const nameOf = (key) => this.actor.items.get(key)?.name
-      ?? this._compendiumClasses.find(c => c.uuid === key)?.name ?? '?';
+    const nameOf = (key) => this.#className(key);
     const options = {
       owned: owned.map(c => ({ key: c.id, name: c.name })),
       fresh: this._compendiumClasses.filter(c => !ownedNames.has(c.name.toLowerCase()))
         .map(c => ({ key: c.uuid, name: c.name, meets: LevelUpService.checkPrerequisites(this.actor, c.name).meets }))
     };
-    const valid = (key) => !!key && (String(key).startsWith('Compendium.') || !!this.actor.items.get(key));
-    const start = this.#resolveKey(defaultKey);
-
     const level = new Map(counters);
     const cards = [];
     let loading = false;
-    let prev = start;
-    for (let L = from; L <= 20; L++) {
-      let key = this.#resolveKey(plan.get(L) ?? prev);
-      if (!valid(key)) key = start;                    // a class removed since it was planned
+    for (const { L, key, planned } of this.#planKeys({ from, to: 20, defaultKey })) {
       const n = (level.get(key) ?? 0) + 1;
       level.set(key, n);
       const levels = this.#planOf(key, total);
@@ -770,14 +828,13 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         title: `${LevelHistory.ordinal(n)} Level ${nameOf(key)}`,
         future: true,
         planKey: key, classId: key,
-        planned: plan.has(L),
+        planned,
         firstFuture: L === from,
         isNext: nextButton && L === from,
         pending: !levels,
         prereqFail: prereq && !prereq.meets ? prereq.missingText : '',
         empty: !!levels && !def?.features?.length && !def?.choices?.length && !def?.benefits?.length && !def?.notes?.length
       });
-      prev = key;
     }
     return { cards, loading, options, planned: plan.size > 0 };
   }
@@ -838,6 +895,35 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!pending?.size) return;
     this._plansToStart = null;
     for (const [classId, total] of pending) this.#planOf(classId, total);
+  }
+
+  /**
+   * What "take levels up to" will do, as a line under it - the levels and the
+   * class each goes to, as planned: "6–7 Illrigger, 8–11 Wizard (new class)".
+   * Empty for just this level.
+   * @param {number} current  the level being taken
+   * @param {number} upTo     the last level of the run
+   * @param {Array<{L: number, name: string, fresh: boolean}>} path  every level after `current`
+   */
+  static #upToNote(current, upTo, path) {
+    if (!(upTo > current)) return '';
+    const runs = [];
+    for (const step of path ?? []) {
+      if (step.L > upTo) break;
+      const name = step.fresh ? game.i18n.format('am.levels.path-new', { cls: step.name }) : step.name;
+      const last = runs.at(-1);
+      if (last && last.name === name && last.to === step.L - 1) last.to = step.L;
+      else runs.push({ name, from: step.L, to: step.L });
+    }
+    const text = runs.map(r => `${r.from === r.to ? r.from : `${r.from}–${r.to}`} ${r.name}`).join(', ');
+    return game.i18n.format(upTo === current + 1 ? 'am.levels.up-to-note-one' : 'am.levels.up-to-note', { path: text });
+  }
+
+  /** The levels after the one being taken, each with its planned class, for the note. */
+  #upToPath(current, defaultKey) {
+    if (!defaultKey) return [];
+    return this.#planSteps({ from: current + 1, to: 20, defaultKey })
+      .map(st => ({ L: st.charLevel, name: st.className, fresh: !st.classId }));
   }
 
   /**
@@ -1600,6 +1686,13 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     /* ── Level-up mode: keep going to a later level ── */
     this.element.querySelector('#lu-up-to')?.addEventListener('change', (e) => {
       this._upTo = Number(e.target.value) || null;
+      // What the pick will do, said in place - no redraw for it
+      const note = this.element.querySelector('.lu-up-to-note');
+      if (note) {
+        let path = [];
+        try { path = JSON.parse(note.dataset.path || '[]'); } catch { path = []; }
+        note.textContent = LevelUpDialog.#upToNote(Number(note.dataset.from), this._upTo, path);
+      }
     });
 
     /* ── Level-down mode: class, level, backup ── */
@@ -2540,7 +2633,8 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
    */
   static #queueClass(actor, step, queue) {
     const classes = actor.items.filter(i => i.type === 'class');
-    const id = step?.classId ?? queue?.classId ?? null;
+    // A step names its own class; only a run without steps keeps to queue.classId
+    const id = step ? step.classId : (queue?.classId ?? null);
     if (id && actor.items.get(id)) return id;
     if (step?.classUuid) {
       const want = PackFilter.normalizeSource(step.classUuid);
@@ -2678,6 +2772,12 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       );
       if (!success) return;
 
+      // A run started from the new class page, as from the level-up page
+      if (AM.levelQueue?.actorId !== dialog.actor.id && dialog._upTo > totalBefore + 1) {
+        AM.levelQueue = { actorId: dialog.actor.id, until: dialog._upTo, classId: null, rebuild: false,
+          order: dialog.#planSteps({ from: totalBefore + 2, to: dialog._upTo, defaultKey: dialog._newClassUuid }) };
+      }
+
       if (dialog._selectedManeuverUuids.length || dialog._selectedTraditions.length) {
         await ManeuverService.applyManeuversToActor(
           dialog.actor, dialog._selectedManeuverUuids, dialog._selectedTraditions,
@@ -2710,10 +2810,13 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       ? 0
       : Math.max(1, LevelUpDialog.#hpFor(dialog, cls.hitDie, conMod));
 
-    // "Up to level N": this level starts a run that keeps to this class
+    /* "Take levels up to N": this level starts a run, each next level going to
+       the class planned for it in the levels ahead - a new class included,
+       which the run opens on Add New Class (asked 2026-10-03). */
     if (AM.levelQueue?.actorId === dialog.actor.id) AM.levelQueue.classId = cls.id;
     else if (dialog._upTo > totalBefore + 1) {
-      AM.levelQueue = { actorId: dialog.actor.id, until: dialog._upTo, classId: cls.id, rebuild: false };
+      AM.levelQueue = { actorId: dialog.actor.id, until: dialog._upTo, classId: cls.id, rebuild: false,
+        order: dialog.#planSteps({ from: totalBefore + 2, to: dialog._upTo, defaultKey: cls.id }) };
     }
 
     await LevelUpService.applyLevelUp(

@@ -138,6 +138,24 @@
   </section>
   {{/unless}}
 {{/inline}}
+{{!-- "Take levels up to": several levels in a row, each to the class planned
+      for it in the levels ahead --}}
+{{#*inline "luUpTo"}}
+      {{#if upToOptions.length}}
+        <label class="lu-up-to" data-tooltip="{{localize 'am.levels.up-to-hint'}}">
+          {{localize 'am.levels.up-to'}}
+          <select id="lu-up-to">
+            {{#each upToOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{#if this.only}}{{localize 'am.levels.up-to-only' n=this.value}}{{else}}{{this.value}}{{/if}}</option>{{/each}}
+          </select>
+        </label>
+      {{/if}}
+{{/inline}}
+{{!-- What it will do: the levels and their classes; empty (and hidden) for just this level --}}
+{{#*inline "luUpToNote"}}
+    {{#if upToOptions.length}}
+      <p class="am-hint lu-up-to-note" data-from="{{newTotalLevel}}" data-path="{{upToPath}}">{{upToNote}}</p>
+    {{/if}}
+{{/inline}}
 {{!-- One choice a level asks: the options, or the one taken --}}
 {{#*inline "luChoice"}}
       <div class="lu-build-choice {{#if this.unrecorded}}lu-build-unrecorded{{/if}}">
@@ -460,7 +478,9 @@
       <span class="lu-badge">
         {{localize 'am.levelup.total-level'}}: {{newTotalLevel}}
       </span>
+      {{> luUpTo}}
     </div>
+    {{> luUpToNote}}
   </section>
 
   {{#if newClass}}
@@ -640,14 +660,7 @@
       <span class="lu-badge">
         {{localize 'am.levelup.total-level'}}: {{newTotalLevel}}
       </span>
-      {{#if upToOptions.length}}
-        <label class="lu-up-to" data-tooltip="{{localize 'am.levels.up-to-hint'}}">
-          {{localize 'am.levels.up-to'}}
-          <select id="lu-up-to">
-            {{#each upToOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.value}}</option>{{/each}}
-          </select>
-        </label>
-      {{/if}}
+      {{> luUpTo}}
       {{#if info.gainsASI}}
         <span class="lu-badge lu-badge-gold">
           <i class="fa-solid fa-star"></i> {{localize 'am.levelup.gains-asi'}}
@@ -659,6 +672,7 @@
         </span>
       {{/if}}
     </div>
+    {{> luUpToNote}}
   </section>
 
   <hr />
