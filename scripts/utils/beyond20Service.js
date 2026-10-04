@@ -41,6 +41,7 @@ export class Beyond20Service {
 
   static _listeners = [];
   static _renderHook = null;
+  static _createHook = null;
 
   static get enabled() {
     try { return game.settings.get(AM.ID, 'enableBeyond20') !== false; }
@@ -69,6 +70,14 @@ export class Beyond20Service {
     // Cards already on screen (rendered before we installed) need one pass too.
     try { this._repairCards(document); } catch { /* pre-canvas, ignore */ }
 
+    // Initiative rolls into the combat tracker - see _addInitiative. On the
+    // client that posted the roll only, or every connected player would add it.
+    this._createHook = Hooks.on('createChatMessage', (message, _options, userId) => {
+      if (userId !== game.user.id) return;
+      try { this._onMessage(message); }
+      catch (err) { AM.log(1, 'Beyond20 bridge: message handling failed', err); }
+    });
+
     AM.log(3, 'Beyond20 bridge installed',
       game.beyond20?.loaded ? '(extension detected)' : '(extension not loaded yet)');
   }
@@ -90,6 +99,10 @@ export class Beyond20Service {
     if (this._renderHook !== null) {
       Hooks.off('renderChatMessageHTML', this._renderHook);
       this._renderHook = null;
+    }
+    if (this._createHook !== null) {
+      Hooks.off('createChatMessage', this._createHook);
+      this._createHook = null;
     }
   }
 
@@ -125,6 +138,112 @@ export class Beyond20Service {
     // text is always the leaked tail of the mangled avatar <img>.
     for (const node of [...header.childNodes])
       if (node.nodeType === 3 /* TEXT_NODE */ && node.textContent.trim()) node.remove();
+  }
+
+  /* ============================================================
+     Initiative into the combat tracker
+
+     Reported 2026-10-04: "initiative from Beyond20 does not reach the tracker".
+     Beyond20 2.21 does add it itself (addInitiativeToCombat in its page
+     script), but only for a token selected on the canvas at that moment, and
+     only into an encounter that already exists; otherwise it shows a warning
+     and nothing else. Rolling from the D&D Beyond tab, the token is rarely
+     selected. So the bridge reads the initiative off the card Beyond20 posts
+     and puts it on the character's own combatant: the selected tokens, as
+     Beyond20 does, else the tokens on this scene of the character the card
+     speaks for. A combatant is created where there is none, as Foundry's own
+     initiative roll does; the GM's roll also starts an encounter when there is
+     none, players are told to ask for one.
+     ============================================================ */
+
+  static get initiativeEnabled() {
+    try { return game.settings.get(AM.ID, 'beyond20Initiative') !== false; }
+    catch { return true; }
+  }
+
+  /**
+   * The initiative on a Beyond20 card: its title is "Initiative (+N)", and the
+   * kept roll's value is the result - with advantage the other is marked
+   * discarded. A decimal with Beyond20's tiebreaker option.
+   * @returns {number|null}
+   */
+  static _initiativeOf(message) {
+    const html = String(message?.content ?? '');
+    if (!html.includes('beyond20-message')) return null;
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const title = (doc.querySelector('.beyond20-title, .beyond20-header summary')?.textContent ?? '').trim();
+    if (!/^initiative\b/i.test(title)) return null;
+    const kept = [...doc.querySelectorAll('.beyond20-roll-value')]
+      .filter(el => !el.classList.contains('beyond20-roll-detail-discarded'));
+    const total = Number(String(kept[0]?.textContent ?? '').trim());
+    return Number.isFinite(total) ? total : null;
+  }
+
+  static _onMessage(message) {
+    if (!this.initiativeEnabled) return;
+    const total = this._initiativeOf(message);
+    if (total === null) return;
+    /* After Beyond20's own attempt, which runs once its card is posted: when it
+       did add the combatant, this finds it and changes nothing, rather than
+       both creating one. */
+    setTimeout(() => {
+      this._addInitiative(message, total)
+        .catch(err => AM.log(1, 'Beyond20 bridge: initiative could not be added', err));
+    }, 1200);
+  }
+
+  static async _addInitiative(message, total) {
+    const scene = canvas?.scene ?? null;
+    const speaker = message?.speaker ?? {};
+    const name = speaker.alias || game.actors.get(speaker.actor)?.name || '';
+
+    // Who rolled: the selected tokens, as Beyond20 asks; else the speaker's character
+    let tokens = (canvas?.tokens?.controlled ?? []).filter(t => t.actor?.isOwner).map(t => t.document);
+    let actors = [];
+    if (!tokens.length) {
+      const fromToken = speaker.token ? scene?.tokens?.get(speaker.token)?.actor : null;
+      const fromActor = speaker.actor ? game.actors.get(speaker.actor) : null;
+      actors = fromToken?.isOwner ? [fromToken]
+        : fromActor?.isOwner ? [fromActor]
+        : this._findActors(name);
+      const seen = new Set();
+      tokens = actors.flatMap(a => a.getActiveTokens(false, true))
+        .filter(t => (!scene || t.parent === scene) && !seen.has(t.id) && seen.add(t.id));
+    }
+    if (!tokens.length && !actors.length) {
+      ui.notifications.warn(game.i18n.format('am.beyond20.initiative-nobody', { n: total, name: name || '?' }));
+      return;
+    }
+
+    let combat = game.combat;
+    if (!combat) {
+      if (game.user.isGM && scene) {
+        combat = await getDocumentClass('Combat').create({ scene: scene.id, active: true });
+      } else {
+        ui.notifications.warn(game.i18n.format('am.beyond20.initiative-no-encounter', { n: total, name: name || tokens[0]?.name || '?' }));
+        return;
+      }
+    }
+
+    const updates = [];
+    const creates = [];
+    const set = (list) => { for (const c of list) if (c.initiative !== total) updates.push({ _id: c.id, initiative: total }); };
+    for (const t of tokens) {
+      const existing = combat.getCombatantsByToken(t.id);
+      if (existing.length) set(existing);
+      else creates.push({ tokenId: t.id, sceneId: t.parent?.id, actorId: t.actorId, hidden: t.hidden, initiative: total });
+    }
+    // No token on this scene: the character itself, as Foundry's own roll does
+    if (!tokens.length) {
+      for (const a of actors) {
+        const existing = combat.getCombatantsByActor(a);
+        if (existing.length) set(existing);
+        else creates.push({ actorId: a.id, hidden: false, initiative: total });
+      }
+    }
+    if (updates.length) await combat.updateEmbeddedDocuments('Combatant', updates);
+    if (creates.length) await combat.createEmbeddedDocuments('Combatant', creates);
+    if (updates.length || creates.length) AM.log(3, `Beyond20 initiative ${total} for ${name}: ${updates.length} set, ${creates.length} added`);
   }
 
   /* ============================================================

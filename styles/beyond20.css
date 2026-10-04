@@ -7,16 +7,46 @@
  * lose their boxes, and the header collapses. That is the visual mess you get
  * when rolling from D&D Beyond into a bare Foundry install.
  *
- * These rules restore the intended look. Every selector is scoped under
- * .beyond20-* so nothing here can reach a5e's own chat cards.
+ * These rules restore the layout. The colours were Beyond20's own until
+ * 2026-10-04 - drawn for Foundry's old light parchment chat: olive titles,
+ * white groove lines, grey boxes and a parchment tooltip. On a dark, styled
+ * chat they read as a foreign yellow card ("why do Beyond20 rolls have their
+ * own yellow colouring?"). They now take the chat's own palette - Your
+ * Flavor's style when the message has one, Foundry's theme otherwise - and
+ * keep one mark of where they came from: a D&D Beyond red rule down the card
+ * and a small "D&D Beyond" tag in its header.
+ *
+ * Every selector is scoped under .beyond20-* so nothing here can reach a5e's
+ * own chat cards.
  */
 
-/* ---------------------------------------------------------------- layout */
+/* ---------------------------------------------------------------- palette */
 
 .beyond20-message {
-    font-family: "Signika", "Roboto", sans-serif;
+    /* Your Flavor's style sets these on the message when it styles it */
+    --b20-text:    var(--yf-chat-content-text, var(--yf-text-color, var(--color-text-primary, #d8d4cc)));
+    /* Not --yf-chat-header-text: that is the sender line's colour, dimmed */
+    --b20-head:    var(--b20-text);
+    --b20-muted:   var(--yf-chat-header-metadata, color-mix(in srgb, var(--b20-text) 62%, transparent));
+    --b20-line:    var(--yf-chat-outer-border-color, var(--yf-border-color, color-mix(in srgb, var(--b20-text) 28%, transparent)));
+    --b20-surface: color-mix(in srgb, var(--b20-text) 7%, transparent);
+    --b20-panel:   var(--yf-chat-outer-bg, var(--color-cool-5, #1b1a1f));
+    --b20-font:    var(--yf-chat-font-family, inherit);
+    /* Where the roll came from: D&D Beyond's red */
+    --b20-mark:    #c53131;
+    --b20-good:    #4caf6a;
+    --b20-bad:     #e05a4f;
+
+    font-family: inherit;
+    color: var(--b20-text);
     overflow: visible;
+    position: relative;
+    padding-left: 8px;
+    border-left: 3px solid color-mix(in srgb, var(--b20-mark) 85%, transparent);
+    border-radius: 2px;
 }
+
+/* ---------------------------------------------------------------- layout */
 
 /* D&D Beyond images (the character portrait, inline roll icons) are frequently
    blocked or broken inside Foundry and add nothing here — hide them all so a
@@ -41,49 +71,83 @@
 .beyond20-header {
     display: flex;
     flex-direction: row;
+    align-items: center;
+    gap: 6px;
 }
 
-.beyond20-header .beyond20-character-avatar {
-    margin-top: 0.5rem;
-    margin-bottom: auto;
-    margin-right: 5px;
-    margin-left: 5px;
-    border: 1px solid black;
-    aspect-ratio: 1/1;
-    object-fit: cover;
+/* The tag that says where the roll came from */
+.beyond20-header::after {
+    content: "D&D Beyond";
+    flex: 0 0 auto;
+    align-self: flex-start;
+    margin-top: 6px;
+    padding: 1px 6px;
+    border: 1px solid color-mix(in srgb, var(--b20-mark) 70%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--b20-mark) 14%, transparent);
+    color: color-mix(in srgb, var(--b20-mark) 45%, var(--b20-head));
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    line-height: 1.5;
+    text-transform: uppercase;
+    white-space: nowrap;
 }
 
 .beyond20-message details {
     flex-grow: 1;
+    min-width: 0;
 }
 
 .beyond20-message details summary,
 .beyond20-message .beyond20-title {
     flex: 1;
+    min-width: 0;
+    margin: 2px 0 4px;
+    padding: 2px 0 3px;
+    border: 0;
+    border-bottom: 1px solid var(--b20-line);
+    font-family: var(--b20-font);
+    font-size: 17px;
     font-style: normal;
-    margin: 2px 0;
-    line-height: 36px;
-    font-family: "Modesto Condensed", "Roboto Condensed", "Palatino Linotype", serif;
-    font-size: 20px;
     font-weight: 700;
-    color: #4b4a44;
-    padding-top: 3px;
-    border-top: 2px groove #fff;
-    border-bottom: 2px groove #fff;
+    line-height: 1.5;
+    color: var(--b20-head);
+    overflow-wrap: anywhere;
+}
+
+.beyond20-message details summary {
+    cursor: pointer;
+}
+
+/* The title is a link, and Your Flavor colours links in a styled message with
+   its link colour (!important) - the border colour when none is set, dark on
+   a dark card. The title is the title: the header's colour. */
+.chat-message .message-content .beyond20-message details summary a,
+.chat-message.yf-card .message-content .beyond20-message details summary a {
+    color: inherit !important;
+    text-decoration: none;
 }
 
 .beyond20-message .beyond20-description,
 .beyond20-message details table {
     border: none;
     width: 100%;
-    padding: 4px;
+    padding: 4px 0;
     border-spacing: 0;
     border-collapse: collapse;
-    background-color: initial;
+    background: none;
+    color: var(--b20-text);
+}
+
+.beyond20-message details table td {
+    padding: 1px 6px 1px 0;
+    color: var(--b20-muted);
 }
 
 .beyond20-message table td:first-child {
     font-weight: bold;
+    color: var(--b20-head);
 }
 
 .beyond20-roll-result,
@@ -91,7 +155,12 @@
     /* Anchors the absolutely positioned tooltip to this row */
     position: relative;
     overflow: visible;
-    padding: 0 5px;
+    padding: 0 2px;
+}
+
+.beyond20-message .beyond20-roll-result > b {
+    color: var(--b20-muted);
+    font-weight: 600;
 }
 
 /* ------------------------------------------------------------ roll cells */
@@ -101,23 +170,40 @@
     display: flex;
     flex-direction: row;
     flex-wrap: nowrap;
-    margin-bottom: 0.2em;
+    gap: 4px;
+    margin: 4px 0;
     padding: 0;
 }
 
 .beyond20-roll-cell,
 .beyond20-roll-die-result {
     flex: 1 0 auto;
-    margin: 1px;
-    line-height: 24px;
+    margin: 0;
+    padding: 1px 0;
+    line-height: 30px;
     text-align: center;
-    background: rgba(0, 0, 0, 0.1);
-    border: 1px solid #999;
-    border-radius: 3px;
-    box-shadow: 0 0 2px #fff inset;
-    font-size: 20px;
-    font-weight: bold;
-    font-family: "Signika", "Roboto", serif;
+    background: var(--b20-surface);
+    border: 1px solid var(--b20-line);
+    border-radius: 6px;
+    box-shadow: none;
+    font-family: var(--b20-font);
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--b20-head);
+}
+
+/* The value inside a cell is the cell's: not a second box (Your Flavor draws
+   one round anything marked dice-total, and Beyond20 marks its totals so). */
+.chat-message .beyond20-message .beyond20-roll-value,
+.chat-message .beyond20-message .beyond20-roll-value.dice-total {
+    background: none !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    font: inherit !important;
+    /* Your Flavor dims a dice total's text (--yf-roll-total-text) */
+    color: inherit !important;
 }
 
 .beyond20-roll-total {
@@ -125,78 +211,117 @@
     font-weight: bold;
 }
 
-.beyond20-roll-detail-crit      { color: darkgreen; font-weight: bold; }
-.beyond20-roll-detail-fail      { color: darkred;   font-weight: bold; }
-.beyond20-roll-detail-crit-fail { color: darkblue;  font-weight: bold; }
-.beyond20-roll-detail-normal    { color: black; }
+/* Above the value reset, which is !important too */
+.beyond20-roll-detail-crit,
+.chat-message .beyond20-message .beyond20-roll-value.beyond20-roll-detail-crit {
+    color: var(--b20-good) !important;
+    text-shadow: 0 0 8px color-mix(in srgb, var(--b20-good) 55%, transparent);
+}
+.beyond20-roll-detail-fail,
+.chat-message .beyond20-message .beyond20-roll-value.beyond20-roll-detail-fail {
+    color: var(--b20-bad) !important;
+    text-shadow: 0 0 8px color-mix(in srgb, var(--b20-bad) 45%, transparent);
+}
+.beyond20-roll-detail-crit-fail,
+.chat-message .beyond20-message .beyond20-roll-value.beyond20-roll-detail-crit-fail {
+    color: #7fa7e0 !important;
+}
+.beyond20-roll-detail-normal {
+    color: inherit;
+}
 
-.beyond20-roll-detail-discarded {
-    color: grey;
+.beyond20-roll-detail-discarded,
+.chat-message .beyond20-message .beyond20-roll-value.beyond20-roll-detail-discarded {
+    color: var(--b20-muted) !important;
     text-decoration: line-through;
-    opacity: 0.5;
+    text-shadow: none;
+    opacity: 0.55;
 }
 
 /* ---------------------------------------------------------------- damage */
 
+.beyond20-message .beyond20-roll-damage {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 3px 0;
+}
+
+.beyond20-message .beyond20-roll-damage > .beyond20-tooltip {
+    margin-left: auto;
+    min-width: 2.4em;
+    padding: 0 8px;
+    text-align: center;
+    background: var(--b20-surface);
+    border: 1px solid var(--b20-line);
+    border-radius: 6px;
+    font-family: var(--b20-font);
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 24px;
+    color: var(--b20-head);
+}
+
 .beyond20-total-damage {
     font-size: 1.05em;
     font-weight: bold;
-    border-radius: 3px;
-    line-height: 24px;
+    border-radius: 6px;
+    line-height: 26px;
     text-align: center;
-    box-shadow: rgb(255, 255, 255) 0 0 2px inset;
-    background: rgba(0, 0, 0, 0.1);
-    border: 1px solid #999;
+    box-shadow: none;
+    background: var(--b20-surface);
+    border: 1px solid var(--b20-line);
     margin-bottom: 3px;
     position: relative;
+    color: var(--b20-head);
 }
 
 .beyond20-critical-damage {
-    border-left: 2px solid #9c3940;
-    padding-left: 3px;
+    border-left: 2px solid var(--b20-bad);
+    padding-left: 5px;
 }
 
 .beyond20-total-damage.beyond20-critical-damage {
-    border: 1px solid #9c3940;
-    border-radius: 3px;
+    border: 1px solid color-mix(in srgb, var(--b20-bad) 70%, transparent);
+    border-radius: 6px;
     margin-bottom: 2px;
-    box-shadow: rgb(208 53 53) 0 0 2px inset;
+    box-shadow: 0 0 6px color-mix(in srgb, var(--b20-bad) 30%, transparent) inset;
     padding: 0 5px;
 }
 
 .beyond20-healing {
     font-size: 1.05em;
     font-weight: bold;
-    border-radius: 3px;
-    line-height: 24px;
+    border-radius: 6px;
+    line-height: 26px;
     text-align: center;
     margin-bottom: 3px;
-    border: 1px solid rgb(0 125 10);
-    background: rgb(40 255 0 / 10%);
-    box-shadow: 0 0 2px #0b6900c2 inset;
+    border: 1px solid color-mix(in srgb, var(--b20-good) 70%, transparent);
+    background: color-mix(in srgb, var(--b20-good) 12%, transparent);
+    box-shadow: none;
 }
 
 .beyond20-conditional-damage {
     font-style: italic;
     opacity: 0.85;
-    border-left: 2px dashed #666;
-    padding-left: 3px;
+    border-left: 2px dashed var(--b20-line);
+    padding-left: 5px;
 }
 
 .beyond20-combined-damage {
-    border: 2px solid #7b4fb8;
-    border-radius: 4px;
+    border: 1px solid color-mix(in srgb, #9b7ad8 70%, transparent);
+    border-radius: 6px;
     padding: 2px 8px;
     margin-top: 4px;
-    background: rgba(123, 79, 184, 0.1);
+    background: color-mix(in srgb, #9b7ad8 12%, transparent);
 }
 
 .beyond20-total-damage.beyond20-conditional-total {
-    border: 2px solid #2a9d8f;
-    border-radius: 4px;
+    border: 1px solid color-mix(in srgb, #2a9d8f 75%, transparent);
+    border-radius: 6px;
     padding: 2px 8px;
     margin-top: 4px;
-    background: rgba(42, 157, 143, 0.1);
+    background: color-mix(in srgb, #2a9d8f 12%, transparent);
 }
 
 /* --------------------------------------------------------------- tooltip */
@@ -206,31 +331,29 @@
 }
 
 /* Without this the tooltip body is always visible and dumps the whole dice
-   breakdown into the middle of the card. */
+   breakdown into the middle of the card. A dark panel in the chat's own
+   colours - it was parchment. */
 .beyond20-tooltip .beyond20-tooltip-content {
     display: none;
-    background: url(/ui/parchment.jpg) repeat;
-    background-color: #f5f2ec;
+    background: var(--b20-panel);
+    color: var(--b20-text);
     text-align: left;
-    border-radius: 6px;
-    padding: 5px 10px;
+    border-radius: 8px;
+    padding: 6px 10px;
     margin: 10px;
     width: 90%;
     top: -50%;
     left: 0;
-    border: 2px solid #6f6c66;
+    border: 1px solid var(--b20-line);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
     position: absolute;
     z-index: 1;
-}
-
-.beyond20-message span.dice-roll.beyond20-tooltip-content {
-    background-color: #f9f9f9;
 }
 
 .beyond20-tooltip:hover .beyond20-tooltip-content {
     display: block;
     transform: translate(0, -100%);
-    font-size: initial;
+    font-size: 13px;
 }
 
 .beyond20-tooltip-content .dice-tooltip {
@@ -240,7 +363,7 @@
 /* Kept scoped on purpose. Beyond20's own stylesheet declares these globally,
    which restyles a5e's native roll cards too. */
 .beyond20-message .dice-tooltip .part-header {
-    font-size: initial;
+    font-size: 12px;
 }
 
 .beyond20-message .dice-roll .dice-formula {
@@ -251,12 +374,13 @@
 .beyond20-message .dice-formula.beyond20-roll-formula {
     line-height: 24px;
     text-align: center;
-    background: rgba(0, 0, 0, 0.1);
-    border: 1px solid #999;
-    border-radius: 3px;
-    box-shadow: 0 0 2px #fff inset;
+    background: var(--b20-surface);
+    border: 1px solid var(--b20-line);
+    border-radius: 6px;
+    box-shadow: none;
     margin: 5px 0;
     font-weight: bold;
+    color: var(--b20-head);
 }
 
 /* ----------------------------------------------------------- misc / form */
@@ -277,16 +401,23 @@
 }
 
 .beyond20-button-roll-damages {
-    font-family: "Signika", "Roboto", sans-serif;
+    font-family: inherit;
     font-size: 12px;
+    font-weight: 600;
     width: 100%;
-    height: 24px;
-    line-height: 20px;
-    margin: 2px 0;
-    background: rgba(0, 0, 0, 0.1);
-    border: 2px groove #eeede0;
-    border-radius: 3px;
-    margin-top: 2px;
+    height: 26px;
+    line-height: 22px;
+    margin: 4px 0 2px;
+    color: var(--b20-head);
+    background: var(--b20-surface);
+    border: 1px solid var(--b20-line);
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.beyond20-button-roll-damages:hover {
+    border-color: color-mix(in srgb, var(--b20-mark) 70%, transparent);
+    background: color-mix(in srgb, var(--b20-mark) 12%, transparent);
 }
 
 .beyond20-roll-dice-formula {
@@ -319,7 +450,7 @@
 .beyond20-message .a5e-mancer-apply {
     display: inline-flex;
     gap: 3px;
-    margin-left: 8px;
+    margin-left: 6px;
     vertical-align: middle;
 }
 
@@ -328,26 +459,27 @@
     align-items: center;
     justify-content: center;
     min-width: 22px;
-    height: 20px;
+    height: 22px;
     padding: 0 5px;
     margin: 0;
     line-height: 1;
     font-size: 12px;
     font-weight: 700;
-    color: #fff;
-    background: #9c3940;
-    border: 1px solid #7a2c31;
-    border-radius: 3px;
-    box-shadow: 0 0 2px rgba(0, 0, 0, 0.4) inset;
+    color: var(--b20-head);
+    background: var(--b20-surface);
+    border: 1px solid var(--b20-line);
+    border-radius: 5px;
+    box-shadow: none;
     cursor: pointer;
-    transition: background 0.1s ease, transform 0.05s ease;
+    transition: background 0.12s ease, border-color 0.12s ease, transform 0.05s ease;
     flex: 0 0 auto;
     width: auto;
 }
 
 .beyond20-message .a5e-mancer-apply__btn:hover {
-    background: #c0392b;
-    box-shadow: 0 0 4px rgba(192, 57, 43, 0.6);
+    color: #fff;
+    background: color-mix(in srgb, var(--b20-mark) 75%, transparent);
+    border-color: var(--b20-mark);
 }
 
 .beyond20-message .a5e-mancer-apply__btn:active {

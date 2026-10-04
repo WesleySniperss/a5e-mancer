@@ -44,6 +44,12 @@ export function registerSettings() {
     scope: 'client', config: true, type: Boolean, default: true, requiresReload: true
   });
 
+  // A Beyond20 initiative roll onto the character's combatant (Beyond20Service._addInitiative)
+  game.settings.register(AM.ID, 'beyond20Initiative', {
+    name: 'am.settings.beyond20-initiative.name', hint: 'am.settings.beyond20-initiative.hint',
+    scope: 'client', config: true, type: Boolean, default: true
+  });
+
   // Client-scoped to match Your Flavor itself: chat styling there is a per-user
   // choice, so whether a5e's cards join in is one too.
   game.settings.register(AM.ID, 'enableYourFlavor', {
