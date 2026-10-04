@@ -10,6 +10,7 @@ import { ManeuverService } from '../utils/maneuverService.js';
 import { ConditionSource } from '../utils/conditionSource.js';
 import { ItemRepair } from '../utils/itemRepair.js';
 import { patchInPlace, snapshot } from '../utils/livePatch.js';
+import { ArmorClass } from '../utils/armorClass.js';
 
 const MODULE_ID = 'a5e-mancer';
 
@@ -561,6 +562,7 @@ export class A5eCharacterSheet extends ActorSheet {
     const resources = {
       hp: { value: hp.value ?? 0, max: hp.max ?? 0, temp: hp.temp ?? 0, pct: hpPct, color: hpColor },
       ac: sys.attributes?.ac?.value ?? sys.attributes?.ac ?? 10,
+      acTip: ArmorClass.breakdown(actor),
       initiative: sign(sys.attributes?.initiative?.value ?? sys.attributes?.initiative?.mod ?? 0),
       speed: sys.attributes?.movement?.walk?.distance ?? sys.attributes?.movement?.walk ?? sys.attributes?.speed?.value ?? 30,
       exertion: { current: ex.current ?? ex.value ?? 0, max: ex.max ?? 0, pct: exPct,
@@ -3378,9 +3380,24 @@ export class A5eCharacterSheet extends ActorSheet {
     this.#bindNumericInput(el, '#am-exertion-max',
       v => A5eCharacterSheet.exertionMaxUpdate(this.actor, el.querySelector('#am-exertion-max'), Math.max(0, v)));
 
-    /* AC / Initiative / Speed */
+    /* AC: a5e works it out and overwrites a stored value on every prepare,
+       so what is typed becomes a correction effect - see ArmorClass.set. A
+       figure it cannot reach, or a blank, puts back the one a5e gives. */
+    el.querySelector('#am-ac-input')?.addEventListener('change', async (e) => {
+      const want = parseInt(e.target.value);
+      const shown = () => { e.target.value = this.actor.system?.attributes?.ac?.value ?? 10; };
+      if (isNaN(want)) return shown();
+      try {
+        if (!(await ArmorClass.set(this.actor, want))) shown();
+      } catch (err) {
+        AM.log(1, 'Could not set the armor class:', err);
+        ui.notifications.warn(err.message ?? 'The sheet could not save that value.');
+        shown();
+      }
+    });
+
+    /* Initiative / Speed */
     [
-      ['#am-ac-input',         'system.attributes.ac.value'],
       ['#am-initiative-input', 'system.attributes.initiative.value'],
       ['#am-speed-input',      'system.attributes.movement.walk.distance']
     ].forEach(([sel, path]) => this.#bindNumericInput(el, sel, v => ({ [path]: v })));
@@ -3679,6 +3696,11 @@ export class A5eCharacterSheet extends ActorSheet {
         e.preventDefault();
         this.actor.configureAbilityScore?.({ abilityKey: b.dataset.ability });
       }));
+    /* The armour class's base formula, in a5e's own dialog. */
+    el.querySelector('[data-action="ac-config"]')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      this.actor.configureArmorClass?.();
+    });
 
     /* The appearance fields, written straight to a5e's own paths. */
     el.querySelectorAll('[data-action="detail-field"]').forEach(inp =>

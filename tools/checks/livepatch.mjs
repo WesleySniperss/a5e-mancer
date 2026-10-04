@@ -16,7 +16,7 @@
  * "live checks"), and Edge. Nothing here writes to a world you play in: every
  * value it sets it puts back, and it is pointed at a copy.
  *
- *   node tools/checks/livepatch.mjs [--url http://localhost:30011] [--user <id>]
+ *   node tools/checks/livepatch.mjs [--url http://localhost:30011] [--user <id>] [--only <case text>]
  */
 import { openBrowser } from './lib/cdp.mjs';
 
@@ -26,6 +26,8 @@ const arg = (name, fallback) => {
 };
 const BASE = arg('url', 'http://localhost:30011');
 const USER = arg('user', null);
+/* --only <text>: just the cases whose name contains it. */
+const ONLY = arg('only', null);
 
 const results = [];
 const check = (name, ok, detail = '') => results.push([name, ok, detail]);
@@ -48,6 +50,11 @@ try {
   if (!user) throw new Error('no user to join as — pass --user <id>');
   await b.evaluate(`fetch('/join', { method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'join', userId: ${JSON.stringify(user)}, password: '' }) }).then(r => r.status)`);
+  /* No canvas: nothing here draws on it, and a headless browser renders it in
+     software - measured as 89% of the main thread for over a minute after
+     the world loads, every await below waiting behind it. This is the test
+     browser's own profile, not anyone's settings. */
+  await b.evaluate("localStorage.setItem('core.noCanvas', 'true')");
   await b.send('Page.navigate', { url: BASE + '/game' });
   let ready = false;
   for (let i = 0; i < 150 && !ready; i++) { await b.sleep(1000); try { ready = await b.evaluate('!!(window.game && game.ready)'); } catch {} }
@@ -56,6 +63,11 @@ try {
      below would be measured in those. */
   if (await ev('document.hidden')) throw new Error('the Foundry tab is hidden — its timers are throttled; see lib/cdp.mjs');
   step('the world is up');
+  /* The sheet's partials are registered in the module's ready hook, which
+     sets globalThis.a5eMancer when it is done. Right after a world loads the
+     server is still sending every pack index and the templates queue behind
+     them: measured 18s once. A sheet opened before then throws on a partial. */
+  for (let i = 0; i < 180; i++) { if (await ev("!!globalThis.a5eMancer")) break; await b.sleep(1000); }
   await b.sleep(4000);
 
   /* ── The sheet under test, and the plumbing the cases share ───────────── */
@@ -73,7 +85,7 @@ try {
         const inner = sheet.getData.bind(sheet);
         sheet.getData = async (...a) => { st.redraws++; return inner(...a); };
         sheet.render(true);
-        for (let i = 0; i < 80 && !sheet.rendered; i++) await new Promise((r) => setTimeout(r, 150));
+        for (let i = 0; i < 400 && !sheet.rendered; i++) await new Promise((r) => setTimeout(r, 150));
         await new Promise((r) => setTimeout(r, 1500));
         st.sheet = sheet; st.actor = actor;
         return sheet;
@@ -107,10 +119,23 @@ try {
       /* Set the actor to a state and draw it the slow way: the ground truth.
          render: false keeps this write from drawing, but not the effects a5e
          writes after it, so those are waited out before the redraw. */
-      /* A write to the actor, or to one of its items: { __item: id, data }. */
-      const write = (data, options) => (data && data.__item
-        ? st.actor.items.get(data.__item).update(data.data, options)
-        : st.actor.update(data, options));
+      /* A write to the actor, or to one of its items: { __item: id, data };
+         the armour class correction at an amount, 0 for none: { __acFix: n };
+         or several of those in turn: [ ... ]. */
+      const acFix = (n, options) => {
+        const fx = st.actor.effects.find((e) => e.flags?.['a5e-mancer']?.acCorrection);
+        const changes = [{ key: 'system.attributes.ac.changes.bonuses.value', type: 'add', value: String(n) }];
+        if (!n) return fx ? fx.delete(options) : null;
+        return fx ? fx.update({ 'system.changes': changes }, options)
+          : st.actor.createEmbeddedDocuments('ActiveEffect', [{ name: 'AC correction', img: 'icons/svg/shield.svg',
+              flags: { 'a5e-mancer': { acCorrection: true } }, system: { changes } }], options);
+      };
+      const write = async (data, options) => {
+        if (Array.isArray(data)) { for (const d of data) await write(d, options); return; }
+        if (data && data.__item) return st.actor.items.get(data.__item).update(data.data, options);
+        if (data && '__acFix' in data) return acFix(data.__acFix, options);
+        return st.actor.update(data, options);
+      };
       const full = async (data) => {
         await write(data, { render: false });
         await quiet();
@@ -192,6 +217,16 @@ try {
     { name: 'a spell slot spent', redraws: (a) => (a.slotDrawn ? 0 : 1), skipUnless: 'slot',
       from: (a) => ({ [`system.spellResources.slots.${a.slotLevel}.current`]: a.slotMax }),
       to:   (a) => ({ [`system.spellResources.slots.${a.slotLevel}.current`]: Math.max(0, a.slotMax - 1) }) },
+    /* The armour class typed in on the unlocked sheet is an effect of this
+       sheet's (utils/armorClass.js). Its amount changing moves the figure on
+       the shield - a field while unlocked - and the breakdown in its tooltip,
+       and nothing else; its row under Effects shows neither. */
+    { name: 'an AC correction changed', redraws: 0,
+      from: () => [{ 'flags.a5e.sheetIsLocked': true }, { __acFix: 1 }],
+      to:   () => ({ __acFix: 3 }) },
+    { name: 'an AC correction changed, unlocked', redraws: 0,
+      from: () => [{ 'flags.a5e.sheetIsLocked': false }, { __acFix: 1 }],
+      to:   () => ({ __acFix: -2 }) },
     /* A flag no rule owns. A name would do, but Foundry trims one, and a
        trailing space is then no change at all — nothing renders, and the
        check would be asking a question nobody asked. */
@@ -240,7 +275,8 @@ try {
     const restore = await ev(`(() => { const a = game.actors.get('${who.id}');
       const r = { 'system.attributes.hp.value': a.system.attributes.hp.value,
                   'system.attributes.hp.temp': a.system.attributes.hp.temp ?? 0,
-                  'flags.world.-=amLivePatchProbe': null };
+                  'flags.world.-=amLivePatchProbe': null,
+                  'flags.a5e.sheetIsLocked': a.flags?.a5e?.sheetIsLocked ?? true };
       if (${JSON.stringify(facts.exertion)} !== null) r['system.attributes.exertion.current'] = a.system.attributes.exertion.current;
       const lv = ${JSON.stringify(facts.slotLevel)};
       if (lv) r['system.spellResources.slots.' + lv + '.current'] = a.system.spellResources.slots[lv].current;
@@ -254,6 +290,7 @@ try {
         .map(id => { const s = a.items.get(id).system; return { __item: id, data: { 'system.equippedState': s.equippedState, 'system.damagedState': s.damagedState, 'system.prepared': s.prepared } }; }); })()`);
 
     for (const c of CASES) {
+      if (ONLY && !c.name.includes(ONLY)) continue;
       if (c.skipUnless === 'exertion' && facts.exertion === null) continue;
       if (c.skipUnless === 'slot' && !facts.slotLevel) continue;
       if (c.skipUnless === 'npcExertion' && facts.type !== 'npc') continue;
@@ -291,6 +328,7 @@ try {
     }
 
     await ev(`window.__am.full(${JSON.stringify(restore)}).then(() => null)`);
+    await ev(`window.__am.full({ __acFix: 0 }).then(() => null)`);
     for (const r of itemRestore ?? []) await ev(`window.__am.full(${JSON.stringify(r)}).then(() => null)`);
   }
 } finally {

@@ -2474,6 +2474,50 @@
   margin: -0.25rem 0 0;
 }
 
+/* Unlocked, the figure is a field (the difference becomes an "AC correction"
+   effect - utils/armorClass.js). It is drawn as the figure it replaces: no
+   box, no spinner, the same face; a gold underline on hover and while typing
+   is the only sign it can be typed into. The cog sits on the badge's corner,
+   where a5e's own sheet puts its own. */
+.tidy5e-sheet.application.a5e-mancer-sheet .ac-container .shield input.ac-value {
+  box-sizing: border-box;
+  width: 2.75rem;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px dashed transparent;
+  border-radius: 0;
+  background: none;
+  background-color: transparent;
+  box-shadow: none;
+  outline: none;
+  /* A field takes the browser's own face and weight, not the badge's */
+  font-family: inherit;
+  font-weight: inherit;
+  text-align: center;
+  field-sizing: fixed;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .ac-container .shield input.ac-value::-webkit-inner-spin-button,
+.tidy5e-sheet.application.a5e-mancer-sheet .ac-container .shield input.ac-value::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .ac-container .shield input.ac-value:is(:hover, :focus) {
+  border-bottom-color: var(--t5e-color-gold, #c9a227);
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .ac-container .am-ac-config {
+  position: absolute;
+  top: -0.125rem;
+  right: 0;
+  z-index: 1;
+}
+
 .tidy5e-sheet.application.a5e-mancer-sheet .ac-container .shield,
 .tidy5e-sheet.application.a5e-mancer-sheet .abilities-size-small .ac-container .shield,
 .tidy5e-sheet.application.a5e-mancer-sheet .abilities-size-compact .ac-container .shield {

@@ -35,6 +35,8 @@
  * actor, in the browser, and any difference is a failed check.
  */
 
+import { ArmorClass } from './armorClass.js';
+
 const MODULE_ID = 'a5e-mancer';
 
 const num = (v, fallback = 0) => {
@@ -157,14 +159,18 @@ const conditions = {
   }
 };
 
-/** Armour class: the figure on the shield. Its breakdown is read on hover, from the actor. */
+/** Armour class: the figure on the shield - a field while unlocked - and the
+    breakdown its tooltip carries. */
 const armorClass = {
   owns: (path) => path === 'system.attributes.ac' || path.startsWith('system.attributes.ac.'),
   apply(sheet, el) {
     const value = el.querySelector('.ac-container .ac-value');
     if (!value) return false;
     const ac = sheet.actor.system?.attributes?.ac;
-    setText(value, ac?.value ?? ac ?? 10);
+    const figure = ac?.value ?? ac ?? 10;
+    if (value.tagName === 'INPUT') setValue(value, figure);
+    else setText(value, figure);
+    setAttr(value.closest('.shield'), 'data-tooltip-html', ArmorClass.breakdown(sheet.actor));
     return true;
   }
 };
@@ -414,6 +420,13 @@ function writtenPaths(sheet, el, options) {
       const id = typeof entry === 'string' ? entry : entry?._id;
       if (!id) return null;
       const effect = sheet.actor.effects?.get(id);
+      /* The armour class correction changing amount: its row draws a name,
+         an icon and a switch, none of which moved; the figure it moves the
+         snapshot brings in. Created or deleted, it is a row - shape. */
+      if (effect && ctx === 'updateeffects' && ArmorClass.correction(sheet.actor) === effect
+          && typeof entry === 'object'
+          && Object.keys(foundry.utils.flattenObject(entry)).every((k) => k === '_id'
+            || k.startsWith('_stats.') || k === 'system.changes' || k.startsWith('system.changes.'))) continue;
       if (effect ? effect.system?.effectType !== 'condition' : !!el.querySelector(`[data-effect-id="${id}"]`)) return null;
     }
     return [];

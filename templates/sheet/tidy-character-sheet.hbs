@@ -158,10 +158,26 @@
                and its number slid off the art. The column states its own
                layout in tidy-a5e.css. --}}
           <div class="ac-container">
-            <div class="shield" data-attribution="attributes.ac" data-tooltip-direction="DOWN">
-              <span class="ac-value color-text-default">{{resources.ac}}</span>
+            {{!-- The figure a5e works out, so behind the lock it can be typed
+                 into: the difference goes into an "AC correction" effect
+                 (utils/armorClass.js). The cog opens a5e's own dialog for the
+                 base formula, as its sheet does. The tooltip says where the
+                 figure comes from. --}}
+            <div class="shield" data-tooltip-html="{{resources.acTip}}" data-tooltip-direction="DOWN">
+              {{#if unlocked}}
+                <input id="am-ac-input" class="ac-value color-text-default am-ac-input" type="number"
+                  step="1" value="{{resources.ac}}" aria-label="Armor Class" />
+              {{else}}
+                <span class="ac-value color-text-default">{{resources.ac}}</span>
+              {{/if}}
               <span class="ac-label font-label-medium color-text-gold">AC</span>
             </div>
+            {{#if unlocked}}
+              <button type="button" class="button button-borderless button-icon-only am-stat-config am-ac-config"
+                data-action="ac-config" data-tooltip="Configure Armor Class" aria-label="Configure Armor Class">
+                <i class="fa-solid fa-cog"></i>
+              </button>
+            {{/if}}
             <div class="ability-labels">
               <span class="label font-label-medium color-text-gold">Score</span>
               <span class="divider"></span>
