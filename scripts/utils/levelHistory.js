@@ -5,6 +5,7 @@ import { LevelUpService } from './levelUpService.js';
 import { SpellService } from './spellService.js';
 import { ManeuverService } from './maneuverService.js';
 import { PackFilter } from './packFilter.js';
+import { GrantRecords } from './grantRecords.js';
 
 /**
  * A character's levels one by one, as Level Up Gateway's builder lists them -
@@ -102,7 +103,7 @@ export class LevelHistory {
     const charOf = (classId, classLevel) =>
       levels.find((l) => l.classId === classId && l.classLevel === classLevel)?.charLevel ?? null;
 
-    const grants = actor.grants?.values ? [...actor.grants.values()] : [];
+    const grants = GrantRecords.of(actor);   // a5e 1.3 or 1.4
     const source = (g) => { try { return g?.itemUuid ? fromUuidSync(g.itemUuid) : null; } catch { return null; } };
     const docs = (g) => (['feature', 'item'].includes(g.grantType) ? (g.documentIds ?? []) : []);
     const parentOf = new Map();

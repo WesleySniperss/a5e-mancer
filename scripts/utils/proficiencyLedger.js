@@ -50,7 +50,10 @@ export class ProficiencyLedger {
       'proficiency:language': 'languages',
       'proficiency:armor':    'armor',
       'proficiency:weapon':   'weapons',
-      'trait:maneuverTraditions': 'traditions'
+      // a5e 1.4 grants a tradition as a proficiency ("tradition:adamantMountain")
+      'proficiency:tradition': 'traditions',
+      'trait:maneuverTraditions': 'traditions',
+      'trait:languages':      'languages'
     }[kind];
     if (path) for (const k of (sys.proficiencies?.[path] ?? [])) have.add(k);
 

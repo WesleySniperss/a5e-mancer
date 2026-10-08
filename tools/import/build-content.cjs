@@ -685,7 +685,11 @@ if (dry) { fs.writeFileSync(path.join(P.CACHE, "content-dry.json"), JSON.stringi
 const r = emit('a5etools-content', docs);
 /* The combat traditions a5e.tools has and a5e does not, for the module to register */
 const TRADITION_LORE_TEXT = {
-  duelingManeuvers: 'Context-specific maneuvers, considered to be basic maneuvers, but only available during duels.'
+  duelingManeuvers: 'Context-specific maneuvers, considered to be basic maneuvers, but only available during duels.',
+  /* a5e.tools has no page for the tradition itself, only its maneuver list;
+     this is the source's own text about it, from The Rhode Wardens (GPG #28).
+     No apostrophes: the writer below turns every quote into one. */
+  unerringHawk: 'The tradition of the Rhode Wardens, the guards and hunters who keep the long roads between nations and hunt down whatever stalks weary travelers. With training in the ways of the Unerring Hawk, young hunters are molded into proper Rhode Wardens. No hunters can hope to rival their aim, and no creature walks their path unnoticed. (Gate Pass Gazette Issue #28)'
 };
 const tradFile = path.join(P.OUT, 'traditions.js');
 fs.writeFileSync(tradFile, `/**

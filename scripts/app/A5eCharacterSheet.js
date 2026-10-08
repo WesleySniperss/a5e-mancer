@@ -11,6 +11,7 @@ import { ConditionSource } from '../utils/conditionSource.js';
 import { ItemRepair } from '../utils/itemRepair.js';
 import { patchInPlace, snapshot } from '../utils/livePatch.js';
 import { ArmorClass } from '../utils/armorClass.js';
+import { GrantRepair } from '../utils/grantRepair.js';
 
 const MODULE_ID = 'a5e-mancer';
 
@@ -166,7 +167,15 @@ export class A5eCharacterSheet extends ActorSheet {
         label: 'Fill In',
         class: 'am-repair-items',
         icon:  'fa-solid fa-book-medical',
-        onclick: () => ItemRepair.run(this.actor)
+        /* The items' missing text, then the grants a5e never recorded and the
+           bonuses counted twice (GrantRepair) - one button for putting a
+           character right, as asked 2026-10-08. */
+        onclick: async () => {
+          const filled = await ItemRepair.run(this.actor, { quiet: true });
+          const fixed = await GrantRepair.run(this.actor);
+          // null: a window was closed unapplied - there was something, so say nothing
+          if (filled === 0 && fixed === 0) ui.notifications.info(`${AM.NAME}: nothing to fill in or put right on ${this.actor.name}.`);
+        }
       });
     }
     return buttons;
@@ -179,6 +188,36 @@ export class A5eCharacterSheet extends ActorSheet {
    * Foundry keeps on :root for each user, so a change of colour shows without
    * a render. See "The colour under the banner" in tidy-a5e.css.
    */
+  /**
+   * The initiative bonus, added up as a5e's roll adds it (ModifierManager,
+   * type "initiative"): the initiative ability's modifier, the initiative
+   * bonuses and that ability's check bonuses - with "simple initiative" off,
+   * as a skill check with no skill; on, as an ability check. a5e 1.4 keeps no
+   * figure for it (attributes.initiative holds the ability and roll modes
+   * only), so the sheet's +0 was what reading one found - reported 2026-10-07
+   * as "initiative has the wrong bonus". A 1.3 figure is used where there is
+   * one. Formulas that roll dice (an expertise die) are left out of the figure.
+   */
+  static initiativeBonus(actor) {
+    const sys = actor?.system ?? {};
+    const init = sys.attributes?.initiative ?? {};
+    const bm = actor?.BonusesManager;
+    if (!bm) return Number(init.mod ?? init.value ?? 0) || 0;
+    const det = (formula) => {
+      const text = String(formula ?? '').trim();
+      if (!text) return 0;
+      try {
+        const roll = new Roll(text, actor.getRollData?.() ?? {});
+        return roll.isDeterministic ? (Number(roll.evaluateSync().total) || 0) : 0;
+      } catch { return 0; }
+    };
+    const ability = init.ability || 'dex';
+    let total = Number(sys.abilities?.[ability]?.mod ?? 0) || 0;
+    try { total += det(bm.getInitiativeBonusFormula?.({ abilityKey: ability })); } catch { /* none */ }
+    try { total += det(bm.getAbilityBonusesFormula?.(ability, 'check')); } catch { /* none */ }
+    return total;
+  }
+
   static playerColorVar(actor) {
     const players = game.users?.filter?.((u) => !u.isGM && actor?.testUserPermission?.(u, 'OWNER')) ?? [];
     const player = players.find((u) => u.character?.id === actor?.id) ?? players[0];
@@ -563,7 +602,7 @@ export class A5eCharacterSheet extends ActorSheet {
       hp: { value: hp.value ?? 0, max: hp.max ?? 0, temp: hp.temp ?? 0, pct: hpPct, color: hpColor },
       ac: sys.attributes?.ac?.value ?? sys.attributes?.ac ?? 10,
       acTip: ArmorClass.breakdown(actor),
-      initiative: sign(sys.attributes?.initiative?.value ?? sys.attributes?.initiative?.mod ?? 0),
+      initiative: sign(A5eCharacterSheet.initiativeBonus(actor)),
       speed: sys.attributes?.movement?.walk?.distance ?? sys.attributes?.movement?.walk ?? sys.attributes?.speed?.value ?? 30,
       exertion: { current: ex.current ?? ex.value ?? 0, max: ex.max ?? 0, pct: exPct,
                   currentPath: `${exBase}.current`, maxPath: `${exBase}.max`,
@@ -1653,8 +1692,9 @@ export class A5eCharacterSheet extends ActorSheet {
     const speeds = entries(sys.attributes?.movement);
     const senses = entries(sys.senses);
 
-    /* Concentration in a5e is a Constitution save plus its own bonus, and is
-       rolled by actor.rollConcentrationCheck rather than by a save. */
+    /* Concentration in a5e is a Constitution save plus its own bonus, rolled
+       as a save of its own kind (saveType 'concentration' - see the
+       concentration-check button). */
     const conMod = abilities.find((a) => a.key === 'con')?.saveMod ?? 0;
     const concBonus = Number(
       sys.bonuses?.concentration ?? sys.attributes?.concentration?.bonus ?? 0
@@ -1674,7 +1714,7 @@ export class A5eCharacterSheet extends ActorSheet {
 
     return {
       pb:   split(profBonus),
-      init: split(sys.attributes?.initiative?.mod ?? sys.attributes?.initiative?.value ?? 0),
+      init: split(A5eCharacterSheet.initiativeBonus(this.actor)),
       conc: split(conMod + concBonus),
       hp:   { pct: pct(resources.hp.value, resources.hp.max) },
       hd:   {
@@ -1883,9 +1923,13 @@ export class A5eCharacterSheet extends ActorSheet {
     const hasUses = (list) => list.some(item =>
       item?.system?.uses?.max || actionsOf(item).some(x => x?.uses?.max));
 
-    /* Read the way a5e reads it; anything other than 0, 1 or 2 is hidden. */
-    const weightFlag = [0, 1, 2].includes(Number(actor.getFlag('a5e', 'showWeightColumn')))
-      ? Number(actor.getFlag('a5e', 'showWeightColumn')) : 0;
+    /* a5e's own switch, 0 / 1 / 2. Unset it was read as 0, so no character
+       ever saw what anything weighs ("no item weights anywhere", 2026-10-06):
+       unset now shows the column whenever something has a weight, and only a
+       0 written on purpose hides it. */
+    const rawWeightFlag = actor.getFlag('a5e', 'showWeightColumn');
+    const weightFlag = rawWeightFlag === undefined || rawWeightFlag === null ? 1
+      : [0, 1, 2].includes(Number(rawWeightFlag)) ? Number(rawWeightFlag) : 0;
     const anythingWeighs = allObjects.some(i => i.system?.weight);
     const showWeight =
       weightFlag !== 0 && anythingWeighs && (
@@ -1919,9 +1963,26 @@ export class A5eCharacterSheet extends ActorSheet {
       showUses:   hasUses(allObjects),
       showQty:    allObjects.length > 0,
       showWeight,
-      carried:    this.#carriedWeight(actor, items),
+      ...this.#carryState(actor, items),
       isEmpty:    groups.length === 0
     };
+  }
+
+  /**
+   * What is carried against what can be: a5e's calculateCarryCapacity - the
+   * carrying ability's score, times its size's multiplier, times 15, doubled
+   * with its "double carrying capacity" switch. The sheet showed the carried
+   * figure alone, with nothing to read it against.
+   */
+  #carryState(actor, items) {
+    const carried = this.#carriedWeight(actor, items);
+    const ability = actor.getFlag('a5e', 'carryCapacityAbility') || 'str';
+    const score = Number(actor.system?.abilities?.[ability]?.value) || 10;
+    const size = actor.system?.traits?.size || 'med';
+    const mult = Number(CONFIG?.A5E?.carryCapacityMultiplier?.[size] ?? 1) || 1;
+    const capacity = score * mult * (actor.flags?.a5e?.doubleCarryCapacity ? 2 : 1) * 15;
+    const pct = capacity > 0 ? Math.min(100, Math.round((carried / capacity) * 100)) : 0;
+    return { carried, capacity, carriedPct: pct, encumbered: capacity > 0 && carried > capacity };
   }
 
   /* Carried weight, ported from a5e's calculateInventoryWeight.
@@ -4639,13 +4700,13 @@ export class A5eCharacterSheet extends ActorSheet {
 
     el.querySelector('[data-action="concentration-check"]')?.addEventListener('click', async (e) => {
       e.preventDefault();
-      /* a5e rolls this itself; fall back to a Constitution save if the system
-         ever renames the method, so the button is never simply dead. */
-      if (typeof this.actor.rollConcentrationCheck === 'function') {
-        await this.actor.rollConcentrationCheck();
-      } else if (typeof this.actor.rollSavingThrow === 'function') {
-        await this.actor.rollSavingThrow('con');
-      }
+      /* a5e rolls concentration as a Constitution save of its own kind, as its
+         [[/save concentration]] enricher does: the save type is what brings in
+         the concentration bonus, proficiency and expertise die - Martial
+         Caster Stance's among them. a5e has no rollConcentrationCheck (only a
+         label of that name); the button asked for it first and fell through to
+         a bare Constitution save, without any of them. */
+      await this.actor.rollSavingThrow?.('con', { saveType: 'concentration' });
     });
   }
 
@@ -5191,6 +5252,11 @@ export class A5eCharacterSheet extends ActorSheet {
   /** The carried weight in the inventory footer. */
   liveCarried() {
     return this.#carriedWeight(this.actor, this.actor.items.contents);
+  }
+
+  /** The carried figure with its bar and over-capacity state, for livePatch. */
+  liveCarryState() {
+    return this.#carryState(this.actor, this.actor.items.contents);
   }
 
   /** The prepared count on the Magic tab, or null where it is not drawn. */

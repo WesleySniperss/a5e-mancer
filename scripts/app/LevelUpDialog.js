@@ -19,6 +19,12 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     super(options);
     this.actor = actor;
 
+    /* Each window opens on the level being taken: the plan of the levels ahead
+       closed, the levels had folded. Left open from the last window, the plan
+       sat under every level-up after it - "very confusing" (2026-10-08). */
+    AM.buildFuture = false;
+    AM.buildPastCollapsed ??= true;
+
     // Levelup mode state
     this._mode            = 'levelup';
     this._hpMethod        = 'average';
@@ -292,6 +298,15 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
       this.#addManeuverBrowserContext(context, maneuverInfo);
       this.#addSpellBrowserContext(context, spellInfo);
+      /* The new class's grants, asked here as at any other level - trimmed to
+         a second class's share first. Without this a5e's window opened for
+         every new class and this page offered nothing to pick. */
+      if (newClass) {
+        await this.#addLevelGrantContext(context, null, 1, { multiclass: newClass });
+        await this.#addBonusSpellContext(context, { id: `mc:${newClass.uuid}`, name: newClass.name }, 1, newTotalLevel);
+      } else {
+        AM.levelUpGrants = null;
+      }
       const cards = this.#levelCards();
       const showAhead = !!AM.buildFuture && !!newClass && newTotalLevel < 20;
       let ahead = null;
@@ -949,12 +964,15 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
    * a5e's window never opens. Only engages when every grant can be accounted
    * for; otherwise AM.levelUpGrants stays null and a5e handles it as before.
    */
-  async #addLevelGrantContext(context, selectedClass, newLevel) {
+  async #addLevelGrantContext(context, selectedClass, newLevel, { multiclass = null } = {}) {
     AM.levelUpGrants = null;
-    if (!AM.deferToSystemGrants || !selectedClass) return;
+    if (!AM.deferToSystemGrants || (!selectedClass && !multiclass)) return;
 
-    const classItem = this.actor.items.get(selectedClass.id);
+    // A new class is not on the character yet: its trimmed data, as a document
+    const classItem = multiclass ? await this.#multiclassSource(multiclass.uuid)
+                                 : this.actor.items.get(selectedClass.id);
     if (!classItem) return;
+    const hitDie = (selectedClass ?? multiclass)?.hitDie;
 
     try {
       // a5e gates 'character' grants on total level and the rest on class level,
@@ -1014,10 +1032,16 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         features: tree.features,
         choices:  this._levelChoices ?? {}
       };
+      if (multiclass) {
+        store.multiclass = true;
+        store.classUuid  = multiclass.uuid;
+        const opts = classItem.system?.spellcasting?.ability?.options ?? [];
+        store.spellcastingAbility = opts[0] ?? classItem.system?.spellcasting?.ability?.base ?? '';
+      }
       // The per-level hit points a5e would have written, without CON — it adds
       // CON x level separately when deriving max HP.
       store.charLevel = context.newTotalLevel;
-      store.hpValue   = Math.max(1, LevelUpDialog.#hpFor(this, selectedClass.hitDie, 0));
+      store.hpValue   = Math.max(1, LevelUpDialog.#hpFor(this, hitDie, 0));
 
       // The archetype level. a5e asks for this at the end of its grant routine,
       // so suppressing that routine without asking here would let the level pass
@@ -1136,6 +1160,22 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     }
   }
 
+  /**
+   * The class a multiclass level adds, as the document it will be: trimmed to
+   * a second class's share (LevelUpService.multiclassData) and prepared, so
+   * its grants read like any class's. Kept per uuid while the window is open.
+   */
+  async #multiclassSource(uuid) {
+    if (this._mcSource?.uuid === uuid) return this._mcSource.doc;
+    const doc = await fromUuid(uuid);
+    if (!doc) return null;
+    const { data } = LevelUpService.multiclassData(doc, uuid, { log: false });
+    const ItemClass = CONFIG.Item.documentClass;
+    const temp = new ItemClass(foundry.utils.deepClone(data));
+    this._mcSource = { uuid, doc: temp };
+    return temp;
+  }
+
   /* ── Context helpers ─────────────────────────────────────────────────── */
 
   #addManeuverBrowserContext(context, maneuverInfo) {
@@ -1241,8 +1281,13 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
 
     context.spellsLoaded = !!this._allSpellsData;
     if (this._allSpellsData) {
+      /* The spells this level's own features hand out count as known too: a
+         wizard taken as a second class gets Prestidigitation from its
+         Spellcasting feature, and picking it in the list as well made two. */
+      const known = SpellService.getActorSpellKeys(this.actor);
+      for (const name of this._featureSpellNames ?? []) known.add(name);
       const result = LevelUpDialog.#filterSpells(this._allSpellsData, spellInfo, this._spellFilter, this._selectedCantripUuids, this._selectedSpellUuids,
-        SpellService.getActorSpellKeys(this.actor));
+        known);
       context.visibleSpells        = result.spells;
       context.spellLevelPills      = result.levelPills;
       context.spellSchoolPills     = result.schoolPills;
@@ -1548,8 +1593,30 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
     return [...new Set([
       ...(ManeuverService.getActorTraditions?.(dialog.actor) ?? []),
       ...known,
+      ...LevelUpDialog.#grantedTraditions(dialog),
       ...(dialog._selectedTraditions ?? [])
     ])];
+  }
+
+  /**
+   * The traditions this level's grants hand over: the fixed ones, and those
+   * picked in the grant step above (a class's Combat Maneuvers feature asks
+   * for them). Open to the maneuver step as much as the ones already had -
+   * counted in one step and not the other, a rogue could take two traditions
+   * in the grant and maneuvers from two more below it (found 2026-10-09).
+   */
+  static #grantedTraditions(dialog) {
+    const store = AM.levelUpGrants;
+    if (!store?.absorb) return [];
+    // The answers of another class than the one being taken are not this level's
+    if (dialog._mode === 'multiclass' ? store.classUuid !== dialog._newClassUuid : !!store.multiclass) return [];
+    const out = [];
+    for (const m of [...(store.grants ?? []), ...(store.features ?? [])]) {
+      const tradition = (m?.type === 'proficiency' && m.proficiencyType === 'tradition')
+        || (m?.type === 'trait' && m.traitType === 'maneuverTraditions');
+      if (tradition) out.push(...(m.base ?? []), ...(store.choices?.[m.id] ?? []));
+    }
+    return out;
   }
 
   static #filterManeuvers(allData, maxDegree, traditionFilter, selectedUuids, knownKeys = new Set()) {
@@ -2749,6 +2816,19 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       throw new Error(game.i18n.localize(dialog._mode === 'build' ? 'am.levels.pick-next' : 'am.leveldown.use-button'));
     }
 
+    /* The level's answers are built as the page draws, and a class's grant tree
+       takes seconds to read on a slow server. Submitted before the draw that
+       builds them finished, they were missing and the level went to a5e's
+       window instead. Built here when missing, or when they belong to another
+       class than the one being taken. */
+    const store = AM.levelUpGrants;
+    const stale = !store
+      || (dialog._mode === 'multiclass' ? store.classUuid !== dialog._newClassUuid : !!store.multiclass);
+    if (stale && AM.deferToSystemGrants && (dialog._mode === 'levelup' || dialog._mode === 'multiclass')) {
+      try { await dialog._prepareContext({}); }
+      catch (err) { AM.log(2, 'Level-up answers could not be rebuilt before applying:', err); }
+    }
+
     /* What this level-up adds is recorded on it, so lowering the level later
        knows which maneuvers, spells and feat came with which level. */
     const itemsBefore = new Set(dialog.actor.items.map(i => i.id));
@@ -2768,7 +2848,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         : Math.max(1, LevelUpDialog.#hpFor(dialog, dialog._newClassHitDie, conMod));
 
       const success = await LevelUpService.applyMulticlass(
-        dialog.actor, dialog._newClassUuid, hpGained
+        dialog.actor, dialog._newClassUuid, hpGained, AM.levelUpGrants
       );
       if (!success) return;
 
@@ -2893,9 +2973,25 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         done:  new Set(this.actor.getFlag(AM.ID, ProseSpells.FLAG) ?? []),
         known: new Set(this.actor.items.filter(i => i.type === 'spell').map(i => i.name.toLowerCase()))
       });
-      this._bonusCache = { key: cacheKey, choices };
+      // The ones the new features give outright, for the spell list to mark known
+      const auto = new Set();
+      for (const { doc, level } of gained) {
+        const html = typeof doc.system?.description === 'string' ? doc.system.description : (doc.system?.description?.value ?? '');
+        for (const g of ProseSpells.parse(html, lookup, { classKey: ProseSpells.classKeyOf(doc), name: doc.name }).auto) {
+          if (!g.atLevel || g.atLevel <= level) auto.add(String(g.name).toLowerCase());
+        }
+      }
+      this._bonusCache = { key: cacheKey, choices, auto };
     }
     this._bonusSpellChoices = this._bonusCache.choices;
+    const autoNames = this._bonusCache.auto ?? new Set();
+    if ([...autoNames].join('|') !== [...(this._featureSpellNames ?? [])].join('|')) {
+      this._featureSpellNames = autoNames;
+      // A pick of one of them is dropped: the feature gives it anyway
+      const drop = (list) => list.filter(u => !autoNames.has(String(this._allSpellsData ? [...this._allSpellsData.values()].flat().find(sp => sp.uuid === u)?.name ?? '' : '').toLowerCase()));
+      this._selectedCantripUuids = drop(this._selectedCantripUuids);
+      this._selectedSpellUuids   = drop(this._selectedSpellUuids);
+    }
     context.bonusSpellChoices = ProseSpells.decorate(this._bonusSpellChoices, this._bonusSpellPicks, 'luToggleBonusSpell');
   }
 

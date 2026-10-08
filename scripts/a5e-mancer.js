@@ -12,6 +12,9 @@ import { HiddenSources } from './utils/hiddenSources.js';
 import { ConditionSource } from './utils/conditionSource.js';
 import { ItemRepair } from './utils/itemRepair.js';
 import { FreshStyles } from './utils/freshStyles.js';
+import { A5eFixes } from './utils/a5eFixes.js';
+import { TokenVision } from './utils/tokenVision.js';
+import { FeatureAutomation } from './utils/featureAutomation.js';
 
 /* AM moved to scripts/am.js, where it imports nothing and so cannot be part
    of an import cycle. Re-exported here so the old path keeps resolving. */
@@ -127,6 +130,15 @@ Hooks.once('setup', () => {
    enrichment runs the first time the browser is opened, keeping it off the
    world-load critical path. See compendiumIndexFix.js. */
 Hooks.once('ready', () => { installCompendiumFilterFix(); });
+
+/* Faults in a5e itself, each repaired only while a5e still has it (a5eFixes.js). */
+Hooks.once('ready', () => { try { A5eFixes.install(); } catch (err) { AM.log(1, 'a5e fixes failed:', err); } });
+
+/* A character's darkvision carried to their token (tokenVision.js). */
+Hooks.once('ready', () => { try { TokenVision.installHooks(); } catch (err) { AM.log(1, 'Token vision hooks failed:', err); } });
+
+/* Features whose bonuses a5e left in the text (featureAutomation.js). */
+Hooks.once('ready', () => { try { FeatureAutomation.install(); } catch (err) { AM.log(1, 'Feature automation failed:', err); } });
 
 /* Spells features name in their text; see ProseSpells. */
 Hooks.once('ready', () => {

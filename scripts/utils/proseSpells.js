@@ -597,8 +597,23 @@ export class ProseSpells {
    * Add every spell the actor's features owe it by now and have not given it.
    * @returns {Promise<string[]>} names of the spells added
    */
+  /* One at a time per character. The hook above schedules a pass 750ms after
+     a feature arrives, and the builder and the level-up run one of their own
+     when they finish; two passes overlapping both found the spell missing and
+     both added it - two Prestidigitations on a wizard taken as a second class
+     (reported 2026-10-06). Queued, the second sees what the first added. */
+  static #running = new Map();
+
   static async ensure(actor) {
     if (!actor?.items) return [];
+    const prior = this.#running.get(actor.id) ?? Promise.resolve();
+    const run = prior.catch(() => {}).then(() => this.#ensure(actor));
+    this.#running.set(actor.id, run);
+    try { return await run; }
+    finally { if (this.#running.get(actor.id) === run) this.#running.delete(actor.id); }
+  }
+
+  static async #ensure(actor) {
     const lookup = await this.lookup();
     const granted = new Set(actor.getFlag?.(AM.ID, this.FLAG) ?? []);
     const have = new Set(actor.items.filter(i => i.type === 'spell').map(i => i.name.toLowerCase()));

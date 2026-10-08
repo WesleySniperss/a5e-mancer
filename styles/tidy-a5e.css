@@ -353,7 +353,24 @@
   align-items: center;
   gap: var(--t5e-size-2x);
   white-space: nowrap;
+  position: relative;
+  padding-block-end: 0.2rem;
 }
+
+/* How full the load is, under the figure; red past capacity (a5e: encumbered) */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-carried::after {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-end: 0;
+  height: 2px;
+  width: var(--am-carry-pct, 0%);
+  background: var(--t5e-color-gold, #c9a227);
+  border-radius: 1px;
+}
+
+.tidy5e-sheet.application.a5e-mancer-sheet .am-carried.am-over::after { background: #d94b4b; width: 100%; }
+.tidy5e-sheet.application.a5e-mancer-sheet .am-carried.am-over .am-a5e-value { color: #e05a4f; }
 
 /* A container's contents sit under it in the summary, one step further in
    than the actions table so the nesting reads at a glance. */

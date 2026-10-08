@@ -793,6 +793,15 @@
     cursor: not-allowed;
   }
 
+  /* Already the character's - greyed, with a check, still unpickable once picked */
+  button.tag.am-grant-held {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  button.tag.am-grant-held::after {
+    content: " \2713";
+  }
+
   .am-grant-cap {
     display: block;
     margin-bottom: 0.35rem;
@@ -1678,7 +1687,9 @@ button.lu-levels-title {
   color: var(--am-text-dim);
 
   li { display: flex; align-items: baseline; gap: 0.4rem; min-width: 0; overflow-wrap: anywhere; }
-  strong { color: var(--am-text-primary); font-weight: 600; }
+  /* The source keeps its width: a long list beside it squeezed "Rogue" to a
+     column of syllables */
+  strong { color: var(--am-text-primary); font-weight: 600; flex: none; }
 }
 
 /* The level a benefit came at */
@@ -3546,3 +3557,160 @@ button.lu-levels-title {
    The height now comes from .am-card itself; only the clipping differs here. */
 .am-grant-block .am-card { overflow: visible; }
 .am-choose-label { margin: 0.35rem 0 0.2rem; font-weight: 600; }
+
+/* ── Fill In: grants never applied (utils/grantRepair.js) ──────────────── */
+.am-repair {
+  display: grid;
+  gap: 0.4rem;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-inline-end: 0.25rem;
+
+  h4 { margin: 0.4rem 0 0.1rem; font-size: 0.85rem; }
+  ul { margin: 0; padding-inline-start: 1.1rem; font-size: 0.8rem; }
+  .am-repair-ask {
+    display: grid;
+    gap: 0.3rem;
+    padding: 0.35rem 0.45rem;
+    border: 1px solid var(--color-border-light-2, rgba(255, 255, 255, 0.12));
+    border-radius: 6px;
+  }
+  .am-repair-ask-head { font-size: 0.8rem; }
+}
+
+/* ── Level-up window: this level, step by step ───────────────────────────
+   Reported 2026-10-08: confusing - the levels had stood at the top and the
+   plan of the levels ahead under the level being taken, all in one look -
+   and "not stylish at all". The level being taken comes first now, its
+   sections numbered as steps under a heading that says which level it is;
+   the levels had follow, folded; the plan last, closed and framed apart. */
+.am-levelup-dialog {
+  .lu-current {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    counter-reset: lu-step;
+    margin-block-start: 0.6rem;
+
+    > hr { display: none; }
+
+    /* Every section of this level is a step: its number where the icon was */
+    section > h3 {
+      gap: 0.55rem;
+      font-size: 1.02rem;
+      letter-spacing: 0.02em;
+      > i:first-child { display: none; }
+      &::before {
+        counter-increment: lu-step;
+        content: counter(lu-step);
+        flex: none;
+        display: inline-grid;
+        place-items: center;
+        width: 1.45rem;
+        height: 1.45rem;
+        border-radius: 50%;
+        border: 1px solid var(--am-gold);
+        background: radial-gradient(circle at 35% 30%, rgba(var(--am-gold-rgb), 0.35), rgba(var(--am-gold-rgb), 0.08));
+        color: var(--am-gold);
+        font-size: 0.78rem;
+        font-weight: 800;
+        line-height: 1;
+        box-shadow: 0 0 10px rgba(var(--am-gold-rgb), 0.18);
+      }
+    }
+  }
+
+  /* Which level this is, before anything is asked */
+  .lu-hero {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.4rem 0.9rem;
+    padding: 0.55rem 0.9rem;
+    border-radius: 10px;
+    border: 1px solid var(--am-gold-border);
+    background:
+      linear-gradient(100deg, rgba(var(--am-gold-rgb), 0.16), rgba(var(--am-gold-rgb), 0.02) 60%),
+      var(--am-bg-panel);
+    box-shadow: var(--am-shadow-gold);
+  }
+  .lu-hero-level {
+    font-size: 1.55rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    color: var(--am-gold);
+    text-shadow: 0 0 14px rgba(var(--am-gold-rgb), 0.35);
+  }
+  .lu-hero-class {
+    font-size: 1.02rem;
+    font-weight: 600;
+    color: var(--am-text-primary);
+    i { color: var(--am-gold); font-size: 0.8em; margin-inline: 0.15rem; }
+  }
+
+  /* The step cards: a little depth, a gold rule under the heading */
+  .lu-current > section.lu-section,
+  .lu-current > .lu-section {
+    border: 1px solid rgba(var(--am-gold-rgb), 0.16);
+    border-radius: 10px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.012));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 6px 16px rgba(0, 0, 0, 0.28);
+    padding: 0.7rem 0.95rem 0.9rem;
+  }
+
+  /* The levels had: one quiet row until opened */
+  > .window-content > .lu-past-levels,
+  .lu-past-levels {
+    margin-block-start: 0.9rem;
+    background: transparent !important;
+    border: 1px solid rgba(255, 255, 255, 0.07) !important;
+    border-radius: 10px;
+    padding: 0.4rem 0.7rem !important;
+    .lu-past-toggle { color: var(--am-text-dim); font-size: 0.9rem; }
+    .lu-past-toggle:hover { color: var(--am-gold); }
+  }
+
+  /* The plan: framed apart, dashed, said to apply nothing */
+  .lu-ahead {
+    margin-block-start: 0.6rem;
+    background: transparent !important;
+    border: 1px dashed rgba(var(--am-gold-rgb), 0.3) !important;
+    border-radius: 10px;
+  }
+  .lu-ahead-open { background: rgba(var(--am-gold-rgb), 0.03) !important; }
+  .lu-ahead-head {
+    margin: 0 0 0.3rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--am-gold);
+    opacity: 0.85;
+  }
+  .lu-ahead .lu-build-toggle {
+    background: transparent;
+    border: 1px solid var(--am-gold-border);
+    border-radius: 999px;
+    color: var(--am-gold);
+    &:hover { background: rgba(var(--am-gold-rgb), 0.12); }
+  }
+  /* the plan's own "Levels ahead" divider would say it twice */
+  .lu-ahead .lu-build-divider { display: none; }
+
+  /* The way out and the way on, always in reach */
+  .lu-footer {
+    position: sticky;
+    bottom: calc(-1 * var(--am-spacing-md));
+    z-index: 3;
+    margin-inline: calc(-1 * var(--am-spacing-md));
+    padding: 0.65rem var(--am-spacing-md);
+    background: linear-gradient(180deg, rgba(14, 12, 9, 0.85), var(--am-bg-app) 45%);
+    border-block-start: 1px solid var(--am-gold-border);
+    box-shadow: 0 -10px 18px rgba(0, 0, 0, 0.35);
+  }
+  .lu-submit {
+    border-radius: 999px;
+    padding: 0.45rem 1.4rem;
+    box-shadow: 0 0 14px rgba(var(--am-gold-rgb), 0.25);
+  }
+}

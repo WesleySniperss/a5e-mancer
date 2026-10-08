@@ -1,5 +1,6 @@
 import { AM } from '../am.js';
 import { CLASS_MANEUVER_TABLES } from './maneuverService.js';
+import { ProficiencyLedger } from './proficiencyLedger.js';
 
 /**
  * Augments the a5e system's own "Apply Grants" dialog without replacing it.
@@ -61,9 +62,10 @@ export class GrantDialogEnhancer {
       list.dataset.amEnhanced = '1';
 
       const grant = this.#matchGrant(grants, tags);
+      this.#markHeld(list, tags, grant, grants, actor);
       if (!grant) continue;
 
-      const traitType = grant.traits?.traitType ?? '';
+      const traitType = grant.config?.traits?.traitType || grant.traits?.traitType || '';
       const isTradition = traitType === 'maneuverTraditions';
       const isSchool    = traitType === 'spellSchools' || this.#looksLikeSchools(tags);
       if (!isTradition && !isSchool) continue;
@@ -73,6 +75,80 @@ export class GrantDialogEnhancer {
     }
   }
 
+  /* ── what the character already has ───────────────────── */
+
+  /**
+   * Options the character would gain nothing by taking: a skill they are
+   * already proficient in, a language they already speak - or one another
+   * grant in this same window hands out outright (a5e's culture lists offer
+   * Common to a character the same culture already gives Common). Reported
+   * 2026-10-06: "the windows do not take out the skills I already have, so
+   * the same one can be picked - a wasted skill". They are greyed, say why,
+   * and refuse the click; one already picked can still be unpicked.
+   *
+   * a5e 1.4 writes a proficiency option as "kind:key" (skill:ath); 1.3 and
+   * every trait list as the bare key.
+   */
+  static #markHeld(list, tags, grant, grants, actor) {
+    const prefixed = tags.every(t => /^[a-zA-Z]+:/.test(t.value));
+    let kind = '';
+    let keyOf = (v) => v;
+    if (prefixed) {
+      const prefix = tags[0].value.split(':')[0];
+      if (!tags.every(t => t.value.startsWith(prefix + ':'))) return;
+      kind = `proficiency:${prefix}`;
+      keyOf = (v) => v.slice(prefix.length + 1);
+    } else if (grant) {
+      const type = grant.type || grant.grantType;
+      if (type === 'trait') kind = `trait:${grant.config?.traits?.traitType || grant.traits?.traitType || ''}`;
+      else if (type === 'proficiency') kind = `proficiency:${grant.proficiencyType ?? ''}`;
+    }
+    if (!kind || kind.endsWith(':')) return;
+
+    const held = new Set(actor ? ProficiencyLedger.onActor(actor, kind) : []);
+    for (const k of this.#basesOf(grants, kind)) held.add(k);
+    if (!held.size) return;
+
+    const marked = tags.filter(t => held.has(keyOf(t.value)));
+    if (!marked.length) return;
+    const tip = game.i18n.localize('am.grants.already-held');
+    for (const tag of marked) {
+      tag.classList.add('am-grant-held');
+      tag.dataset.tooltip = tip;
+    }
+    // Capture phase, as #applyLimits: a5e's handler never sees a refused pick
+    list.addEventListener('pointerdown', (event) => {
+      const tag = event.target.closest?.('button.tag[value]');
+      if (!tag || !list.contains(tag) || !tag.classList.contains('am-grant-held')) return;
+      if (this.#isActive(tag)) return;                   // unpicking is always fine
+      event.preventDefault();
+      event.stopPropagation();
+      ui.notifications.warn(tip);
+    }, true);
+  }
+
+  /** The keys every grant in the window hands out outright, of one kind. */
+  static #basesOf(grants, kind) {
+    const out = new Set();
+    const [group, sub] = kind.split(':');
+    for (const g of grants ?? []) {
+      const type = g?.type || g?.grantType;
+      if (group === 'proficiency' && type === 'proficiency') {
+        for (const k of [...(g.config?.keys?.base ?? [])]) {
+          const [p, key] = String(k).includes(':') ? String(k).split(':') : [g.proficiencyType, String(k)];
+          if (p === sub) out.add(key);
+        }
+        if (!g.config?.keys?.base?.size && !g.config?.keys?.base?.length && g.proficiencyType === sub) {
+          for (const k of g.keys?.base ?? []) out.add(k);
+        }
+      } else if (group === 'trait' && type === 'trait') {
+        const traits = g.config?.traits ?? g.traits ?? {};
+        if ((traits.traitType ?? '') === sub) for (const k of traits.base ?? []) out.add(k);
+      }
+    }
+    return out;
+  }
+
   /* ── limits ───────────────────────────────────────────── */
 
   /**
@@ -80,8 +156,9 @@ export class GrantDialogEnhancer {
    * traditions, the class table's allowed-tradition list.
    */
   static #applyLimits(list, tags, grant, actor, app, isTradition) {
-    const base  = grant.traits?.base ?? [];
-    const total = Number(grant.traits?.total ?? 0);
+    const traits = grant.config?.traits ?? grant.traits ?? {};
+    const base  = traits.base ?? [];
+    const total = Number(traits.total ?? 0);
     // 0 total with no base means the grant states no allowance — don't invent one.
     const cap = (total > 0 || base.length) ? base.length + total : Infinity;
 
@@ -215,8 +292,9 @@ export class GrantDialogEnhancer {
 
     let best = null, bestScore = 0;
     for (const grant of grants) {
-      if (grant?.grantType !== 'trait') continue;
-      const opts = [...(grant.traits?.options ?? []), ...(grant.traits?.base ?? [])];
+      if ((grant?.type || grant?.grantType) !== 'trait') continue;
+      const traits = grant.config?.traits ?? grant.traits ?? {};
+      const opts = [...(traits.options ?? []), ...(traits.base ?? [])];
       if (!opts.length) continue;
       const score = opts.filter(o => values.has(o)).length;
       if (score > bestScore) { best = grant; bestScore = score; }

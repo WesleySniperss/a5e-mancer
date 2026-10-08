@@ -2,6 +2,7 @@ import { AM } from '../am.js';
 import { MAGIC_MANEUVERS, MM_SCHOOLS, MM_PROGRESSION } from '../data/magicManeuvers.js';
 import { indexFieldsFor } from './compendiumIndexFix.js';
 import { GrantAbsorber } from './grantAbsorber.js';
+import { grantsToV14 } from './grantFormat.js';
 
 /* One icon each, from Foundry's own set as a5e's maneuvers are. All of them
    shared one rune before, so in the compendium browser and the sidebar the
@@ -57,7 +58,7 @@ const MM_ICONS = {
 export class MagicManeuverPack {
 
   static PACK_NAME = 'a5e-mancer-magic-maneuvers';
-  static VERSION   = 12;         // bump to force a rebuild after data changes
+  static VERSION   = 13;         // bump to force a rebuild after data changes (13: a5e 1.4 grants)
   /* The feature that gives a magic maneuver caster its exertion pool, kept
      under one id so a character's copy is always recognisable. */
   static FEATURE_ID = 'amMagicManeuvers';
@@ -302,6 +303,11 @@ export class MagicManeuverPack {
    * larger pool rather than adding them, so a fighter-wizard keeps one pool.
    */
   static featureData() {
+    // In a5e 1.3's shape and 1.4's - see grantFormat.js
+    return grantsToV14(this.#featureData());
+  }
+
+  static #featureData() {
     const ord = (n) => `${n}${n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'}`;
     const rows = MM_PROGRESSION.map(r =>
       `<tr><td>${ord(r.level)}</td><td>${r.known}</td><td>${r.schools}</td><td>${ord(r.maxDegree)}</td></tr>`).join('');

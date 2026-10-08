@@ -100,13 +100,33 @@
     {{#if this.empty}}<p class="am-hint">{{localize 'am.build.nothing'}}</p>{{/if}}
   </section>
 {{/inline}}
+{{!-- The levels the character has, with what each gave - folded by default,
+      under the level being taken: reported 2026-10-08 that the page was
+      confusing with the past at its top and the plan under it. --}}
+{{#*inline "luPast"}}
+  {{#if levelCards.past.length}}
+  <section class="lu-section lu-past-levels">
+    <button type="button" class="am-replace-toggle lu-past-toggle" data-action="luTogglePast">
+      <i class="fa-solid {{#if levelCards.collapsed}}fa-chevron-right{{else}}fa-chevron-down{{/if}}"></i>
+      <i class="fa-solid fa-route"></i> {{localize 'am.build.your-levels' n=levelCards.past.length}}
+      {{#if levelCards.reading}}<i class="fas fa-spinner fa-spin lu-past-spin" data-tooltip="{{localize 'am.build.reading'}}"></i>{{/if}}
+    </button>
+    {{#unless levelCards.collapsed}}
+      <div class="lu-past-list">
+        {{#each levelCards.past}}{{> luLevelCard}}{{/each}}
+      </div>
+    {{/unless}}
+  </section>
+  {{/if}}
+{{/inline}}
 {{!-- The levels still ahead, under the level being taken: each with the class
       planned for it, which a player can change level by level --}}
 {{#*inline "luAhead"}}
   {{#unless levelCards.noAhead}}
   <hr />
-  <section class="lu-section lu-build-more lu-ahead">
+  <section class="lu-section lu-build-more lu-ahead{{#if levelCards.showFuture}} lu-ahead-open{{/if}}">
     {{#if levelCards.showFuture}}
+      <p class="lu-ahead-head"><i class="fa-solid fa-route"></i> {{localize 'am.build.ahead-title'}}</p>
       {{#if levelCards.loading}}
         <p class="am-hint"><i class="fas fa-spinner fa-spin"></i> {{localize 'am.build.loading'}}</p>
       {{/if}}
@@ -423,23 +443,11 @@
   {{!-- ═══════════════════════════════════════════════════════ MULTICLASS MODE --}}
   {{else if (eq mode 'multiclass')}}
 
-  {{!-- The levels the character has, with what each gave - the class's own
-        features as well as what a5e recorded. Folds away; remembered. --}}
-  {{#if levelCards.past.length}}
-  <section class="lu-section lu-past-levels">
-    <button type="button" class="am-replace-toggle lu-past-toggle" data-action="luTogglePast">
-      <i class="fa-solid {{#if levelCards.collapsed}}fa-chevron-right{{else}}fa-chevron-down{{/if}}"></i>
-      <i class="fa-solid fa-route"></i> {{localize 'am.build.your-levels' n=levelCards.past.length}}
-      {{#if levelCards.reading}}<i class="fas fa-spinner fa-spin lu-past-spin" data-tooltip="{{localize 'am.build.reading'}}"></i>{{/if}}
-    </button>
-    {{#unless levelCards.collapsed}}
-      <div class="lu-past-list">
-        {{#each levelCards.past}}{{> luLevelCard}}{{/each}}
-      </div>
-    {{/unless}}
-  </section>
-  {{/if}}
-
+  <div class="lu-current">
+  <div class="lu-hero">
+    <span class="lu-hero-level">{{localize 'am.levelup.hero-level' n=newTotalLevel}}</span>
+    <span class="lu-hero-class">{{#if newClass}}{{newClass.name}} 1{{else}}{{localize 'am.levelup.hero-new-class'}}{{/if}}</span>
+  </div>
   <section class="lu-section">
     <h3><i class="fa-solid fa-code-branch"></i> {{localize 'am.levelup.multiclass-title'}}</h3>
     <p class="am-hint">{{localize 'am.levelup.multiclass-hint'}}</p>
@@ -581,6 +589,15 @@
   </section>
   {{/unless}}
 
+  {{!-- The new class's grants - a second class's share of them - asked here
+        as at any level, so a5e's window does not open (#addLevelGrantContext). --}}
+  {{#if hasBgGrants}}
+  <hr />
+  <section class="lu-section">
+    {{> am-item-grants}}
+  </section>
+  {{/if}}
+
   {{!-- Maneuvers (multiclass): a section per kind taught - combat traditions and
         magic schools apart. See partial-maneuver-picker.hbs. --}}
   {{#if maneuverInfo.newManeuversToLearn}}
@@ -610,28 +627,21 @@
   {{/unless}}
 
   {{/if}}{{!-- /newClass --}}
+  </div>{{!-- /lu-current --}}
 
+  {{> luPast}}
   {{> luAhead}}
 
   {{!-- ═══════════════════════════════════════════════════ LEVEL-UP MODE --}}
   {{else}}
 
-  {{!-- The levels the character has, with what each gave - the class's own
-        features as well as what a5e recorded. Folds away; remembered. --}}
-  {{#if levelCards.past.length}}
-  <section class="lu-section lu-past-levels">
-    <button type="button" class="am-replace-toggle lu-past-toggle" data-action="luTogglePast">
-      <i class="fa-solid {{#if levelCards.collapsed}}fa-chevron-right{{else}}fa-chevron-down{{/if}}"></i>
-      <i class="fa-solid fa-route"></i> {{localize 'am.build.your-levels' n=levelCards.past.length}}
-      {{#if levelCards.reading}}<i class="fas fa-spinner fa-spin lu-past-spin" data-tooltip="{{localize 'am.build.reading'}}"></i>{{/if}}
-    </button>
-    {{#unless levelCards.collapsed}}
-      <div class="lu-past-list">
-        {{#each levelCards.past}}{{> luLevelCard}}{{/each}}
-      </div>
-    {{/unless}}
-  </section>
-  {{/if}}
+  {{!-- This level, step by step (numbered in CSS); then the levels had, folded,
+        and the plan ahead, closed until asked for. --}}
+  <div class="lu-current">
+  <div class="lu-hero">
+    <span class="lu-hero-level">{{localize 'am.levelup.hero-level' n=newTotalLevel}}</span>
+    {{#if selectedClass}}<span class="lu-hero-class">{{selectedClass.name}} {{selectedClass.level}} <i class="fa-solid fa-arrow-right"></i> {{newClassLevel}}</span>{{/if}}
+  </div>
 
   {{!-- Class selector --}}
   <section class="lu-section">
@@ -648,12 +658,7 @@
           {{/each}}
         </select>
       </div>
-    {{else}}
-      <p>
-        <strong>{{selectedClass.name}}</strong>
-        {{localize 'am.levelup.current-level'}}: {{selectedClass.level}}
-        → <strong>{{newClassLevel}}</strong>
-      </p>
+    {{!-- One class: the heading above already says which, and to what level --}}
     {{/if}}
 
     <div class="lu-level-badge flex items-center gap-sm">
@@ -1119,7 +1124,9 @@
   {{#if maneuverInfo.newManeuversToLearn}}
     {{#each maneuverSections}}{{> am-maneuver-picker}}{{/each}}
   {{/if}}
+  </div>{{!-- /lu-current --}}
 
+  {{> luPast}}
   {{> luAhead}}
 
   {{/if}}{{!-- /mode toggle --}}

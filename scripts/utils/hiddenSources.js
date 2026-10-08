@@ -29,20 +29,23 @@ import { AM } from '../am.js';
 export class HiddenSources {
 
   /**
-   * The product keys hidden now: what a GM saved, and nothing until one does.
+   * The product keys hidden now: what a GM saved, or - never saved - what
+   * a5e's own window shows ticked, its registered default (Voidrunner's Codex).
    *
-   * a5e registers the setting with Voidrunner's Codex ticked, but its own code
-   * reads the value saved in the world ("…getItem('a5e.disabledCompendiaSources')
-   * ?? []") and not that default - so until the setting is saved, a5e means to
-   * hide nothing. Read the same way here: a world with Psions and Psyknights in
-   * it keeps them until a GM decides otherwise.
+   * a5e's code reads only the saved value ("…getItem(...) ?? []"), so a world
+   * where nobody pressed save hid nothing while the settings window showed
+   * Voidrunner's Codex as hidden. This module read it the same way, on purpose,
+   * until 2026-10-08: "in the builder and the compendium I see its things
+   * everywhere, though I should not". What the window shows is what is hidden
+   * now; a GM who wants it back unticks it and saves.
    */
   static get keys() {
     try {
       const raw = game.settings.storage.get('world')?.getItem('a5e.disabledCompendiaSources');
-      if (raw === null || raw === undefined) return new Set();
-      const value = typeof raw === 'string' ? JSON.parse(raw) : raw;
-      return new Set(Array.isArray(value) ? value : []);
+      let value = raw;
+      if (raw === null || raw === undefined) value = game.settings.get('a5e', 'disabledCompendiaSources');
+      else if (typeof raw === 'string') value = JSON.parse(raw);
+      return new Set(Array.isArray(value) ? value : [...(value ?? [])]);
     } catch { return new Set(); }
   }
 

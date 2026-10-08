@@ -20,7 +20,7 @@ if (!fs.existsSync(path.join(PACKS, 'heritages.json'))) {
 const read = (f) => JSON.parse(fs.readFileSync(path.join(PACKS, f), 'utf8'));
 
 /* What the world has saved - a JSON string - or null when no GM ever saved the
-   setting; a5e's own code reads only this, not the registered default. */
+   setting, when the registered default stands (HiddenSources.keys). */
 let saved = JSON.stringify(['voidrunnersCodex']);
 class Collection extends Map {
   [Symbol.iterator]() { return this.values(); }   // as Foundry's Collection: values, not pairs
@@ -33,7 +33,7 @@ globalThis.foundry = { utils: { hasProperty: () => false, mergeObject: (a, b) =>
 globalThis.game = {
   i18n: { localize: (k) => k, format: (k) => k }, user: { isGM: true }, modules: new Map(),
   settings: {
-    // the registered default, which is NOT what decides - see HiddenSources.keys
+    // the registered default: what decides while nothing is saved - see HiddenSources.keys
     get: (ns, key) => (ns === 'a5e' && key === 'disabledCompendiaSources' ? ['voidrunnersCodex'] : false),
     storage: new Map([['world', { getItem: (key) => (key === 'a5e.disabledCompendiaSources' ? saved : null) }]])
   },
@@ -118,8 +118,8 @@ check('...so a Voidrunner class is not offered, and the core ones are', vc(class
   vc(classes).map(c => c.name).join(', '));
 
 saved = null;
-check('a setting no GM ever saved hides nothing, as a5e reads it - though its window shows Voidrunner\'s Codex ticked',
-  HiddenSources.keys.size === 0 && HiddenSources.filter(vc(classes)).length === vc(classes).length && HiddenSources.drop(fPack) === 0);
+check('a setting no GM ever saved hides what a5e\'s window shows ticked - Voidrunner\'s Codex, its default',
+  HiddenSources.keys.has('voidrunnersCodex') && HiddenSources.filter(vc(classes)).length === 0);
 saved = JSON.stringify([]);
 check('saved empty, nothing is hidden either', HiddenSources.keys.size === 0);
 

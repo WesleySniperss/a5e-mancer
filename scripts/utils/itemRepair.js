@@ -230,12 +230,12 @@ export class ItemRepair {
    * have spent time on, and while the merge is careful it is not something to
    * do to someone's character without showing them the count.
    */
-  static async run(actor, { confirm = true } = {}) {
+  static async run(actor, { confirm = true, quiet = false } = {}) {
     if (!actor) return 0;
 
     const { updates, rows } = await this.plan(actor);
     if (!updates.length) {
-      ui.notifications.info(`${AM.NAME}: nothing to fill in — every item already has its text.`);
+      if (!quiet) ui.notifications.info(`${AM.NAME}: nothing to fill in — every item already has its text.`);
       return 0;
     }
 
@@ -263,7 +263,7 @@ export class ItemRepair {
               : '')
           + `<p>Anything you have edited yourself is kept as it is.</p>`
       }).catch(() => false);
-      if (!ok) return 0;
+      if (!ok) return null;      // declined - not "nothing to fill in"
     }
 
     await actor.updateEmbeddedDocuments('Item', updates);

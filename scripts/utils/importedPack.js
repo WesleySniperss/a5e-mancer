@@ -3,6 +3,7 @@ import { IMPORTED } from '../data/imported/index.js';
 import { GENERATED } from '../data/imported/generated.js';
 import { indexFieldsFor } from './compendiumIndexFix.js';
 import { HiddenSources } from './hiddenSources.js';
+import { documentToV14, GRANT_FORMAT } from './grantFormat.js';
 
 /**
  * The world compendia of content imported from a5e.tools: heritages, cultures,
@@ -88,7 +89,11 @@ export class ImportedPack {
     const written = this.writtenOf(kind);
     const files = this.filesOf(kind);
     const ofFiles = files.map(f => `${f.file}:${f.count}:${f.hash ?? GENERATED.hash}`).join('+');
-    return `${written.length}:${this.#djb2(JSON.stringify(written))}+${this.countOf(kind) - written.length}:${this.#djb2(ofFiles)}`;
+    /* The grant format too, for the Items pack only: its documents are the ones
+       with grants. The monsters and challenges hold none, and rebuilding them
+       for it cost a GM's first load 600-odd documents for nothing. */
+    const format = kind === 'Item' ? `+${GRANT_FORMAT}` : '';
+    return `${written.length}:${this.#djb2(JSON.stringify(written))}+${this.countOf(kind) - written.length}:${this.#djb2(ofFiles)}${format}`;
   }
 
   static get hash() { return this.hashOf('Item'); }
@@ -123,7 +128,9 @@ export class ImportedPack {
       if (generated.length !== count) AM.log(2, `${file} holds ${generated.length} documents, the manifest says ${count}`);
       docs.push(...generated);
     }
-    return docs;
+    /* Written in a5e 1.3's grant shape; a5e 1.4 reads another (grantFormat.js).
+       Both, so the packs read on either. */
+    return docs.map(d => documentToV14(d));
   }
 
   /** The folder a document goes in: its own, or by its type. */

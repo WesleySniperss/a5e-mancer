@@ -32,6 +32,64 @@ import { A5E_MULTICLASS, classKey } from '../data/a5eClassData.js';
  */
 export class MulticlassRules {
 
+  /* ── a5e 1.4 ──────────────────────────────────────────────
+     a5e 1.4 reads a proficiency grant from `config.keys`: base keys and
+     groups of { count, candidates }, every key prefixed with its kind
+     ("skill:ath"). The 1.3 fields (`keys`, `proficiencyType`) are kept,
+     deprecated, on migrated data, and a5e no longer reads them - so trimming
+     only those left the second class with its whole first-class package, and
+     the skill grant added for a class like the wizard, written in 1.3's shape
+     alone, granted nothing ("multiclassing adds no skill", 2026-10-06). Every
+     grant is read through #bucket and written back through #writeBucket, both
+     shapes at once. */
+
+  static #typeOf(grant) { return grant?.type || grant?.grantType || ''; }
+
+  /** skill, tool, weapon… - the prefix of 1.4's keys, else 1.3's field. */
+  static #profType(grant) {
+    const keys = [...(grant?.config?.keys?.base ?? []),
+                  ...(grant?.config?.keys?.options ?? []).flatMap(o => [...(o?.candidates ?? [])])];
+    for (const k of keys) {
+      const i = String(k).indexOf(':');
+      if (i > 0) return String(k).slice(0, i);
+    }
+    return grant?.proficiencyType ?? '';
+  }
+
+  static #isExpertise(grant) {
+    return !!(grant?.config?.isExpertise ?? grant?.isExpertise);
+  }
+
+  /** A proficiency grant's keys as { base, options, total }, plain keys. */
+  static #bucket(grant) {
+    const cfg = grant?.config?.keys;
+    const strip = (k) => { const i = String(k).indexOf(':'); return i > 0 ? String(k).slice(i + 1) : String(k); };
+    const base = [...(cfg?.base ?? [])];
+    const groups = cfg?.options ?? [];
+    if (base.length || groups.length) {
+      return {
+        base: base.map(strip),
+        options: groups.flatMap(g => [...(g?.candidates ?? [])]).map(strip),
+        total: groups.reduce((n, g) => n + (Number(g?.count) || 0), 0)
+      };
+    }
+    const old = grant?.keys ?? {};
+    return { base: [...(old.base ?? [])], options: [...(old.options ?? [])], total: Number(old.total ?? 0) || 0 };
+  }
+
+  /** Write a trimmed bucket back, in both of a5e's shapes. */
+  static #writeBucket(grant, bucket, type = this.#profType(grant)) {
+    grant.keys = { base: [...bucket.base], options: [...bucket.options], total: bucket.total };
+    const pre = (k) => (type && !String(k).includes(':') ? `${type}:${k}` : String(k));
+    grant.config ??= {};
+    grant.config.keys = {
+      base: bucket.base.map(pre),
+      options: bucket.total > 0 && bucket.options.length
+        ? [{ count: bucket.total, candidates: bucket.options.map(pre) }]
+        : []
+    };
+  }
+
   /** The multiclass entry for a class name, or null if the table has no row. */
   static spec(className) {
     return A5E_MULTICLASS[classKey(className)] ?? null;
@@ -72,7 +130,7 @@ export class MulticlassRules {
         continue;
       }
 
-      const label = grant.label || grant.proficiencyType || grant.grantType;
+      const label = grant.name || grant.label || this.#profType(grant) || this.#typeOf(grant);
       if (verdict === 'drop')      { delete grants[id]; result.dropped.push(label); }
       else if (verdict === 'trim') { result.trimmed.push(label); }
     }
@@ -80,7 +138,7 @@ export class MulticlassRules {
     // A class whose entry grants a named skill outright (the wizard's Arcana)
     // needs one even when the item carries no skill proficiency grant to narrow.
     if (spec?.skills?.base?.length && !sawSkillProficiency) {
-      if (this.#addSkillGrant(grants, spec.skills.base, data?.name)) result.trimmed.push('skill');
+      if (this.#addSkillGrant(grants, spec.skills.base.map(k => this.#skillKey(k)), data?.name)) result.trimmed.push('skill');
     }
 
     if (log) {
@@ -100,36 +158,41 @@ export class MulticlassRules {
    * keeps its own proficiencies rather than a guessed slice of them.
    */
   static #verdict(grant, spec, spent) {
-    if (grant?.grantType === 'item') return 'drop';          // no starting equipment
-    if (grant?.grantType !== 'proficiency') return 'keep';   // features, traits, bonuses
+    const grantType = this.#typeOf(grant);
+    if (grantType === 'item') return 'drop';          // no starting equipment
+    if (grantType !== 'proficiency') return 'keep';   // features, traits, bonuses
 
-    const type = grant.proficiencyType;
+    const type = this.#profType(grant);
     if (type === 'savingThrow') return 'drop';
-    if (grant.isExpertise) return 'keep';                    // the Expertise feature
+    if (this.#isExpertise(grant)) return 'keep';             // the Expertise feature
     if (!spec) return 'keep';
 
-    if (type === 'armor')  return this.#narrow(grant.keys, spec.armor);
-    if (type === 'weapon') return this.#narrow(grant.keys, this.#weaponKeys(spec.weapons));
+    // Narrowed on a plain copy, written back in both shapes only when it changed
+    const bucket = this.#bucket(grant);
+    const done = (verdict) => { if (verdict === 'trim') this.#writeBucket(grant, bucket, type); return verdict; };
+
+    if (type === 'armor')  return done(this.#narrow(bucket, spec.armor));
+    if (type === 'weapon') return done(this.#narrow(bucket, this.#weaponKeys(spec.weapons)));
 
     if (type === 'tool') {
       if (spec.tools === 'all') return 'keep';
       if (!spec.tools || spent.has('tool')) return 'drop';
       spent.add('tool');
-      return this.#choose(grant.keys, spec.tools);
+      return done(this.#choose(bucket, spec.tools));
     }
     if (type === 'skill') {
       if (!spec.skills || spent.has('skill')) return 'drop';
       spent.add('skill');
-      return this.#choose(grant.keys, spec.skills);
+      return done(this.#choose(bucket, spec.skills));
     }
     return 'keep';                                           // languages, traditions
   }
 
   /** Skill PROFICIENCY, as opposed to a SkillGrant's skill bonus. */
   static #isSkillProficiency(grant) {
-    return grant?.grantType === 'proficiency'
-        && grant.proficiencyType === 'skill'
-        && !grant.isExpertise;
+    return this.#typeOf(grant) === 'proficiency'
+        && this.#profType(grant) === 'skill'
+        && !this.#isExpertise(grant);
   }
 
   /**
@@ -196,10 +259,22 @@ export class MulticlassRules {
    * Narrow a choice: `total` picks, optionally restricted by `only`, plus any
    * `base` keys granted outright.
    */
+  /** a5e's skill key for a skill named either way - "arcana" and "arc" alike. */
+  static #SKILL_KEYS = {
+    acrobatics: 'acr', animalhandling: 'ani', arcana: 'arc', athletics: 'ath', culture: 'cul',
+    deception: 'dec', engineering: 'eng', history: 'his', insight: 'ins', intimidation: 'itm',
+    investigation: 'inv', medicine: 'med', nature: 'nat', perception: 'prc', performance: 'prf',
+    persuasion: 'per', religion: 'rel', science: 'sci', sleightofhand: 'slt', stealth: 'ste', survival: 'sur'
+  };
+  static #skillKey(k) {
+    return this.#SKILL_KEYS[String(k).toLowerCase().replace(/[^a-z]/g, '')] ?? k;
+  }
+
   static #choose(bucket, choice) {
     if (!bucket) return 'keep';
+    const key = (k) => this.#skillKey(k);
 
-    bucket.base = [...(choice.base ?? [])];
+    bucket.base = [...(choice.base ?? [])].map(key);
     const total = Number(choice.total ?? 0) || 0;
 
     if (total <= 0) {
@@ -209,10 +284,11 @@ export class MulticlassRules {
     }
 
     if (choice.only?.length) {
-      const kept = (bucket.options ?? []).filter(k => choice.only.includes(k));
+      const only = choice.only.map(key);
+      const kept = (bucket.options ?? []).filter(k => only.includes(key(k)));
       // The rule names the skills, so an option list sharing none of them is a
       // mismatched compendium, not a shorter allowance: use the named ones.
-      bucket.options = kept.length ? kept : [...choice.only];
+      bucket.options = kept.length ? kept : only;
     }
 
     bucket.total = Math.min(total, (bucket.options ?? []).length);
@@ -229,12 +305,19 @@ export class MulticlassRules {
   static #addSkillGrant(grants, keys, className) {
     try {
       const id = foundry.utils.randomID();
+      const label = game.i18n.localize('am.levelup.mc-prof-title');
+      // Both shapes: 1.4 reads type, name and config; 1.3 the rest
       grants[id] = {
         _id: id,
+        id,
+        type: 'proficiency',
         grantType: 'proficiency',
         proficiencyType: 'skill',
         keys: { base: [...keys], options: [], total: 0 },
-        label: game.i18n.localize('am.levelup.mc-prof-title'),
+        config: { keys: { base: keys.map(k => `skill:${k}`), options: [] }, isExpertise: false },
+        name: label,
+        label,
+        img: '',
         level: 1,
         levelType: 'class',
         optional: false,
@@ -301,25 +384,25 @@ export class MulticlassRules {
   static #profLines(data) {
     const out = {};
     for (const grant of Object.values(data?.system?.grants ?? {})) {
-      if (grant?.grantType !== 'proficiency') continue;
+      if (this.#typeOf(grant) !== 'proficiency') continue;
       if (this.#pastFirstLevel(grant)) continue;
-      if (grant.isExpertise) continue;                 // a feature, not the starting kit
+      if (this.#isExpertise(grant)) continue;          // a feature, not the starting kit
       const line = this.#lineFor(grant);
       if (!line) continue;
-      (out[grant.proficiencyType] ??= []).push(line);
+      (out[this.#profType(grant)] ??= []).push(line);
     }
     return out;
   }
 
   static #hasEquipment(data) {
     return Object.values(data?.system?.grants ?? {})
-      .some(g => g?.grantType === 'item' && !this.#pastFirstLevel(g));
+      .some(g => this.#typeOf(g) === 'item' && !this.#pastFirstLevel(g));
   }
 
   /** "Light Armor, Shields" / "2 skills from: Culture, History, …" */
   static #lineFor(grant) {
-    const type   = grant.proficiencyType;
-    const bucket = grant.keys ?? {};
+    const type   = this.#profType(grant);
+    const bucket = this.#bucket(grant);
     const parts  = [];
 
     const base = type === 'weapon'

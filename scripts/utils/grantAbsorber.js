@@ -1,6 +1,7 @@
 import { AM } from '../am.js';
 import { applyItemIcon } from '../data/a5eIcons.js';
 import { PackFilter } from './packFilter.js';
+import { FeatureAutomation } from './featureAutomation.js';
 
 /**
  * Lets the builder ask for an item's grant choices itself, so a5e does not have to
@@ -21,6 +22,110 @@ import { PackFilter } from './packFilter.js';
  */
 export class GrantAbsorber {
 
+  /* ── a5e 1.4 ──────────────────────────────────────────────
+     a5e 1.4.0 rewrote grants. What changed for this file:
+       – `type` and `name` replace `grantType` and `label` (the old fields
+         are kept, deprecated, on migrated data - not on grants made since);
+       – a grant's choices live in `config`, and a proficiency's options are
+         groups of { count, candidates } with every key prefixed by its kind -
+         "skill:dec", "weapon:longbow";
+       – getApplyData is async and returns { appliedData, updateData,
+         documents }: the actor update, the record of what was applied - now
+         kept on the ITEM, at system.grants.<id>.applied - and the documents to
+         create. In 1.3 it returned the actor update with the record inside.
+     Reported 2026-10-06 as a pile of symptoms with one cause: cultures adding
+     no languages or skills, heritages no darkvision, a5e's own windows
+     opening during the build. The 1.3 reading found no options in a 1.4
+     proficiency choice, so the item was handed to a5e; and what it did apply
+     went to the actor as { appliedData, updateData }, which a5e ignored. */
+
+  static get #v14() {
+    try { return foundry.utils.isNewerVersion(game.system?.version ?? '0', '1.3.99'); }
+    catch { return false; }
+  }
+
+  /** The grant's type, 1.4's field or 1.3's. */
+  static #type(grant) { return grant?.type || grant?.grantType || ''; }
+
+  /** Its name, likewise. */
+  static #name(grant) { return grant?.name || grant?.label || ''; }
+
+  /** A proficiency grant's kind - skill, tool, weapon - read off its keys in 1.4. */
+  static #profType(grant) {
+    if (this.#type(grant) !== 'proficiency') return '';
+    const keys = [...(grant?.config?.keys?.base ?? []),
+                  ...(grant?.config?.keys?.options ?? []).flatMap(o => [...(o?.candidates ?? [])])];
+    return this.#keyPrefix(keys) || grant?.proficiencyType || '';
+  }
+
+  /** A trait grant's kind - languages, size, damageResistances. */
+  static #traitType(grant) {
+    return grant?.config?.traits?.traitType || grant?.traits?.traitType || '';
+  }
+
+  /** The shared "kind:" of 1.4 proficiency keys, or '' for bare 1.3 keys. */
+  static #keyPrefix(keys) {
+    for (const k of keys ?? []) {
+      const i = String(k).indexOf(':');
+      if (i > 0) return String(k).slice(0, i);
+    }
+    return '';
+  }
+
+  /**
+   * a5e's writer for one grant, its answer in one shape whichever a5e this is:
+   * { actor: update, items: [applied records], documents: [data] }.
+   */
+  static async #applyData(actor, grant, input) {
+    const res = await grant.getApplyData(actor, input);
+    if (!res || typeof res !== 'object') return { actor: {}, items: [], documents: [] };
+    if ('appliedData' in res || 'updateData' in res || 'documents' in res) {
+      return { actor: res.updateData ?? {}, items: res.appliedData ? [res.appliedData] : [],
+               documents: res.documents ?? [] };
+    }
+    return { actor: res, items: [], documents: [] };
+  }
+
+  /**
+   * Merge one grant's actor update into the running one. Lists are unioned, as
+   * a5e's own prepareGrantsApplyData does: two grants each compute the
+   * languages from what the actor has now, and a plain merge would keep only
+   * the last grant's. A trait grant hands back a Set.
+   */
+  static #mergeActorUpdate(into, update) {
+    for (const [key, value] of Object.entries(update ?? {})) {
+      const list = value instanceof Set ? [...value] : value;
+      if (Array.isArray(list) && Array.isArray(into[key])) into[key] = [...new Set([...into[key], ...list])];
+      else into[key] = list;
+    }
+    return into;
+  }
+
+  /* ── for GrantRepair ── */
+  static typeOf(grant) { return this.#type(grant); }
+  static nameOf(grant) { return this.#name(grant); }
+  static isAppliedGrant(grant) { return this.#isApplied(grant); }
+  static appliesAt(grant, lv) { return this.#appliesAtLevel(grant, lv); }
+  static ownedElsewhere(grant, ownerType) { return this.#isOwnedElsewhere(grant, ownerType); }
+  static needsChoice(grant) { return this.#needsConfig(grant); }
+  static specOf(grant) { return this.#specOf(grant); }
+
+  /** Has a5e (1.4) recorded this grant as applied? 1.3 kept no such mark on the grant. */
+  static #isApplied(grant) {
+    const a = grant?.applied;
+    return !!(a && typeof a === 'object' && a.isApplied);
+  }
+
+  /** Applied records, one update per item, as a5e merges them. */
+  static #mergeItemUpdates(list) {
+    const byId = {};
+    for (const u of list ?? []) {
+      if (!u?._id) continue;
+      const { _id, ...rest } = u;
+      byId[_id] = foundry.utils.mergeObject(byId[_id] ?? {}, rest, { inplace: false });
+    }
+    return Object.entries(byId).map(([_id, u]) => ({ _id, ...u }));
+  }
 
   /* ── reading ──────────────────────────────────────────── */
 
@@ -37,7 +142,8 @@ export class GrantAbsorber {
     const out = [];
     for (const [id, grant] of prepared) {
       // Features and items are described separately, as cards
-      if (grant?.grantType === 'feature' || grant?.grantType === 'item') continue;
+      const type = this.#type(grant);
+      if (type === 'feature' || type === 'item') continue;
       if (!this.#isSupported(grant, lv, doc?.type)) continue;
       if (!this.#needsConfig(grant)) continue;       // applied without asking
 
@@ -49,7 +155,7 @@ export class GrantAbsorber {
          nothing: base and pick are one set, so +1 Charisma and +1 Charisma came
          out as a single +1, and the point was gone. a5e's own window shows the
          fixed one as already taken; so does this. */
-      const offered = grant.grantType === 'ability'
+      const offered = type === 'ability'
         ? spec.options.filter(key => !spec.base.includes(key))
         : spec.options;
       const options = offered.map(key => ({ key, label: this.#labelFor(grant, key) }));
@@ -58,12 +164,12 @@ export class GrantAbsorber {
       out.push({
         id,
         grant,                       // kept so the level can be re-checked later
-        type:    grant.grantType,
+        type,
         // What kind of proficiency or trait this is. Two grants can only collide
         // when these match, so the duplicate check needs them on the model.
-        proficiencyType: grant.proficiencyType ?? '',
-        traitType:       grant.traits?.traitType ?? '',
-        label:   grant.label || this.#defaultLabel(grant),
+        proficiencyType: this.#profType(grant),
+        traitType:       this.#traitType(grant),
+        label:   this.#name(grant) || this.#defaultLabel(grant),
         total:   spec.total,
         base:    spec.base,
         baseLabels: spec.base.map(key => this.#labelFor(grant, key)),
@@ -84,11 +190,11 @@ export class GrantAbsorber {
   static describeFixedAbilities(doc, lv = {}) {
     const out = [];
     for (const [id, grant] of this.#preparedGrants(doc)) {
-      if (grant?.grantType !== 'ability') continue;
+      if (this.#type(grant) !== 'ability') continue;
       if (!this.#isSupported(grant, lv, doc?.type) || this.#needsConfig(grant)) continue;
       const base = this.#specOf(grant)?.base ?? [];
       if (!base.length) continue;
-      out.push({ id, grant, type: 'ability', label: grant.label || this.#defaultLabel(grant), base });
+      out.push({ id, grant, type: 'ability', label: this.#name(grant) || this.#defaultLabel(grant), base });
     }
     return out;
   }
@@ -109,9 +215,10 @@ export class GrantAbsorber {
     for (const m of models ?? []) {
       // Every one counts: at creation all of a tree is applied, whatever level it names
       if (m?.type !== 'ability') continue;
-      const types = m.grant?.context?.types;
+      // 1.4 keeps both under config; 1.3 on the grant itself
+      const types = (m.grant?.config?.context ?? m.grant?.context)?.types;
       if (Array.isArray(types) && types.length && !types.includes('base')) continue;
-      const bonus = Number(String(m.grant?.bonus ?? '').trim());
+      const bonus = Number(String(m.grant?.config?.bonus || m.grant?.bonus || '').trim());
       if (!Number.isInteger(bonus) || bonus === 0) continue;
       const picked = (choices?.[m.id] ?? []).filter(k => !(m.base ?? []).includes(k));
       for (const key of new Set([...(m.base ?? []), ...picked])) {
@@ -160,12 +267,16 @@ export class GrantAbsorber {
     // out — and nothing else. Stripping every item grant meant the four heritage
     // features that grant an item lost it silently: removed here, and offered
     // nowhere, because no tab claims them.
-    if (grant?.grantType === 'item') return ownerType === 'class' || ownerType === 'background';
+    const type = this.#type(grant);
+    if (type === 'item') return ownerType === 'class' || ownerType === 'background';
 
-    // Likewise the Maneuvers tab claims a tradition only from the class table.
-    return grant?.grantType === 'trait'
-        && grant.traits?.traitType === 'maneuverTraditions'
-        && ownerType === 'class';
+    // Likewise the Maneuvers tab claims a tradition only from the class table -
+    // a trait in a5e 1.3, a "tradition:" proficiency in 1.4. Unclaimed, the
+    // 1.4 one was offered as a plain choice of every tradition, past the
+    // class's own list ("classes can learn any maneuvers", 2026-10-07).
+    if (ownerType !== 'class') return false;
+    return (type === 'trait' && this.#traitType(grant) === 'maneuverTraditions')
+        || (type === 'proficiency' && this.#profType(grant) === 'tradition');
   }
 
   /**
@@ -204,7 +315,7 @@ export class GrantAbsorber {
    * dialog is unnecessary — or asks something we can list as options.
    */
   static #isSupported(grant, lv = {}, ownerType = '') {
-    if (!grant?.grantType) return false;
+    if (!this.#type(grant)) return false;
     if (this.#isOwnedElsewhere(grant, ownerType)) return false;
     if (!this.#appliesAtLevel(grant, lv)) return false;
     if (!this.#needsConfig(grant)) return true;
@@ -224,15 +335,37 @@ export class GrantAbsorber {
       .map(v => (v && typeof v === 'object') ? (v.uuid ?? '') : v)
       .filter(Boolean);
 
+    const type = this.#type(grant);
     try {
       const props = grant.getSelectionComponentProps?.({});
       if (props) {
-        const options = flatten(props.choices);
-        return {
-          base:    flatten(props.base),
-          options,
-          total:   this.#allowance(props.count, options.length)
-        };
+        let choices = Array.isArray(props.choices) ? props.choices : [];
+        let count = props.count;
+        /* a5e 1.4: a proficiency's options are groups, { count, candidates }.
+           One group a grant across a5e's packs (455 of 1121 proficiency grants
+           have one, none more); several would add up. Read as plain keys they
+           came out as nothing, and an item with nothing to list went to a5e. */
+        if (choices.some(c => c && typeof c === 'object' && 'candidates' in c)) {
+          count   = choices.reduce((n, c) => n + (Number(c?.count) || 0), 0);
+          choices = choices.flatMap(c => [...(c?.candidates ?? [])]);
+        }
+        let base = flatten(props.base ? [...props.base] : []);
+        let options = flatten(choices);
+        /* 1.4 prefixes each proficiency key with its kind. The pickers, the
+           labels and the duplicate check all speak in plain keys, so the prefix
+           comes off here and goes back on when the pick is applied (#wire). */
+        const prefix = type === 'proficiency' ? this.#keyPrefix([...base, ...options]) : '';
+        if (prefix) {
+          const strip = (k) => (String(k).startsWith(prefix + ':') ? String(k).slice(prefix.length + 1) : k);
+          base = base.map(strip);
+          options = options.map(strip);
+        }
+        /* A 1.4 grant whose data is still in 1.3's shape (content made before
+           the migration, or by a module) reads empty here; its deprecated
+           fields still hold the choice, below. */
+        if (base.length || options.length || !this.#v14) {
+          return { base, options, prefix, total: this.#allowance(count, options.length) };
+        }
       }
     } catch { /* fall through to the raw shapes */ }
 
@@ -240,21 +373,34 @@ export class GrantAbsorber {
     // spell reader both go straight to grant.features, so the describer has to
     // reach it too — otherwise a grant whose selection component is missing
     // would show an empty picker and still hand out its base set on apply.
-    const bucket = grant.grantType === 'feature'     ? grant.features
-                 : grant.grantType === 'item'        ? grant.items
-                 : grant.grantType === 'ability'     ? grant.abilities
-                 : grant.grantType === 'proficiency' ? grant.keys
-                 : grant.grantType === 'trait'       ? grant.traits
-                 : grant.grantType === 'skill'       ? grant.skills
-                 : grant.grantType === 'skillSpecialty' ? grant.keys
+    const bucket = type === 'feature'     ? grant.features
+                 : type === 'item'        ? grant.items
+                 : type === 'ability'     ? grant.abilities
+                 : type === 'proficiency' ? grant.keys
+                 : type === 'trait'       ? grant.traits
+                 : type === 'skill'       ? grant.skills
+                 : type === 'skillSpecialty' ? grant.keys
                  : null;
     if (!bucket) return null;
     const options = flatten(bucket.options);
     return {
       base:    flatten(bucket.base),
       options,
+      prefix:  '',
       total:   this.#allowance(bucket.total, options.length)
     };
+  }
+
+  /**
+   * The selection a grant's writer takes, from plain keys: 1.4 wants each
+   * proficiency key with its kind in front again, and documents by uuid.
+   */
+  static #wire(grant, spec, keys) {
+    const type = this.#type(grant);
+    if (['feature', 'item', 'spell', 'maneuver'].includes(type)) return { uuids: keys };
+    if (!this.#v14 || type !== 'proficiency') return { selected: keys };
+    const prefix = spec?.prefix || this.#profType(grant);
+    return { selected: keys.map(k => (prefix && !String(k).includes(':') ? `${prefix}:${k}` : k)) };
   }
 
   /**
@@ -287,14 +433,19 @@ export class GrantAbsorber {
       skillSpecialty: A5E.skillSpecialties,
     };
 
-    let table = tables[grant.grantType];
-    if (grant.grantType === 'proficiency') {
+    // Tools, weapons and armour are grouped by category in CONFIG; one level flat
+    const flat = (groups) => Object.values(groups ?? {})
+      .reduce((acc, g) => (g && typeof g === 'object' && !g.label ? Object.assign(acc, g) : acc), { ...(groups ?? {}) });
+    const type = this.#type(grant);
+    let table = tables[type];
+    if (type === 'proficiency') {
       table = {
-        skill: A5E.skills, tool: A5E.tools, language: A5E.languages,
-        armor: A5E.armor, weapon: A5E.weapons, savingThrow: A5E.abilities
-      }[grant.proficiencyType] ?? null;
+        skill: A5E.skills, tool: flat(A5E.tools), language: A5E.languages,
+        armor: flat(A5E.armor), weapon: flat(A5E.weapons), savingThrow: A5E.abilities,
+        tradition: A5E.maneuverTraditions
+      }[this.#profType(grant)] ?? null;
     }
-    if (grant.grantType === 'trait') {
+    if (type === 'trait') {
       table = {
         maneuverTraditions: A5E.maneuverTraditions,
         conditionImmunities: A5E.conditions,
@@ -303,7 +454,7 @@ export class GrantAbsorber {
         damageVulnerabilities: A5E.damageTypes,
         languages: A5E.languages,
         size: A5E.actorSizes
-      }[grant.traits?.traitType] ?? null;
+      }[this.#traitType(grant)] ?? null;
     }
 
     const raw = table?.[key];
@@ -341,9 +492,10 @@ export class GrantAbsorber {
   }
 
   static #defaultLabel(grant) {
-    if (grant.grantType === 'ability')     return game.i18n.localize('am.grants.type-ability');
-    if (grant.grantType === 'proficiency') return game.i18n.localize('am.grants.type-proficiency');
-    if (grant.grantType === 'trait')       return game.i18n.localize('am.grants.type-trait');
+    const type = this.#type(grant);
+    if (type === 'ability')     return game.i18n.localize('am.grants.type-ability');
+    if (type === 'proficiency') return game.i18n.localize('am.grants.type-proficiency');
+    if (type === 'trait')       return game.i18n.localize('am.grants.type-trait');
     return game.i18n.localize('am.grants.type-generic');
   }
 
@@ -472,7 +624,7 @@ export class GrantAbsorber {
    *   grant for that choice and simply carries the two ability points.
    */
   static async apply(actor, item, choices = {}, lv = {}, depth = 0,
-                     { skip, exactOnly = false, visited = new Set() } = {}) {
+                     { skip, exactOnly = false, visited = new Set(), only = null, walkOwned = true } = {}) {
     if (!actor || !item) return;
     if (depth > this.#MAX_DEPTH) {
       AM.log(2, `Grant nesting too deep at ${item.name}; leaving the rest to a5e`);
@@ -483,6 +635,7 @@ export class GrantAbsorber {
     if (!grantMap) { AM.log(2, 'Item has no prepared grants collection:', item.name); return; }
 
     let update = {};
+    const itemUpdates = [];   // 1.4: the records of what was applied, on the items
     let applied = 0;
     const documentIds = {};   // grantId → created feature item ids
     const spawned = [];       // features created here, whose own grants come next
@@ -500,16 +653,27 @@ export class GrantAbsorber {
       // over either way still has its features walked — what they hold may
       // name this level even when the grant that gave them does not.
       const earlier = exactOnly && !this.#isExactlyAtLevel(grant, lv);
-      if (earlier || skip?.has(id)) {
-        if (!earlier) AM.log(3, `Grant ${id} skipped by choice`);
-        if (grant?.grantType === 'feature') owned.push(...this.#ownedFrom(actor, grant));
+      const type = this.#type(grant);
+      /* Applied already - a5e 1.4 records it on the grant. A level-up walks
+         every grant of the class up to the new level, and applying one again
+         added its bonus again under a new id (a 4th-level ability increase
+         counted once more at every level after: "ability scores grow by
+         themselves", 2026-10-07) and overwrote what was picked at its own
+         level with nothing. Its features are still walked, as below. */
+      const done = this.#isApplied(grant);
+      // GrantRepair names the grants it means; the rest of the item is not its business
+      if (only && !only.has(id)) continue;
+      if (earlier || done || skip?.has(id)) {
+        if (!earlier && !done) AM.log(3, `Grant ${id} skipped by choice`);
+        if (type === 'feature') owned.push(...this.#ownedFrom(actor, grant));
         continue;
       }
 
-      if (grant?.grantType === 'feature') {
+      if (type === 'feature') {
         try {
-          const { update: u, ids, items, had } = await this.#applyFeatureGrant(actor, grant, choices[id]);
-          update = foundry.utils.mergeObject(update, u, { inplace: false });
+          const { update: u, records, ids, items, had } = await this.#applyFeatureGrant(actor, grant, choices[id]);
+          this.#mergeActorUpdate(update, u);
+          itemUpdates.push(...records);
           if (ids.length) documentIds[id] = ids;
           spawned.push(...items);
           owned.push(...had);
@@ -527,11 +691,12 @@ export class GrantAbsorber {
          record was written and nothing was made - every maneuver a class feature,
          feat, culture feature or paragon gift hands out this way was lost, and
          so was a heritage's granted weapon. 40 grants across a5e's packs. */
-      if (grant?.grantType === 'item') {
+      if (type === 'item') {
         if (!this.#isSupported(grant, lv, item?.type)) continue;
         try {
-          const { update: u, ids } = await this.#applyItemGrant(actor, grant, choices[id]);
-          update = foundry.utils.mergeObject(update, u, { inplace: false });
+          const { update: u, records, ids } = await this.#applyItemGrant(actor, grant, choices[id]);
+          this.#mergeActorUpdate(update, u);
+          itemUpdates.push(...records);
           if (ids.length) documentIds[id] = ids;
           applied++;
         } catch (err) {
@@ -547,7 +712,7 @@ export class GrantAbsorber {
       // An ability pick of the fixed ability is not a pick - see describe().
       const picked = (choices[id] ?? [])
         .filter(k => spec.options.includes(k))
-        .filter(k => grant.grantType !== 'ability' || !spec.base.includes(k))
+        .filter(k => type !== 'ability' || !spec.base.includes(k))
         .slice(0, spec.total);
       const selected = [...new Set([...spec.base, ...picked])];
 
@@ -555,9 +720,10 @@ export class GrantAbsorber {
         // a5e's own writer — we never construct the update paths ourselves.
         // Grants with nothing to choose get the same call with just their base,
         // which is what a5e passes when it skips its dialog.
-        const data = grant.getApplyData(actor, { selected });
-        if (data && Object.keys(data).length) {
-          update = foundry.utils.mergeObject(update, data, { inplace: false });
+        const res = await this.#applyData(actor, grant, this.#wire(grant, spec, selected));
+        if (Object.keys(res.actor).length || res.items.length) {
+          this.#mergeActorUpdate(update, res.actor);
+          itemUpdates.push(...res.items);
           applied++;
         }
       } catch (err) {
@@ -566,14 +732,25 @@ export class GrantAbsorber {
     }
 
     // a5e records which items a feature grant produced; without this the grant
-    // cannot be undone later.
-    for (const [id, ids] of Object.entries(documentIds)) {
-      update[`system.grants.${id}.documentIds`] = ids;
+    // cannot be undone later. 1.4 keeps the record on the item (the feature
+    // and item branches write it there); 1.3 on the actor.
+    if (!this.#v14) {
+      for (const [id, ids] of Object.entries(documentIds)) {
+        update[`system.grants.${id}.documentIds`] = ids;
+      }
     }
 
     if (Object.keys(update).length) {
       await actor.update(update);
       AM.log(3, `Applied ${applied} absorbed grant(s) from ${item.name}`);
+    }
+    /* The records tell a5e the grant is applied: without them its next
+       level-up walk finds the grant unapplied and offers it again, and
+       removing the item cannot undo it. */
+    const records = this.#mergeItemUpdates(itemUpdates).filter(u => actor.items.get(u._id));
+    if (records.length) {
+      try { await actor.updateEmbeddedDocuments('Item', records); }
+      catch (err) { AM.log(2, `Grant records for ${item.name} could not be written:`, err); }
     }
 
     // The features we just created were made with noGrant, so their own grants
@@ -598,7 +775,7 @@ export class GrantAbsorber {
        applied it. Only grants naming exactly this level, so nothing that
        already fired fires again. Pointless at 1st: an item that exists there
        received its 1st-level grants when it was made. */
-    if ((lv.charLevel ?? 1) > 1 || (lv.clsLevel ?? 1) > 1) {
+    if (walkOwned && ((lv.charLevel ?? 1) > 1 || (lv.clsLevel ?? 1) > 1)) {
       for (const { item: feature, uuid } of owned) {
         if (!feature || visited.has(feature.id)) continue;
         visited.add(feature.id);
@@ -614,8 +791,8 @@ export class GrantAbsorber {
    * grant that is not being applied this time.
    */
   static #ownedFrom(actor, grant) {
-    const uuids = [...(grant?.features?.base ?? []), ...(grant?.features?.options ?? [])]
-      .map(f => f?.uuid ?? f)
+    const spec = this.#specOf(grant);
+    const uuids = [...(spec?.base ?? []), ...(spec?.options ?? [])]
       .filter(u => typeof u === 'string' && u);
     const out = [];
     for (const uuid of uuids) {
@@ -743,7 +920,7 @@ export class GrantAbsorber {
       // its base set and overwrite the record of what was picked.
       if (answered && now) continue;
       skip.add(id);
-      if (now) AM.log(2, `${archetype.name}: grant "${grant.label ?? id}" needs a choice nobody was asked for`);
+      if (now) AM.log(2, `${archetype.name}: grant "${this.#name(grant) || id}" needs a choice nobody was asked for`);
     }
 
     await this.apply(actor, archetype, answered ? choices : {}, lv, 0, { skip });
@@ -816,6 +993,7 @@ export class GrantAbsorber {
       data._stats = data._stats || {};
       data._stats.compendiumSource = uuid;
       applyItemIcon(data);
+      FeatureAutomation.apply(data);       // the bonuses a5e left in the text
 
       const absorb = await this.canAbsorb(doc, lv);
       const [created] = await actor.createEmbeddedDocuments('Item', [data],
@@ -957,9 +1135,9 @@ export class GrantAbsorber {
     const grants = doc?.system?.grants;
     if (!grants || typeof grants !== 'object') return [];
     return Object.entries(grants)
-      .filter(([, g]) => g?.grantType && g.grantType !== 'item'
-                         && g.grantType !== 'feature' && !this.#isSupported(g))
-      .map(([id, g]) => ({ id, type: g.grantType, label: g.label ?? g.grantType }));
+      .filter(([, g]) => this.#type(g) && this.#type(g) !== 'item'
+                         && this.#type(g) !== 'feature' && !this.#isSupported(g))
+      .map(([id, g]) => ({ id, type: this.#type(g), label: this.#name(g) || this.#type(g) }));
   }
 
   /* ── feature grants ───────────────────────────────────── */
@@ -988,20 +1166,20 @@ export class GrantAbsorber {
     if (depth > this.#MAX_DEPTH) return false;
 
     for (const [, grant] of prepared) {
-      const type = grant?.grantType;
+      const type = this.#type(grant);
       if (!type) continue;
       if (this.#isOwnedElsewhere(grant, doc?.type)) continue;   // stripped before creation
       // A grant for a later level does not block absorption at this one
       if (!this.#appliesAtLevel(grant, lv)) continue;
       if (type === 'feature') {
         if (await this.#featuresAbsorbable(grant, lv, depth, seen)) continue;
-        AM.log(2, `Absorption declined: feature grant "${grant.label ?? type}" `
+        AM.log(2, `Absorption declined: feature grant "${this.#name(grant) || type}" `
                 + `on ${doc?.name} has something the builder cannot model`);
         return false;
       }
       if (this.#isSupported(grant, lv, doc?.type)) continue;
       // Name the culprit — otherwise "a5e's window appeared" has no explanation
-      AM.log(2, `Absorption declined: ${type} grant "${grant.label ?? ''}" on ${doc?.name} `
+      AM.log(2, `Absorption declined: ${type} grant "${this.#name(grant)}" on ${doc?.name} `
               + `asks for something with no listable options`);
       return false;
     }
@@ -1026,7 +1204,7 @@ export class GrantAbsorber {
       const walk = [];          // the next tier: every document read, or only the granted-outright ones
       for (const doc of tier) {
         for (const [, grant] of this.#preparedGrants(doc)) {
-          if (grant?.grantType !== 'feature' && grant?.grantType !== 'item') continue;
+          if (this.#type(grant) !== 'feature' && this.#type(grant) !== 'item') continue;
           if (!this.#appliesAtLevel(grant, lv)) continue;
           const spec = this.#specOf(grant);
           for (const [uuid, isBase] of [...(spec?.base ?? []).map(u => [u, true]), ...(spec?.options ?? []).map(u => [u, false])]) {
@@ -1063,7 +1241,7 @@ export class GrantAbsorber {
       let doc = null;
       try { doc = await fromUuid(uuid); } catch { doc = null; }
       if (!doc) {
-        AM.log(2, `Grant on ${grant.label ?? 'a feature grant'} links a feature that cannot be read, skipped: ${uuid}`);
+        AM.log(2, `Grant on ${this.#name(grant) || 'a feature grant'} links a feature that cannot be read, skipped: ${uuid}`);
         continue;
       }
       if (!this.#preparedGrants(doc).length) continue;     // flat feature
@@ -1112,7 +1290,7 @@ export class GrantAbsorber {
 
     // Every document the grants below name, in one request a pack
     await PackFilter.prefetch(this.#preparedGrants(doc)
-      .filter(([, g]) => g?.grantType === 'feature' || g?.grantType === 'item')
+      .filter(([, g]) => this.#type(g) === 'feature' || this.#type(g) === 'item')
       .flatMap(([, g]) => { const sp = this.#specOf(g); return [...(sp?.base ?? []), ...(sp?.options ?? [])]; }));
 
     for (const [id, grant] of this.#preparedGrants(doc)) {
@@ -1121,8 +1299,8 @@ export class GrantAbsorber {
          and a choice among them wants cards with names, not a row of uuids.
          Starting equipment on a class or background stays with the Equipment
          tab. */
-      if (grant?.grantType !== 'feature' && grant?.grantType !== 'item') continue;
-      if (grant.grantType === 'item' && this.#isOwnedElsewhere(grant, doc?.type)) continue;
+      if (this.#type(grant) !== 'feature' && this.#type(grant) !== 'item') continue;
+      if (this.#type(grant) === 'item' && this.#isOwnedElsewhere(grant, doc?.type)) continue;
       if (!this.#appliesAtLevel(grant, lv)) continue;   // a later level's feature
 
       const spec = this.#specOf(grant) ?? { base: [], options: [], total: 0 };
@@ -1131,7 +1309,7 @@ export class GrantAbsorber {
         id,
         grant,                       // kept so the level can be re-checked later
         type:  'feature',
-        label: grant.label || game.i18n.localize('am.grants.type-feature'),
+        label: this.#name(grant) || game.i18n.localize('am.grants.type-feature'),
         total: spec.total,
         base:      spec.base,
         baseUuids: spec.base,        // describeTree walks these for nested grants
@@ -1155,6 +1333,7 @@ export class GrantAbsorber {
    * is counted rather than created twice.
    */
   static async #applyItemGrant(actor, grant, chosenUuids) {
+    if (this.#v14) return this.#applyItemGrant14(actor, grant, chosenUuids);
     const baseList = grant.items?.base ?? [];
     const options  = grant.items?.options ?? [];
     const total  = this.#allowance(grant.items?.total, options.length);
@@ -1163,7 +1342,7 @@ export class GrantAbsorber {
       .slice(0, total);
     const uuids = [...new Set([...baseList.map(o => o.uuid).filter(Boolean), ...picked])];
     const update = grant.getApplyData(actor, { uuids }) ?? {};
-    if (!uuids.length) return { update, ids: [] };
+    if (!uuids.length) return { update, records: [], ids: [] };
 
     const quantityOf = new Map([...baseList, ...options].map(o => [o.uuid, o.quantityOverride]));
     const datas = [];
@@ -1193,21 +1372,62 @@ export class GrantAbsorber {
         ids = [...ids, ...created.map(i => i.id)];
       }
     }
-    return { update, ids };
+    return { update, records: [], ids };
+  }
+
+  /**
+   * 1.4: a5e's writer reads the documents itself - quantity override and all -
+   * and hands back the record; the items are made here, as a5e does after it,
+   * and the record is told their ids.
+   */
+  static async #applyItemGrant14(actor, grant, chosenUuids) {
+    const spec = this.#specOf(grant) ?? { base: [], options: [], total: 0 };
+    const picked = (chosenUuids ?? []).filter(u => spec.options.includes(u)).slice(0, spec.total);
+    const uuids = [...new Set([...spec.base, ...picked])];
+    const res = await this.#applyData(actor, grant, { uuids });
+    let ids = [];
+    const docs = (res.documents ?? []).map(d => {
+      const data = foundry.utils.deepClone(d);
+      applyItemIcon(data);
+      return data;
+    });
+    if (docs.length) {
+      try { ids = (await actor.createEmbeddedDocuments('Item', docs)).map(i => i.id); }
+      catch (err) { AM.log(2, `Items of the grant "${this.#name(grant)}" could not be created:`, err); }
+    }
+    return { update: res.actor, records: this.#withDocumentIds(res.items, grant, ids), ids };
+  }
+
+  /** The applied record of a document grant, told the ids of what was made. */
+  static #withDocumentIds(records, grant, ids) {
+    const key = `system.grants.${grant?.id}.applied`;
+    return (records ?? []).map(r => {
+      const applied = r?.[key];
+      if (!applied || typeof applied !== 'object') return r;
+      return { ...r, [key]: { ...applied, documentIds: [...ids] } };
+    });
   }
 
   static async #applyFeatureGrant(actor, grant, chosenUuids) {
-    const base    = (grant.features?.base ?? []).map(f => f.uuid).filter(Boolean);
-    const options = (grant.features?.options ?? []);
+    // The grant's own reading, 1.4's config or 1.3's fields - see #specOf
+    const spec    = this.#specOf(grant) ?? { base: [], options: [], total: 0 };
+    const base    = spec.base;
+    const options = spec.options;
     // Same allowance rule the picker was drawn with, or a choice the player was
     // shown and made would be silently dropped here.
-    const total = this.#allowance(grant.features?.total, options.length);
+    const total = spec.total;
     const picked = (chosenUuids ?? [])
-      .filter(u => options.some(f => f.uuid === u))
+      .filter(u => options.includes(u))
       .slice(0, total);
 
     const uuids = [...new Set([...base, ...picked])];
-    if (!uuids.length) return { update: grant.getApplyData(actor, { uuids }) ?? {}, ids: [], items: [], had: [] };
+    if (!uuids.length) {
+      const res = await this.#applyData(actor, grant, { uuids });
+      return { update: res.actor, records: this.#withDocumentIds(res.items, grant, []), ids: [], items: [], had: [] };
+    }
+    // 1.4 lets a grant change what it hands out (config.changes); a5e merges it in
+    const changes = (this.#v14 && grant.config?.changes && typeof grant.config.changes === 'object')
+      ? grant.config.changes : null;
 
     const datas = [];
     for (const uuid of uuids) {
@@ -1215,6 +1435,8 @@ export class GrantAbsorber {
         const doc = await fromUuid(uuid);
         if (!doc) continue;
         const data = doc.toObject();
+        if (changes) foundry.utils.mergeObject(data, changes);
+        FeatureAutomation.apply(data);     // the bonuses a5e left in the text
         data._stats = data._stats || {};
         data._stats.compendiumSource = uuid;
         datas.push(data);
@@ -1249,6 +1471,10 @@ export class GrantAbsorber {
         items = [...created];
       }
     }
-    return { update: grant.getApplyData(actor, { uuids }) ?? {}, ids, items, had };
+    /* a5e's writer for the record. In 1.4 it also returns the documents to
+       make; they are made above instead, from the same reads, so that each
+       carries the uuid its own nested choices are filed under. */
+    const res = await this.#applyData(actor, grant, { uuids });
+    return { update: res.actor, records: this.#withDocumentIds(res.items, grant, ids), ids, items, had };
   }
 }

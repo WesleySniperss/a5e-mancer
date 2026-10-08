@@ -2,6 +2,7 @@ import { AM } from '../am.js';
 import { ManeuverService, isMagicSchool } from './maneuverService.js';
 import { SpellService, CLASS_SPELL_TABLES } from './spellService.js';
 import { ASI_LEVELS } from './levelUpService.js';
+import { GrantRecords } from './grantRecords.js';
 
 /**
  * Taking a class back down to a lower level - "reset me to the level I really
@@ -83,9 +84,9 @@ export class LevelDownService {
     return Math.floor(((Number(actor?.system?.abilities?.con?.value) || 10) - 10) / 2);
   }
 
+  /* a5e 1.4 keeps these on the items - GrantRecords reads either */
   static #grants(actor) {
-    const g = actor?.grants;
-    return g?.values ? [...g.values()] : [];
+    return GrantRecords.of(actor);
   }
 
   /** The item a grant came from, as a5e resolves it. */
@@ -93,9 +94,62 @@ export class LevelDownService {
     try { return grant?.itemUuid ? fromUuidSync(grant.itemUuid) : null; } catch { return null; }
   }
 
+  /** What a kind of proficiency or trait is called, in a list's heading. */
+  static #KIND_NAMES = {
+    skill: 'Skills', tool: 'Tools', weapon: 'Weapons', armor: 'Armor', savingThrow: 'Saving throws',
+    tradition: 'Combat traditions', language: 'Languages', languages: 'Languages',
+    damageResistances: 'Resistances', damageImmunities: 'Immunities', damageVulnerabilities: 'Vulnerabilities',
+    conditionImmunities: 'Condition immunities', size: 'Size'
+  };
+
+  /**
+   * Keys in words, from a5e's own tables. The level list showed them raw -
+   * "weapon: heavyCrossbow, …", "skill: ath, cul" - which reads as data, not
+   * as what the level gave. A category whose every member is there is named
+   * as the category ("Simple Weapons"), as a5e's sheet does.
+   */
+  static #labels(kind, keys) {
+    const A5E = CONFIG?.A5E ?? {};
+    const pretty = (k) => String(k).replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase());
+    const word = (raw, k) => {
+      const text = typeof raw === 'string' ? raw : raw?.label;
+      if (!text) return pretty(k);
+      const l = game.i18n.localize(text);
+      return l === text && text.includes('.') ? pretty(k) : l;
+    };
+    const grouped = kind === 'weapon' ? A5E.weapons : kind === 'tool' ? A5E.tools : kind === 'armor' ? null : null;
+    const left = new Set(keys);
+    const out = [];
+    if (grouped && typeof grouped === 'object') {
+      for (const [category, group] of Object.entries(grouped)) {
+        const members = Object.keys(group ?? {});
+        if (members.length < 2 || !members.every((k) => left.has(k))) continue;
+        members.forEach((k) => left.delete(k));
+        const path = kind === 'weapon' ? `A5E.weapons.categories.${category}` : `A5E.tools.categories.${category}`;
+        const l = game.i18n.localize(path);
+        out.push(l === path ? pretty(category) : l);
+      }
+    }
+    const flat = grouped && typeof grouped === 'object'
+      ? Object.values(grouped).reduce((acc, g) => Object.assign(acc, g ?? {}), {})
+      : {
+          skill: A5E.skills, savingThrow: A5E.abilities, tradition: A5E.maneuverTraditions,
+          language: A5E.languages, languages: A5E.languages, armor: A5E.armor,
+          damageResistances: A5E.damageTypes, damageImmunities: A5E.damageTypes,
+          damageVulnerabilities: A5E.damageTypes, conditionImmunities: A5E.conditions, size: A5E.actorSizes
+        }[kind] ?? {};
+    for (const k of left) out.push(word(flat?.[k], k));
+    return out.join(', ');
+  }
+
   /** A grant's effect in a few words, for the list of what goes. */
   static describeGrant(actor, g) {
     const join = (a) => (Array.isArray(a) ? a.filter(Boolean).join(', ') : '');
+    const named = (kind, keys) => {
+      const list = (keys ?? []).filter(Boolean);
+      if (!list.length) return '';
+      return `${this.#KIND_NAMES[kind] ?? (kind || 'Proficiencies')}: ${this.#labels(kind, list)}`;
+    };
     switch (g.grantType) {
       case 'bonus': {
         const b = actor.system?.bonuses?.[g.type]?.[g.bonusId];
@@ -108,11 +162,11 @@ export class LevelDownService {
       }
       case 'proficiency': {
         const d = g.proficiencyData ?? {};
-        return join(d.keys) ? `${d.proficiencyType || 'proficiency'}: ${join(d.keys)}` : '';
+        return named(d.proficiencyType || '', d.keys);
       }
       case 'trait': {
         const d = g.traitData ?? {};
-        return join(d.traits) ? `${d.traitType || 'trait'}: ${join(d.traits)}` : '';
+        return named(d.traitType || '', d.traits);
       }
       case 'expertiseDice': return `expertise: ${join(g.expertiseDiceData?.keys)}`;
       case 'skillSpecialty': return `${g.specialtyData?.skill ?? ''} specialty: ${join(g.specialtyData?.specialties)}`.trim();
@@ -483,7 +537,7 @@ export class LevelDownService {
     for (const id of planned) {
       const still = this.#grants(actor).find((g) => g.grantId === id);
       if (!still) continue;
-      try { await actor.grants.removeGrant(id); }
+      try { await GrantRecords.remove(actor, still); }
       catch (err) { AM.log(2, `Level down: grant ${id}`, err); }
     }
 

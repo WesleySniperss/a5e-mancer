@@ -11,6 +11,6 @@ export const IMPORTED_TRADITIONS = {
   },
   unerringHawk: {
     label: 'Unerring Hawk',
-    lore: ''
+    lore: 'The tradition of the Rhode Wardens, the guards and hunters who keep the long roads between nations and hunt down whatever stalks weary travelers. With training in the ways of the Unerring Hawk, young hunters are molded into proper Rhode Wardens. No hunters can hope to rival their aim, and no creature walks their path unnoticed. (Gate Pass Gazette Issue #28)'
   }
 };

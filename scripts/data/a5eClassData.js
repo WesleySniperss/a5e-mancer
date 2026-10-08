@@ -172,6 +172,8 @@ export function knackLevelsFor({ slug, name, item } = {}) {
  *   skills   — { total } narrows the class's skill choice to that many, `only`
  *              restricts which of them may be picked, `base` names skills given
  *              outright (with total 0, nothing further is asked); null drops it.
+ *              By a5e's skill keys (arc, cul), not their names: written "arcana"
+ *              and "culture", no second class ever got its skill (fixed 2026-10-07).
  *
  * Classes absent here — third-party ones such as artificer and savant — keep
  * their own grants apart from the three universal rules. Inventing a slice for
@@ -186,23 +188,23 @@ export const A5E_MULTICLASS = {
   adept:     { armor: [],                            weapons: ['simple', 'shortsword'], tools: null, skills: null },
   bard:      { armor: ['light'],                     weapons: [],         tools: { total: 1 }, skills: { total: 1 } },
   berserker: { armor: ['light', 'medium', 'shield'], weapons: 'all',      tools: null,         skills: null },
-  cleric:    { armor: [],                            weapons: [],         tools: null,         skills: { total: 2, only: ['culture', 'history', 'medicine', 'religion'] } },
+  cleric:    { armor: [],                            weapons: [],         tools: null,         skills: { total: 2, only: ['cul', 'his', 'med', 'rel'] } },
   druid:     { armor: ['light', 'medium', 'shield'], weapons: [],         tools: null,         skills: null },
   fighter:   { armor: ['light', 'medium', 'shield'], weapons: 'all',      tools: null,         skills: null },
   herald:    { armor: ['light', 'medium', 'shield'], weapons: 'all',      tools: null,         skills: null },
   marshal:   { armor: ['light', 'medium', 'shield'], weapons: 'all',      tools: null,         skills: null },
-  psion:     { armor: [],                            weapons: [],         tools: null,         skills: { total: 0, base: ['arcana'] } },
+  psion:     { armor: [],                            weapons: [],         tools: null,         skills: { total: 0, base: ['arc'] } },
   psyknight: { armor: ['light', 'medium'],           weapons: 'all',      tools: null,         skills: { total: 1 } },
   ranger:    { armor: ['light', 'medium', 'shield'], weapons: 'all',      tools: null,         skills: { total: 1 } },
   /* Likewise: the rogue's own grant is disguise kit, poisoner's kit AND
      thieves' tools, while the multiclassing table gives thieves' tools alone. */
   rogue:     { armor: ['light'],                     weapons: [],         tools: { total: 0, base: ['thievesTools'] }, skills: { total: 1 } },
-  scientist: { armor: ['light'],                     weapons: [],         tools: { total: 1 }, skills: { total: 1, base: ['science'] } },
+  scientist: { armor: ['light'],                     weapons: [],         tools: { total: 1 }, skills: { total: 1, base: ['sci'] } },
   scout:     { armor: ['light'],                     weapons: ['simple'], tools: { total: 1 }, skills: { total: 1 } },
-  sorcerer:  { armor: [],                            weapons: [],         tools: null,         skills: { total: 0, base: ['arcana'] } },
+  sorcerer:  { armor: [],                            weapons: [],         tools: null,         skills: { total: 0, base: ['arc'] } },
   trooper:   { armor: ['light', 'medium', 'shield'], weapons: 'all',      tools: null,         skills: null },
   warlock:   { armor: ['light'],                     weapons: ['simple'], tools: null,         skills: null },
-  wizard:    { armor: [],                            weapons: [],         tools: null,         skills: { total: 0, base: ['arcana'] } },
+  wizard:    { armor: [],                            weapons: [],         tools: null,         skills: { total: 0, base: ['arc'] } },
 };
 
 // The three 5e names A5e replaces, kept for the same reason HIT_DICE keeps them:

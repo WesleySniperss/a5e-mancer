@@ -1462,9 +1462,13 @@
         </div>
         </div>
         {{#if tidy.trackWeight}}
-          <div class="am-carried" data-tooltip="Carried weight">
+          {{!-- Carried against carrying capacity, as a5e's own weight track:
+               the bar fills toward it and turns red past it (encumbered). --}}
+          <div class="am-carried{{#if inventory.encumbered}} am-over{{/if}}" style="--am-carry-pct: {{inventory.carriedPct}}%"
+            data-tooltip="Carried weight / carrying capacity (lb)">
             <span class="am-a5e-label font-label-medium color-text-gold">Carried</span>
             <span class="am-a5e-value font-data-medium color-text-default">{{inventory.carried}}</span>
+            <span class="am-carry-cap font-data-medium color-text-lighter">/ {{inventory.capacity}} lb</span>
           </div>
         {{/if}}
       </div>

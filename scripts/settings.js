@@ -135,6 +135,12 @@ export function registerSettings() {
   // traditions, maneuvers and spells whenever a class item is added or its level
   // changes. Offering the same picks in our UI means the character ends up with
   // both sets. On (default) we step aside and let the system ask.
+  // A character's darkvision onto their token (TokenVision), unless a5e automates vision itself
+  game.settings.register(AM.ID, 'darkvisionToTokens', {
+    name: 'am.settings.darkvision-tokens.name', hint: 'am.settings.darkvision-tokens.hint',
+    scope: 'world', config: true, type: Boolean, default: true
+  });
+
   game.settings.register(AM.ID, 'deferToSystemGrants', {
     name: 'am.settings.defer-grants.name', hint: 'am.settings.defer-grants.hint',
     scope: 'world', config: true, type: Boolean, default: true

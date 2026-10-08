@@ -200,7 +200,31 @@ export class LevelUpService {
    * only owes a character who started with it. MulticlassRules trims the data;
    * a5e still asks about, and records, whatever survives.
    */
-  static async applyMulticlass(actor, classUuid, hpGained) {
+  /**
+   * A class's data as it is created for a second class: level 1, its source
+   * recorded, trimmed to a second class's share. The level-up window describes
+   * the same data it later creates, so what it asks is what is applied.
+   */
+  static multiclassData(classDoc, classUuid, { log = true } = {}) {
+    const data = classDoc.toObject();
+    // Force level 1 regardless of what the compendium item says
+    if (data.system?.classLevels !== undefined)     data.system.classLevels = 1;
+    else if (data.system?.levels !== undefined)     data.system.levels = 1;
+    else if (data.system?.level !== undefined)      data.system.level = 1;
+    data._stats = data._stats || {};
+    data._stats.compendiumSource = classUuid;
+    const trim = MulticlassRules.apply(data, { log });
+    return { data, trim };
+  }
+
+  /**
+   * @param {object} [grants]  the level-up window's answers (AM.levelUpGrants)
+   *   when it asked for the new class's grants itself: the class is then made
+   *   without a5e's window and they are applied here, as at any other level.
+   *   Reported 2026-10-06: a5e's window opened for every new class, and the
+   *   level-up window offered nothing to pick.
+   */
+  static async applyMulticlass(actor, classUuid, hpGained, grants = null) {
     const classDoc = await fromUuid(classUuid);
     if (!classDoc) { AM.log(1, 'Multiclass: class not found', classUuid); return false; }
 
@@ -217,22 +241,37 @@ export class LevelUpService {
       return false;
     }
 
-    const data = classDoc.toObject();
-    // Force level 1 regardless of what the compendium item says
-    if (data.system?.classLevels !== undefined)     data.system.classLevels = 1;
-    else if (data.system?.levels !== undefined)     data.system.levels = 1;
-    else if (data.system?.level !== undefined)      data.system.level = 1;
-    data._stats = data._stats || {};
-    data._stats.compendiumSource = classUuid;
-
-    const trim = MulticlassRules.apply(data);
+    const { data, trim } = this.multiclassData(classDoc, classUuid);
     if (!trim.known) {
       AM.log(2, `${classDoc.name} has no multiclassing entry in A5E_MULTICLASS — `
               + `only the universal rules (no saving throws, no starting equipment) were applied`);
     }
 
-    await actor.createEmbeddedDocuments('Item', [data]);
-    AM.log(3, `Multiclassed into ${classDoc.name}`);
+    const absorb = !!(grants?.absorb && grants.multiclass && grants.classUuid === classUuid);
+    const [created] = await actor.createEmbeddedDocuments('Item', [data], absorb ? { noGrant: true } : {});
+    AM.log(3, `Multiclassed into ${classDoc.name}${absorb ? ' (grants applied in-app)' : ''}`);
+
+    if (absorb && created) {
+      const lv = grants.lv ?? { charLevel: grants.charLevel ?? 1, clsLevel: 1 };
+      try {
+        await GrantAbsorber.apply(actor, created, grants.choices ?? {}, lv);
+        // What a5e's routine ends with: the level's hit points, the casting
+        // ability and a spell book of the class's own
+        await GrantAbsorber.applyClassTail(actor, created, {
+          hpValue: grants.hpValue, ability: grants.spellcastingAbility, charLevel: lv.charLevel
+        });
+        if (grants.archetypeUuid) {
+          const { LevelUpDialog } = await import('../app/LevelUpDialog.js');
+          await GrantAbsorber.applyArchetype(actor, grants.archetypeUuid, lv,
+            LevelUpDialog.archetypeChoicesFrom(grants.choices ?? {}));
+        }
+      } catch (err) {
+        AM.log(1, `Multiclass: the grants of ${classDoc.name} could not be applied:`, err);
+        ui.notifications.error(`${AM.NAME}: ${classDoc.name} was added but its features could not be applied — see the console.`);
+      }
+      AM.levelUpGrants = null;   // consumed
+      hpGained = 0;              // written on the class by the tail
+    }
 
     // Add HP
     if (hpGained > 0) {

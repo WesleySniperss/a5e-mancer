@@ -5,6 +5,7 @@ import { ManeuverService } from './maneuverService.js';
 import { SpellService } from './spellService.js';
 import { GrantAbsorber } from './grantAbsorber.js';
 import { ProseSpells } from './proseSpells.js';
+import { TokenVision } from './tokenVision.js';
 import { applyItemIcon } from '../data/a5eIcons.js';
 
 export class ActorCreationService {
@@ -63,6 +64,10 @@ export class ActorCreationService {
 
       // Apply biography
       await this.#applyBiography(actor, fd);
+
+      // The darkvision its heritage or culture gave, on the token as well
+      try { await TokenVision.sync(actor, { force: true }); }
+      catch (err) { AM.log(2, 'Token vision could not be set:', err); }
 
       ui.notifications.info(
         game.i18n.format('am.app.character-created', { name: actor.name }),
@@ -303,10 +308,13 @@ export class ActorCreationService {
 
     let removed = 0;
     for (const [id, grant] of Object.entries(grants)) {
-      const isEquipment = grant?.grantType === 'item' && ownsEquipment;
-      const isTradition = grant?.grantType === 'trait'
-                          && grant.traits?.traitType === 'maneuverTraditions'
-                          && ownsTradition;
+      const isEquipment = (grant?.type || grant?.grantType) === 'item' && ownsEquipment;
+      const type = grant?.type || grant?.grantType;
+      const profKeys = [...(grant?.config?.keys?.base ?? []), ...(grant?.config?.keys?.options ?? []).flatMap(o => [...(o?.candidates ?? [])])];
+      // a5e 1.3: a maneuverTraditions trait; 1.4: a "tradition:" proficiency
+      const isTradition = ownsTradition && (
+        (type === 'trait' && (grant.config?.traits?.traitType ?? grant.traits?.traitType) === 'maneuverTraditions')
+        || (type === 'proficiency' && (profKeys.some(k => String(k).startsWith('tradition:')) || grant.proficiencyType === 'tradition')));
       if (isEquipment || isTradition) { delete grants[id]; removed++; }
     }
     if (removed) AM.log(3, `Removed ${removed} builder-owned grant(s) from ${data.name}`);
@@ -323,6 +331,11 @@ export class ActorCreationService {
     try {
       const item = await DocumentService.getItemByUuid(uuid);
       if (!item) return;
+      /* a5e's own window, for a heritage it handled, asks for the gift too and
+         has made it by now: a second copy here was the doubled Prescient Vision
+         (reported 2026-10-07). */
+      const source = (i) => i._stats?.compendiumSource ?? i.flags?.core?.sourceId ?? '';
+      if (actor.items.some(i => source(i) === uuid || (i.type === item.type && i.name === item.name))) return;
       const data = item.toObject();
       data._stats = data._stats || {};
       data._stats.compendiumSource = uuid;

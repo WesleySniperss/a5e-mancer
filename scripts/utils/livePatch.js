@@ -250,8 +250,14 @@ const itemStates = {
       }
     }
     if (fields.has('equippedState')) {
-      const carried = el.querySelector('.am-carried .am-a5e-value');
-      if (carried && sheet.liveCarried) setText(carried, sheet.liveCarried());
+      const block = el.querySelector('.am-carried');
+      const state = block && sheet.liveCarryState ? sheet.liveCarryState() : null;
+      if (state) {
+        setText(block.querySelector('.am-a5e-value'), state.carried);
+        setText(block.querySelector('.am-carry-cap'), `/ ${state.capacity} lb`);
+        setClassName(block, ['am-carried', state.encumbered && 'am-over']);
+        setAttr(block, 'style', `--am-carry-pct: ${state.carriedPct}%`);
+      }
     }
     return true;
   }
