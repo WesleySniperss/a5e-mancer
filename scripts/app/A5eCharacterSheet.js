@@ -242,6 +242,51 @@ export class A5eCharacterSheet extends ActorSheet {
     return total;
   }
 
+  /**
+   * Features that are only a wrapper for others, once those others are on the
+   * character: an elf's gift Prescient Vision, whose whole content is the
+   * trait it hands out, Glance the Future - the same text twice in the list,
+   * and the one to use is the trait (reported 2026-10-09: "why is it still
+   * doubled"). Likewise a choice's holder - Combat Tactic beside Combat Tactic
+   * (Ambusher), a Fighting Style beside the style picked.
+   *
+   * A wrapper: no action, no effect that changes anything, and grants that
+   * only hand out features, at least one of which the character has. One
+   * that gives anything of its own - a skill, a bonus - stays in the list.
+   */
+  static wrapperIds(actor) {
+    const out = new Set();
+    const items = [...(actor?.items ?? [])];
+    const sourceOf = (i) => i._stats?.compendiumSource ?? i.flags?.core?.sourceId ?? '';
+    const names = new Map();
+    const nameOf = (uuid) => {
+      if (!names.has(uuid)) { try { names.set(uuid, fromUuidSync(uuid)?.name ?? ''); } catch { names.set(uuid, ''); } }
+      return names.get(uuid);
+    };
+    const held = (uuid, self) => {
+      const id = String(uuid).split('.').pop();
+      const name = nameOf(uuid);
+      return items.some(i => i.id !== self.id && (i.id === id || sourceOf(i) === uuid
+        || (name && i.type === 'feature' && i.name === name)));
+    };
+    const uuidsOf = (g) => {
+      const f = g?.config?.features ?? g?.features ?? {};
+      return { base: (f.base ?? []).map(e => e?.uuid ?? e), options: (f.options ?? []).map(e => e?.uuid ?? e) };
+    };
+    for (const item of items) {
+      if (item.type !== 'feature') continue;
+      if (Object.keys(item.system?.actions ?? {}).length) continue;
+      if (item.effects?.some?.(e => (e.system?.changes ?? e.changes ?? []).length)) continue;
+      const grants = Object.values(item.system?.grants ?? {});
+      if (!grants.length || grants.some(g => (g?.type ?? g?.grantType) !== 'feature')) continue;
+      const lists = grants.map(uuidsOf);
+      if (lists.some(l => l.base.some(u => !held(u, item)))) continue;
+      if (!lists.some(l => [...l.base, ...l.options].some(u => held(u, item)))) continue;
+      out.add(item.id);
+    }
+    return out;
+  }
+
   static playerColorVar(actor) {
     const players = game.users?.filter?.((u) => !u.isGM && actor?.testUserPermission?.(u, 'OWNER')) ?? [];
     const player = players.find((u) => u.character?.id === actor?.id) ?? players[0];
@@ -658,7 +703,11 @@ export class A5eCharacterSheet extends ActorSheet {
     this._componentsFrom = await A5eCharacterSheet.#componentsFromSource(
       items.filter((i) => i.type === 'spell'));
     const spells    = items.filter(i => i.type === 'spell').map(i => this.#spell(i));
-    const features  = items.filter(i => ['feature','background','heritage','culture','destiny'].includes(i.type))
+    // Wrappers stay out of play's list - see wrapperIds; unlocked, everything shows
+    const wrappers  = (actor.isOwner && !(actor.flags?.a5e?.sheetIsLocked ?? true))
+      ? new Set() : A5eCharacterSheet.wrapperIds(actor);
+    const features  = items.filter(i => ['feature','background','heritage','culture','destiny'].includes(i.type)
+                                        && !wrappers.has(i.id))
                             .map(i => this.#feature(i));
     const feats       = items.filter(i => i.type === 'feat').map(i => this.#feat(i));
     const allFeatures = [
