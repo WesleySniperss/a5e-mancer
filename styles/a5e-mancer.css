@@ -3558,7 +3558,7 @@ button.lu-levels-title {
 .am-grant-block .am-card { overflow: visible; }
 .am-choose-label { margin: 0.35rem 0 0.2rem; font-weight: 600; }
 
-/* ── Fill In: grants never applied (utils/grantRepair.js) ──────────────── */
+/* ── Fill In: putting a character right (utils/grantRepair.js) ─────────── */
 .am-repair {
   display: grid;
   gap: 0.4rem;
@@ -3568,7 +3568,8 @@ button.lu-levels-title {
 
   h4 { margin: 0.4rem 0 0.1rem; font-size: 0.85rem; }
   ul { margin: 0; padding-inline-start: 1.1rem; font-size: 0.8rem; }
-  .am-repair-ask {
+  .am-repair-ask,
+  .am-repair-keep {
     display: grid;
     gap: 0.3rem;
     padding: 0.35rem 0.45rem;
@@ -3576,6 +3577,8 @@ button.lu-levels-title {
     border-radius: 6px;
   }
   .am-repair-ask-head { font-size: 0.8rem; }
+  /* A pick unticked here is one that goes: struck through, so it reads so */
+  .am-repair-keep .am-filter-pill:not(.am-pill-active) { text-decoration: line-through; opacity: 0.7; }
 }
 
 /* ── Level-up window: this level, step by step ───────────────────────────

@@ -1447,14 +1447,25 @@ export class GrantAbsorber {
     // collide and make createEmbeddedDocuments throw — which is what stopped a
     // level-up dead. a5e filters the same way and counts the existing ones as
     // part of the grant's documentIds.
-    const alreadyOwned = datas
-      .map(d => d._id)
-      .filter(id => id && actor.items.get(id));
-    const fresh = datas.filter(d => !alreadyOwned.includes(d._id));
+    // The one already there is found by its id, its recorded source, or - with
+    // no source of another entry recorded - its name: a5e's own window makes
+    // features under new ids, and matched by id alone, Fill In recording such a
+    // grant made every one of them a second time.
+    const ownedFor = (d) => {
+      const uuid = d._stats?.compendiumSource;
+      const sourceOf = (i) => i._stats?.compendiumSource ?? i.flags?.core?.sourceId ?? '';
+      return (d._id && actor.items.get(d._id))
+        ?? actor.items.find(i => uuid && sourceOf(i) === uuid)
+        ?? actor.items.find(i => i.type === d.type && i.name === d.name && (!sourceOf(i) || sourceOf(i) === uuid))
+        ?? null;
+    };
+    const owners = new Map(datas.map(d => [d, ownedFor(d)]));
+    const alreadyOwned = datas.filter(d => owners.get(d)).map(d => owners.get(d).id);
+    const fresh = datas.filter(d => !owners.get(d));
     // Returned so apply can walk them for grants that name this level.
     const had = datas
-      .filter(d => alreadyOwned.includes(d._id))
-      .map(d => ({ item: actor.items.get(d._id), uuid: d._stats.compendiumSource }));
+      .filter(d => owners.get(d))
+      .map(d => ({ item: owners.get(d), uuid: d._stats.compendiumSource }));
 
     let ids = [...alreadyOwned], items = [];
     if (fresh.length) {

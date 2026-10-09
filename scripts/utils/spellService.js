@@ -1081,7 +1081,23 @@ export class SpellService {
    * @param {string} [opts.spellBookId]  the book to file them in - the one the
    *        sheet is showing. Without it, the actor's first book.
    */
-  static async applySpellsToActor(actor, spellUuids, { prepared = null, flags = null, prepareRoom = null, spellBookId: bookId = null } = {}) {
+  static async applySpellsToActor(actor, spellUuids, opts = {}) {
+    if (!actor || !spellUuids?.length) return [];
+    const prior = this.#spellQueue.get(actor.id) ?? Promise.resolve();
+    const run = prior.catch(() => {}).then(() => this.#applySpellsNow(actor, spellUuids, opts));
+    this.#spellQueue.set(actor.id, run);
+    try { return await run; }
+    finally { if (this.#spellQueue.get(actor.id) === run) this.#spellQueue.delete(actor.id); }
+  }
+
+  /* One call at a time per character. Each reads what the actor holds, then
+     reads the compendium entries, then creates; two calls in between - the
+     builder's picks and ProseSpells' pass 750ms after the features arrived -
+     both found a spell missing and both made it: Prestidigitation and Darkness
+     twice (reported 2026-10-09). Queued, the second reads what the first made. */
+  static #spellQueue = new Map();
+
+  static async #applySpellsNow(actor, spellUuids, { prepared = null, flags = null, prepareRoom = null, spellBookId: bookId = null } = {}) {
     if (!spellUuids.length) return [];
     /** What the actor holds of what was asked for when this returns: made now, or there already. */
     const held = new Set();
@@ -1147,13 +1163,21 @@ export class SpellService {
         AM.log(2, `Error fetching spell ${uuid}:`, err);
       }
     }
-    if (itemDatas.length) {
-      const made = await actor.createEmbeddedDocuments('Item', itemDatas);
+    // Read once more as they are made: a spell that arrived by another road
+    // while the compendium was being read (a5e's own grant) is not made twice
+    const nowHeld = new Set(actor.items.filter(i => i.type === 'spell').map(i => i.name.toLowerCase()));
+    const toMake = itemDatas.filter(d => {
+      if (!nowHeld.has(String(d.name).toLowerCase())) return true;
+      held.add(d._stats.compendiumSource);
+      return false;
+    });
+    if (toMake.length) {
+      const made = await actor.createEmbeddedDocuments('Item', toMake);
       for (const doc of made ?? []) {
         const source = doc?._stats?.compendiumSource;
         if (source) held.add(source);
       }
-      AM.log(3, `Added ${itemDatas.length} spells to spellbook ${spellBookId}`);
+      AM.log(3, `Added ${toMake.length} spells to spellbook ${spellBookId}`);
     }
     return [...held];
   }

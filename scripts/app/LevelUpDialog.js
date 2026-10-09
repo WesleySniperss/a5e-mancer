@@ -2973,9 +2973,12 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
         done:  new Set(this.actor.getFlag(AM.ID, ProseSpells.FLAG) ?? []),
         known: new Set(this.actor.items.filter(i => i.type === 'spell').map(i => i.name.toLowerCase()))
       });
-      // The ones the new features give outright, for the spell list to mark known
+      /* The ones features give outright at the new level, for the spell list to
+         mark known - every feature's, not only the new ones': a culture's
+         Darkness from 3rd level was still offered at 3rd, and picked as well
+         it came twice (reported 2026-10-09). */
       const auto = new Set();
-      for (const { doc, level } of gained) {
+      for (const { doc, level } of [...owned, ...gained]) {
         const html = typeof doc.system?.description === 'string' ? doc.system.description : (doc.system?.description?.value ?? '');
         for (const g of ProseSpells.parse(html, lookup, { classKey: ProseSpells.classKeyOf(doc), name: doc.name }).auto) {
           if (!g.atLevel || g.atLevel <= level) auto.add(String(g.name).toLowerCase());

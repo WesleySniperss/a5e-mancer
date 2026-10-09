@@ -50,8 +50,12 @@ export class A5eFixes {
    * ticked the attack does not roll". Without the outer pair the same dice are
    * a plain dice term, and the roll and its critical work: "(1)d6[Sneak Attack]".
    *
-   * Taken off where a5e or this module writes such a bonus, and once for the
-   * bonuses already on the world's characters.
+   * Taken off in three places: in memory as every client prepares an actor,
+   * so the attack rolls whatever is stored and whoever rolls it; where a5e or
+   * this module writes such a bonus; and in what is stored - once at load on
+   * the GM's client, and by the sheet's Fill In for one character. The memory
+   * one does not wait for either: reported again 2026-10-09, "the attack still
+   * does not roll", after a release that fixed only what is stored.
    */
   static damageBonusFormulas() {
     if (this.#done.has('damageBonusFormulas')) return;
@@ -70,17 +74,43 @@ export class A5eFixes {
       }
       for (const bonus of Object.values(changes?.system?.bonuses?.damage ?? {})) fix(bonus);
     });
-    if (!game.user?.isGM) return;
-    for (const actor of game.actors ?? []) {
-      const update = {};
-      for (const [id, bonus] of Object.entries(actor.system?.bonuses?.damage ?? {})) {
-        const simple = this.simplifyDiceFormula(bonus?.formula);
-        if (simple !== bonus?.formula) update[`system.bonuses.damage.${id}.formula`] = simple;
-      }
-      if (Object.keys(update).length) {
-        actor.update(update).catch((err) => AM.log(2, `Damage bonus formulas of ${actor.name}:`, err));
+
+    // In memory: the prepared bonuses, which a5e's BonusesManager reads to roll
+    const proto = CONFIG.Actor?.documentClass?.prototype;
+    const prepare = proto?.prepareBaseData;
+    if (typeof prepare === 'function') {
+      proto.prepareBaseData = function prepareBaseData(...args) {
+        const result = prepare.apply(this, args);
+        try { for (const bonus of Object.values(this.system?.bonuses?.damage ?? {})) fix(bonus); }
+        catch { /* the stored formula stands */ }
+        return result;
+      };
+      for (const actor of game.actors ?? []) {
+        for (const bonus of Object.values(actor.system?.bonuses?.damage ?? {})) fix(bonus);
       }
     }
+
+    if (!game.user?.isGM) return;
+    for (const actor of game.actors ?? []) {
+      this.storeDamageFormulas(actor).catch((err) => AM.log(2, `Damage bonus formulas of ${actor.name}:`, err));
+    }
+  }
+
+  /**
+   * One character's stored damage bonuses in the plain form - read from the
+   * stored data, as the prepared copy is plain already.
+   * @returns {Promise<string[]>} the names of the bonuses put right
+   */
+  static async storeDamageFormulas(actor) {
+    const update = {}, names = [];
+    for (const [id, bonus] of Object.entries(actor?._source?.system?.bonuses?.damage ?? {})) {
+      const simple = this.simplifyDiceFormula(bonus?.formula);
+      if (simple === bonus?.formula) continue;
+      update[`system.bonuses.damage.${id}.formula`] = simple;
+      names.push(bonus?.label || 'damage bonus');
+    }
+    if (names.length) await actor.update(update);
+    return names;
   }
 
   /**

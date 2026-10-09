@@ -12,6 +12,7 @@ import { ItemRepair } from '../utils/itemRepair.js';
 import { patchInPlace, snapshot } from '../utils/livePatch.js';
 import { ArmorClass } from '../utils/armorClass.js';
 import { GrantRepair } from '../utils/grantRepair.js';
+import { WeaponSpells } from '../utils/weaponSpells.js';
 
 const MODULE_ID = 'a5e-mancer';
 
@@ -167,14 +168,37 @@ export class A5eCharacterSheet extends ActorSheet {
         label: 'Fill In',
         class: 'am-repair-items',
         icon:  'fa-solid fa-book-medical',
-        /* The items' missing text, then the grants a5e never recorded and the
-           bonuses counted twice (GrantRepair) - one button for putting a
-           character right, as asked 2026-10-08. */
+        /* One button for putting a character right, as asked 2026-10-08 ("add
+           all of it to our fill button"): the items' missing text; then, with
+           nothing to choose, Sneak Attack's dice stored in the form that rolls,
+           the rolls, effects and bonuses a5e left out of features, the token's
+           darkvision; then the grants a5e never recorded, origins holding more
+           than they give, and bonuses counted twice (GrantRepair). Until
+           2.89.1 only the first and last were here, and the rest waited for a
+           GM's client to load the world - "Fill In seems to do nothing". */
         onclick: async () => {
-          const filled = await ItemRepair.run(this.actor, { quiet: true });
-          const fixed = await GrantRepair.run(this.actor);
+          const actor = this.actor;
+          const filled = await ItemRepair.run(actor, { quiet: true });
+          const done = [];
+          const step = async (what, fn) => {
+            try { done.push(...await fn()); } catch (err) { AM.log(1, `Fill In, ${what}:`, err); }
+          };
+          await step('damage formulas', async () => {
+            const { A5eFixes } = await import('../utils/a5eFixes.js');
+            return (await A5eFixes.storeDamageFormulas(actor)).map(n => `${n}: its dice`);
+          });
+          await step('features', async () => {
+            const { FeatureAutomation } = await import('../utils/featureAutomation.js');
+            return FeatureAutomation.completeActor(actor);
+          });
+          await step('token vision', async () => {
+            const { TokenVision } = await import('../utils/tokenVision.js');
+            return (await TokenVision.sync(actor)) ? ['the token\'s darkvision'] : [];
+          });
+          if (done.length) ui.notifications.info(`${AM.NAME}: ${actor.name} - ${done.join('; ')}.`);
+          const fixed = await GrantRepair.run(actor);
           // null: a window was closed unapplied - there was something, so say nothing
-          if (filled === 0 && fixed === 0) ui.notifications.info(`${AM.NAME}: nothing to fill in or put right on ${this.actor.name}.`);
+          if (filled === 0 && fixed === 0 && !done.length) ui.notifications.info(`${AM.NAME}: nothing to fill in or put right on ${actor.name}.`);
         }
       });
     }
@@ -3214,6 +3238,11 @@ export class A5eCharacterSheet extends ActorSheet {
       const item = this.actor.items.get(b.dataset.id);
       if (!item) return;
       try {
+        // Booming Blade and its kind: a weapon's attack first, then the spell
+        if (WeaponSpells.kindOf(item)) {
+          await WeaponSpells.cast(this.actor, item, actionIdOf(b), { skipRollDialog });
+          return;
+        }
         if (typeof item.activate === 'function') {
           await item.activate(actionIdOf(b), { skipRollDialog });
           return;

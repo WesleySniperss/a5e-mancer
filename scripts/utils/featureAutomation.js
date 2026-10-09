@@ -150,13 +150,27 @@ export class FeatureAutomation {
     });
     if (!game.user?.isGM) return;
     for (const actor of game.actors ?? []) {
-      for (const item of actor.items ?? []) {
-        if (this.effectFor(item)) this.completeEffect(item).catch(err => AM.log(2, `${item.name} could not be automated:`, err));
-        if (this.actionFor(item)) this.completeAction(item).catch(err => AM.log(2, `${item.name} could not be automated:`, err));
-        if (item.type === 'feature' && this.grantsFor(item.name) && !Object.keys(item.system?.grants ?? {}).length) {
-          this.complete(actor, item).catch(err => AM.log(2, `${item.name} could not be automated:`, err));
-        }
+      this.completeActor(actor).catch(err => AM.log(2, `${actor.name} could not be automated:`, err));
+    }
+  }
+
+  /**
+   * Everything in these tables, on one character's items - at load for the
+   * world, and from the sheet's Fill In for one character. Each step leaves
+   * alone what is done already.
+   * @returns {Promise<string[]>} what was added, to report
+   */
+  static async completeActor(actor) {
+    const done = [];
+    for (const item of [...(actor?.items ?? [])]) {
+      try {
+        if (this.effectFor(item) && await this.completeEffect(item)) done.push(`${item.name}: its effect`);
+        if (this.actionFor(item) && await this.completeAction(item)) done.push(`${item.name}: its own roll`);
+        if (item.type === 'feature' && this.grantsFor(item.name) && await this.complete(actor, item)) done.push(`${item.name}: its bonuses`);
+      } catch (err) {
+        AM.log(2, `${item.name} could not be automated:`, err);
       }
     }
+    return done;
   }
 }
