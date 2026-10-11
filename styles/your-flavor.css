@@ -214,6 +214,20 @@ body.crlngn-ui.crlngn-chat .chat-message.yf-card {
     font-weight: 600;
 }
 
+/*
+ * The card's headings in Your Flavor's font: the item's name (Longbow,
+ * Booming Blade - the large h2), the action under it and the rolls' labels.
+ * Carolingian UI draws every chat h1-h3 in its own title font
+ * ("body.crlngn-ui.crlngn-chat.cui-font-t .chat-message h2"), from the
+ * stylesheet it loads itself, outside Foundry's module layer - and an
+ * unlayered rule beats a layered one whatever its weight, so the rules above
+ * and below lost to it and the name stayed in Roboto Slab (reported
+ * 2026-10-10). An !important in a layer is what beats it.
+ */
+.chat-message.yf-card.a5e-chat-card :is(h1, h2, h3, h4, .a5e-chat-card__body__header__title, .a5e-chat-card__body__header__subtitle, .roll-label) {
+    font-family: var(--yf-chat-font-family, var(--yf-font-family)) !important;
+}
+
 .chat-message.yf-card.a5e-chat-card .a5e-chat-card__header__time {
     color: var(--yf-chat-header-metadata, var(--yf-timestamp-color));
     opacity: 0.75;

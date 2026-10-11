@@ -7,8 +7,8 @@ import { AM } from '../am.js';
  * the weapon, as on D&D Beyond; then "why only Booming Blade - there are more,
  * like Arcing Blow"; then "can it roll in one window, not in ten"; then "the
  * spell must still be rollable on its own, without the weapon". So one window
- * of this module's asks everything - the weapon (only those that fit, the
- * equipped first, or none: the spell alone), the roll mode, and what a hit
+ * of this module's asks everything - the weapon (only equipped ones that fit,
+ * or none: the spell alone), the roll mode, and what a hit
  * adds: the spell's own damage and the character's damage bonuses that a5e's
  * attack window offers (Sneak Attack) - and the rest rolls without a5e's
  * windows:
@@ -18,8 +18,8 @@ import { AM } from '../am.js';
  *     damage goes into the weapon's roll as a damage bonus, scaled for the
  *     character's level the way a5e scales it - one card, the attack, the
  *     weapon's damage and the spell's, doubled together on a critical hit.
- *     The spell's own card, its text, comes first, for what a hit does
- *     besides damage.
+ *     The weapon's card alone: the spell's own card only when it is rolled
+ *     without a weapon (asked 2026-10-10).
  *   - a levelled spell, or one with a save or healing (Detonating Shot,
  *     Cupid's Arrow, Withering Attack): the weapon's card, then the spell's -
  *     its damage, its save and its slot, at its own level.
@@ -91,24 +91,29 @@ export class WeaponSpells {
     return this.#KNOWN[String(item.name ?? '').toLowerCase().replace(/’/g, "'").trim()] ?? null;
   }
 
-  /** The character's weapon attacks of a kind - [{ item, actionId, label, attackType }], the equipped first. */
+  /**
+   * The character's equipped weapon attacks of a kind - [{ item, actionId,
+   * label, attackType }]. Equipped only (a5e's equippedState 2; 1 is carried,
+   * 0 not carried): the spell is cast with the weapon in hand (asked
+   * 2026-10-10, "only the equipped weapon to choose from").
+   */
   static attacksFor(actor, kind) {
     const want = kind === 'ranged' ? ['rangedWeaponAttack']
       : kind === 'melee' ? ['meleeWeaponAttack'] : ['meleeWeaponAttack', 'rangedWeaponAttack'];
     const out = [];
     for (const item of actor?.items ?? []) {
       if (item.type !== 'object' || item.system?.objectType !== 'weapon') continue;
+      if (Number(item.system?.equippedState ?? 0) !== 2) continue;
       for (const [actionId, action] of Object.entries(item.system?.actions ?? {})) {
         const attack = Object.values(action?.rolls ?? {}).find(r => r?.type === 'attack' && want.includes(r.attackType));
         if (!attack) continue;
         out.push({
           item, actionId, attackType: attack.attackType,
-          label: action?.name && action.name !== item.name ? action.name : item.name,
-          equipped: Number(item.system?.equippedState ?? 0)
+          label: action?.name && action.name !== item.name ? action.name : item.name
         });
       }
     }
-    return out.sort((a, b) => (b.equipped - a.equipped) || a.label.localeCompare(b.label));
+    return out;
   }
 
   /** The spell's action to use: the one asked for, else the first that rolls damage, else the first. */
@@ -249,13 +254,11 @@ export class WeaponSpells {
       return true;
     };
     const attacks = this.attacksFor(actor, kind);
-    if (!attacks.length) {
-      ui.notifications.info(`${AM.NAME}: ${actor.name} has no ${kind === 'any' ? '' : `${kind} `}weapon for ${spell.name} - the spell is rolled on its own.`);
-      return alone();
-    }
+    // No weapon in hand: right-click rolls the spell; the window says why there is no weapon to pick
+    if (!attacks.length && skipRollDialog) return alone();
     const merge = this.#merges(spell, actionId);
     const spellDamage = merge ? this.#spellDamage(actor, spell, actionId) : [];
-    const bonuses = this.#bonusesFor(actor, attacks[0]);
+    const bonuses = attacks.length ? this.#bonusesFor(actor, attacks[0]) : [];
 
     let choice;
     if (skipRollDialog) {
@@ -270,7 +273,6 @@ export class WeaponSpells {
     }
     if (!choice.attack) return alone();
 
-    if (merge) await spell.shareItemDescription?.(null, {});
     const rolled = await this.#rollWeapon(actor, choice, bonuses);
     if (!rolled) return false;
     if (!merge) await spell.activate(actionId, { skipRollDialog: this.#canPay(actor, spell, actionId) });
@@ -281,10 +283,14 @@ export class WeaponSpells {
   static async #ask(spell, kind, attacks, spellDamage, bonuses, merge) {
     const esc = (s) => foundry.utils.escapeHTML(String(s ?? ''));
     const MODES = CONFIG.A5E.ROLL_MODE;
+    const none = !attacks.length;
     const weaponPills = [
       ...attacks.map((a, i) => `<label class="am-filter-pill${i === 0 ? ' am-pill-active' : ''}"><input type="radio" name="weapon" value="${i}"${i === 0 ? ' checked' : ''}>${esc(a.label)}</label>`),
-      `<label class="am-filter-pill am-wspell-alone"><input type="radio" name="weapon" value="none">No weapon - the spell alone</label>`
+      `<label class="am-filter-pill am-wspell-alone${none ? ' am-pill-active' : ''}"><input type="radio" name="weapon" value="none"${none ? ' checked' : ''}>No weapon - the spell alone</label>`
     ].join('');
+    const unequipped = none
+      ? `<p class="am-hint am-wspell-none"><i class="fa-solid fa-circle-info"></i> No ${kind === 'any' ? '' : `${kind} `}weapon is equipped - equip one to cast ${esc(spell.name)} with it.</p>`
+      : '';
     const modePills = [['normal', MODES.NORMAL, 'Normal'], ['advantage', MODES.ADVANTAGE, 'Advantage'], ['disadvantage', MODES.DISADVANTAGE, 'Disadvantage']]
       .map(([, value, label], i) => `<label class="am-filter-pill${i === 0 ? ' am-pill-active' : ''}"><input type="radio" name="mode" value="${value}"${i === 0 ? ' checked' : ''}>${label}</label>`).join('');
     const damageRows = [
@@ -300,8 +306,8 @@ export class WeaponSpells {
 
     const content = `<div class="am-wspell">
       <p class="am-hint">${esc(spell.name)} is cast with ${what} attack. ${how} Without a weapon, the spell rolls on its own.</p>
-      <h4>Weapon</h4><div class="am-filter-pills" data-group="weapon">${weaponPills}</div>
-      <div class="am-wspell-with">
+      <h4>Weapon</h4><div class="am-filter-pills" data-group="weapon">${weaponPills}</div>${unequipped}
+      <div class="am-wspell-with"${none ? ' hidden' : ''}>
         <h4>Roll</h4><div class="am-filter-pills" data-group="mode">${modePills}</div>
         ${damageRows ? `<h4>On a hit</h4><div class="am-wspell-dmgs">${damageRows}</div>` : ''}
       </div>

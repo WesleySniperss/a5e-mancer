@@ -13,6 +13,7 @@ import { patchInPlace, snapshot } from '../utils/livePatch.js';
 import { ArmorClass } from '../utils/armorClass.js';
 import { GrantRepair } from '../utils/grantRepair.js';
 import { WeaponSpells } from '../utils/weaponSpells.js';
+import { ForeignMarkup } from '../utils/foreignMarkup.js';
 
 const MODULE_ID = 'a5e-mancer';
 
@@ -66,11 +67,14 @@ const PROF_MULTIPLIERS = [0, 1, 2];
    that were showing through raw on the sheet: Foundry's enricher syntax,
    where @UUID[…]{Produce Flame} should read as just 'Produce Flame', and
    HTML entities, where &nbsp; was being printed literally because stripping
-   tags leaves entities behind. */
-const plainText = (html) => String(html ?? '')
-  .replace(/@UUID\[[^\]]+\]\{([^}]*)\}/g, '$1')
+   tags leaves entities behind. Markup of every kind - Foundry's, a5e's,
+   dnd5e's, 5etools' - goes to the words it stands for first
+   (ForeignMarkup.readable): "[[/damage 2d6 type=fire]]" reads "2d6 fire",
+   "@variantrule[Advantage|XPHB]" "Advantage" (asked 2026-10-10: no roll
+   formulas and heaps of brackets in descriptions). */
+const plainText = (html) => ForeignMarkup.readable(String(html ?? ''))
   .replace(/@\w+\[[^\]]*\]\{([^}]*)\}/g, '$1')
-  .replace(/@\w+\[([^\]]*)\]/g, '$1')
+  .replace(/@\w+\[([^\]|]*)[^\]]*\]/g, '$1')
   .replace(/<[^>]*>/g, ' ')
   .replace(/&nbsp;/g, ' ')
   .replace(/&amp;/g, '&')
