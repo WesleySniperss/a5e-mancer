@@ -192,7 +192,32 @@ export class ItemRepair {
       fill[key] = value;
     }
 
-    return Object.keys(fill).length ? { _id: item.id, system: fill } : null;
+    /* Inside the actions the character has, the fields a stub's action never
+       got: its range, target, area, duration and activation. The actions
+       themselves are the character's and are kept; only an empty field is
+       given the book's, from the book's action of the same id, else the same
+       name, else the only one. Reported 2026-10-12: cards with no range or
+       radius - 38 spells on the user's characters had actions with no range. */
+    const actions = {};
+    const mineActions = mine.actions ?? {}, theirActions = Object.entries(theirs.actions ?? {});
+    if (!('actions' in fill)) {
+      const own = Object.entries(mineActions);
+      for (const [id, act] of own) {
+        const src = (theirs.actions ?? {})[id]
+          ?? theirActions.find(([, a]) => a?.name && a.name === act?.name)?.[1]
+          ?? (own.length === 1 && theirActions.length === 1 ? theirActions[0][1] : null);
+        if (!src) continue;
+        const give = (key, empty) => { if (empty(act?.[key]) && !empty(src[key])) actions[`system.actions.${id}.${key}`] = src[key]; };
+        give('ranges', v => !v || !Object.keys(v).length);
+        give('target', v => !v?.type);
+        give('area', v => !v?.shape);
+        give('duration', v => !v?.unit);
+        give('activation', v => !v?.type);
+      }
+    }
+
+    if (!Object.keys(fill).length && !Object.keys(actions).length) return null;
+    return { _id: item.id, ...(Object.keys(fill).length ? { system: fill } : {}), ...actions };
   }
 
   /**
@@ -253,7 +278,7 @@ export class ItemRepair {
         content:
             `<p>${updates.length} of ${this.esc(actor.name)}'s items have no description, and the`
           + ` compendium entry they came from still does. Their description, and any other`
-          + ` field left empty — a spell's level, components and casting time among them —`
+          + ` field left empty — a spell's level, components and casting time, an action's range, target and area among them —`
           + ` would be filled in.</p>`
           + `<ul>${summary}</ul>`
           + `<p class="am-hint">${sample}${more}</p>`

@@ -16,6 +16,7 @@ import { A5eFixes } from './utils/a5eFixes.js';
 import { TokenVision } from './utils/tokenVision.js';
 import { FeatureAutomation } from './utils/featureAutomation.js';
 import { ForeignMarkup } from './utils/foreignMarkup.js';
+import { CardSummary } from './utils/cardSummary.js';
 
 /* AM moved to scripts/am.js, where it imports nothing and so cannot be part
    of an import cycle. Re-exported here so the old path keeps resolving. */
@@ -110,6 +111,8 @@ Hooks.on('init', () => {
 Hooks.once('setup', () => {
   // dnd5e and 5etools markup in a5e text, read as words, rolls and links - see foreignMarkup.js
   try { ForeignMarkup.register(); } catch (err) { AM.log(1, 'Text enrichers failed:', err); }
+  // Chat cards with range, target, area and components, from the compendium entry for a stub - see cardSummary.js
+  try { CardSummary.install(); } catch (err) { AM.log(1, 'Card summaries failed:', err); }
 
   const DISARMED = {
     id:          'disarmed',

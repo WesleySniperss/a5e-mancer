@@ -1,4 +1,5 @@
 import { AM } from '../am.js';
+import { CardSummary } from './cardSummary.js';
 
 /**
  * Spells cast with a weapon attack, rolled with the weapon in one window.
@@ -357,6 +358,9 @@ export class WeaponSpells {
    */
   static async #rollWeapon(actor, { attack, rollMode, spell, bonuses: chosen }, offered) {
     const { item, actionId } = attack;
+    // The weapon's compendium entry read now, not as it is activated: activate would wait for it,
+    // and the bonuses put in below are there for an instant only
+    await CardSummary.warm(item).catch(() => null);
     const live = actor.system?.bonuses?.damage;
     const added = [], defaults = new Map();
     if (live && typeof live === 'object') {
