@@ -179,6 +179,8 @@
   "am.settings.randomize.hint": "Shows a Randomise button that generates a random name.",
   "am.settings.beyond20.name": "Beyond20 Support",
   "am.settings.beyond20.hint": "Makes rolls sent from D&D Beyond by the Beyond20 extension work correctly in A5e: styles the chat cards, syncs hit points to the derived maximum, and maps conditions and Exhaustion onto A5e's conditions and Fatigue track.",
+  "am.settings.site-text.name": "Descriptions as on a5e.tools",
+  "am.settings.site-text.hint": "Descriptions get the links a5e.tools makes (a summoning spell's creatures to their stat blocks; spells, items, maneuvers and conditions a text names) and what a5e's compendia left out of them: tables, stat blocks, lore, a background's connections and mementos. The stored text is not changed.",
   "am.settings.beyond20-initiative.name": "Beyond20 Initiative to the Combat Tracker",
   "am.settings.beyond20-initiative.hint": "An initiative roll from D&D Beyond goes onto the character's combatant: the selected token, or the character's tokens on this scene when none is selected. A combatant is added where there is none; the GM's roll also starts an encounter.",
   "am.beyond20.initiative-no-encounter": "Beyond20: initiative {n} for {name} was not added - there is no encounter yet. The GM has to start one.",

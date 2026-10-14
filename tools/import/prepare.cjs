@@ -28,7 +28,7 @@ async function readPack(dir, kind = 'items') {
 
 (async () => {
   fs.mkdirSync(P.PACKS, { recursive: true });
-  for (const name of ['spells', 'maneuvers', 'classes', 'archetypes', 'classFeatures', 'adventuringGear', 'feats', 'backgrounds', 'backgroundFeatures', 'destinies', 'destinyFeatures', 'heritages', 'heritageFeatures', 'cultures', 'cultureFeatures', 'paragonGifts']) {
+  for (const name of ['spells', 'maneuvers', 'classes', 'archetypes', 'classFeatures', 'adventuringGear', 'feats', 'backgrounds', 'backgroundFeatures', 'destinies', 'destinyFeatures', 'heritages', 'heritageFeatures', 'cultures', 'cultureFeatures', 'paragonGifts', 'interactions', 'dnd5e-spells']) {
     const docs = await readPack(path.join(P.SYSTEM, 'packs', name));
     fs.writeFileSync(path.join(P.PACKS, `${name}.json`), JSON.stringify(docs));
     console.log(`a5e ${name}: ${docs.length}`);

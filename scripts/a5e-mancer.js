@@ -17,6 +17,7 @@ import { TokenVision } from './utils/tokenVision.js';
 import { FeatureAutomation } from './utils/featureAutomation.js';
 import { ForeignMarkup } from './utils/foreignMarkup.js';
 import { CardSummary } from './utils/cardSummary.js';
+import { SiteText } from './utils/siteText.js';
 
 /* AM moved to scripts/am.js, where it imports nothing and so cannot be part
    of an import cycle. Re-exported here so the old path keeps resolving. */
@@ -42,6 +43,10 @@ Hooks.on('init', () => {
   } catch(e) {
     console.error('a5e-mancer | init error:', e);
   }
+
+  /* Descriptions completed from a5e.tools - see siteText.js. At init: the
+     world's items are prepared before setup. */
+  try { SiteText.install(); } catch (err) { console.error('a5e-mancer | site text:', err); }
 
 
   /* ── Handlebars partials ── */

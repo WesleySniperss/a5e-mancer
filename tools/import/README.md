@@ -135,3 +135,38 @@ itself in the world when its own hash changes, into a folder per kind.
 Corrections the page structure cannot tell the converter go in
 `archetype-overrides.cjs`. Read `.cache/build-report.txt` after a build: one
 line per feature with its level, choices, uses, action and grants.
+
+## Descriptions as on the site
+
+a5e's packs carry a5e.tools' text with almost none of its links, and leave
+parts out. Three more steps compare every entry both have - spells, magic
+items, equipment, weapons, combat maneuvers, feats, backgrounds, destinies -
+and write what to put back:
+
+    node tools/import/fetch-descriptions.cjs     # the site's text of every entry, and what its links point at
+    node tools/import/compare-descriptions.cjs   # a report: missing sentences, tables, links per list
+    node tools/import/build-site-text.cjs        # scripts/data/siteText.js
+    node tools/checks/sitetext.mjs               # every link and block lands, twice changes nothing
+
+`fetch-descriptions` reads only a page's `<article>` (the sidebar repeats
+`field--name-body`), and a magic item's text is `field-mi-description`, a
+feat's `field-feat-details`. The site links by node number as often as by
+name, so every `/node/` page linked is fetched too, to learn what it is.
+
+`build-site-text` writes, per a5e (or imported) document: the links to make
+(a summoning spell's creatures to a5e's own "Conjured ..." stat blocks, the
+spells, items, maneuvers and monsters a text names, conditions as a5e's
+`[[/condition]]`), and the blocks a5e left out (tables, stat blocks it has no
+actor for, lore, a background's connections and mementos). A spell gets only
+tables and stat blocks: a paragraph the site has and a5e does not is a later
+printing's wording, which `.cache/descriptions/site-text-report.json` lists
+under `reworded` and nothing changes. A variant (a5e's "Bag of Tricks (Gray)"
+for the site's one page of every bag) gets the table, not the others' text.
+Equipment and weapons get text only where a5e has none. It also maps a5e's own
+links that lead nowhere - into the paid modules its content came from, or to
+ids its packs no longer have - to the document of that name a5e has now.
+
+The module puts all this into each item's prepared description
+(`scripts/utils/siteText.js`, with the same functions as the build in
+`siteTextCore.js`); the stored text is not changed. Setting: "Descriptions as
+on a5e.tools".

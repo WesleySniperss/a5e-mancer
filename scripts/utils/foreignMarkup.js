@@ -203,7 +203,7 @@ export class ForeignMarkup {
       .replace(/@UUID\[([^\]]+)\]\{([^}]*)\}/g, '$2')
       .replace(/@UUID\[([^\]]+)\]/g, (_, uuid) => { try { return fromUuidSync(uuid)?.name ?? ''; } catch { return ''; } })
       .replace(/\[\[\/damage\s+([^\]]*)\]\](?:\{([^}]*)\})?/gi, (_, args, shown) => shown || this.parseDamage(args).label)
-      .replace(/\[\[\/condition\s+id=([\w-]+)[^\]]*\]\](?:\{([^}]*)\})?/gi, (_, id, shown) => shown || id)
+      .replace(/\[\[\/condition\s+id=([\w-]+)([^\]]*)\]\](?:\{([^}]*)\})?/gi, (_, id, args, shown) => shown || args.match(/label="([^"]*)"/i)?.[1] || id)
       .replace(/\[\[\/save\s+([^\]]*)\]\](?:\{([^}]*)\})?/gi, (_, args, shown) => {
         if (shown) return shown;
         const dc = args.match(/dc=(\d+)/i)?.[1], ab = args.match(/ability=(\w+)/i)?.[1];

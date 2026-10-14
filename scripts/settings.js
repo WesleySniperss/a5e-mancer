@@ -44,6 +44,12 @@ export function registerSettings() {
     scope: 'client', config: true, type: Boolean, default: true, requiresReload: true
   });
 
+  // Descriptions completed from a5e.tools: its links and what a5e's packs left out (utils/siteText.js)
+  game.settings.register(AM.ID, 'siteText', {
+    name: 'am.settings.site-text.name', hint: 'am.settings.site-text.hint',
+    scope: 'world', config: true, type: Boolean, default: true, requiresReload: true
+  });
+
   // A Beyond20 initiative roll onto the character's combatant (Beyond20Service._addInitiative)
   game.settings.register(AM.ID, 'beyond20Initiative', {
     name: 'am.settings.beyond20-initiative.name', hint: 'am.settings.beyond20-initiative.hint',
