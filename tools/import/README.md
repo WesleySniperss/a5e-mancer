@@ -140,8 +140,9 @@ line per feature with its level, choices, uses, action and grants.
 
 a5e's packs carry a5e.tools' text with almost none of its links, and leave
 parts out. Three more steps compare every entry both have - spells, magic
-items, equipment, weapons, combat maneuvers, feats, backgrounds, destinies -
-and write what to put back:
+items, equipment, weapons, combat maneuvers, feats, backgrounds, destinies,
+and the features of classes, archetypes, heritages and cultures - and write
+what to put back:
 
     node tools/import/fetch-descriptions.cjs     # the site's text of every entry, and what its links point at
     node tools/import/compare-descriptions.cjs   # a report: missing sentences, tables, links per list
@@ -151,7 +152,22 @@ and write what to put back:
 `fetch-descriptions` reads only a page's `<article>` (the sidebar repeats
 `field--name-body`), and a magic item's text is `field-mi-description`, a
 feat's `field-feat-details`. The site links by node number as often as by
-name, so every `/node/` page linked is fetched too, to learn what it is.
+name, so every `/node/` page linked is fetched too, to learn what it is. A
+class's page is `/rules/<class>` (`/classes/<class>` only lists its
+archetypes), and some bold with `<span style="font-weight:700">`; heritages and
+cultures come from the tables on `/rules/heritages` and `/rules/cultures-0`,
+archetypes from the archetype view.
+
+A class, archetype, heritage or culture is one page on the site and a document
+with features in a5e. Each feature is found on the page by its name - a
+heading, or a paragraph opening with it in bold (94% are) - and compared with
+its section, up to the next heading as high. A feature gets the links and its
+tables, or the whole section where a5e has no text; the class or heritage
+itself gets links only, from the text before its first feature.
+
+The site also links any word that is a page's title ("freelinking"): a curse
+to the Cursed background, dim light to the Light destiny. A background or
+destiny is linked only where it is named with a capital.
 
 `build-site-text` writes, per a5e (or imported) document: the links to make
 (a summoning spell's creatures to a5e's own "Conjured ..." stat blocks, the

@@ -52,6 +52,8 @@ export class SiteText {
     const sid = source ? String(source).split('.').pop() : null;
     if (sid && entries[sid]) return sid;
     if (item.id && entries[item.id]) return item.id;
+    // made from a compendium entry the site adds nothing to: not another of that name
+    if (String(source ?? '').startsWith('Compendium.')) return null;
     const ids = SITE_TEXT.names[this.nameKey(item)];
     if (!ids?.length) return null;
     if (ids.length === 1) return ids[0];
@@ -61,7 +63,10 @@ export class SiteText {
       return (e.links ?? []).filter(([w]) => words.includes(norm(w))).length
         + (e.add ?? []).filter(([a]) => a !== '^' && words.includes(a.slice(0, 30))).length;
     };
-    return ids.reduce((best, id) => (score(id) > score(best) ? id : best), ids[0]);
+    /* A name several entries share (two Soldier backgrounds, an Extra Attack
+       per class): the one whose words the text holds - none when no one's do. */
+    const best = ids.reduce((b, id) => (score(id) > score(b) ? id : b), ids[0]);
+    return score(best) > 0 ? best : null;
   }
 
   /**

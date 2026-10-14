@@ -7,7 +7,9 @@
  * stat blocks; Animate Dead links the skeleton twice and the zombie once;
  * Control Weather gets its three tables after the paragraph they belong to;
  * Artisan gets its connections and mementos; a Bag of Tricks variant gets the
- * table of bags; "rat" is not linked inside "giant rat".
+ * table of bags; "rat" is not linked inside "giant rat"; Wild Shape gets its
+ * table from the druid's page and Pact Boon links the imp; no word the site
+ * links by itself ("cursed" to the Cursed background) comes through.
  *
  * Reads a5e's packs from tools/import/.cache: run tools/import/prepare.cjs once.
  */
@@ -27,7 +29,7 @@ const { applyEntry, insertBlocks, linkText, occurrences, blocksOf, anchorOf } = 
 
 const read = (f) => JSON.parse(fs.readFileSync(f, 'utf8'));
 const docs = new Map();
-for (const p of ['spells', 'adventuringGear', 'maneuvers', 'feats', 'backgrounds', 'destinies']) for (const d of read(path.join(PACKS, `${p}.json`))) docs.set(d._id, d);
+for (const p of ['spells', 'adventuringGear', 'maneuvers', 'feats', 'backgrounds', 'destinies', 'classes', 'archetypes', 'classFeatures', 'heritages', 'heritageFeatures', 'cultures', 'cultureFeatures']) for (const d of read(path.join(PACKS, `${p}.json`))) docs.set(d._id, d);
 for (const f of fs.readdirSync(path.join(R, 'scripts', 'data', 'imported')).filter(f => /^a5etools-.*\.json$/.test(f))) for (const d of read(path.join(R, 'scripts', 'data', 'imported', f))) if (!docs.has(d._id)) docs.set(d._id, d);
 const monsters = read(path.join(PACKS, 'monsterIndex.json'));
 const descOf = (d) => typeof d.system?.description === 'string' ? d.system.description : (d.system?.description?.value ?? '');
@@ -131,6 +133,18 @@ const linksOf = (html) => [...html.matchAll(/@UUID\[([^\]]+)\]\{([^}]*)\}/g)].ma
   const out = linkText(html, [['skeleton', 0, 0], ['skeleton', 0, 1], ['prone', 1, 0], ['prone', 1, 1]], ['Compendium.a5e.a5e-monsters.Actor.y', 'condition:prone']);
   ok((out.match(/@UUID/g) || []).length === 2 && out.includes('{skeleton} and a @UUID[Compendium.a5e.a5e-monsters.Actor.y]{skeleton}'), `linkText: existing link kept, the free one linked (${out})`);
   ok((out.match(/\[\[\/condition/g) || []).length === 2, 'linkText: the condition enricher is not linked inside');
+}
+
+{
+  // a class feature, from its section of the class page
+  const ids = SITE_TEXT.names['feature|wild shape'] ?? [];
+  const outs = ids.map(id => applyEntry(descOf(docs.get(id)), SITE_TEXT.entries[id], SITE_TEXT.targets));
+  ok(outs.some(o => /<table/.test(o) && /Ape/.test(o)), 'Wild Shape gets its table of shapes');
+  const pact = (SITE_TEXT.names['feature|pact boon'] ?? []).map(id => linksOf(applyEntry(descOf(docs.get(id)), SITE_TEXT.entries[id], SITE_TEXT.targets))).flat();
+  ok(pact.some(([w, n]) => /imp/i.test(w) && n === 'Imp'), `Pact Boon links the imp's stat block (${JSON.stringify(pact.slice(0, 4))})`);
+  // what the site links by itself ("freelinking"): no curse to the Cursed background, no dim light to the Light destiny
+  const all = Object.values(SITE_TEXT.entries).flatMap(e => (e.links ?? []).map(([w, t]) => [w, SITE_TEXT.targets[t]]));
+  ok(!all.some(([w, t]) => /^[a-z]/.test(w) && /a5e-(backgrounds|destinies)\./.test(t)), 'no lower-case word links a background or destiny');
 }
 
 // ---- a5e's own links that lead nowhere (SiteText.relink)

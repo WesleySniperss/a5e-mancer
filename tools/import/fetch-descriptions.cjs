@@ -16,9 +16,39 @@ const fs = require('fs'), path = require('path');
 const P = require('./lib/paths.cjs');
 const L = require('./lib/lists.cjs');
 
-const ALL = ['spells', 'magic-items', 'mundane-equipment', 'weapons', 'combat-maneuvers', 'feats', 'backgrounds', 'destinies'];
+const ALL = ['spells', 'magic-items', 'mundane-equipment', 'weapons', 'combat-maneuvers', 'feats', 'backgrounds', 'destinies',
+  'classes', 'archetypes', 'heritages', 'cultures'];
 const LISTS = process.argv.slice(2).length ? process.argv.slice(2) : ALL;
 const PAUSE = 500;
+
+/* Lists that are not one of the site's list views. Archetypes: its archetype
+   view (fetch-archetypes.cjs keeps it). Heritages and cultures: a table on a
+   rules page each (fetch-origins.cjs). Classes: /rules/<class>, tried by a5e's
+   class names (/classes/<class> is only a list of its archetypes); a page that
+   is not there is remembered as such. */
+const read = (f) => fs.readFileSync(path.join(P.CACHE, f), 'utf8');
+function rulesRows(file) {
+  const html = read(file);
+  const article = html.slice(html.indexOf('<article'), html.indexOf('</article>'));
+  return article.slice(article.indexOf('<tbody'), article.indexOf('</tbody>')).split('<tr').slice(1).map((r) => {
+    const link = r.match(/<td[^>]*>[\s\S]*?href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/);
+    return link ? { url: local(link[1]), name: L.txt(link[2]) } : null;
+  }).filter(Boolean);
+}
+const SOURCES = {
+  archetypes: () => L.rowsOf(read('archetypes-list.html')).map(r => ({ url: r.url, name: r.name, cls: r['archetype-class'] })),
+  heritages: () => rulesRows('rules-heritages.html'),
+  cultures: () => rulesRows('rules-cultures.html'),
+  classes: () => {
+    const rows = new Map();
+    for (const c of JSON.parse(read(path.join('packs', 'classes.json')))) {
+      const name = c.name.replace(/\s*\(.*\)\s*/, '');
+      const url = `/rules/${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+      if (!rows.has(url)) rows.set(url, { url, name, guess: true });
+    }
+    return [...rows.values()];
+  },
+};
 
 const fileOf = (list, url) => path.join(P.CACHE, 'pages', list, url.replace(/^\//, '').replace(/\//g, '_') + '.html');
 /** A link as a path on the site: some texts write the whole address. */
@@ -64,7 +94,7 @@ function linksOf(html) {
 (async () => {
   fs.mkdirSync(path.join(P.CACHE, 'descriptions'), { recursive: true });
   for (const list of LISTS) {
-    const rows = await L.fetchList(list);
+    const rows = SOURCES[list] ? SOURCES[list]() : await L.fetchList(list);
     fs.mkdirSync(path.join(P.CACHE, 'pages', list), { recursive: true });
     let fetched = 0, failed = 0;
     const out = [];
@@ -75,15 +105,20 @@ function linksOf(html) {
           fs.writeFileSync(f, await L.get('https://a5e.tools' + row.url));
           fetched++;
           await new Promise(ok => setTimeout(ok, PAUSE));
-        } catch (err) { failed++; console.log(`  ${row.url}: ${err.message}`); continue; }
+        } catch (err) {
+          // a guessed class page that is not there: remembered, not asked again
+          if (row.guess && /: 404$/.test(err.message)) { fs.writeFileSync(f, ''); continue; }
+          failed++; console.log(`  ${row.url}: ${err.message}`); continue;
+        }
       }
+      if (!fs.statSync(f).size) continue;
       const page = fs.readFileSync(f, 'utf8').replace(/<!--[\s\S]*?-->/g, '');
       const html = page.slice(page.indexOf('<article'), page.indexOf('</article>'));
       const body = field(html, BODY[list] ?? 'body');
       const higher = field(html, 'field-spellcast-at-higher-levels');
       const rare = field(html, 'field-spell-rare-versions');
       const fields = fieldsOf(html);
-      out.push({ name: row.name, url: row.url, body, higher, rare, fields, links: linksOf(fields.map(x => x[2]).join(' ')) });
+      out.push({ name: row.name, url: row.url, ...(row.cls ? { cls: row.cls } : {}), body, higher, rare, fields, links: linksOf(fields.map(x => x[2]).join(' ')) });
     }
     fs.writeFileSync(path.join(P.CACHE, 'descriptions', `${list}.json`), JSON.stringify(out, null, 1));
     console.log(`${list}: ${rows.length} rows, ${fetched} fetched, ${failed} failed, ${out.filter(o => o.body).length} with a text`);

@@ -125,11 +125,16 @@ const META = /^(casting time|range|targets?|area|duration|components?|saving thr
       ?? (nodes[h]?.canonical && importedByUrl.get(nodes[h].canonical) ? importedUuid(importedByUrl.get(nodes[h].canonical)) : null);
     const own = itemTarget(kind, name);
     if (own) return own;
+    /* An animal the site sells as equipment (the weasel of a Bag of Tricks, a
+       riding horse) is a stat block in a5e: that, before the imported item. */
+    if (kind === 'equipment') {
+      const beast = monsters.find(m => flat(m.name) === flat(name));
+      if (beast) return `Compendium.a5e.a5e-monsters.Actor.${beast._id}`;
+    }
     const imp = importedByUrl.get(h) ?? importedByUrl.get(nodes[h]?.canonical ?? '');
     if (imp) return importedUuid(imp);
     /* A generic page linked by a particular name ("greater healing potion" to the
-       site's Potion of Healing, a5e's "Healing Potion (Greater)"); an animal the
-       site sells as equipment is a stat block in a5e. */
+       site's Potion of Healing, a5e's "Healing Potion (Greater)"). */
     return itemTarget(kind, text) ?? (kind === 'equipment' ? monsterTarget(name) : null);
   }
 
@@ -209,6 +214,155 @@ const META = /^(casting time|range|targets?|area|duration|components?|saving thr
   const entries = {}, names = {};
   const report = { pairs: 0, links: {}, unresolved: {}, adds: [], reworded: [], unpaired: {} };
 
+  /**
+   * One a5e (or imported) document against its text on the site: the blocks to add
+   * and the links to make, into entries and names. mode: 'entry' (a list's own
+   * entry), 'feature' (a class, archetype, heritage or culture feature - its
+   * section of the page), 'parent' (the class, archetype... itself - links only).
+   */
+  function processPair(list, type, { doc, row, uuid, packHtml, imported: isImported }, mode = 'entry') {
+    report.pairs++;
+    const summon = list === 'spells' && /conjure/i.test(row.name);
+    const html = siteHtml(list, row, { summon });
+    const ownHtml = descOf(doc);
+    const all = new Set(shingles(packHtml)), allNorm = norm(packHtml);
+
+    // blocks: what the pack has none of
+    let blocks = blocksOf(html);
+    /* A stat block a5e has as an actor of its own (a spell's grove swarm, its
+       woodland beings) is linked, not copied: from its title - a short bold line
+       naming an a5e monster, with armor class or hit points just after - to the end. */
+    const statAt = blocks.findIndex((b, i) => {
+      const words = b.replace(/<[^>]+>/g, ' ').trim();
+      if (!/^<p>\s*<strong>/i.test(b) || words.split(/\s+/).length > 5) return false;
+      if (!/armor class|\bac\b|hit points|\bhp\b/i.test(blocks.slice(i + 1, i + 5).join(' ').replace(/<[^>]+>/g, ' '))) return false;
+      const title = bag(words);
+      return title.size && monsterBags.some(x => [...title].every(w => x.bag.has(w)));
+    });
+    if (statAt >= 0) {
+      blocks = blocks.slice(0, statAt);
+      while (blocks.length && /^<hr/i.test(blocks.at(-1))) blocks.pop();
+    }
+    const present = blocks.map(b => {
+      if (/^<hr/i.test(b)) return true;
+      const cov = coverage(b, all);
+      return cov === null ? allNorm.includes(norm(b)) || !norm(b) : cov >= 0.35;
+    });
+    const missingOk = (b) => !META.test(norm(b) ? b.replace(/<[^>]+>/g, '').trim() : '') && !boilerplate(b);
+    const ownBlocks = blocksOf(ownHtml).filter(b => norm(b));
+    const ownSets = ownBlocks.map(b => new Set(shingles(b)));
+    const anchorFor = (i) => {
+      for (let j = i - 1; j >= 0; j--) {
+        if (!present[j] || /^<hr/i.test(blocks[j])) continue;
+        const sh = shingles(blocks[j]);
+        let bi = -1, bs = 0;
+        ownSets.forEach((s, k) => { const n = sh.filter(x => s.has(x)).length; if (n > bs) { bs = n; bi = k; } });
+        if (bi < 0) { const n = norm(blocks[j]); bi = ownBlocks.findIndex(b => norm(b).includes(n)); }
+        if (bi >= 0) return anchorOf(ownBlocks[bi]);
+      }
+      return '^';
+    };
+    const add = [];
+    const thin = norm(ownHtml).split(' ').filter(Boolean).length < 5;
+    /* What may be added. Equipment and weapons: only to an item with no text -
+       elsewhere the site's extra is a tool's rules or an encyclopedia line. A
+       spell: tables and stat blocks - a paragraph it has that a5e does not is
+       a later printing's wording (Harm, Hex), not something a5e left out. A
+       variant (a5e's "Bag of Tricks (Gray)" for the site's one page of every
+       bag): the table of them all, not the text of the others. */
+    const variant = flat(doc.name) !== flat(row.name);
+    const statblock = (g) => /armor class|\bac\b/i.test(g.replace(/<[^>]+>/g, ' ')) && /hit points|\bhp\b/i.test(g.replace(/<[^>]+>/g, ' '));
+    /* A feature (its section of a class or heritage page, found by its heading):
+       the tables, or the whole text where a5e's has none - a section's end is a
+       guess, and a paragraph past it would be another feature's. The class or
+       heritage itself: links only. */
+    const tablesOnly = variant || list === 'spells' || (mode === 'feature' && !thin);
+    const allowed = (g) => {
+      if (mode === 'parent') return false;
+      if ((list === 'mundane-equipment' || list === 'weapons') && !thin) return false;
+      const words = norm(g).split(' ').filter(Boolean).length;
+      if (tablesOnly) return /<table/i.test(g) && words <= 300 || (!variant && mode === 'entry' && statblock(g));
+      return words >= (thin ? 3 : 8) || /<table/i.test(g);
+    };
+    for (let i = 0; i < blocks.length; i++) {
+      if (present[i] || !missingOk(blocks[i])) continue;
+      let j = i, group = '';
+      while (j < blocks.length && !present[j] && missingOk(blocks[j])) group += blocks[j++];
+      if (tablesOnly) {
+        // only the tables of a group, each on its own with the title line before it
+        const tables = [];
+        for (let k = i; k < j; k++) {
+          if (!/^<table/i.test(blocks[k])) continue;
+          const title = k > i && !/^<table/i.test(blocks[k - 1]) && norm(blocks[k - 1]).split(' ').length <= 8 ? blocks[k - 1] : '';
+          tables.push(title + blocks[k]);
+        }
+        const keep = statblock(group) && !variant && mode === 'entry' ? [group] : tables;
+        for (const t of keep) if (allowed(t)) add.push([thin ? '^' : anchorFor(i), t]);
+      } else if (allowed(group)) add.push([thin ? '^' : anchorFor(i), group]);
+      i = j - 1;
+    }
+    if (add.length) report.adds.push({ list, name: doc.name, imported: !!isImported, blocks: add.length, words: add.reduce((n, [, h]) => n + norm(h).split(' ').length, 0), first: norm(add[0][1]).slice(0, 90) });
+    // reworded: paragraphs the pack has in part only - reported, not changed
+    blocks.forEach((b, i) => { const c = coverage(b, all); if (present[i] && c !== null && c < 0.8 && c >= 0.35 && norm(b).split(' ').length > 12 && !/<table/i.test(b) && missingOk(b)) report.reworded.push({ list, name: doc.name, site: b.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().slice(0, 240), coverage: +c.toFixed(2) }); });
+
+    // links: the site's, at the same place in the pack's text
+    const finalHtml = insertBlocks(ownHtml, add);
+    const links = [];
+    const usedFirst = new Set();
+    const rawLinks = [];
+    for (const field of list === 'spells' ? [row.body, row.higher] : (list === 'backgrounds' || list === 'destinies') && mode === 'entry' ? row.fields.map(f => f[2]) : [row.body]) {
+      const src = String(field ?? '').replace(/<!--[\s\S]*?-->/g, '').replace(/<span class="freelinking-link"\s*>([\s\S]*?)<\/span>/g, '$1');
+      for (const m of src.matchAll(/<a\b[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)) {
+        const text = m[2].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+        if (!text) continue;
+        const occ = occurrences(src, text);
+        rawLinks.push({ href: m[1].replace(/^https?:\/\/a5e\.tools/, ''), text, k: occ.findIndex(o => o.start >= m.index && o.start < m.index + m[0].length), siteCount: occ.length });
+      }
+    }
+    for (const [text, monster] of EXTRA_LINKS[flat(row.name)] ?? []) rawLinks.push({ extra: monsterTarget(monster), text, k: 0, siteCount: 1 });
+    for (const l of rawLinks) {
+      const target = l.extra ?? (l.href.startsWith('/') ? resolve(l.href, l.text, { summon }) : null);
+      const kind = l.extra ? 'monster' : (l.href.startsWith('/spell/') ? 'spell' : l.href.startsWith('/rules/') ? 'rules' : nodes[l.href]?.type ?? 'other');
+      if (!target) {
+        if (kind !== 'rules' && kind !== 'srd-page' && kind !== 'monster-type') {
+          report.unresolved[kind] = (report.unresolved[kind] ?? 0) + 1;
+          (report.unresolvedNames ??= {})[`${kind}: ${nodes[l.href]?.title ?? l.href}`] = l.text;
+        }
+        continue;
+      }
+      if (target === uuid) continue;
+      /* The site links any word that is the title of a page ("freelinking"): a
+         curse to the Cursed background, dim light to the Light destiny, guards to
+         the Guard background. A background or destiny only where it is named,
+         with a capital - "your destiny changes to Revenge". */
+      if (/\.a5e-(backgrounds|destinies)\.|a5e-mancer-imported\.Item/.test(target) && /^[a-z]/.test(l.text)
+          && (/\.a5e-(backgrounds|destinies)\./.test(target) || ['background', 'destiny'].includes(kind))) continue;
+      const inOwn = occurrences(ownHtml, l.text);
+      if (inOwn.some(o => !o.linkable)) continue;               // a5e links it already
+      // a condition once per text: the site links every "restrained", one is enough to read it
+      if (target.startsWith('condition:') && links.some(x => targets[x[1]] === target)) continue;
+      const inFinal = occurrences(finalHtml, l.text);
+      /* Not where the words are part of longer ones the site links on their own:
+         "rat" inside "giant rat". */
+      const longer = rawLinks.filter(o => o.text.length > l.text.length && patternOf(l.text).test(o.text)).flatMap(o => occurrences(finalHtml, o.text));
+      const free = (i) => inFinal[i]?.linkable && !longer.some(o => o.start <= inFinal[i].start && inFinal[i].end <= o.end);
+      let occ;
+      if (inFinal.length === l.siteCount && l.k >= 0 && free(l.k)) occ = l.k;
+      else if (!usedFirst.has(l.text.toLowerCase())) occ = inFinal.findIndex((o, i) => free(i));
+      else continue;
+      usedFirst.add(l.text.toLowerCase());
+      if (occ < 0 || links.some(x => x[0].toLowerCase() === l.text.toLowerCase() && x[2] === occ)) continue;
+      links.push([l.text, tIndex(target), occ]);
+      const k = target.startsWith('condition:') ? 'condition' : target.includes('Actor') ? 'monster' : kind;
+      report.links[k] = (report.links[k] ?? 0) + 1;
+    }
+
+    if (!add.length && !links.length) return;
+    entries[doc._id] = { ...(add.length ? { add } : {}), ...(links.length ? { links } : {}) };
+    const key = `${type}|${doc.name.toLowerCase().replace(/[’‘`]/g, "'").replace(/\s+/g, ' ').trim()}`;
+    (names[key] ??= []).includes(doc._id) || names[key].push(doc._id);
+  }
+
   for (const [list, { packs: packNames, type }] of Object.entries(LISTS)) {
     const rows = rowsOf[list];
     const rowByVariant = new Map();
@@ -247,135 +401,71 @@ const META = /^(casting time|range|targets?|area|duration|components?|saving thr
     }
     report.unpaired[list] = rows.filter(r => !pairs.some(p => p.row === r)).map(r => r.name);
 
-    for (const { doc, row, uuid, packHtml, imported: isImported } of pairs) {
-      report.pairs++;
-      const summon = list === 'spells' && /conjure/i.test(row.name);
-      const html = siteHtml(list, row, { summon });
-      const ownHtml = descOf(doc);
-      const all = new Set(shingles(packHtml)), allNorm = norm(packHtml);
+    for (const pair of pairs) processPair(list, type, pair);
+  }
 
-      // blocks: what the pack has none of
-      let blocks = blocksOf(html);
-      /* A stat block a5e has as an actor of its own (a spell's grove swarm, its
-         woodland beings) is linked, not copied: from its title - a short bold line
-         naming an a5e monster, with armor class or hit points just after - to the end. */
-      const statAt = blocks.findIndex((b, i) => {
-        const words = b.replace(/<[^>]+>/g, ' ').trim();
-        if (!/^<p>\s*<strong>/i.test(b) || words.split(/\s+/).length > 5) return false;
-        if (!/armor class|\bac\b|hit points|\bhp\b/i.test(blocks.slice(i + 1, i + 5).join(' ').replace(/<[^>]+>/g, ' '))) return false;
-        const title = bag(words);
-        return title.size && monsterBags.some(x => [...title].every(w => x.bag.has(w)));
-      });
-      if (statAt >= 0) {
-        blocks = blocks.slice(0, statAt);
-        while (blocks.length && /^<hr/i.test(blocks.at(-1))) blocks.pop();
-      }
-      const present = blocks.map(b => {
-        if (/^<hr/i.test(b)) return true;
-        const cov = coverage(b, all);
-        return cov === null ? allNorm.includes(norm(b)) || !norm(b) : cov >= 0.35;
-      });
-      const missingOk = (b) => !META.test(norm(b) ? b.replace(/<[^>]+>/g, '').trim() : '') && !boilerplate(b);
-      const ownBlocks = blocksOf(ownHtml).filter(b => norm(b));
-      const ownSets = ownBlocks.map(b => new Set(shingles(b)));
-      const anchorFor = (i) => {
-        for (let j = i - 1; j >= 0; j--) {
-          if (!present[j] || /^<hr/i.test(blocks[j])) continue;
-          const sh = shingles(blocks[j]);
-          let bi = -1, bs = 0;
-          ownSets.forEach((s, k) => { const n = sh.filter(x => s.has(x)).length; if (n > bs) { bs = n; bi = k; } });
-          if (bi < 0) { const n = norm(blocks[j]); bi = ownBlocks.findIndex(b => norm(b).includes(n)); }
-          if (bi >= 0) return anchorOf(ownBlocks[bi]);
-        }
-        return '^';
-      };
-      const add = [];
-      const thin = norm(ownHtml).split(' ').filter(Boolean).length < 5;
-      /* What may be added. Equipment and weapons: only to an item with no text -
-         elsewhere the site's extra is a tool's rules or an encyclopedia line. A
-         spell: tables and stat blocks - a paragraph it has that a5e does not is
-         a later printing's wording (Harm, Hex), not something a5e left out. A
-         variant (a5e's "Bag of Tricks (Gray)" for the site's one page of every
-         bag): the table of them all, not the text of the others. */
-      const variant = flat(doc.name) !== flat(row.name);
-      const statblock = (g) => /armor class|\bac\b/i.test(g.replace(/<[^>]+>/g, ' ')) && /hit points|\bhp\b/i.test(g.replace(/<[^>]+>/g, ' '));
-      const allowed = (g) => {
-        if ((list === 'mundane-equipment' || list === 'weapons') && !thin) return false;
-        const words = norm(g).split(' ').filter(Boolean).length;
-        if (variant || list === 'spells') return /<table/i.test(g) && words <= 300 || (!variant && statblock(g));
-        return words >= (thin ? 3 : 8) || /<table/i.test(g);
-      };
-      for (let i = 0; i < blocks.length; i++) {
-        if (present[i] || !missingOk(blocks[i])) continue;
-        let j = i, group = '';
-        while (j < blocks.length && !present[j] && missingOk(blocks[j])) group += blocks[j++];
-        if (variant || list === 'spells') {
-          // only the tables of a group, each on its own with the title line before it
-          const tables = [];
-          for (let k = i; k < j; k++) {
-            if (!/^<table/i.test(blocks[k])) continue;
-            const title = k > i && !/^<table/i.test(blocks[k - 1]) && norm(blocks[k - 1]).split(' ').length <= 8 ? blocks[k - 1] : '';
-            tables.push(title + blocks[k]);
-          }
-          const keep = statblock(group) && !variant ? [group] : tables;
-          for (const t of keep) if (allowed(t)) add.push([thin ? '^' : anchorFor(i), t]);
-        } else if (allowed(group)) add.push([thin ? '^' : anchorFor(i), group]);
-        i = j - 1;
-      }
-      if (add.length) report.adds.push({ list, name: doc.name, imported: !!isImported, blocks: add.length, words: add.reduce((n, [, h]) => n + norm(h).split(' ').length, 0), first: norm(add[0][1]).slice(0, 90) });
-      // reworded: paragraphs the pack has in part only - reported, not changed
-      blocks.forEach((b, i) => { const c = coverage(b, all); if (present[i] && c !== null && c < 0.8 && c >= 0.35 && norm(b).split(' ').length > 12 && !/<table/i.test(b) && missingOk(b)) report.reworded.push({ list, name: doc.name, site: b.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().slice(0, 240), coverage: +c.toFixed(2) }); });
+  const SYS = read(path.join(P.SYSTEM, 'system.json')).packs;
+  const packNameOf = Object.fromEntries(SYS.map(p => [path.basename(p.path).replace(/\.db$/, ''), p.name]));
+  const sysPacks = new Set(SYS.map(p => `a5e.${p.name}`));
 
-      // links: the site's, at the same place in the pack's text
-      const finalHtml = insertBlocks(ownHtml, add);
-      const links = [];
-      const usedFirst = new Set();
-      const rawLinks = [];
-      for (const field of list === 'spells' ? [row.body, row.higher] : list === 'backgrounds' || list === 'destinies' ? row.fields.map(f => f[2]) : [row.body]) {
-        const src = String(field ?? '').replace(/<!--[\s\S]*?-->/g, '').replace(/<span class="freelinking-link"\s*>([\s\S]*?)<\/span>/g, '$1');
-        for (const m of src.matchAll(/<a\b[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)) {
-          const text = m[2].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
-          if (!text) continue;
-          const occ = occurrences(src, text);
-          rawLinks.push({ href: m[1].replace(/^https?:\/\/a5e\.tools/, ''), text, k: occ.findIndex(o => o.start >= m.index && o.start < m.index + m[0].length), siteCount: occ.length });
-        }
+  /* Classes, archetypes, heritages and cultures: one page on the site, a
+     document and its features in a5e. Each feature is found on the page by its
+     name - a heading, or a paragraph that opens with it in bold - and compared
+     with its section: from there to the next heading as high (or, for a bold
+     opening, the next place a feature could start). The class or heritage
+     itself is compared with the page's text before its first feature, for
+     links only. */
+  const PAGES = {
+    classes: { parents: 'classes', type: 'class', features: ['classFeatures'] },
+    archetypes: { parents: 'archetypes', type: 'archetype', features: ['classFeatures'] },
+    heritages: { parents: 'heritages', type: 'heritage', features: ['heritageFeatures'] },
+    cultures: { parents: 'cultures', type: 'culture', features: ['cultureFeatures'] },
+  };
+  const baseName = (n) => flat(String(n).replace(/\s*\([^)]*\)\s*$/, ''));
+  function marksOf(html) {
+    const out = [];
+    for (const m of html.matchAll(/<(h[1-6])\b[^>]*>([\s\S]*?)<\/\1>/g)) out.push({ at: m.index, after: m.index + m[0].length, level: Number(m[1][1]), text: m[2].replace(/<[^>]+>/g, '').trim() });
+    for (const m of html.matchAll(/<p\b[^>]*>\s*((?:<(?:strong|b|em|i)\b[^>]*>\s*)+)([^<]{2,90}?)\s*</g)) out.push({ at: m.index, after: m.index, level: 9, text: m[2].trim(), lead: true });
+    return out.sort((x, y) => x.at - y.at);
+  }
+  const done = new Set(Object.keys(entries));
+  for (const [list, k] of Object.entries(PAGES)) {
+    const rows = fs.existsSync(path.join(DESC, `${list}.json`)) ? read(path.join(DESC, `${list}.json`)) : [];
+    const parents = pack(k.parents).map(d => ({ d, uuid: `Compendium.a5e.${packNameOf[k.parents]}.Item.${d._id}` }));
+    const featureById = new Map(k.features.flatMap(f => pack(f).map(d => [d._id, { d, uuid: `Compendium.a5e.${packNameOf[f]}.Item.${d._id}` }])));
+    for (const row of rows) {
+      const html = String(row.body || row.fields.map(f => f[2]).join(''))
+        .replace(/<span style="font-weight:\s*(?:700|bold);?">([\s\S]*?)<\/span>/g, '<strong>$1</strong>');
+      const marks = marksOf(html);
+      // the document(s) this page is: a5e's by name (an archetype for the same class), or the imported ones made from it
+      const groups = [];
+      for (const { d, uuid } of parents) {
+        if (baseName(d.name) !== baseName(row.name)) continue;
+        if (row.cls && d.system?.class && flat(d.system.class) !== flat(row.cls)) continue;
+        const ids = [...new Set(JSON.stringify(d.system?.grants ?? {}).match(/[A-Za-z0-9]{16}(?=")/g) ?? [])];
+        groups.push({ parent: { d, uuid }, features: ids.map(i => featureById.get(i)).filter(Boolean) });
       }
-      for (const [text, monster] of EXTRA_LINKS[flat(row.name)] ?? []) rawLinks.push({ extra: monsterTarget(monster), text, k: 0, siteCount: 1 });
-      for (const l of rawLinks) {
-        const target = l.extra ?? (l.href.startsWith('/') ? resolve(l.href, l.text, { summon }) : null);
-        const kind = l.extra ? 'monster' : (l.href.startsWith('/spell/') ? 'spell' : l.href.startsWith('/rules/') ? 'rules' : nodes[l.href]?.type ?? 'other');
-        if (!target) {
-          if (kind !== 'rules' && kind !== 'srd-page' && kind !== 'monster-type') {
-            report.unresolved[kind] = (report.unresolved[kind] ?? 0) + 1;
-            (report.unresolvedNames ??= {})[`${kind}: ${nodes[l.href]?.title ?? l.href}`] = l.text;
-          }
-          continue;
+      const here = importedAt.get(row.url) ?? [];
+      const impParent = here.find(x => x.kind === 'Item' && x.type === k.type);
+      if (impParent) groups.push({ parent: { d: impParent, uuid: importedUuid(impParent), imported: true }, features: here.filter(x => x.type === 'feature').map(d => ({ d, uuid: importedUuid(d), imported: true })) });
+      for (const { parent, features } of groups) {
+        let first = html.length;
+        for (const f of features) {
+          if (done.has(f.d._id)) continue;
+          const want = baseName(f.d.name);
+          const at = marks.findIndex(m => { const t = baseName(m.text.replace(/[.:]\s*$/, '')); return t === want || t.replace(/^\d+(st|nd|rd|th) level /, '') === want; });
+          if (at < 0) continue;
+          const m = marks[at];
+          const next = marks.slice(at + 1).find(n => m.lead ? true : !n.lead && n.level <= m.level);
+          const section = html.slice(m.after, next ? next.at : html.length);
+          first = Math.min(first, m.at);
+          done.add(f.d._id);
+          processPair(`${list}-features`, 'feature', { doc: f.d, row: { name: f.d.name, url: row.url, body: section, higher: '', fields: [] }, uuid: f.uuid, packHtml: descOf(f.d), imported: f.imported }, 'feature');
         }
-        if (target === uuid) continue;
-        const inOwn = occurrences(ownHtml, l.text);
-        if (inOwn.some(o => !o.linkable)) continue;               // a5e links it already
-        // a condition once per text: the site links every "restrained", one is enough to read it
-        if (target.startsWith('condition:') && links.some(x => targets[x[1]] === target)) continue;
-        const inFinal = occurrences(finalHtml, l.text);
-        /* Not where the words are part of longer ones the site links on their own:
-           "rat" inside "giant rat". */
-        const longer = rawLinks.filter(o => o.text.length > l.text.length && patternOf(l.text).test(o.text)).flatMap(o => occurrences(finalHtml, o.text));
-        const free = (i) => inFinal[i]?.linkable && !longer.some(o => o.start <= inFinal[i].start && inFinal[i].end <= o.end);
-        let occ;
-        if (inFinal.length === l.siteCount && l.k >= 0 && free(l.k)) occ = l.k;
-        else if (!usedFirst.has(l.text.toLowerCase())) occ = inFinal.findIndex((o, i) => free(i));
-        else continue;
-        usedFirst.add(l.text.toLowerCase());
-        if (occ < 0 || links.some(x => x[0].toLowerCase() === l.text.toLowerCase() && x[2] === occ)) continue;
-        links.push([l.text, tIndex(target), occ]);
-        const k = target.startsWith('condition:') ? 'condition' : target.includes('Actor') ? 'monster' : kind;
-        report.links[k] = (report.links[k] ?? 0) + 1;
+        if (done.has(parent.d._id)) continue;
+        done.add(parent.d._id);
+        processPair(list, k.type, { doc: parent.d, row: { name: parent.d.name, url: row.url, body: html.slice(0, first), higher: '', fields: [] }, uuid: parent.uuid, packHtml: descOf(parent.d), imported: parent.imported }, 'parent');
       }
-
-      if (!add.length && !links.length) continue;
-      entries[doc._id] = { ...(add.length ? { add } : {}), ...(links.length ? { links } : {}) };
-      const key = `${type}|${doc.name.toLowerCase().replace(/[’‘`]/g, "'").replace(/\s+/g, ' ').trim()}`;
-      (names[key] ??= []).includes(doc._id) || names[key].push(doc._id);
     }
   }
 
@@ -384,9 +474,6 @@ const META = /^(casting time|range|targets?|area|duration|components?|saving thr
      and on a5e.tools), to a pack that is gone (a5e-magic-items), or to ids its
      packs no longer have (dnd5e-spells). Each goes to the document of that name
      a5e has now - '' where there is none, and the words stay without a link. */
-  const SYS = read(path.join(P.SYSTEM, 'system.json')).packs;
-  const packNameOf = Object.fromEntries(SYS.map(p => [path.basename(p.path).replace(/\.db$/, ''), p.name]));
-  const sysPacks = new Set(SYS.map(p => `a5e.${p.name}`));
   const every = Object.keys(packNameOf).filter(n => n !== 'monsters' && fs.existsSync(path.join(P.PACKS, `${n}.json`)))
     .flatMap(n => pack(n).map(d => ({ d, uuid: `Compendium.a5e.${packNameOf[n]}.Item.${d._id}`, n })));
   const exists = new Set([...every.map(x => x.d._id), ...monsters.map(m => m._id)]);
