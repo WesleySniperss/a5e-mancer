@@ -1,5 +1,6 @@
 import { AM } from '../am.js';
 import { PackFilter } from './packFilter.js';
+import { SiteText } from './siteText.js';
 
 /**
  * Spells a5e hands out in prose.
@@ -494,8 +495,7 @@ export class ProseSpells {
     const seenKeys = new Set();
     for (const { doc, isNew, level } of sources) {
       if (!doc) continue;
-      const html = typeof doc.system?.description === 'string'
-        ? doc.system.description : (doc.system?.description?.value ?? '');
+      const html = SiteText.stored(doc);
       const source = this.#sourceOf(doc);
       const { choices } = this.parse(html, lookup, { classKey: this.classKeyOf(doc), name: doc.name });
       choices.forEach((c, i) => {
@@ -622,8 +622,7 @@ export class ProseSpells {
     const keys = [];
     for (const item of actor.items) {
       if (!this.TYPES.has(item.type)) continue;
-      const html = typeof item.system?.description === 'string'
-        ? item.system.description : (item.system?.description?.value ?? '');
+      const html = SiteText.stored(item);
       const { auto } = this.parse(html, lookup, { classKey: this.classKeyOf(item), name: item.name });
       if (!auto.length) continue;
       const level = this.levelFor(actor, item);

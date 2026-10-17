@@ -5,6 +5,7 @@ import { TRADITION_LORE, TRADITION_NOTES } from '../data/traditionLore.js';
 import { IMPORTED_TRADITIONS } from '../data/imported/traditions.js';
 import { iconForItem, applyItemIcon } from '../data/a5eIcons.js';
 import { castOnlyEffects } from './effectTiming.js';
+import { SiteText } from './siteText.js';
 
 /**
  * Fallback tradition keys (camelCase, matching system data) used when CONFIG.A5E is unavailable.
@@ -522,7 +523,7 @@ export class ManeuverService {
     const id = classItem?.id ?? classItem?.uuid;
     if (!id) return null;
     if (this.#ownProgression.has(id)) return this.#ownProgression.get(id);
-    const parsed = this.parseClassProgression(classItem.system?.description);
+    const parsed = this.parseClassProgression(SiteText.stored(classItem));
     this.#ownProgression.set(id, parsed);
     return parsed;
   }
@@ -683,7 +684,7 @@ export class ManeuverService {
         if (found) return;
         const doc = await read(uuid);
         if (!doc) continue;
-        const table = this.parseClassProgression(doc.system?.description?.value ?? doc.system?.description);
+        const table = this.parseClassProgression(SiteText.stored(doc));
         if (table) {
           const trad = grantsOf(doc).find(g => g?.traits?.traitType === 'maneuverTraditions' || g?.proficiencyType === 'tradition');
           const spec = trad?.traits ?? trad?.keys ?? null;

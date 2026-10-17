@@ -10,6 +10,7 @@ import { MulticlassRules } from '../utils/multiclassRules.js';
 import { LevelDownService } from '../utils/levelDownService.js';
 import { LevelHistory } from '../utils/levelHistory.js';
 import { PackFilter } from '../utils/packFilter.js';
+import { SiteText } from '../utils/siteText.js';
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -2979,7 +2980,7 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
          it came twice (reported 2026-10-09). */
       const auto = new Set();
       for (const { doc, level } of [...owned, ...gained]) {
-        const html = typeof doc.system?.description === 'string' ? doc.system.description : (doc.system?.description?.value ?? '');
+        const html = SiteText.stored(doc);
         for (const g of ProseSpells.parse(html, lookup, { classKey: ProseSpells.classKeyOf(doc), name: doc.name }).auto) {
           if (!g.atLevel || g.atLevel <= level) auto.add(String(g.name).toLowerCase());
         }

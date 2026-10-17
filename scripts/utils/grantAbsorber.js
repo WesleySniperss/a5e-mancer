@@ -2,6 +2,7 @@ import { AM } from '../am.js';
 import { applyItemIcon } from '../data/a5eIcons.js';
 import { PackFilter } from './packFilter.js';
 import { FeatureAutomation } from './featureAutomation.js';
+import { SiteText } from './siteText.js';
 
 /**
  * Lets the builder ask for an item's grant choices itself, so a5e does not have to
@@ -1274,8 +1275,7 @@ export class GrantAbsorber {
       try {
         const d = await fromUuid(uuid);
         if (!d) return null;
-        const raw = typeof d.system?.description === 'string'
-          ? d.system.description : (d.system?.description?.value ?? '');
+        const raw = SiteText.stored(d);
         return {
           key: uuid,
           label: d.name ?? uuid,

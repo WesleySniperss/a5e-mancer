@@ -1,6 +1,7 @@
 import { AM } from '../am.js';
 import { PackFilter } from './packFilter.js';
 import { iconForItem } from '../data/a5eIcons.js';
+import { SiteText } from './siteText.js';
 
 /** Resolve an equipment item's display icon (site override → compendium → default). */
 function equipImg(doc) {
@@ -72,15 +73,29 @@ export class EquipmentService {
         }
       }
 
-      if (results.length) return results;
+      if (results.length) return await this.#enrichGifts(results);
 
       // Fallback: scan compendiums for feature items that match the heritage
-      return await this.#scanForHeritageGifts(heritage);
+      return await this.#enrichGifts(await this.#scanForHeritageGifts(heritage));
 
     } catch (err) {
       AM.log(2, 'Error loading heritage gifts:', err);
       return [];
     }
+  }
+
+  /**
+   * The gifts' text as it reads: its links and conditions resolved. The tab
+   * prints it as HTML, and written as-is it showed them as @UUID[...] and
+   * [[/condition ...]] (reported 2026-10-17).
+   */
+  static async #enrichGifts(gifts) {
+    const TE = foundry.applications?.ux?.TextEditor?.implementation ?? globalThis.TextEditor;
+    for (const g of gifts) {
+      if (!g.description || !TE?.enrichHTML) continue;
+      try { g.description = await TE.enrichHTML(g.description, {}); } catch { /* the words as written */ }
+    }
+    return gifts;
   }
 
   /**
@@ -161,7 +176,7 @@ export class EquipmentService {
       }
 
       // Fallback: extract from description text
-      const desc = item.system?.description?.value ?? item.system?.description ?? '';
+      const desc = SiteText.stored(item);
       if (desc) {
         return this.#parseEquipmentFromDescription(desc, sourceType, item.name);
       }
@@ -261,7 +276,7 @@ export class EquipmentService {
       }
     }
     // Fall back to parsing the description
-    const desc = containerDoc.system?.description?.value ?? containerDoc.system?.description ?? '';
+    const desc = SiteText.stored(containerDoc);
     if (!desc) return null;
     const text = desc.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     // Look for bullet-list style contents: "• Item name" or "- Item name" or "* Item"

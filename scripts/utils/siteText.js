@@ -31,6 +31,20 @@ export class SiteText {
   static #cache = new Map();
   static #failed = false;
 
+  /**
+   * The description as stored, without what this adds: for code that reads a
+   * description for its rules - the spells a feature gives, a pack's contents,
+   * a class's table, a background's lore tables - rather than showing it. The
+   * links and blocks put in here are for reading; a table of beasts must not
+   * become spells, nor a background's connections a second copy of a5e's.
+   */
+  static stored(doc) {
+    const src = doc?._source?.system?.description;
+    if (typeof src === 'string') return src;
+    const d = doc?.system?.description;
+    return typeof d === 'string' ? d : (d?.value ?? '');
+  }
+
   static nameKey(item) {
     return `${item.type}|${String(item.name ?? '').toLowerCase().replace(/[’‘`]/g, "'").replace(/\s+/g, ' ').trim()}`;
   }

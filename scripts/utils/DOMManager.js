@@ -6,6 +6,7 @@ import { SpellService } from './spellService.js';
 import { GrantAbsorber } from './grantAbsorber.js';
 import { LoreTableService } from './loreTableService.js';
 import { LevelUpService } from './levelUpService.js';
+import { SiteText } from './siteText.js';
 
 const ITEM_TYPES = ['heritage', 'culture', 'background', 'destiny', 'class'];
 
@@ -555,7 +556,7 @@ export class DOMManager {
       const doc = await fromUuid(uuid);
       if (!doc) return;
 
-      const texts = [DocumentService.rawDescription?.(doc) ?? doc.system?.description ?? ''];
+      const texts = [SiteText.stored(doc)];
 
       // The granted features carry the sentence as often as the origin itself.
       // Base features always; an option only once it is chosen — reading them
@@ -572,7 +573,7 @@ export class DOMManager {
         for (const u of uuids) {
           try {
             const child = await fromUuid(u);
-            if (child) texts.push(child.system?.description ?? '');
+            if (child) texts.push(SiteText.stored(child));
           } catch { /* unreadable — skip */ }
         }
       }

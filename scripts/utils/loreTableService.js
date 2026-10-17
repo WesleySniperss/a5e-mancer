@@ -1,5 +1,6 @@
 import { AM } from '../am.js';
 import { PackFilter } from './packFilter.js';
+import { SiteText } from './siteText.js';
 
 /**
  * Finds the roll tables inside an item's description so every one of them can be
@@ -281,11 +282,10 @@ export class LoreTableService {
     }
   }
 
-  /** a5e declares description as a plain HTMLField — there is no `.value`. */
+  /** The stored text: a background's connections a5e.tools adds are for reading,
+      and read here they came twice beside a5e's own RollTables. */
   static #descriptionOf(doc) {
-    return typeof doc?.system?.description === 'string'
-      ? doc.system.description
-      : (doc?.system?.description?.value ?? '');
+    return SiteText.stored(doc);
   }
 
   /**

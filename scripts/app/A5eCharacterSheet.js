@@ -1614,7 +1614,25 @@ export class A5eCharacterSheet extends ActorSheet {
         row.desc = await enrichDesc(row.desc, actor);
       }));
     };
+
+    /* Favourites tab: what the player starred and nothing else - a maneuver
+       starred in Martial, a potion starred in Inventory, a skill starred in
+       the sidebar. Built here, before
+       the rows are enriched: it used to be built afterwards, in the context
+       below, so a starred item's text showed its conditions and links as
+       [[/condition ...]] and @UUID[...] - and Favourites is the tab the sheet
+       opens on (reported 2026-10-17). */
+    const favoriteIds = new Set([
+      ...(actor.getFlag(MODULE_ID, 'favorites') ?? []),
+      ...items.filter(i => i.system?.favorite).map(i => i.id),
+    ]);
+    const favorites = items
+      .filter(i => favoriteIds.has(i.id))
+      .map(i => this.#buildActionGroup(i, favoriteIds))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
     await enrichRows(
+      favorites,
       weapons, maneuvers, spells, features, feats, allFeatures, equipment,
       /* The Actions tab arrived after this list was written and was never
          added to it, so basic actions, downtime and journey activities showed
@@ -1700,28 +1718,13 @@ export class A5eCharacterSheet extends ActorSheet {
           ...maneuvers.map(i => ({...i, isManeuver: true})),
           ...spells.map(i => ({...i, isSpell: true}))].forEach(() => {}),
 
-      /* Favourites tab.
-
-         It lists what the player starred and nothing else — a maneuver
-         starred in Martial, a potion starred in Inventory, a skill starred
-         in the sidebar. It used to also carry an "All Actions" table that
-         swept up every weapon, maneuver and feature that had an action,
-         which duplicated the Martial tab and put maneuvers in two places at
-         once. That table is gone; nothing arrives here on its own. */
-      ...(() => {
-        const favoriteIds = new Set([
-          ...(actor.getFlag(MODULE_ID, 'favorites') ?? []),
-          ...items.filter(i => i.system?.favorite).map(i => i.id),
-        ]);
-        const favorites = items
-          .filter(i => favoriteIds.has(i.id))
-          .map(i => this.#buildActionGroup(i, favoriteIds))
-          .sort((a, b) => a.name.localeCompare(b.name));
-        return {
-          favorites,
-          hasFavorites: favorites.length > 0,
-        };
-      })(),
+      /* Favourites tab, built above with the other rows. It used to also
+         carry an "All Actions" table that swept up every weapon, maneuver and
+         feature that had an action, which duplicated the Martial tab and put
+         maneuvers in two places at once. That table is gone; nothing arrives
+         here on its own. */
+      favorites,
+      hasFavorites: favorites.length > 0,
 
       // Spell level order for template iteration (Handlebars can't do computed keys)
       /* A level with slots and no spells is still a section to draw, so the
@@ -2788,6 +2791,16 @@ export class A5eCharacterSheet extends ActorSheet {
 
      Source: src/documents/sheets/ActorSheet.svelte.ts, read out of the
      system's own a5e.js.map. */
+  /* A row may be dragged out of a sheet that cannot be edited. A monster
+     opened from a compendium is read-only, and Foundry lets only an editable
+     sheet's rows be dragged, so its weapons and abilities could not be copied
+     onto an actor in the world (asked 2026-10-17). Dragging takes nothing
+     away: the sheet it is dropped on makes the copy, and decides whether it
+     may. */
+  _canDragStart(selector) {
+    return this.isEditable || !!this.actor?.pack;
+  }
+
   _onDragStart(event) {
     const row = event.currentTarget.closest('[data-item-id]');
     const item = row ? this.actor.items.get(row.dataset.itemId) : null;

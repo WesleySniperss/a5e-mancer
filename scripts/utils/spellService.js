@@ -2,6 +2,7 @@ import { AM } from '../am.js';
 import { PackFilter } from './packFilter.js';
 import { iconForItem, applyItemIcon } from '../data/a5eIcons.js';
 import { castOnlyEffects } from './effectTiming.js';
+import { SiteText } from './siteText.js';
 
 /**
  * Spell slot tables and known spells for a5e classes.
@@ -248,7 +249,7 @@ export class SpellService {
    * that says "none".
    */
   static parseSpellcastingFeature(doc) {
-    const html = String(doc?.system?.description?.value ?? doc?.system?.description ?? '');
+    const html = SiteText.stored(doc);
     const text = html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ');
     const replaceable = /when you gain a[^.]*?level[^.]*?\b(?:replace|swap)\b[^.]*?spells?\b/i.test(text);
 
@@ -538,7 +539,7 @@ export class SpellService {
     const table = this.parseSpellcastingFeature(doc);
     if (!table?.cantrips && !table?.known) return null;
 
-    const html = String(doc?.system?.description?.value ?? doc?.system?.description ?? '');
+    const html = SiteText.stored(doc);
     /* Blocks end a sentence too. Without that a heading ran into the sentence
        after it - "Table: Arcane Sniper Spellcasting ... You know one 1st-level
        spell" - and "Arcane" was read as the arcane school. */
@@ -841,9 +842,7 @@ export class SpellService {
     const SCHOOLS = /\bthe ([a-z ,]+?) schools? (?:of magic )?to\b|\bspells (?:from|of) the ([a-z ,]+?) schools? are (?:considered|counted as) [a-z ]{1,30} spells for you\b/i;
 
     for (const item of features) {
-      const raw = typeof item.system?.description === 'string'
-        ? item.system.description
-        : (item.system?.description?.value ?? '');
+      const raw = SiteText.stored(item);
       const text = plain(raw);
       if (/expanded spells?\b/i.test(item.name ?? '')
           || /expanded spell list|spells? (?:are|is) added to (?:the|your) [a-z ]{1,30}list/i.test(text)) {

@@ -273,10 +273,19 @@ export class GrantDialogEnhancer {
         const hit = index.find(e => e.name.toLowerCase().trim() === q);
         if (!hit) continue;
         const doc = await pack.getDocument(hit._id);
-        const desc = pack.metadata.type === 'JournalEntry'
+        const raw = pack.metadata.type === 'JournalEntry'
           ? (doc.pages?.find(p => p.type === 'text')?.text?.content ?? '')
           : (doc.system?.description?.value ?? doc.system?.description ?? '');
-        if (desc) { this.#descCache.set(name, desc); return desc; }
+        if (!raw) continue;
+        /* Enriched: printed as written, its links and conditions showed as
+           @UUID[...] and [[/condition ...]] (reported 2026-10-17). */
+        let desc = raw;
+        try {
+          const TE = foundry.applications?.ux?.TextEditor?.implementation ?? TextEditor;
+          desc = await TE.enrichHTML(raw, { relativeTo: doc });
+        } catch { /* the words as written, then */ }
+        this.#descCache.set(name, desc);
+        return desc;
       } catch { /* pack unreadable — try the next */ }
     }
     this.#descCache.set(name, '');
