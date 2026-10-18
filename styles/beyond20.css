@@ -360,6 +360,48 @@
     display: block;
 }
 
+/* Your Flavor paints a roll's breakdown with its own roll surfaces - the
+   tooltip, the dice, the formula - in the style's colours, !important. In a
+   card that can be a parchment panel by design; in this pop-up, floating over
+   the dark chat, it was a bright block that hurt the eye (reported
+   2026-10-18). Here the breakdown takes the card's own palette instead: one
+   opaque panel (the chat's colour can be translucent, and the pop-up sits over
+   other cards), the dice and formula boxed like the card's cells. One class
+   more specific than YF's .chat-message.yf-card .yf-roll-surface-* and
+   !important as they are. */
+.chat-message .beyond20-message .beyond20-tooltip-content {
+    background: linear-gradient(var(--b20-panel), var(--b20-panel)), #17161c !important;
+    color: var(--b20-text) !important;
+    border-color: var(--b20-line) !important;
+}
+
+.chat-message .beyond20-message .beyond20-tooltip-content :is(.dice-tooltip, .tooltip-part, .dice, .part-header, .dice-rolls,
+        .yf-roll-surface-tooltip, .yf-roll-surface-terms) {
+    background: transparent !important;
+    color: var(--b20-text) !important;
+    border-color: var(--b20-line) !important;
+    box-shadow: none !important;
+}
+
+.chat-message .beyond20-message .beyond20-tooltip-content :is(.dice-formula, .part-formula, .part-total, .dice-rolls .roll,
+        .yf-roll-surface-formula, .yf-roll-surface-total) {
+    background: var(--b20-surface) !important;
+    color: var(--b20-text) !important;
+    border: 1px solid var(--b20-line) !important;
+    box-shadow: none !important;
+}
+
+/* The dice that crit or fumbled keep saying so */
+.chat-message .beyond20-message .beyond20-tooltip-content .dice-rolls .roll:is(.max, .critical, .success) {
+    color: var(--b20-good) !important;
+    border-color: color-mix(in srgb, var(--b20-good) 60%, transparent) !important;
+}
+
+.chat-message .beyond20-message .beyond20-tooltip-content .dice-rolls .roll:is(.min, .fumble, .failure) {
+    color: var(--b20-bad) !important;
+    border-color: color-mix(in srgb, var(--b20-bad) 60%, transparent) !important;
+}
+
 /* Kept scoped on purpose. Beyond20's own stylesheet declares these globally,
    which restyles a5e's native roll cards too. */
 .beyond20-message .dice-tooltip .part-header {
