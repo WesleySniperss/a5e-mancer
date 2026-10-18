@@ -23,8 +23,15 @@
 /* ---------------------------------------------------------------- palette */
 
 .beyond20-message {
+    /* The text colour the message is actually shown in, whoever set it -
+       Carolingian UI's chat text, Your Flavor's, Foundry's. It was read from
+       Your Flavor's --yf-chat-content-text, which a style can mean for text on
+       its parchment surfaces: on the dark card the title went dark grey
+       (reported 2026-10-18, "why has this become so dim?"). An unregistered
+       custom property keeps currentColor as a keyword, so each use resolves it
+       to the colour that element inherits - the message's. */
+    --b20-text:    currentColor;
     /* Your Flavor's style sets these on the message when it styles it */
-    --b20-text:    var(--yf-chat-content-text, var(--yf-text-color, var(--color-text-primary, #d8d4cc)));
     /* Not --yf-chat-header-text: that is the sender line's colour, dimmed */
     --b20-head:    var(--b20-text);
     --b20-muted:   var(--yf-chat-header-metadata, color-mix(in srgb, var(--b20-text) 62%, transparent));
@@ -126,6 +133,8 @@
 .chat-message .message-content .beyond20-message details summary a,
 .chat-message.yf-card .message-content .beyond20-message details summary a {
     color: inherit !important;
+    /* Carolingian UI fades every chat link to 0.8 - the title too */
+    opacity: 1 !important;
     text-decoration: none;
 }
 
@@ -531,4 +540,117 @@
 .beyond20-message .a5e-mancer-apply__btn i {
     margin: 0;
     font-size: 12px;
+}
+
+/* ------------------------------------------------ Beyond20's own stylesheet
+
+   Beyond20's companion module carries a stylesheet for Foundry's old light
+   chat: the title in #4b4a44 between white groove lines, grey cells with a
+   white inner glow, a parchment tooltip, black and dark-green dice, a
+   light-grey panel of damage buttons. Where it loads it comes after this file
+   (or outside the cascade layers altogether), and its rules are as specific
+   as these, so it won: the title went dark grey on the dark card and the
+   tooltip parchment (reported 2026-10-18). Everything of it that fights the
+   card's palette is restated here, one class more specific and !important -
+   which also beats a stylesheet outside the layers. */
+
+.chat-message .beyond20-message {
+    font-family: var(--b20-font) !important;
+}
+
+.chat-message .beyond20-message details summary,
+.chat-message .beyond20-message .beyond20-title {
+    margin: 2px 0 4px !important;
+    padding: 2px 0 3px !important;
+    border-top: 0 !important;
+    border-bottom: 1px solid var(--b20-line) !important;
+    font-family: var(--b20-font) !important;
+    font-size: 17px !important;
+    line-height: 1.5 !important;
+    color: var(--b20-head) !important;
+}
+
+.chat-message .beyond20-message :is(.beyond20-roll-cell, .beyond20-roll-die-result) {
+    margin: 0 !important;
+    line-height: 30px !important;
+    background: var(--b20-surface) !important;
+    border: 1px solid var(--b20-line) !important;
+    border-radius: 6px !important;
+    box-shadow: none !important;
+    font-family: var(--b20-font) !important;
+    font-size: 22px !important;
+    color: var(--b20-head) !important;
+}
+
+.chat-message .beyond20-message .beyond20-roll-detail-normal {
+    color: inherit !important;
+}
+
+.chat-message .beyond20-message .beyond20-tooltip:hover .beyond20-tooltip-content {
+    font-size: 13px !important;
+}
+
+.chat-message .beyond20-message .beyond20-button-roll-damages {
+    height: 26px !important;
+    line-height: 22px !important;
+    font-family: var(--b20-font) !important;
+    background: var(--b20-surface) !important;
+    border: 1px solid var(--b20-line) !important;
+    border-radius: 6px !important;
+    color: var(--b20-head) !important;
+}
+
+.chat-message .beyond20-message .beyond20-button-roll-damages:hover {
+    border-color: color-mix(in srgb, var(--b20-mark) 70%, transparent) !important;
+    background: color-mix(in srgb, var(--b20-mark) 12%, transparent) !important;
+    color: var(--yf-chat-header-text, var(--yf-name-color, var(--b20-head))) !important;
+}
+
+.chat-message .beyond20-message .beyond20-total-damage {
+    background: var(--b20-surface) !important;
+    border: 1px solid var(--b20-line) !important;
+    border-radius: 6px !important;
+    box-shadow: none !important;
+    color: var(--b20-head) !important;
+}
+
+.chat-message .beyond20-message .beyond20-critical-damage {
+    border-left-color: var(--b20-bad) !important;
+}
+
+.chat-message .beyond20-message .beyond20-total-damage.beyond20-critical-damage {
+    border: 1px solid color-mix(in srgb, var(--b20-bad) 70%, transparent) !important;
+    box-shadow: 0 0 6px color-mix(in srgb, var(--b20-bad) 30%, transparent) inset !important;
+}
+
+.chat-message .beyond20-message .beyond20-healing {
+    border: 1px solid color-mix(in srgb, var(--b20-good) 70%, transparent) !important;
+    background: color-mix(in srgb, var(--b20-good) 12%, transparent) !important;
+    box-shadow: none !important;
+}
+
+.chat-message .beyond20-message .beyond20-conditional-damage {
+    border-left: 2px dashed var(--b20-line) !important;
+}
+
+.chat-message .beyond20-message .beyond20-combined-damage {
+    border: 1px solid color-mix(in srgb, #9b7ad8 70%, transparent) !important;
+    background: color-mix(in srgb, #9b7ad8 12%, transparent) !important;
+}
+
+.chat-message .beyond20-message .beyond20-total-damage.beyond20-conditional-total {
+    border: 1px solid color-mix(in srgb, #2a9d8f 75%, transparent) !important;
+    background: color-mix(in srgb, #2a9d8f 12%, transparent) !important;
+}
+
+.chat-message .beyond20-message .beyond20-dice-roller-content,
+.chat-message .beyond20-message .beyond20-dice-roller-content .beyond20-roll-formula {
+    background: var(--b20-surface) !important;
+    color: var(--b20-text) !important;
+}
+
+.chat-message .beyond20-message .beyond20-chat-damage-buttons {
+    background: linear-gradient(var(--b20-panel), var(--b20-panel)), #17161c !important;
+    border: 1px solid var(--b20-line) !important;
+    color: var(--b20-text) !important;
 }
