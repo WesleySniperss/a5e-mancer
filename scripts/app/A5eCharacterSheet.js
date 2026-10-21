@@ -530,6 +530,14 @@ export class A5eCharacterSheet extends ActorSheet {
       const d        = sys.abilities?.[key] ?? {};
       const value    = d.value ?? 10;
       const mod      = Math.floor((value - 10) / 2);
+      /* The score as written, before what a5e adds when it prepares the actor:
+         background, level and feat increases (its ability bonuses) and
+         effects. The unlocked field edits this one, as a5e's own sheet does.
+         It showed the total, so a typed score - and, until 2.91.0, merely
+         clicking into the field and out - stored the bonuses into the score,
+         where a5e then added them again. */
+      const base     = Number(actor._source?.system?.abilities?.[key]?.value ?? value);
+      const bonus    = value - base;
       /* a5e keeps save proficiency at system.abilities.<key>.save.proficient,
          and works the save modifier out itself at save.mod. Neither was being
          read: saveProficient and proficient are not fields on an a5e ability,
@@ -545,7 +553,7 @@ export class A5eCharacterSheet extends ActorSheet {
         : (saveProf ? mod + profBonus : mod);
       const saveExpDie = saveData.expertiseDice > 0
         ? `+d${4 + (saveData.expertiseDice - 1) * 2}` : '';
-      return { key, label, abbr, value, mod, modStr: sign(mod), saveMod,
+      return { key, label, abbr, value, base, bonus, bonusStr: sign(bonus), mod, modStr: sign(mod), saveMod,
                saveModStr: sign(saveMod), saveProf, saveExpDie };
     });
 
@@ -4361,12 +4369,13 @@ export class A5eCharacterSheet extends ActorSheet {
     });
 
 
-    /* Biography textareas — auto-save on blur */
-    el.querySelectorAll('[data-path]').forEach(textarea =>
-      textarea.addEventListener('blur', async (e) => {
-        await this.actor.update({ [e.target.dataset.path]: e.target.value });
-      })
-    );
+    /* No save-on-blur for [data-path]. One was here from 1.0.0, meant for the
+       biography textareas the written pages no longer are (they save through
+       the detail-html listener) - and it caught every element carrying a
+       data-path, writing whatever value it held the moment focus left it:
+       the ability score's total into the score (every bonus once more at
+       every click into the field), a +/- button's empty value into exertion
+       or a class resource (0). Each of those fields has its own listener. */
 
     /* ══ Tidy layout controls ═══════════════════════════════════════════
        Behaviour Tidy implements in Svelte and we have to supply ourselves,

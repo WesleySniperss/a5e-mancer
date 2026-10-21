@@ -204,14 +204,18 @@
 
               {{!-- An ability score describes the character rather than tracking
                    them, so it is behind the lock like everything else of that
-                   kind. Locked it reads as the number it is; unlocked it can be
-                   typed into, and the cog opens a5e own ability dialog for save
-                   proficiency, expertise dice and bonuses. --}}
+                   kind. Locked it reads as the number it is in play; unlocked
+                   it is the score as written - before background, level and
+                   feat increases and effects, which a5e adds itself - and can be
+                   typed into, as on a5e own sheet. The cog opens a5e own
+                   ability dialog for save proficiency, expertise dice and
+                   bonuses. --}}
               <div class="ability-score-container">
-                <label class="ability-score" data-tooltip="{{this.label}} Score">
+                <label class="ability-score" data-tooltip="{{this.label}} Score{{#if @root.unlocked}}{{#if this.bonus}}: {{this.base}} here, {{this.value}} with its bonuses ({{this.bonusStr}}){{/if}}{{/if}}">
                   <input class="font-title-small color-text-default am-ability-score uninput"
                     type="number" data-ability="{{this.key}}"
-                    data-path="system.abilities.{{this.key}}.value" value="{{this.value}}"
+                    data-path="system.abilities.{{this.key}}.value"
+                    value="{{#if @root.unlocked}}{{this.base}}{{else}}{{this.value}}{{/if}}"
                     {{#unless @root.unlocked}}disabled{{/unless}} />
                   {{#if this.saveProf}}
                     <span class="ability-proficiency-indicator"></span>
