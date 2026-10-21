@@ -847,14 +847,14 @@
                       data-action="toggle-condition"
                       data-id="{{this.id}}" data-label="{{this.label}}"
                       data-description="{{this.description}}"
-                      data-tooltip="{{this.label}} — right-click for the description, 1-9 to set rounds"
+                      data-tooltip="{{this.label}} — right-click for the description, 1-9 to set rounds (0 for 10)"
                       aria-pressed="{{#if this.active}}true{{else}}false{{/if}}">
                       <img class="am-condition-icon" src="{{this.icon}}" alt="" />
                       <span class="am-cond-name">{{this.label}}</span>
-                      {{#if this.duration}}
-                        <span class="am-cond-duration"
-                          style="color:{{this.durationColor}}">{{this.duration}}</span>
-                      {{/if}}
+                      {{!-- Rounds left: drawn always, hidden without a number -
+                           see tidy-character-sheet.hbs. --}}
+                      <span class="am-cond-duration"
+                        style="color:{{this.durationColor}}"{{#unless this.duration}} hidden{{/unless}}>{{this.duration}}</span>
                     </button>
                   </li>
                 {{/each}}

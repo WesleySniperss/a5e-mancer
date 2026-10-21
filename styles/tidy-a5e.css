@@ -454,6 +454,11 @@
   background: rgba(0, 0, 0, 0.6);
 }
 
+/* Drawn on every tile, hidden without rounds (see the template). */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-cond-duration[hidden] {
+  display: none;
+}
+
 /* ── Section headings ─────────────────────────────────────────────────────
    Tidy marks these with <tidy-gold-header-underline>, an element its own
    script renders. The stylesheet carries no rule for it, so on our sheet it

@@ -58,6 +58,11 @@ export function registerSettings() {
       scope: 'world', config: true, type: Boolean, default: true, requiresReload: true
     });
   }
+  // Read at every turn, so it takes effect without a reload
+  game.settings.register(AM.ID, 'autoStatusRounds', {
+    name: 'am.settings.status-rounds.name', hint: 'am.settings.status-rounds.hint',
+    scope: 'world', config: true, type: Boolean, default: true
+  });
 
   // A Beyond20 initiative roll onto the character's combatant (Beyond20Service._addInitiative)
   game.settings.register(AM.ID, 'beyond20Initiative', {

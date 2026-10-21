@@ -227,6 +227,11 @@ try {
     { name: 'an AC correction changed, unlocked', redraws: 0,
       from: () => [{ 'flags.a5e.sheetIsLocked': false }, { __acFix: 1 }],
       to:   () => ({ __acFix: -2 }) },
+    /* Rounds on a condition (ConditionAutomation): the number in the corner of
+       its tile, counted down a round at a time in combat. */
+    { name: 'a condition’s rounds counted down', redraws: 0,
+      from: () => ({ 'flags.a5e-mancer.durations.blinded': 3 }),
+      to:   () => ({ 'flags.a5e-mancer.durations.blinded': 2 }) },
     /* A flag no rule owns. A name would do, but Foundry trims one, and a
        trailing space is then no change at all — nothing renders, and the
        check would be asking a question nobody asked. */
@@ -283,6 +288,9 @@ try {
       const ex = a.flags?.['a5e-mancer']?.exertion;
       if (a.type === 'npc') r['flags.a5e-mancer.exertion'] = ex ?? { current: 0, max: 0 };
       if (a.type === 'character') r['system.attributes.death'] = { success: a.system.attributes.death?.success ?? 0, failure: a.system.attributes.death?.failure ?? 0 };
+      const rounds = a.flags?.['a5e-mancer']?.durations?.blinded;
+      if (rounds === undefined) r['flags.a5e-mancer.durations.-=blinded'] = null;
+      else r['flags.a5e-mancer.durations.blinded'] = rounds;
       return r; })()`);
     /* And every item a case toggles, as it was. */
     const itemRestore = await ev(`(() => { const a = game.actors.get('${who.id}');

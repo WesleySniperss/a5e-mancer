@@ -1,4 +1,5 @@
 import { AM } from '../am.js';
+import { ConditionSource } from './conditionSource.js';
 
 /**
  * Conditions a5e describes and leaves to the table, run for it. Asked for on
@@ -30,6 +31,10 @@ import { AM } from '../am.js';
  *   - An effect whose spell or feature lets the creature repeat the save at
  *     the end (or the start) of each of its turns is offered that save then,
  *     and a success ends it.
+ * - Rounds on a status (autoStatusRounds; asked 2026-10-21). The number put on
+ *   a status - hover it in the token HUD or on the sheet and press 1-9, or 0
+ *   for 10 - is the rounds it lasts, and in combat it counts itself down; at 0
+ *   the status ends. See setRounds.
  *
  * Who does the work. What changes another's actor - a target's effects, a
  * caster's concentration - is done by the active GM's client. The client that
@@ -73,7 +78,10 @@ export class ConditionAutomation {
       if (changes.disabled === false) this.#onEffectOn(effect, userId);
     });
     Hooks.on('deleteActiveEffect', (effect, options, userId) => this.#onEffectOff(effect, userId));
-    Hooks.on('combatTurnChange', (combat, previous, current) => this.#onTurn(combat, previous, current));
+    Hooks.on('combatTurnChange', (combat, previous, current) => {
+      this.#onTurn(combat, previous, current);
+      this.#countRounds(combat);
+    });
     for (const hook of ['createItem', 'updateItem', 'deleteItem']) {
       Hooks.on(hook, (item, ...rest) => this.#encumbranceSoon(item?.parent, rest.at(-1)));
     }
@@ -446,6 +454,131 @@ export class ConditionAutomation {
           + `<button type="button" data-am-save-ends="${effect.uuid}" data-ability="${save.ability}" data-dc="${save.dc ?? ''}">`
           + `<i class="fa-solid fa-dice-d20"></i> ${this.#esc(ability)} save${dcText}</button></div>`
       });
+    }
+  }
+
+  /* ── rounds on a status ──────────────────────────────────── */
+
+  /** Conditions whose number is a level a5e keeps (fatigue and the like), not rounds. */
+  static LEVELLED = new Set(['corruption', 'fatigue', 'exhaustion', 'inebriated', 'strife']);
+
+  /**
+   * The rounds a key pressed over a status asks for: 1-9 as typed, 0 for 10
+   * (a minute). Null for any other key, a key held down - its repeat would
+   * take off the count it just set - one with Ctrl, Alt or Meta (Alt+digit is
+   * core's macro page), and one typed into a field.
+   */
+  static roundsFromKey(ev) {
+    if (ev.repeat || ev.ctrlKey || ev.altKey || ev.metaKey) return null;
+    const target = ev.target;
+    if (target instanceof Element && (target.isContentEditable || target.closest('input, textarea, select'))) return null;
+    if (!/^[0-9]$/.test(ev.key ?? '')) return null;
+    return ev.key === '0' ? 10 : Number(ev.key);
+  }
+
+  /**
+   * Put rounds on a status, or take them off (n empty).
+   *
+   * A round is the rules' round: from the moment the number is set to the
+   * same point of the initiative order a round later - the start of the turn
+   * of whoever's turn it was. Stunned for 1 round, set on the fighter's turn,
+   * holds through everyone else's turn and ends as the fighter's next one
+   * begins. Set outside combat, the count starts with the next combat the
+   * actor is in. Nothing counts outside combat.
+   *
+   * On the actor: flags.a5e-mancer.durations.<status> is the rounds left - the
+   * number the token HUD, the effects panel and the sheet show - and
+   * durationStart.<status> where the count started, {n, combat, round,
+   * combatant, turn}.
+   */
+  static async setRounds(actor, id, n) {
+    if (!actor || !id) return;
+    if (!n) return this.clearRounds(actor, [id]);
+    await actor.update({
+      [`flags.${AM.ID}.durations.${id}`]: n,
+      [`flags.${AM.ID}.durationStart.${id}`]: this.#mark(this.#combatOf(actor), n)
+    });
+  }
+
+  /**
+   * Take the rounds off these statuses. Deleted by key: a flag object written
+   * back without one keeps it, which is why a number never went away before
+   * 2.92.0 - not with its status, not with its digit pressed again.
+   */
+  static async clearRounds(actor, ids) {
+    const flags = actor?.flags?.[AM.ID] ?? {};
+    const update = {};
+    for (const id of ids) {
+      if (flags.durations && id in flags.durations) update[`flags.${AM.ID}.durations.-=${id}`] = null;
+      if (flags.durationStart && id in flags.durationStart) update[`flags.${AM.ID}.durationStart.-=${id}`] = null;
+    }
+    if (Object.keys(update).length) await actor.update(update, { amRounds: true });
+  }
+
+  /** Where a count starts: this point of the combat, or nowhere yet. */
+  static #mark(combat, n) {
+    if (!combat?.started) return { n, combat: null };
+    return { n, combat: combat.id, round: combat.round, combatant: combat.combatant?.id ?? null, turn: combat.turn ?? 0 };
+  }
+
+  /** The started combat the actor is in, the active one first. */
+  static #combatOf(actor) {
+    const fights = (combat) => !!combat?.started
+      && combat.combatants.some(c => c.actor && (c.actor === actor || c.actor.uuid === actor.uuid));
+    const active = game.combats?.active;
+    return fights(active) ? active : (game.combats?.find(fights) ?? null);
+  }
+
+  /** Rounds gone since the count started: one each time the order comes back to where it was. */
+  static #roundsGone(start, combat) {
+    const at = combat.turns.findIndex(t => t.id === start.combatant);
+    const where = at >= 0 ? at : (Number(start.turn) || 0);
+    return (combat.round - start.round) - ((combat.turn ?? 0) < where ? 1 : 0);
+  }
+
+  /**
+   * At every turn of a combat, the rounds left on its combatants' statuses.
+   * Worked out from where each count started, so a turn taken back gives the
+   * round back. A number whose status has gone is taken off; one from another
+   * combat, or set outside any, starts counting here from what it shows.
+   */
+  static async #countRounds(combat) {
+    if (!this.on('autoStatusRounds') || !game.user.isActiveGM || !combat?.started) return;
+    const seen = new Set();
+    for (const combatant of combat.combatants) {
+      const actor = combatant.actor;
+      if (!actor || seen.has(actor.uuid)) continue;
+      seen.add(actor.uuid);
+      const flags = actor.flags?.[AM.ID] ?? {};
+      const left = flags.durations ?? {};
+      if (!Object.keys(left).length) continue;
+      const starts = flags.durationStart ?? {};
+      const update = {}, ended = [], gone = [];
+      for (const [id, value] of Object.entries(left)) {
+        if (this.LEVELLED.has(id)) continue;
+        if (!ConditionSource.find(actor, id)) { gone.push(id); continue; }
+        const shown = Number(value);
+        if (!Number.isFinite(shown) || shown <= 0) continue;
+        const start = starts[id];
+        if (!start || start.combat !== combat.id) {
+          update[`flags.${AM.ID}.durationStart.${id}`] = this.#mark(combat, shown);
+          continue;
+        }
+        const now = Math.min(Number(start.n), Number(start.n) - this.#roundsGone(start, combat));
+        if (now <= 0) ended.push(id);
+        else if (now !== shown) update[`flags.${AM.ID}.durations.${id}`] = now;
+      }
+      try {
+        if (Object.keys(update).length) await actor.update(update, { amRounds: true });
+        for (const id of ended) await ConditionSource.clear(actor, id);
+        if (ended.length || gone.length) await this.clearRounds(actor, [...ended, ...gone]);
+        if (ended.length) {
+          const names = ended.map(id => this.#esc(game.i18n.localize(CONFIG.statusEffects?.find(s => s.id === id)?.name ?? id)));
+          await this.#note(actor, `${names.join(', ')} on ${this.#esc(actor.name)} ${ended.length === 1 ? 'ends' : 'end'}: the rounds are up.`);
+        }
+      } catch (err) {
+        AM.log(1, `Could not count down the rounds on ${actor.name}:`, err);
+      }
     }
   }
 

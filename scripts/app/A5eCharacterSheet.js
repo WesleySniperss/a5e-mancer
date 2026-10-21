@@ -8,6 +8,7 @@ import { PackFilter } from '../utils/packFilter.js';
 import { FeatService } from '../utils/featService.js';
 import { ManeuverService } from '../utils/maneuverService.js';
 import { ConditionSource } from '../utils/conditionSource.js';
+import { ConditionAutomation } from '../utils/conditionAutomation.js';
 import { ItemRepair } from '../utils/itemRepair.js';
 import { patchInPlace, snapshot } from '../utils/livePatch.js';
 import { ArmorClass } from '../utils/armorClass.js';
@@ -18,7 +19,7 @@ import { ForeignMarkup } from '../utils/foreignMarkup.js';
 const MODULE_ID = 'a5e-mancer';
 
 /* Same gradient A5e uses for multi-level condition counters */
-const _SHEET_DUR_COLORS = { 1:'#919f00', 2:'#a09200', 3:'#af8300', 4:'#bd7100', 5:'#cb5c00', 6:'#d63f00', 7:'#e00006', 8:'#e00006', 9:'#e00006' };
+const _SHEET_DUR_COLORS = { 1:'#919f00', 2:'#a09200', 3:'#af8300', 4:'#bd7100', 5:'#cb5c00', 6:'#d63f00', 7:'#e00006', 8:'#e00006', 9:'#e00006', 10:'#e00006' };
 
 /* ── Ability & skill config ─────────────────────────── */
 const ABILITIES = [
@@ -3623,12 +3624,7 @@ export class A5eCharacterSheet extends ActorSheet {
     };
 
     /* ── helper: clear duration flag for a condition ────────────────────────── */
-    const _clearDuration = async (id) => {
-      const durs = foundry.utils.deepClone(this.actor.getFlag?.('a5e-mancer', 'durations') ?? {});
-      if (durs[id] === undefined) return;
-      delete durs[id];
-      await this.actor.setFlag('a5e-mancer', 'durations', durs);
-    };
+    const _clearDuration = (id) => ConditionAutomation.clearRounds(this.actor, [id]);
 
     /* Status condition toggles */
     el.querySelectorAll('[data-action="toggle-condition"]').forEach(btn =>
@@ -3680,9 +3676,9 @@ export class A5eCharacterSheet extends ActorSheet {
       })
     );
 
-    /* ── Duration tracking: hover status button + press 1–9 ─────────────── */
+    /* ── Duration tracking: hover status button + press 1–9, 0 for 10 ───── */
     if (this._condKeydownHandler) {
-      window.removeEventListener('keydown', this._condKeydownHandler);
+      window.removeEventListener('keydown', this._condKeydownHandler, true);
       this._condKeydownHandler = null;
     }
     let _hoveredCondBtn = null;
@@ -3690,28 +3686,27 @@ export class A5eCharacterSheet extends ActorSheet {
       btn.addEventListener('mouseenter', () => { _hoveredCondBtn = btn; });
       btn.addEventListener('mouseleave', () => { if (_hoveredCondBtn === btn) _hoveredCondBtn = null; });
     });
+    /* In the capture phase, ahead of core's window listener, which would run
+       the hotbar macro of that number too (0 is its tenth slot). */
     this._condKeydownHandler = async (ev) => {
       if (!_hoveredCondBtn) return;
-      const n = parseInt(ev.key);
-      if (isNaN(n) || n < 1 || n > 9) return;
+      const n = ConditionAutomation.roundsFromKey(ev);
+      if (!n) return;
       ev.preventDefault();
+      ev.stopPropagation();
       const id      = _hoveredCondBtn.dataset.id;
       /* The active state lives on the tile, not on the button inside it —
          it used to be a class on the button itself, and testing for that
          after the markup changed meant isActive was always false, so a repeat
          of the same digit never cleared the counter. */
       const isActive = !!_hoveredCondBtn.closest('.condition')?.classList.contains('active');
-      const durs    = foundry.utils.deepClone(this.actor.getFlag?.('a5e-mancer', 'durations') ?? {});
+      const durs    = this.actor.getFlag?.('a5e-mancer', 'durations') ?? {};
       if (!isActive) await _activateCond(id);
-      // Same digit on already-active condition with same number → clear duration
-      if (isActive && durs[id] === n) {
-        delete durs[id];
-      } else {
-        durs[id] = n;
-      }
-      await this.actor.setFlag('a5e-mancer', 'durations', durs);
+      /* The number is rounds, counted down in combat (ConditionAutomation).
+         Same digit on an already-active condition with that count takes it off. */
+      await ConditionAutomation.setRounds(this.actor, id, isActive && durs[id] === n ? null : n);
     };
-    window.addEventListener('keydown', this._condKeydownHandler);
+    window.addEventListener('keydown', this._condKeydownHandler, true);
 
     /* Condition description popover — click icon to show desc in panel */
     /* The panel is moved to <body>. position:fixed is measured against the
@@ -5390,6 +5385,12 @@ export class A5eCharacterSheet extends ActorSheet {
     ]);
   }
 
+  /** The rounds left on one condition and the colour they are drawn in, as getData has them. */
+  liveConditionRounds(id) {
+    const n = (this.actor.getFlag?.('a5e-mancer', 'durations') ?? {})[id] ?? null;
+    return { n, color: _SHEET_DUR_COLORS[n] ?? null };
+  }
+
   #openFeatPicker() {
     /* The level-up's feat picker in a window of its own - filters, orders,
        pages, the prerequisite on each card, right-click for the text. This was
@@ -5498,7 +5499,7 @@ export class A5eCharacterSheet extends ActorSheet {
       this._condEscHandler = null;
     }
     if (this._condKeydownHandler) {
-      window.removeEventListener('keydown', this._condKeydownHandler);
+      window.removeEventListener('keydown', this._condKeydownHandler, true);
       this._condKeydownHandler = null;
     }
     return super.close(options);

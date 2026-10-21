@@ -522,12 +522,9 @@ Hooks.on('deleteActiveEffect', (effect) => {
   _durationReconcileTimers.set(actor.id, setTimeout(async () => {
     _durationReconcileTimers.delete(actor.id);
     const activeStatuses = new Set([...(actor.statuses ?? [])]);
-    const durs = foundry.utils.deepClone(actor.getFlag?.('a5e-mancer', 'durations') ?? {});
-    let changed = false;
-    for (const id of Object.keys(durs)) {
-      if (!activeStatuses.has(id)) { delete durs[id]; changed = true; }
-    }
-    if (changed) await actor.setFlag('a5e-mancer', 'durations', durs);
+    const durs = actor.getFlag?.('a5e-mancer', 'durations') ?? {};
+    const gone = Object.keys(durs).filter(id => !activeStatuses.has(id));
+    if (gone.length) await ConditionAutomation.clearRounds(actor, gone);
   }, 150));
 });
 
@@ -543,16 +540,16 @@ Hooks.on('updateActor', (actor, changes) => {
   setTimeout(() => _updateEffectsPanelDurations(actor), 100);
 });
 
-/* ── Token HUD: duration tracking (hover status + press 1–9) ─────────── */
+/* ── Token HUD: duration tracking (hover status + press 1–9, 0 for 10) ── */
 /* A5e renders its Token HUD via Svelte 5 into TokenHUDA5e.
    Each setFlag triggers a re-render → renderTokenHUDA5e fires again.
    We keep ONE module-level handler and remove it before every re-registration
    to prevent handler stacking and duplicate condition creation. */
 
 /* Multi-level conditions already have A5e's own counter — skip ours to avoid duplication */
-const _A5E_MULTILEVEL = new Set(['corruption', 'fatigue', 'exhaustion', 'inebriated', 'strife']);
+const _A5E_MULTILEVEL = ConditionAutomation.LEVELLED;
 /* Same color gradient A5e uses for its level counters */
-const _DURATION_COLORS = { 1:'#919f00', 2:'#a09200', 3:'#af8300', 4:'#bd7100', 5:'#cb5c00', 6:'#d63f00', 7:'#e00006', 8:'#e00006', 9:'#e00006' };
+const _DURATION_COLORS = { 1:'#919f00', 2:'#a09200', 3:'#af8300', 4:'#bd7100', 5:'#cb5c00', 6:'#d63f00', 7:'#e00006', 8:'#e00006', 9:'#e00006', 10:'#e00006' };
 
 let _hudKeydownHandler = null;
 let _hudHoveredBtn    = null;
@@ -609,10 +606,7 @@ Hooks.once('ready', () => setTimeout(sortStatusEffects, 0));
    OFF an item's effect is an update rather than a deletion, so that hook never
    fires and the badge would outlive the condition it counted for. */
 async function _clearDurationFlag(actor, id) {
-  const durs = foundry.utils.deepClone(actor.getFlag?.('a5e-mancer', 'durations') ?? {});
-  if (durs[id] === undefined) return;
-  delete durs[id];
-  await actor.setFlag('a5e-mancer', 'durations', durs);
+  await ConditionAutomation.clearRounds(actor, [id]);
 }
 
 /* ── Effects Panel (right sidebar): stamp duration badges onto items ──── */
@@ -661,7 +655,7 @@ function _updateEffectsPanelDurations(actor) {
 Hooks.on('renderTokenHUDA5e', (hud, html) => {
   /* Always tear down the previous handler before setting up a new one */
   if (_hudKeydownHandler) {
-    window.removeEventListener('keydown', _hudKeydownHandler);
+    window.removeEventListener('keydown', _hudKeydownHandler, true);
     _hudKeydownHandler = null;
   }
   _hudHoveredBtn = null;
@@ -782,11 +776,15 @@ Hooks.on('renderTokenHUDA5e', (hud, html) => {
     });
   }
 
+  /* Listened for in the capture phase, ahead of core: the digit is the
+     status's, and core's own window listener would run the hotbar macro of
+     that number as well (0 is its tenth slot). */
   _hudKeydownHandler = async (ev) => {
     if (!_hudHoveredBtn) return;
-    const n = parseInt(ev.key);
-    if (isNaN(n) || n < 1 || n > 9) return;
+    const n = ConditionAutomation.roundsFromKey(ev);
+    if (!n) return;
     ev.preventDefault();
+    ev.stopPropagation();
 
     const id = _hudHoveredBtn.dataset.statusId;
 
@@ -803,6 +801,8 @@ Hooks.on('renderTokenHUDA5e', (hud, html) => {
       }
     }
 
+    /* The number is rounds: ConditionAutomation counts it down in combat. The
+       same digit again on the same count takes it off. */
     const currentDurs = foundry.utils.deepClone(actor.getFlag?.('a5e-mancer', 'durations') ?? {});
     if (isActive && currentDurs[id] === n) {
       delete currentDurs[id];
@@ -822,14 +822,14 @@ Hooks.on('renderTokenHUDA5e', (hud, html) => {
       targetBtn.style.removeProperty('--am-duration-col');
     }
 
-    await actor.setFlag('a5e-mancer', 'durations', currentDurs);
+    await ConditionAutomation.setRounds(actor, id, currentDurs[id] ?? null);
   };
 
-  window.addEventListener('keydown', _hudKeydownHandler);
+  window.addEventListener('keydown', _hudKeydownHandler, true);
 
   Hooks.once('closeTokenHUDA5e', () => {
     if (_hudKeydownHandler) {
-      window.removeEventListener('keydown', _hudKeydownHandler);
+      window.removeEventListener('keydown', _hudKeydownHandler, true);
       _hudKeydownHandler = null;
     }
     _hudHoveredBtn = null;

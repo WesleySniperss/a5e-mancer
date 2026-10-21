@@ -159,6 +159,29 @@ const conditions = {
   }
 };
 
+/**
+ * Rounds on a condition: the number in the corner of its tile, which
+ * ConditionAutomation counts down a round at a time. The badge is drawn on
+ * every tile and hidden without a number, so a count that starts, ticks or
+ * ends is set here; where its count started is drawn nowhere.
+ */
+const conditionRounds = {
+  owns: (path) => path.startsWith(`flags.${MODULE_ID}.duration`),
+  apply(sheet, el) {
+    if (!sheet.liveConditionRounds) return false;
+    for (const tile of el.querySelectorAll('.conditions-list .condition[data-condition-id]')) {
+      const { n, color } = sheet.liveConditionRounds(tile.dataset.conditionId);
+      const badge = tile.querySelector('.am-cond-duration');
+      if (!badge) return false;
+      setText(badge, n ?? '');
+      setAttr(badge, 'style', `color:${color ?? ''}`);
+      if (n) badge.removeAttribute('hidden');
+      else if (!badge.hasAttribute('hidden')) badge.setAttribute('hidden', '');
+    }
+    return true;
+  }
+};
+
 /** Armour class: the figure on the shield - a field while unlocked - and the
     breakdown its tooltip carries. */
 const armorClass = {
@@ -341,7 +364,7 @@ const spellSlots = {
   }
 };
 
-const RULES = [hitPoints, deathSaves, conditions, armorClass, itemStates, exertion, spellSlots];
+const RULES = [hitPoints, deathSaves, conditions, conditionRounds, armorClass, itemStates, exertion, spellSlots];
 
 /* Foundry's own bookkeeping rides along in every diff and means nothing here. */
 const IGNORED = new Set(['_id', '_stats']);
