@@ -28,6 +28,111 @@ export class AbilityWatch {
     Hooks.on('preUpdateActor', (actor, changes) => this.#guard(() => this.#onUpdate(actor, changes)));
     Hooks.on('preCreateActiveEffect', (effect, data) => this.#guard(() => this.#onEffect(effect, data)));
     Hooks.on('preCreateItem', (item, data) => this.#guard(() => this.#onItem(item, data)));
+    // Once the world is up, and once its scene is drawn: what each client shows, against its data
+    Hooks.once('ready', () => setTimeout(() => this.#guard(() => this.checkDrift('after loading')), 5000));
+    Hooks.once('canvasReady', () => setTimeout(() => this.#guard(() => this.checkDrift('after the scene was drawn')), 5000));
+  }
+
+  /* ── scores written outside preparation ──────────────────── */
+
+  static #depth = 0;
+
+  /** How many preparations are running now (0 outside them). */
+  static get preparing() { return this.#depth; }
+
+  /** A5eFixes.idempotentPrepare: an actor is being prepared. */
+  static enter() { this.#depth++; }
+
+  /** And no longer: its scores are watched until the next preparation. */
+  static leave(actor) {
+    this.#depth = Math.max(0, this.#depth - 1);
+    try { this.trap(actor); } catch { /* a watch, nothing more */ }
+  }
+
+  /**
+   * After a character is prepared, a write to an ability score anywhere but a
+   * preparation is told to the GM with the code that made it. a5e itself
+   * writes them only while preparing; the user's world still showed scores
+   * three points over its data after every repeated preparation had been made
+   * harmless (2.93.2), so something writes them directly. The write itself
+   * goes through.
+   */
+  static trap(actor) {
+    if (actor?.type !== 'character' || !this.on()) return;
+    for (const [key, data] of Object.entries(actor.system?.abilities ?? {})) {
+      if (!data || typeof data !== 'object') continue;
+      const desc = Object.getOwnPropertyDescriptor(data, 'value');
+      if (!desc || desc.get || !desc.configurable) continue;
+      let value = desc.value;
+      Object.defineProperty(data, 'value', {
+        configurable: true, enumerable: true,
+        get: () => value,
+        set: (next) => {
+          if (next !== value && this.#depth === 0) this.#noteWrite(actor, key, value, next);
+          value = next;
+        }
+      });
+    }
+  }
+
+  static #writes = new Map();   // the code that wrote -> { lines: Set, count, told }
+  static #writeTimer = null;
+
+  static #noteWrite(actor, key, from, to) {
+    const where = this.where(/abilityWatch\.js/);
+    const entry = this.#writes.get(where) ?? { lines: new Set(), count: 0, told: 0 };
+    entry.lines.add(`${actor.name}: ${this.#label(key)} ${from} → ${to}`);
+    entry.count++;
+    this.#writes.set(where, entry);
+    clearTimeout(this.#writeTimer);
+    this.#writeTimer = setTimeout(() => this.#tellWrites(), 3000);
+  }
+
+  static #tellWrites() {
+    if (!game.ready) { Hooks.once('ready', () => this.#tellWrites()); return; }
+    const gms = game.users?.filter(u => u.isGM).map(u => u.id) ?? [];
+    const fresh = [...this.#writes].filter(([, e]) => e.count > e.told);
+    if (!gms.length || !fresh.length) return;
+    const items = fresh.map(([where, e]) => {
+      e.told = e.count;
+      const lines = [...e.lines];
+      return `<li>${this.#esc(lines.slice(0, 6).join('; '))}${lines.length > 6 ? ` and ${lines.length - 6} more` : ''} - from: ${this.#esc(where)}</li>`;
+    }).join('');
+    ChatMessage.create({
+      whisper: gms, speaker: { alias: AM.NAME ?? 'A5e Mancer' },
+      content: `<div class="am-ability-watch"><strong>Ability scores written outside a5e's preparation</strong><ul>${items}</ul></div>`
+    }).catch(err => AM.log(2, 'Ability watch note:', err));
+  }
+
+  /* ── what a client shows against its data ────────────────── */
+
+  /**
+   * Each character's scores as this client shows them, against a copy
+   * prepared afresh from its data; one that differs is prepared again from
+   * its data, and the GM is told. Once after loading and once after the
+   * scene is drawn - where the user's world showed scores three points high.
+   * About 10 ms a character.
+   */
+  static checkDrift(when) {
+    const drifted = [];
+    for (const actor of game.actors?.filter(a => a.type === 'character') ?? []) {
+      const shown = this.KEYS.map(k => actor.system?.abilities?.[k]?.value);
+      let fresh;
+      try { fresh = actor.clone({}, { keepId: true }); } catch { continue; }
+      const truth = this.KEYS.map(k => fresh.system?.abilities?.[k]?.value);
+      const off = this.KEYS.filter((k, i) => shown[i] !== truth[i]).map((k) => `${this.#label(k)} ${shown[this.KEYS.indexOf(k)]} (its data gives ${truth[this.KEYS.indexOf(k)]})`);
+      if (!off.length) continue;
+      drifted.push(`${actor.name}: ${off.join(', ')}`);
+      try { actor.reset(); } catch { /* shown as it was */ }
+    }
+    if (!drifted.length) return;
+    const gms = game.users?.filter(u => u.isGM).map(u => u.id) ?? [];
+    if (!gms.length) return;
+    ChatMessage.create({
+      whisper: gms, speaker: { alias: AM.NAME ?? 'A5e Mancer' },
+      content: `<div class="am-ability-watch"><strong>Ability scores off ${this.#esc(when)} on ${this.#esc(game.user?.name)}'s screen - put right</strong>`
+        + `<ul>${drifted.slice(0, 12).map(d => `<li>${this.#esc(d)}</li>`).join('')}</ul></div>`
+    }).catch(err => AM.log(2, 'Ability watch note:', err));
   }
 
   static #guard(fn) {

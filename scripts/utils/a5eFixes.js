@@ -30,8 +30,11 @@ export class A5eFixes {
    * 15 - until the actor's next update initialised it afresh. Reported
    * 2026-10-21: "up by 3 as soon as I log in, down when I open the sheet"
    * (opening the sheet writes to the actor). A preparation that finds the
-   * actor prepared since it was last initialised starts over from the stored
-   * data instead, and the code that asked is told to the GM (AbilityWatch).
+   * actor prepared since it was last initialised starts its system data over
+   * from the stored data, and the code that asked is told to the GM
+   * (AbilityWatch). Only the system data: 2.93.1 reset the whole actor, items
+   * and all - 33 ms a time against 4 for a preparation, measured, and the
+   * user's world asks 199 times at login.
    * At init: before the world's actors are first prepared.
    */
   static idempotentPrepare() {
@@ -47,10 +50,12 @@ export class A5eFixes {
     const wrapped = function (...args) {
       if (this._amFresh === false) {
         try { AbilityWatch.noteRepeat(this); } catch { /* the reset matters, not the note */ }
-        return this.reset();
+        try { this.system?.reset?.(); } catch { /* prepared on top: the ability guard still holds */ }
       }
       this._amFresh = false;
-      return prepare.apply(this, args);
+      AbilityWatch.enter();
+      try { return prepare.apply(this, args); }
+      finally { AbilityWatch.leave(this); }
     };
     wrapped.amIdempotent = true;
     proto.prepareData = wrapped;
