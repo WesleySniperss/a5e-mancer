@@ -17,6 +17,23 @@ export class A5eFixes {
     Hooks.on('createActor', (actor) => this.grantedTraits(actor));
     this.skillExpertise();
     this.damageBonusFormulas();
+    this.paralyzedAdvantage();
+  }
+
+  /**
+   * Attack rolls against a paralyzed creature have advantage - a5e's own
+   * description says so - but its automation gives them disadvantage:
+   * conditionChanges.paralyzed grants rollMode.attack.all -1, where blinded,
+   * stunned, restrained and unconscious all grant +1. Found 2026-10-20.
+   * Put right in place: a5e's condition manager holds this very array and
+   * builds each new paralyzed effect from it.
+   */
+  static paralyzedAdvantage() {
+    const change = (CONFIG.A5E?.conditionChanges?.paralyzed ?? [])
+      .find?.((c) => c?.key === 'flags.a5e.effects.grants.rollMode.attack.all');
+    if (!change || Number(change.value) !== -1) return;
+    change.value = 1;
+    AM.log(3, 'a5e fix: attacks against a paralyzed creature have advantage');
   }
 
   /**
