@@ -1,4 +1,5 @@
 import { AM } from '../am.js';
+import { AbilityWatch } from './abilityWatch.js';
 
 /**
  * Repairs to a5e itself, each applied only while a5e still has the fault.
@@ -18,6 +19,41 @@ export class A5eFixes {
     this.skillExpertise();
     this.damageBonusFormulas();
     this.paralyzedAdvantage();
+  }
+
+  /**
+   * a5e 1.4.4: preparing an actor adds its ability bonuses onto the score
+   * itself (prepareCreatureDerivedData: value = value + bonuses), additive
+   * effects likewise, so the work is only right on freshly initialised data.
+   * Foundry says prepareData may be called more than once and should be
+   * idempotent; each pass after the first added every bonus again - 13, 14,
+   * 15 - until the actor's next update initialised it afresh. Reported
+   * 2026-10-21: "up by 3 as soon as I log in, down when I open the sheet"
+   * (opening the sheet writes to the actor). A preparation that finds the
+   * actor prepared since it was last initialised starts over from the stored
+   * data instead, and the code that asked is told to the GM (AbilityWatch).
+   * At init: before the world's actors are first prepared.
+   */
+  static idempotentPrepare() {
+    const proto = CONFIG.Actor?.documentClass?.prototype;
+    if (!proto || proto.prepareData?.amIdempotent) return;
+    const init = proto._initialize;
+    const prepare = proto.prepareData;
+    if (typeof init !== 'function' || typeof prepare !== 'function') return;
+    proto._initialize = function (...args) {
+      this._amFresh = true;
+      return init.apply(this, args);
+    };
+    const wrapped = function (...args) {
+      if (this._amFresh === false) {
+        try { AbilityWatch.noteRepeat(this); } catch { /* the reset matters, not the note */ }
+        return this.reset();
+      }
+      this._amFresh = false;
+      return prepare.apply(this, args);
+    };
+    wrapped.amIdempotent = true;
+    proto.prepareData = wrapped;
   }
 
   /**

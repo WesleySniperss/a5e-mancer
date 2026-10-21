@@ -45,7 +45,7 @@ export class AbilityWatch {
 
   /** The module and system functions on the stack, nearest first. Foundry's
       own frames between an update and its hook fill V8's default ten. */
-  static #where() {
+  static where(skip = /abilityWatch\.js/) {
     const limit = Error.stackTraceLimit;
     Error.stackTraceLimit = 80;
     const stack = String(new Error().stack ?? '');
@@ -56,7 +56,7 @@ export class AbilityWatch {
       if (!m) continue;
       const [, fn, file] = m;
       const pkg = file.match(/\/(?:modules|systems)\/([^/]+)\/(?:.*\/)?([^/?]+)/);
-      if (!pkg || /abilityWatch\.js/.test(pkg[2])) continue;
+      if (!pkg || skip.test(pkg[2])) continue;
       frames.push(`${fn ?? 'anonymous'} (${pkg[1]}/${pkg[2]})`);
       if (frames.length >= 5) break;
     }
@@ -122,8 +122,46 @@ export class AbilityWatch {
     if (!gms.length) return;
     const html = `<div class="am-ability-watch"><strong>${this.#esc(actor.name)}: ability scores</strong>`
       + `<ul>${lines.map(l => `<li>${this.#esc(l)}</li>`).join('')}</ul>`
-      + `<p class="am-ability-watch-from">By ${this.#esc(game.user?.name)}, from: ${this.#esc(this.#where())}</p></div>`;
+      + `<p class="am-ability-watch-from">By ${this.#esc(game.user?.name)}, from: ${this.#esc(this.where())}</p></div>`;
     ChatMessage.create({ content: html, whisper: gms, speaker: { alias: AM.NAME ?? 'A5e Mancer' } })
       .catch(err => AM.log(2, 'Ability watch note:', err));
+  }
+
+  /* ── an actor prepared again without starting over ───────── */
+
+  static #repeats = new Map();   // the code that asked -> { actors: Set, count }
+  static #repeatTimer = null;
+
+  /**
+   * Noted by A5eFixes.idempotentPrepare, which also puts the scores right.
+   * Gathered and told once a few seconds later - at load there may be dozens -
+   * and only what is new after that.
+   */
+  static noteRepeat(actor) {
+    if (!this.on()) return;
+    const from = this.where(/abilityWatch\.js|a5eFixes\.js/);   // not the wrapper that noticed it
+    const entry = this.#repeats.get(from) ?? { actors: new Set(), count: 0, told: 0 };
+    entry.actors.add(actor?.name ?? '?');
+    entry.count++;
+    this.#repeats.set(from, entry);
+    clearTimeout(this.#repeatTimer);
+    this.#repeatTimer = setTimeout(() => this.#tellRepeats(), 4000);
+  }
+
+  static #tellRepeats() {
+    if (!game.ready) { Hooks.once('ready', () => this.#tellRepeats()); return; }
+    const gms = game.users?.filter(u => u.isGM).map(u => u.id) ?? [];
+    const fresh = [...this.#repeats].filter(([, e]) => e.count > e.told);
+    if (!gms.length || !fresh.length) return;
+    const items = fresh.map(([from, e]) => {
+      const names = [...e.actors];
+      e.told = e.count;
+      return `<li>${this.#esc(names.slice(0, 6).join(', '))}${names.length > 6 ? ` and ${names.length - 6} more` : ''} - ${e.count}×, from: ${this.#esc(from)}</li>`;
+    }).join('');
+    ChatMessage.create({
+      whisper: gms, speaker: { alias: AM.NAME ?? 'A5e Mancer' },
+      content: `<div class="am-ability-watch"><strong>Actors prepared again without starting over</strong>`
+        + `<p class="am-ability-watch-from">Each would have added its ability bonuses once more; they were prepared from their stored data instead.</p><ul>${items}</ul></div>`
+    }).catch(err => AM.log(2, 'Ability watch note:', err));
   }
 }

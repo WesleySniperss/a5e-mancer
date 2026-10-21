@@ -56,6 +56,9 @@ Hooks.on('init', () => {
   // Every change to ability scores, and what made it, whispered to the GM - see abilityWatch.js
   try { AbilityWatch.install(); } catch (err) { console.error('a5e-mancer | ability watch:', err); }
 
+  // An actor prepared twice must not get its ability bonuses twice - see A5eFixes.idempotentPrepare
+  try { A5eFixes.idempotentPrepare(); } catch (err) { console.error('a5e-mancer | idempotent prepare:', err); }
+
 
   /* ── Handlebars partials ── */
   Handlebars.registerPartial('am-controls',
