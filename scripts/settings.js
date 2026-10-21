@@ -50,6 +50,15 @@ export function registerSettings() {
     scope: 'world', config: true, type: Boolean, default: true, requiresReload: true
   });
 
+  // Conditions run for the table (utils/conditionAutomation.js), one switch each
+  for (const [key, name] of [['autoBlindVision', 'blind-vision'], ['autoConcentration', 'concentration'],
+                             ['autoEncumbrance', 'encumbrance'], ['autoSaveEffects', 'save-effects']]) {
+    game.settings.register(AM.ID, key, {
+      name: `am.settings.${name}.name`, hint: `am.settings.${name}.hint`,
+      scope: 'world', config: true, type: Boolean, default: true, requiresReload: true
+    });
+  }
+
   // A Beyond20 initiative roll onto the character's combatant (Beyond20Service._addInitiative)
   game.settings.register(AM.ID, 'beyond20Initiative', {
     name: 'am.settings.beyond20-initiative.name', hint: 'am.settings.beyond20-initiative.hint',

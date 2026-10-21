@@ -18,6 +18,7 @@ import { FeatureAutomation } from './utils/featureAutomation.js';
 import { ForeignMarkup } from './utils/foreignMarkup.js';
 import { CardSummary } from './utils/cardSummary.js';
 import { SiteText } from './utils/siteText.js';
+import { ConditionAutomation } from './utils/conditionAutomation.js';
 
 /* AM moved to scripts/am.js, where it imports nothing and so cannot be part
    of an import cycle. Re-exported here so the old path keeps resolving. */
@@ -47,6 +48,9 @@ Hooks.on('init', () => {
   /* Descriptions completed from a5e.tools - see siteText.js. At init: the
      world's items are prepared before setup. */
   try { SiteText.install(); } catch (err) { console.error('a5e-mancer | site text:', err); }
+
+  // Conditions run for the table: blinded, concentration, encumbered, saves - see conditionAutomation.js
+  try { ConditionAutomation.install(); } catch (err) { console.error('a5e-mancer | condition automation:', err); }
 
 
   /* ── Handlebars partials ── */

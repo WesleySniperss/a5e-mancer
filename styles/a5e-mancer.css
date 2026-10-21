@@ -3743,3 +3743,20 @@ button.lu-levels-title {
     box-shadow: 0 0 14px rgba(var(--am-gold-rgb), 0.25);
   }
 }
+
+/* Condition automation's chat lines (utils/conditionAutomation.js): a note of
+   what happened, and the end-of-turn save with its button. */
+.chat-message .am-condition-note {
+    margin: 0;
+    font-style: italic;
+}
+
+.chat-message .am-save-ends p {
+    margin: 0 0 4px;
+}
+
+.chat-message .am-save-ends button {
+    width: 100%;
+    line-height: 26px;
+    font-weight: 600;
+}
