@@ -189,6 +189,8 @@
   "am.settings.encumbrance.hint": "A character carrying more than its capacity (as a5e's weight track counts it) becomes Encumbered, and stops being so when it no longer does. Only the condition this put on is taken off.",
   "am.settings.save-effects.name": "Effects of failed saves",
   "am.settings.save-effects.hint": "A save rolled from a chat card's prompt that fails puts the card's effects on the creature that failed it (Hold Person: paralyzed). When a spell or feature lets its target repeat the save at the end or start of each of its turns, that save is offered in chat then, and a success ends the effect.",
+  "am.settings.ability-watch.name": "Report ability score changes to the GM",
+  "am.settings.ability-watch.hint": "Every change to a character's ability scores - the score itself, an ability bonus from a grant, an effect that changes a score - is whispered to the GM with who made it and which code did, so a score that grows on its own shows its cause.",
   "am.settings.status-rounds.name": "Rounds on a condition count down",
   "am.settings.status-rounds.hint": "The number put on a condition (hover it in the token HUD or on the sheet and press 1-9, or 0 for 10) is the rounds it lasts. In combat it goes down by one each round, at the point of the initiative order where it was set, and at 0 the condition ends.",
   "am.settings.beyond20-initiative.name": "Beyond20 Initiative to the Combat Tracker",

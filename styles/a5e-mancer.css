@@ -3767,3 +3767,16 @@ button.lu-levels-title {
     line-height: 26px;
     font-weight: 600;
 }
+
+/* Ability score changes, whispered to the GM (utils/abilityWatch.js). */
+.chat-message .am-ability-watch ul {
+    margin: 2px 0 4px;
+    padding-left: 1.1em;
+}
+
+.chat-message .am-ability-watch-from {
+    margin: 0;
+    font-size: 0.85em;
+    opacity: 0.8;
+    word-break: break-word;
+}

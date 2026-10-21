@@ -19,6 +19,7 @@ import { ForeignMarkup } from './utils/foreignMarkup.js';
 import { CardSummary } from './utils/cardSummary.js';
 import { SiteText } from './utils/siteText.js';
 import { ConditionAutomation } from './utils/conditionAutomation.js';
+import { AbilityWatch } from './utils/abilityWatch.js';
 
 /* AM moved to scripts/am.js, where it imports nothing and so cannot be part
    of an import cycle. Re-exported here so the old path keeps resolving. */
@@ -51,6 +52,9 @@ Hooks.on('init', () => {
 
   // Conditions run for the table: blinded, concentration, encumbered, saves - see conditionAutomation.js
   try { ConditionAutomation.install(); } catch (err) { console.error('a5e-mancer | condition automation:', err); }
+
+  // Every change to ability scores, and what made it, whispered to the GM - see abilityWatch.js
+  try { AbilityWatch.install(); } catch (err) { console.error('a5e-mancer | ability watch:', err); }
 
 
   /* ── Handlebars partials ── */

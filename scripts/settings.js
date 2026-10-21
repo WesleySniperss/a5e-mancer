@@ -63,6 +63,11 @@ export function registerSettings() {
     name: 'am.settings.status-rounds.name', hint: 'am.settings.status-rounds.hint',
     scope: 'world', config: true, type: Boolean, default: true
   });
+  // Ability score changes whispered to the GM (utils/abilityWatch.js); read at each change
+  game.settings.register(AM.ID, 'abilityWatch', {
+    name: 'am.settings.ability-watch.name', hint: 'am.settings.ability-watch.hint',
+    scope: 'world', config: true, type: Boolean, default: true
+  });
 
   // A Beyond20 initiative roll onto the character's combatant (Beyond20Service._addInitiative)
   game.settings.register(AM.ID, 'beyond20Initiative', {
