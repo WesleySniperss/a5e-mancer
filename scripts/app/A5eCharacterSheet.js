@@ -533,10 +533,11 @@ export class A5eCharacterSheet extends ActorSheet {
       const mod      = Math.floor((value - 10) / 2);
       /* The score as written, before what a5e adds when it prepares the actor:
          background, level and feat increases (its ability bonuses) and
-         effects. The unlocked field edits this one, as a5e's own sheet does.
-         It showed the total, so a typed score - and, until 2.91.0, merely
-         clicking into the field and out - stored the bonuses into the score,
-         where a5e then added them again. */
+         effects - for the field's tooltip. The field itself shows the score in
+         play, locked or not: 2.91.0 showed this one while unlocked, as a5e's
+         own sheet does, and a score that read 16 locked and 14 unlocked was
+         taken for scores going up and down by themselves (2026-10-21). What is
+         typed is the score wanted; see the ability score inputs listener. */
       const base     = Number(actor._source?.system?.abilities?.[key]?.value ?? value);
       const bonus    = value - base;
       /* a5e keeps save proficiency at system.abilities.<key>.save.proficient,
@@ -3578,11 +3579,34 @@ export class A5eCharacterSheet extends ActorSheet {
       ['#am-speed-input',      'system.attributes.movement.walk.distance']
     ].forEach(([sel, path]) => this.#bindNumericInput(el, sel, v => ({ [path]: v })));
 
-    /* Ability score inputs */
+    /* Ability score inputs. The field shows the score in play and what is
+       typed is the score wanted: the score as written becomes it less what
+       a5e adds on top (background, level and feat increases, effects), so the
+       number typed is the number shown. Typing the score as written - what
+       this did until 2.93.0 - added the bonuses a second time. A score an
+       effect holds (a belt's override) does not follow the one written:
+       found by preparing a copy one point higher, it is left alone and the
+       effect is named. */
     el.querySelectorAll('.am-ability-score').forEach(inp =>
       inp.addEventListener('change', async (e) => {
-        const val = parseInt(e.target.value);
-        if (!isNaN(val)) await this.actor.update({ [`system.abilities.${inp.dataset.ability}.value`]: val });
+        const key   = inp.dataset.ability;
+        const label = ABILITIES.find((a) => a.key === key)?.label ?? key;
+        const shown = () => Number(this.actor.system?.abilities?.[key]?.value ?? 10);
+        const want  = parseInt(e.target.value);
+        if (isNaN(want) || want === shown()) { e.target.value = shown(); return; }
+        const base  = Number(this.actor._source?.system?.abilities?.[key]?.value ?? 10);
+        const probe = this.actor.clone({ [`system.abilities.${key}.value`]: base + 1 }, { keepId: true });
+        if (Number(probe.system?.abilities?.[key]?.value) - shown() !== 1) {
+          const touching = [...(this.actor.allApplicableEffects?.() ?? this.actor.effects)]
+            .filter((fx) => fx.active && (fx.system?.changes ?? fx.changes ?? []).some((c) => c?.key === `system.abilities.${key}.value`));
+          const holds = (fx) => (fx.system?.changes ?? fx.changes ?? []).some((c) => c?.key === `system.abilities.${key}.value`
+            && (['override', 'upgrade', 'downgrade'].includes(c.type) || [3, 4, 5].includes(Number(c.mode))));
+          const holder = touching.find(holds) ?? touching[0];
+          ui.notifications.info(`${label} is set to ${shown()} by ${holder ? `"${holder.name}"` : 'an effect'}; switch it off to change the score.`);
+          e.target.value = shown();
+          return;
+        }
+        await this.actor.update({ [`system.abilities.${key}.value`]: Math.max(1, want - (shown() - base)) });
       })
     );
 
