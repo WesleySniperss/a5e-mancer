@@ -3,6 +3,7 @@ import { PackFilter } from './packFilter.js';
 import { iconForItem, applyItemIcon } from '../data/a5eIcons.js';
 import { castOnlyEffects } from './effectTiming.js';
 import { SiteText } from './siteText.js';
+import { SPELL_CLASS_ADDITIONS } from '../data/spellClassAdditions.js';
 
 /**
  * Spell slot tables and known spells for a5e classes.
@@ -882,19 +883,8 @@ export class SpellService {
     return own.some(s => this.extraSchools.has(s));
   }
 
-  /**
-   * Classes a5e's pack leaves off a spell, by the spell's id, as a5e.tools
-   * lists them. Compared 2026-10-20 over the 422 spells both have: Message and
-   * Sufferer's Pact name no class at all, so no list offered them ("Message
-   * is not among the wizard's cantrips"), and Stonesense lacks the wizard.
-   * Witch's Broom and Calatyr's Explosive Conflagration name none either; the
-   * site does not have them, and the second comes with its archetype.
-   */
-  static CLASS_ADDITIONS = {
-    '4gcxix2l4zvy9kdu': ['artificer', 'bard', 'herald', 'sorcerer', 'wizard'],   // Message
-    'fnw0f5ou3h8z4nb4': ['bard', 'druid', 'herald', 'warlock'],                  // Sufferer's Pact
-    '22j2esam1cirwedf': ['wizard']                                                // Stonesense
-  };
+  /** Classes a5e's pack leaves off a spell, by its id - see data/spellClassAdditions.js. */
+  static CLASS_ADDITIONS = SPELL_CLASS_ADDITIONS;
 
   static spellAllowsClass(sys, className, uuid = '') {
     // An expanded list names its spells outright; they are on the character's

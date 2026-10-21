@@ -1,5 +1,6 @@
 import { AM } from '../am.js';
 import { HiddenSources } from './hiddenSources.js';
+import { SPELL_CLASS_ADDITIONS } from '../data/spellClassAdditions.js';
 
 /**
  * Fixes the a5e system's compendium browser filters.
@@ -243,6 +244,16 @@ export async function enrichCompendiumIndexes() {
             const parsed = parseAsiFromDescription(entry.system.description);
             entry.system.asi = parsed.length ? parsed : ['none'];
           }
+        }
+
+        /* A spell a5e left a class off - Message names none - carries it here
+           too, so the browser's Spell Lists filter finds it under the classes
+           the module's own spell windows offer it to (reported 2026-10-21:
+           "Message is still not in the wizard's spells"). */
+        const added = entry.type === 'spell' ? SPELL_CLASS_ADDITIONS[entry._id] : null;
+        if (added) {
+          entry.system ??= {};
+          entry.system.classes = [...new Set([...(entry.system.classes ?? []), ...added])];
         }
 
         entry.uuid ??= pack.getUuid(entry._id);
