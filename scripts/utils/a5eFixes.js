@@ -80,29 +80,38 @@ export class A5eFixes {
     const base = proto?.prepareBaseData;
     const derived = proto?.prepareCreatureDerivedData;
     if (typeof base !== 'function' || typeof derived !== 'function' || derived.amIdempotent) return;
+    /* Both are preparation, called inside prepareData or without it: their
+       writes are not the "written outside a5e's preparation" AbilityWatch
+       looks for. */
     proto.prepareBaseData = function (...args) {
-      const abilities = this.system?.abilities;
-      const stored = this._source?.system?.abilities;
-      if (abilities && stored) {
-        for (const [key, data] of Object.entries(abilities)) {
-          const value = stored[key]?.value;
-          if (data && value !== undefined && data.value !== value) data.value = value;
+      AbilityWatch.enter();
+      try {
+        const abilities = this.system?.abilities;
+        const stored = this._source?.system?.abilities;
+        if (abilities && stored) {
+          for (const [key, data] of Object.entries(abilities)) {
+            const value = stored[key]?.value;
+            if (data && value !== undefined && data.value !== value) data.value = value;
+          }
         }
-      }
-      this._amAbilitiesBefore = null;
-      return base.apply(this, args);
+        this._amAbilitiesBefore = null;
+        return base.apply(this, args);
+      } finally { AbilityWatch.leave(null); }
     };
     const wrapped = function (...args) {
-      const abilities = this.system?.abilities;
-      if (abilities) {
-        if (this._amAbilitiesBefore) {
-          for (const [key, value] of Object.entries(this._amAbilitiesBefore)) if (abilities[key]) abilities[key].value = value;
-          try { AbilityWatch.noteRepeat(this); } catch { /* the scores matter, not the note */ }
-        } else {
-          this._amAbilitiesBefore = Object.fromEntries(Object.entries(abilities).map(([key, data]) => [key, data?.value]));
+      AbilityWatch.enter();
+      try {
+        const abilities = this.system?.abilities;
+        if (abilities) {
+          if (this._amAbilitiesBefore) {
+            for (const [key, value] of Object.entries(this._amAbilitiesBefore)) if (abilities[key]) abilities[key].value = value;
+            try { AbilityWatch.noteRepeat(this); } catch { /* the scores matter, not the note */ }
+          } else {
+            this._amAbilitiesBefore = Object.fromEntries(Object.entries(abilities).map(([key, data]) => [key, data?.value]));
+          }
         }
-      }
-      return derived.apply(this, args);
+        return derived.apply(this, args);
+      } finally { AbilityWatch.leave(null); }
     };
     wrapped.amIdempotent = true;
     proto.prepareCreatureDerivedData = wrapped;
