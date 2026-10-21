@@ -58,6 +58,7 @@ Hooks.on('init', () => {
 
   // An actor prepared twice must not get its ability bonuses twice - see A5eFixes.idempotentPrepare
   try { A5eFixes.idempotentPrepare(); } catch (err) { console.error('a5e-mancer | idempotent prepare:', err); }
+  try { A5eFixes.idempotentAbilities(); } catch (err) { console.error('a5e-mancer | idempotent abilities:', err); }
 
 
   /* ── Handlebars partials ── */

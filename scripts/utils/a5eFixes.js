@@ -57,6 +57,53 @@ export class A5eFixes {
   }
 
   /**
+   * The same, where a5e adds the bonuses, for preparations that do not come
+   * through prepareData. The user's world (a5e 1.4.8, the Forge) still showed
+   * Intelligence 21 where the stored 15 and its three increases give 18,
+   * after idempotentPrepare had reset 199 repeated preparations at login: the
+   * scores were prepared again some other way, and prepareData had been
+   * wrapped over by something else ("fix false").
+   *   - prepareBaseData puts the scores back to the stored ones: a
+   *     preparation that was not preceded by an initialisation starts from
+   *     what the last one left.
+   *   - prepareCreatureDerivedData run again without prepareBaseData first
+   *     starts from the scores it started from last time.
+   * Each repeat is told to the GM with the code that asked (AbilityWatch).
+   */
+  static idempotentAbilities() {
+    const proto = CONFIG.Actor?.documentClass?.prototype;
+    const base = proto?.prepareBaseData;
+    const derived = proto?.prepareCreatureDerivedData;
+    if (typeof base !== 'function' || typeof derived !== 'function' || derived.amIdempotent) return;
+    proto.prepareBaseData = function (...args) {
+      const abilities = this.system?.abilities;
+      const stored = this._source?.system?.abilities;
+      if (abilities && stored) {
+        for (const [key, data] of Object.entries(abilities)) {
+          const value = stored[key]?.value;
+          if (data && value !== undefined && data.value !== value) data.value = value;
+        }
+      }
+      this._amAbilitiesBefore = null;
+      return base.apply(this, args);
+    };
+    const wrapped = function (...args) {
+      const abilities = this.system?.abilities;
+      if (abilities) {
+        if (this._amAbilitiesBefore) {
+          for (const [key, value] of Object.entries(this._amAbilitiesBefore)) if (abilities[key]) abilities[key].value = value;
+          try { AbilityWatch.noteRepeat(this); } catch { /* the scores matter, not the note */ }
+        } else {
+          this._amAbilitiesBefore = Object.fromEntries(Object.entries(abilities).map(([key, data]) => [key, data?.value]));
+        }
+      }
+      return derived.apply(this, args);
+    };
+    wrapped.amIdempotent = true;
+    proto.prepareCreatureDerivedData = wrapped;
+  }
+
+  /**
    * Attack rolls against a paralyzed creature have advantage - a5e's own
    * description says so - but its automation gives them disadvantage:
    * conditionChanges.paralyzed grants rollMode.attack.all -1, where blinded,
