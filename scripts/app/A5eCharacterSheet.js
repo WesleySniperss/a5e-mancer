@@ -2473,6 +2473,35 @@ export class A5eCharacterSheet extends ActorSheet {
       ? game.i18n.localize(schoolI18n)
       : (schoolKey ? schoolKey.charAt(0).toUpperCase() + schoolKey.slice(1) : '');
 
+    /* Components, as a5e's sheet sets them beside the name: V, S and M,
+       its own abbreviations (A5E.spells.components.*Abbr), with what the
+       material is in the tooltip. And written out among the tags of the
+       opened row as a5e's own summary has them - "V, S, M (bat guano and
+       sulfur)": a tooltip on three small letters was not found, and the
+       material read as missing (2026-10-20). */
+    const comps = (() => {
+      const own = A5eCharacterSheet.#hasComponents((item._source?.system ?? item.system)?.components);
+      const from = own ? null : this._componentsFrom?.get(item.id);
+      const c = from?.components ?? sys.components ?? {};
+      const materials = String((from ? from.materials : sys.materials) ?? '').trim();
+      const consumed  = from ? from.materialsConsumed : sys.materialsConsumed;
+      const say = (key, fallback) => {
+        const v = game.i18n.localize(key);
+        return v && v !== key ? v : fallback;
+      };
+      const material = materials ? ` (${materials}${consumed ? ', consumed' : ''})` : '';
+      const list = [
+        c.vocalized && { abbr: say('A5E.spells.components.vocalizedAbbr', 'V'), name: say('A5E.spells.components.vocalized', 'Vocalized') },
+        c.seen      && { abbr: say('A5E.spells.components.seenAbbr', 'S'),      name: say('A5E.spells.components.seen', 'Seen') },
+        c.material  && { abbr: say('A5E.spells.components.materialAbbr', 'M'),  name: say('A5E.spells.components.material', 'Material') + material }
+      ].filter(Boolean);
+      return {
+        components: list,
+        componentsTip: list.map((x) => x.name).join(', '),
+        componentsLabel: list.length ? list.map((x) => x.abbr).join(', ') + (c.material ? material : '') : ''
+      };
+    })();
+
     return {
       id: item.id, uuid: item.uuid, name: item.name, img: item.img,
       starred: this.#starred(item),
@@ -2484,32 +2513,14 @@ export class A5eCharacterSheet extends ActorSheet {
         labels.reactionTrigger ? `Trigger: ${labels.reactionTrigger}` : null,
         level === 0 ? 'Cantrip' : `Level ${level}`,
         schoolLabel || null,
+        comps.componentsLabel || null,
         conc ? 'Concentration' : null,
         sys.ritual ? 'Ritual' : null
       ].filter(Boolean),
       schoolLabel,
       ritual: sys.ritual ?? false,
-      /* Components, as a5e's sheet sets them beside the name: V, S and M,
-         its own abbreviations (A5E.spells.components.*Abbr), with what the
-         material is in the tooltip. */
-      ...(() => {
-        const own = A5eCharacterSheet.#hasComponents((item._source?.system ?? item.system)?.components);
-        const from = own ? null : this._componentsFrom?.get(item.id);
-        const c = from?.components ?? sys.components ?? {};
-        const materials = from ? from.materials : sys.materials;
-        const consumed  = from ? from.materialsConsumed : sys.materialsConsumed;
-        const say = (key, fallback) => {
-          const v = game.i18n.localize(key);
-          return v && v !== key ? v : fallback;
-        };
-        const list = [
-          c.vocalized && { abbr: say('A5E.spells.components.vocalizedAbbr', 'V'), name: say('A5E.spells.components.vocalized', 'Vocalized') },
-          c.seen      && { abbr: say('A5E.spells.components.seenAbbr', 'S'),      name: say('A5E.spells.components.seen', 'Seen') },
-          c.material  && { abbr: say('A5E.spells.components.materialAbbr', 'M'),  name: say('A5E.spells.components.material', 'Material')
-            + (materials ? ` (${materials}${consumed ? ', consumed' : ''})` : '') }
-        ].filter(Boolean);
-        return { components: list, componentsTip: list.map((x) => x.name).join(', ') };
-      })(),
+      components: comps.components,
+      componentsTip: comps.componentsTip,
       concentration: conc,
       /* a5e's three states, 0 unprepared, 1 prepared, 2 always prepared, drawn
          as its own sheet draws them: a book, lit when prepared, with sparkles

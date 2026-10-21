@@ -2339,6 +2339,13 @@ button.lu-levels-title {
   font-weight: 600;
 }
 
+/* A spell's material is a phrase, not a figure - "pearl worth at least 100
+   gold and a feather" - and wraps inside the panel's width. */
+.am-res-chip.am-res-chip--wrap {
+  white-space: normal;
+  max-width: 100%;
+}
+
 .am-item-desc-panel {
   position: fixed;
   z-index: 9999;

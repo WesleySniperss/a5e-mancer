@@ -181,9 +181,9 @@ export class ItemDescPanel {
   static #resourcesOf(doc) {
     const sys = doc.system ?? {};
     const out = [];
-    const push = (icon, label, value) => {
+    const push = (icon, label, value, wrap = false) => {
       if (value === undefined || value === null || value === '' ) return;
-      out.push({ icon, label, value: String(value) });
+      out.push({ icon, label, value: String(value), wrap });
     };
 
     // Maneuvers: exertion is the whole point
@@ -215,14 +215,19 @@ export class ItemDescPanel {
     if (dur) push('fa-hourglass', 'Duration',
       typeof dur === 'object' ? [dur.value, dur.unit].filter(Boolean).join(' ') : dur);
 
-    // Spell components (V/S/M) — stored as flags plus a material string
+    /* Spell components (V/S/M) - stored as flags, the material as a string
+       beside them (system.materials), which was never shown: the panel said M
+       and not what M was. Consumed is a5e's materialsConsumed; the field read
+       here before is not one a5e has. */
     const comp = sys.components ?? {};
     const parts = [];
     if (comp.vocalized ?? comp.verbal) parts.push('V');
     if (comp.seen ?? comp.somatic)     parts.push('S');
     if (comp.material)                 parts.push('M');
     if (parts.length) push('fa-hand-sparkles', 'Components', parts.join(', '));
-    if (comp.materialComponents?.consumed) push('fa-fire', 'Consumed', 'yes');
+    const materials = typeof sys.materials === 'string' ? sys.materials.trim() : '';
+    if (comp.material && materials) push('fa-gem', 'Material', materials, true);
+    if (comp.material && sys.materialsConsumed) push('fa-fire', 'Consumed', 'yes');
 
     if (sys.concentration) push('fa-brain', 'Concentration', 'yes');
     if (sys.ritual)        push('fa-book', 'Ritual', 'yes');
@@ -254,7 +259,7 @@ export class ItemDescPanel {
     panel.className = 'am-item-desc-panel';
 
     const chips = resources.map(r =>
-      `<span class="am-badge am-res-chip" data-tooltip="${r.label}">
+      `<span class="am-badge am-res-chip${r.wrap ? ' am-res-chip--wrap' : ''}" data-tooltip="${r.label}">
          <i class="fa-solid ${r.icon}"></i> ${r.value}
        </span>`).join('');
 

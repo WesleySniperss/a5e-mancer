@@ -149,12 +149,21 @@ export class CardSummary {
     return `${plural ? t.quantity : 1} ${this.#t(word ?? t.type)}${how}`;
   }
 
-  static componentsLabel(item) {
-    const comps = item?.system?.components ?? {};
+  /**
+   * "V, S, M (bat guano and sulfur)": the item's components, or its compendium
+   * entry's when it has none of its own - and the entry's material when the
+   * item's M names none.
+   */
+  static componentsLabel(item, source = null) {
+    const has = (doc) => Object.values(doc?.system?.components ?? {}).some(Boolean);
+    const doc = has(item) ? item : (has(source) ? source : null);
+    if (!doc) return '';
+    const comps = doc.system.components;
     const abbr = CONFIG.A5E?.spellComponentAbbreviations ?? {};
     const list = Object.entries(comps).filter(([, on]) => on).map(([k]) => this.#t(abbr[k] ?? k)).join(', ');
-    const materials = typeof item?.system?.materials === 'string' ? item.system.materials.trim() : '';
-    return list && materials ? `${list} (${materials})` : list;
+    const text = (d) => typeof d?.system?.materials === 'string' ? d.system.materials.trim() : '';
+    const materials = comps.material ? (text(doc) || text(source)) : '';
+    return materials ? `${list} (${materials})` : list;
   }
 
   /**
@@ -243,7 +252,7 @@ export class CardSummary {
       if (!summary.area) summary.area = this.areaLabel(own) || this.areaLabel(theirs);
     }
     if (item.type === 'spell' && !summary.spellComponents) {
-      summary.spellComponents = this.componentsLabel(item) || this.componentsLabel(source);
+      summary.spellComponents = this.componentsLabel(item, source);
     }
     const rollData = item.actor?.getRollData?.(item) ?? {};
     if (summary.damage) summary.damage = this.damageLabel(summary.damage, rollData);
