@@ -411,6 +411,15 @@ export class SpellDialog extends HandlebarsApplicationMixin(ApplicationV2) {
      never came from would be wrong. */
   #spellsToRemove(selected) {
     const picked = new Set([...selected].map(u => PackFilter.normalizeSource(u)));
+    /* Only what this window shows can be unticked in it. A spell from another
+       class's list, one above the highest level offered, a rare one, one a
+       feature gave, one dragged in from any compendium: none of them is on
+       screen, so none was ticked - it could not be - and every one was offered
+       for deletion (reported 2026-10-20: "adding a spell offers to delete the
+       ones I dragged in"). They are left alone, and so is a spell in another
+       of the actor's books than the one being managed. */
+    const shown = new Set();
+    for (const spells of this._allSpells.values()) for (const s of spells) shown.add(PackFilter.normalizeSource(s.uuid));
     return this.actor.items.filter((i) => {
       if (i.type !== 'spell') return false;
       /* No source, no removal: without one there is no way to tell that the
@@ -418,7 +427,10 @@ export class SpellDialog extends HandlebarsApplicationMixin(ApplicationV2) {
          collision. Most spells in play have none — they are left alone. */
       const source = i._stats?.compendiumSource ?? i.flags?.core?.sourceId ?? '';
       if (!source) return false;
-      return !picked.has(PackFilter.normalizeSource(source));
+      const key = PackFilter.normalizeSource(source);
+      if (!shown.has(key)) return false;
+      if (this.spellBookId && i.system?.spellBook && i.system.spellBook !== this.spellBookId) return false;
+      return !picked.has(key);
     });
   }
 

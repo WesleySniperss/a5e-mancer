@@ -91,7 +91,10 @@ check('with no class named, nothing is hidden', all.length === docs.length,
    on no class's list, and a Wizard is offered exactly the spells tagged
    wizard. The check follows the rule; it does not get a vote on it. */
 const wizard = await count('Wizard');
-const tagged   = docs.filter((x) => (x.system?.classes ?? []).includes('wizard')).length;
+/* A spell a5e left a class off is tagged by SpellService.CLASS_ADDITIONS, as
+   a5e.tools lists it (Message, Stonesense for the wizard): those count too. */
+const classesOf = (x) => [...(x.system?.classes ?? []), ...(SpellService.CLASS_ADDITIONS?.[x._id] ?? [])];
+const tagged   = docs.filter((x) => classesOf(x).includes('wizard')).length;
 const unlisted = docs.filter((x) => !(x.system?.classes ?? []).length).length;
 check('a Wizard gets the wizard list and no other class\u2019s',
   wizard.length === tagged && wizard.length < docs.length,
@@ -101,7 +104,7 @@ check('a Wizard gets the wizard list and no other class\u2019s',
 /* And every spell it got really is a wizard spell. */
 const wrong = wizard.filter((s) => {
   const doc = docs.find((x) => x._id === s.id);
-  const list = doc?.system?.classes ?? [];
+  const list = doc ? classesOf(doc) : [];
   return list.length && !list.includes('wizard');
 });
 check('and nothing else came with them', wrong.length === 0,

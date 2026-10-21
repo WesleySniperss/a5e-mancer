@@ -882,6 +882,20 @@ export class SpellService {
     return own.some(s => this.extraSchools.has(s));
   }
 
+  /**
+   * Classes a5e's pack leaves off a spell, by the spell's id, as a5e.tools
+   * lists them. Compared 2026-10-20 over the 422 spells both have: Message and
+   * Sufferer's Pact name no class at all, so no list offered them ("Message
+   * is not among the wizard's cantrips"), and Stonesense lacks the wizard.
+   * Witch's Broom and Calatyr's Explosive Conflagration name none either; the
+   * site does not have them, and the second comes with its archetype.
+   */
+  static CLASS_ADDITIONS = {
+    '4gcxix2l4zvy9kdu': ['artificer', 'bard', 'herald', 'sorcerer', 'wizard'],   // Message
+    'fnw0f5ou3h8z4nb4': ['bard', 'druid', 'herald', 'warlock'],                  // Sufferer's Pact
+    '22j2esam1cirwedf': ['wizard']                                                // Stonesense
+  };
+
   static spellAllowsClass(sys, className, uuid = '') {
     // An expanded list names its spells outright; they are on the character's
     // list whatever the spell's own class field says.
@@ -918,21 +932,23 @@ export class SpellService {
        `rare` — and a5e's rare spells belong to no class list by design; they
        are found or granted, never learned from one. The other four (Message,
        Witch's Broom, Sufferer's Pact, Calatyr's Explosive Conflagration) are
-       genuine gaps in the data, and they are counted in the log below rather
+       genuine gaps in the data: the ones a5e.tools lists classes for are given
+       them by CLASS_ADDITIONS, the rest are counted in the log below rather
        than quietly dropped. The remaining 375 sit in the 5e conversion pack and
        a third-party one. */
     const raw = sys?.classes ?? sys?.spellClasses ?? null;
-    if (raw === null || raw === undefined) return false;
+    const added = this.CLASS_ADDITIONS[String(uuid).split('.').pop()] ?? [];
+    if ((raw === null || raw === undefined) && !added.length) return false;
 
     // Array, Set, or any other iterable — the same spread a5e uses
     let list = [];
     if (typeof raw === 'string')            list = raw.split(/[,;/|]/);
     else if (typeof raw?.[Symbol.iterator] === 'function') list = [...raw];
-    else if (typeof raw === 'object')       list = Object.keys(raw);
+    else if (raw && typeof raw === 'object') list = Object.keys(raw);
 
     const norm = (s) => String(s ?? '').toLowerCase().replace(/[^a-z]/g, '');
     const wanted = norm(key);
-    const normalized = list.map(norm).filter(Boolean);
+    const normalized = [...list, ...added].map(norm).filter(Boolean);
     if (!normalized.length) return false;       // names no class — see above
 
     return normalized.includes(wanted);
