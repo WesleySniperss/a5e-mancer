@@ -232,6 +232,17 @@ try {
     { name: 'a condition’s rounds counted down', redraws: 0,
       from: () => ({ 'flags.a5e-mancer.durations.blinded': 3 }),
       to:   () => ({ 'flags.a5e-mancer.durations.blinded': 2 }) },
+    /* Coins: the field in the purse, and the carried weight where coins count.
+       Credits are drawn only while held, so their first coin is a redraw. */
+    { name: 'gold paid out', redraws: 0,
+      from: () => ({ 'system.currency.gp': 120 }),
+      to:   () => ({ 'system.currency.gp': 97 }) },
+    { name: 'a large purse', redraws: 0,
+      from: () => ({ 'system.currency.sp': 3 }),
+      to:   () => ({ 'system.currency.sp': 123456 }) },
+    { name: 'credits appearing', redraws: 1,
+      from: () => ({ 'system.currency.cr': 0 }),
+      to:   () => ({ 'system.currency.cr': 15 }) },
     /* A flag no rule owns. A name would do, but Foundry trims one, and a
        trailing space is then no change at all — nothing renders, and the
        check would be asking a question nobody asked. */
@@ -291,6 +302,7 @@ try {
       const rounds = a.flags?.['a5e-mancer']?.durations?.blinded;
       if (rounds === undefined) r['flags.a5e-mancer.durations.-=blinded'] = null;
       else r['flags.a5e-mancer.durations.blinded'] = rounds;
+      for (const coin of ['gp', 'sp', 'cr']) r['system.currency.' + coin] = a.system.currency?.[coin] ?? 0;
       return r; })()`);
     /* And every item a case toggles, as it was. */
     const itemRestore = await ev(`(() => { const a = game.actors.get('${who.id}');

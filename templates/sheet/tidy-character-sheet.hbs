@@ -1455,12 +1455,16 @@
               class="am-attune-sep">/</span><span
               class="am-attune-max">{{tidy.attunement.max}}</span>
           </button>
+        {{!-- Text, not number: a coin takes a sum as well as a figure - +50
+             adds, -12 takes away, 75+20 or +2d6*10 is worked out (see
+             A5eCharacterSheet.evalAmount). A number field refused all of it. --}}
         <div class="currency currency-tracker">
           {{#each tidy.currencies}}
-            <label class="denomination {{this.key}}" data-tooltip="{{this.label}}">
+            <label class="denomination {{this.key}}" data-tooltip="{{this.label}}: +50 adds, -12 takes away, a sum or a roll is worked out">
               <i class="currency {{this.key}}"></i>
-              <input type="number" class="uninput" data-action="currency-edit"
-                data-denom="{{this.key}}" value="{{this.value}}" min="0"
+              <input type="text" class="uninput" data-action="currency-edit"
+                data-denom="{{this.key}}" value="{{this.value}}"
+                autocomplete="off" spellcheck="false"
                 aria-label="{{this.label}}" />
             </label>
           {{/each}}

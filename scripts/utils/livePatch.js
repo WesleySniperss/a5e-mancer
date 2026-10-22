@@ -364,7 +364,37 @@ const spellSlots = {
   }
 };
 
-const RULES = [hitPoints, deathSaves, conditions, conditionRounds, armorClass, itemStates, exertion, spellSlots];
+/**
+ * Coins: the figure in each field of the purse, and the carried weight, which
+ * counts coins where the world says so. Credits are drawn only while held
+ * (#tidyContext), so credits coming or going are a change of shape.
+ */
+const CURRENCY = /^system\.currency\.(\w+)$/;
+const currency = {
+  owns: (path) => CURRENCY.test(path),
+  apply(sheet, el, paths) {
+    const purse = sheet.actor.system?.currency ?? {};
+    for (const path of paths) {
+      const key = path.match(CURRENCY)[1];
+      const value = num(purse[key]);
+      const field = el.querySelector(`[data-action="currency-edit"][data-denom="${key}"]`);
+      const drawn = key !== 'cr' || value > 0;
+      if (!!field !== drawn) return false;
+      if (field) setValue(field, value);
+    }
+    const block = el.querySelector('.am-carried');
+    const state = block && sheet.liveCarryState ? sheet.liveCarryState() : null;
+    if (state) {
+      setText(block.querySelector('.am-a5e-value'), state.carried);
+      setText(block.querySelector('.am-carry-cap'), `/ ${state.capacity} lb`);
+      setClassName(block, ['am-carried', state.encumbered && 'am-over']);
+      setAttr(block, 'style', `--am-carry-pct: ${state.carriedPct}%`);
+    }
+    return true;
+  }
+};
+
+const RULES = [hitPoints, deathSaves, conditions, conditionRounds, armorClass, itemStates, exertion, spellSlots, currency];
 
 /* Foundry's own bookkeeping rides along in every diff and means nothing here. */
 const IGNORED = new Set(['_id', '_stats']);

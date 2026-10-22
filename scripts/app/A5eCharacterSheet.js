@@ -218,6 +218,38 @@ export class A5eCharacterSheet extends ActorSheet {
    * a render. See "The colour under the banner" in tidy-a5e.css.
    */
   /**
+   * What a typed amount comes to against the current one, in whole coins:
+   *
+   *     +50       current + 50          -12      current - 12
+   *     200, =200 200                   75+20    95
+   *     +2d6*10   current + the roll    -5+3     current - 2
+   *
+   * Plain arithmetic and dice only - anything else is not an amount - worked
+   * out by Foundry's Roll, so a sum is a sum and a die is rolled. A leading
+   * sign makes the whole of it a change, worked out from nought. Never below
+   * nothing. null when it cannot be read.
+   */
+  static async evalAmount(raw, current = 0) {
+    let text = String(raw ?? '').replace(/\s+/g, '').replace(/,/g, '.');
+    const relative = /^[+-]/.test(text);
+    if (relative) text = `0${text}`;
+    else if (text.startsWith('=')) text = text.slice(1);
+    if (!text || !/^[\d+\-*/().dD]+$/.test(text)) return null;
+    let amount;
+    if (/^\d+(?:\.\d+)?$/.test(text)) amount = Number(text);
+    else {
+      try {
+        const roll = new Roll(text);
+        await roll.evaluate();
+        amount = roll.total;
+        if (roll.dice?.length) ui.notifications.info(`${String(raw).trim()} → ${amount}`);
+      } catch { return null; }
+    }
+    if (!Number.isFinite(amount)) return null;
+    return Math.max(0, Math.floor(relative ? current + amount : amount));
+  }
+
+  /**
    * The initiative bonus, added up as a5e's roll adds it (ModifierManager,
    * type "initiative"): the initiative ability's modifier, the initiative
    * bonuses and that ability's check bonuses - with "simple initiative" off,
@@ -4314,6 +4346,11 @@ export class A5eCharacterSheet extends ActorSheet {
     }
 
     /* Currency */
+    /* A coin is changed by an amount as often as to a figure - paid 12, found
+       50 - so the field takes a sum (asked 2026-10-22): +50 adds, -12 takes
+       away, 200 or =200 sets, and either may be worked out - 75+20, +2d6*10.
+       What it comes to goes in the field at once: the live patch leaves a
+       field being typed in alone, and "+50" would have stayed in it. */
     el.querySelectorAll('[data-action="currency-edit"]').forEach(inp =>
       inp.addEventListener('change', async (e) => {
         /* data-denom, which is what the template writes. This read
@@ -4322,8 +4359,16 @@ export class A5eCharacterSheet extends ActorSheet {
            word, leaving the coin to snap back on the next render. */
         const key = inp.dataset.denom;
         if (!key) return;
-        const val = Math.max(0, parseInt(e.target.value) || 0);
-        await this.actor.update({ [`system.currency.${key}`]: val });
+        const before = Number(this.actor.system?.currency?.[key] ?? 0) || 0;
+        const typed = String(e.target.value ?? '');
+        const val = await A5eCharacterSheet.evalAmount(typed, before);
+        if (val === null) {
+          inp.value = String(before);
+          if (typed.trim()) ui.notifications.warn(`${AM.NAME}: "${typed.trim()}" is not an amount — type a figure, +50, -12 or a sum.`);
+          return;
+        }
+        inp.value = String(val);
+        if (val !== before) await this.actor.update({ [`system.currency.${key}`]: val });
       })
     );
 
