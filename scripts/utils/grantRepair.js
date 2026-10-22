@@ -24,6 +24,9 @@ import { GrantAbsorber } from './grantAbsorber.js';
  *   - an origin's features held more than once are removed down to one, and
  *     where it holds more picks than it gives - two gifts - the player says
  *     which go (#overChosen).
+ *   - an applied grant that gave less than it gives is topped up: a spell or
+ *     maneuver recorded and never made, a choice of two that gave one
+ *     (#shortOf).
  * What it leaves: optional grants, the Equipment and Maneuvers tabs' own (gear,
  * a class's traditions), and a class's ability points nobody picks - a feat
  * may have been taken instead.
@@ -63,13 +66,17 @@ export class GrantRepair {
   /**
    * The character's items made from a compendium entry: by its id (the builder
    * keeps it), by the recorded source, or by name where the item records no
-   * other source - a5e's own windows make features under new ids.
+   * other source - a5e's own windows make features, spells and maneuvers under
+   * new ids.
    */
   static #copiesOf(actor, uuid) {
     const id = String(uuid).split('.').pop();
-    const name = this.#indexName(uuid);
+    let entry = null;
+    try { entry = fromUuidSync(uuid); } catch { entry = null; }
+    const name = entry?.name ?? '';
+    const type = entry?.type ?? 'feature';
     return actor.items.filter(i => i.id === id || this.#sourceOf(i) === uuid
-      || (name && i.type === 'feature' && i.name === name && (!this.#sourceOf(i) || this.#sourceOf(i) === uuid)));
+      || (name && i.type === type && i.name === name && (!this.#sourceOf(i) || this.#sourceOf(i) === uuid)));
   }
 
   /** Is this feature (compendium uuid) on the character? */
@@ -175,6 +182,7 @@ export class GrantRepair {
   static async plan(actor) {
     const out = { auto: [], ask: [], dupes: [], over: [], copies: [] };
     if (!actor || actor.type !== 'character') return out;
+    await GrantAbsorber.primePools([...actor.items]);
     const charLevel = this.#charLevel(actor);
     const lvOf = (item) => {
       const cls = this.#classOf(actor, item);
@@ -200,15 +208,21 @@ export class GrantRepair {
       if (!entries.length) continue;
       const lv = lvOf(item);
       const missing = [];
+      const short = [];
       for (const [id, grant] of entries) {
         if (!grant?.applied || typeof grant.applied !== 'object') continue;   // a5e 1.3
-        if (GrantAbsorber.isAppliedGrant(grant) || grant.optional) continue;
+        if (grant.optional) continue;
         if (settled.has(`${item.id}.${id}`)) continue;
         if (!GrantAbsorber.appliesAt(grant, lv)) continue;
-        if (GrantAbsorber.ownedElsewhere(grant, item.type)) continue;
+        if (GrantAbsorber.ownedElsewhere(grant, item.type, item)) continue;
+        if (GrantAbsorber.isAppliedGrant(grant)) {
+          const gap = this.#shortOf(actor, grant);
+          if (gap) short.push([id, grant, gap]);
+          continue;
+        }
         missing.push([id, grant]);
       }
-      if (!missing.length) continue;
+      if (!missing.length && !short.length) continue;
 
       let models = null;   // read once per item, only when something asks
       const modelsOf = async () => {
@@ -240,10 +254,50 @@ export class GrantRepair {
         const model = (await modelsOf()).get(id);
         if (model) out.ask.push({ ...row, model, picked: [] });
       }
+
+      // Applied, and short of what it gives: made again, the grant named in `redo`
+      for (const [id, grant, gap] of short) {
+        const row = { item, id, grant, lv, name: GrantAbsorber.nameOf(grant) || GrantAbsorber.typeOf(grant), redo: true };
+        if (gap.kind === 'docs') { out.auto.push(row); continue; }
+        const model = (await modelsOf()).get(id);
+        if (model) out.ask.push({ ...row, model, picked: gap.held, short: true });
+      }
     }
 
     out.dupes = this.#duplicates(actor);
     return out;
+  }
+
+  /**
+   * An applied grant that handed out less than it gives, from two faults of
+   * the past (reported with a5e 1.4.10, 2026-10-22):
+   *   docs  - a spell or maneuver grant recorded as given with nothing made:
+   *           the module wrote a5e's record and left the documents uncreated.
+   *           Only one with nothing to choose, none of whose base is held.
+   *   picks - a feature grant with fewer picks than its total: a5e's grants
+   *           reported their pool's count, 1, for "two exploration knacks"
+   *           and the like, in its window and in the module's. Read off what
+   *           the grant itself records it made, which the knacks of later
+   *           levels - the same options, other grants - do not muddle.
+   * @returns {null|{kind: 'docs'}|{kind: 'picks', held: string[]}}
+   */
+  static #shortOf(actor, grant) {
+    const type = GrantAbsorber.typeOf(grant);
+    const spec = GrantAbsorber.specOf(grant);
+    if (!spec) return null;
+    const made = [...(grant.applied?.documentIds ?? [])].filter(id => actor.items.get(id));
+    if (type === 'spell' || type === 'maneuver') {
+      if (made.length || !spec.base.length || GrantAbsorber.needsChoice(grant)) return null;
+      if (spec.base.some(u => this.#has(actor, u))) return null;
+      return { kind: 'docs' };
+    }
+    if (type === 'feature' && !spec.pool && spec.options.length) {
+      const want = spec.base.length + Math.min(spec.total, spec.options.length);
+      if (!made.length || made.length >= want) return null;
+      const held = spec.options.filter(u => this.#copiesOf(actor, u).some(c => made.includes(c.id)));
+      return { kind: 'picks', held };
+    }
+    return null;
   }
 
   /** Bonuses that are exact copies, beyond the one kept. */
@@ -302,8 +356,9 @@ export class GrantRepair {
         const on = r.picked?.includes(o.key);
         return `<button type="button" class="am-filter-pill${on ? ' am-pill-active' : ''}" data-key="${esc(o.key)}">${esc(o.label)}</button>`;
       }).join('');
+      const hint = r.short ? `gives ${total}, has ${r.picked.length}` : `${total}`;
       return `<div class="am-repair-ask" data-row="${i}" data-total="${total}">
-        <div class="am-repair-ask-head"><strong>${esc(r.item.name)}</strong> · ${esc(m.label)} <span class="am-hint">(${total})</span></div>
+        <div class="am-repair-ask-head"><strong>${esc(r.item.name)}</strong> · ${esc(m.label)} <span class="am-hint">(${hint})</span></div>
         <div class="am-filter-pills">${pills}</div></div>`;
     }).join('');
 
@@ -356,15 +411,17 @@ export class GrantRepair {
     // One apply per item, its grants named; choices filed under their grant ids
     const byItem = new Map();
     const add = (r, keys) => {
-      if (!byItem.has(r.item.id)) byItem.set(r.item.id, { item: r.item, lv: r.lv, ids: new Set(), choices: {} });
+      if (!byItem.has(r.item.id)) byItem.set(r.item.id, { item: r.item, lv: r.lv, ids: new Set(), choices: {}, redo: new Set() });
       const e = byItem.get(r.item.id);
       e.ids.add(r.id);
+      if (r.redo) e.redo.add(r.id);
       if (keys?.length) e.choices[r.id] = keys;
     };
     for (const r of plan.auto) add(r, r.picked);
     for (const { row, keys } of picks.asks) {
       const r = plan.ask[row];
-      if (r && keys.length) add(r, keys);
+      // A short one left with only what it had is left as it was
+      if (r && keys.length && (!r.short || keys.some(k => !r.picked.includes(k)))) add(r, keys);
     }
 
     // What goes: the copies, and the picks unticked with what they gave -
@@ -408,11 +465,11 @@ export class GrantRepair {
         }
       }
     }
-    for (const { item, lv, ids, choices } of byItem.values()) {
+    for (const { item, lv, ids, choices, redo } of byItem.values()) {
       const fresh = actor.items.get(item.id);
       if (!fresh) continue;
       try {
-        await GrantAbsorber.apply(actor, fresh, choices, lv, 0, { only: ids, walkOwned: false });
+        await GrantAbsorber.apply(actor, fresh, choices, lv, 0, { only: ids, walkOwned: false, redo });
         changed += ids.size;
       } catch (err) {
         AM.log(1, `Grants of ${item.name} could not be applied:`, err);

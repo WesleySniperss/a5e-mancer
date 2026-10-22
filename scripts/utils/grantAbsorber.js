@@ -3,6 +3,7 @@ import { applyItemIcon } from '../data/a5eIcons.js';
 import { PackFilter } from './packFilter.js';
 import { FeatureAutomation } from './featureAutomation.js';
 import { SiteText } from './siteText.js';
+import { GrantPools } from './grantPools.js';
 
 /**
  * Lets the builder ask for an item's grant choices itself, so a5e does not have to
@@ -51,12 +52,26 @@ export class GrantAbsorber {
   /** Its name, likewise. */
   static #name(grant) { return grant?.name || grant?.label || ''; }
 
-  /** A proficiency grant's kind - skill, tool, weapon - read off its keys in 1.4. */
+  /**
+   * The grant types that hand out documents: a5e 1.4's getApplyData returns
+   * them in `documents`, for the caller to create. Shown as cards with names
+   * and pictures (describeFeatures), not as a row of keys.
+   */
+  static #DOCUMENT_TYPES = new Set(['feature', 'item', 'spell', 'maneuver']);
+
+  /**
+   * A proficiency grant's kind - skill, tool, weapon - read off its keys in 1.4.
+   *
+   * The kind of its CHOICE first. A grant made in 1.4 can mix kinds: the
+   * Marshal (Revised) (a5e 1.4.10) has one grant with 85 armor, weapon and
+   * saving throw keys and a choice of two skills. Read off its first key it
+   * was an armor grant, and the skills were offered as armor.
+   */
   static #profType(grant) {
     if (this.#type(grant) !== 'proficiency') return '';
-    const keys = [...(grant?.config?.keys?.base ?? []),
-                  ...(grant?.config?.keys?.options ?? []).flatMap(o => [...(o?.candidates ?? [])])];
-    return this.#keyPrefix(keys) || grant?.proficiencyType || '';
+    const options = (grant?.config?.keys?.options ?? []).flatMap(o => [...(o?.candidates ?? [])]);
+    return this.#keyPrefix(options) || this.#keyPrefix([...(grant?.config?.keys?.base ?? [])])
+        || grant?.proficiencyType || '';
   }
 
   /** A trait grant's kind - languages, size, damageResistances. */
@@ -107,9 +122,13 @@ export class GrantAbsorber {
   static nameOf(grant) { return this.#name(grant); }
   static isAppliedGrant(grant) { return this.#isApplied(grant); }
   static appliesAt(grant, lv) { return this.#appliesAtLevel(grant, lv); }
-  static ownedElsewhere(grant, ownerType) { return this.#isOwnedElsewhere(grant, ownerType); }
+  static ownedElsewhere(grant, ownerType, owner = null) { return this.#isOwnedElsewhere(grant, ownerType, owner); }
   static needsChoice(grant) { return this.#needsConfig(grant); }
   static specOf(grant) { return this.#specOf(grant); }
+  /** Read the pools of these documents' grants, so specOf can answer for them. */
+  static async primePools(docs) {
+    await GrantPools.prime((docs ?? []).flatMap(d => this.#preparedGrants(d).map(([, g]) => g)));
+  }
 
   /** Has a5e (1.4) recorded this grant as applied? 1.3 kept no such mark on the grant. */
   static #isApplied(grant) {
@@ -142,10 +161,10 @@ export class GrantAbsorber {
 
     const out = [];
     for (const [id, grant] of prepared) {
-      // Features and items are described separately, as cards
+      // Features, items, spells and maneuvers are described separately, as cards
       const type = this.#type(grant);
-      if (type === 'feature' || type === 'item') continue;
-      if (!this.#isSupported(grant, lv, doc?.type)) continue;
+      if (this.#DOCUMENT_TYPES.has(type)) continue;
+      if (!this.#isSupported(grant, lv, doc?.type, doc)) continue;
       if (!this.#needsConfig(grant)) continue;       // applied without asking
 
       const spec    = this.#specOf(grant);
@@ -263,13 +282,28 @@ export class GrantAbsorber {
    *   – combat tradition traits → the Maneuvers tab claims one as you pick from it
    * See ActorCreationService#stripBuilderOwnedGrants, which must stay in step.
    */
-  static #isOwnedElsewhere(grant, ownerType = '') {
+  static #isOwnedElsewhere(grant, ownerType = '', owner = null) {
     // The Equipment tab covers the starting gear a class and a background hand
     // out — and nothing else. Stripping every item grant meant the four heritage
     // features that grant an item lost it silently: removed here, and offered
     // nowhere, because no tab claims them.
     const type = this.#type(grant);
     if (type === 'item') return ownerType === 'class' || ownerType === 'background';
+    /* So is the starting gold. A class made in a5e 1.4 gives it as a grant -
+       the Marshal (Revised)'s "Starting Currency", 200 gp, beside the same 200
+       as its wealth - and the Equipment tab sets the gold from the wealth:
+       applied as well, the gold of a package bought with it stayed. */
+    if (type === 'currency') return ownerType === 'class' || ownerType === 'background';
+
+    /* A class's first maneuvers, where its table counts them. The Marshal
+       (Revised)'s Combat Maneuvers (a5e 1.4.10) grants "two maneuvers of your
+       choice" from a pool, and the Maneuvers Known column of its table counts
+       those two - the Maneuvers step asks for what the table gives, so offered
+       here as well, a 2nd-level marshal learned four. Told apart by the
+       feature: the one that gives the exertion pool and points at the table.
+       Combat Directives' maneuver "does not count against" the number known,
+       and stays a grant. */
+    if (type === 'maneuver') return this.#isTableManeuverFeature(owner);
 
     // Likewise the Maneuvers tab claims a tradition only from the class table -
     // a trait in a5e 1.3, a "tradition:" proficiency in 1.4. Unclaimed, the
@@ -278,6 +312,14 @@ export class GrantAbsorber {
     if (ownerType !== 'class') return false;
     return (type === 'trait' && this.#traitType(grant) === 'maneuverTraditions')
         || (type === 'proficiency' && this.#profType(grant) === 'tradition');
+  }
+
+  /** The feature that gives a class its exertion pool and leaves its maneuvers to the table. */
+  static #isTableManeuverFeature(owner) {
+    if (!owner || owner.type !== 'feature') return false;
+    const grants = this.#preparedGrants(owner).map(([, g]) => g);
+    if (!grants.some(g => this.#type(g) === 'exertion')) return false;
+    return /maneuvers\s+known/i.test(String(owner.system?.description ?? '').replace(/<[^>]+>/g, ' '));
   }
 
   /**
@@ -315,9 +357,9 @@ export class GrantAbsorber {
    * getApplyData writes it straight out, exactly as a5e does when it decides its
    * dialog is unnecessary — or asks something we can list as options.
    */
-  static #isSupported(grant, lv = {}, ownerType = '') {
+  static #isSupported(grant, lv = {}, ownerType = '', owner = null) {
     if (!this.#type(grant)) return false;
-    if (this.#isOwnedElsewhere(grant, ownerType)) return false;
+    if (this.#isOwnedElsewhere(grant, ownerType, owner)) return false;
     if (!this.#appliesAtLevel(grant, lv)) return false;
     if (!this.#needsConfig(grant)) return true;
     return !!this.#specOf(grant)?.options.length;
@@ -337,11 +379,34 @@ export class GrantAbsorber {
       .filter(Boolean);
 
     const type = this.#type(grant);
+
+    /* A pool: its options are what its filters find (GrantPools), read
+       beforehand by the walks that come here - canAbsorb, describeTree,
+       describeFeatures, apply. Not read, or filters the module cannot judge:
+       null, so the grant is a5e's to ask - never one taken over with nothing
+       in it, which is what a feature pool was. */
+    if (GrantPools.isPool(grant)) {
+      const list = GrantPools.cached(grant);
+      if (!list) return null;
+      const base = flatten(grant.config?.[`${type}s`]?.base);
+      return { base, options: list.map(e => e.uuid).filter(u => !base.includes(u)),
+               prefix: '', total: GrantPools.countOf(grant, base.length), pool: true };
+    }
+
     try {
       const props = grant.getSelectionComponentProps?.({});
       if (props) {
         let choices = Array.isArray(props.choices) ? props.choices : [];
         let count = props.count;
+        /* a5e's feature and item grants pick their count with
+           `this.selectionType`, which is no field of theirs (it lives in
+           config), so every limited one reports its pool's count - 1 - as
+           what may be picked. "Two exploration knacks", "two minor Metamagic
+           options", "two Practiced Techniques" came out as one, in a5e's
+           window and here: 49 grants in a5e 1.4.10's packs give more than one.
+           The grant's own total is what its text says. */
+        const own = this.#DOCUMENT_TYPES.has(type) ? Number(grant.config?.[`${type}s`]?.total) : NaN;
+        if (Number.isFinite(own) && own > 0) count = own;
         /* a5e 1.4: a proficiency's options are groups, { count, candidates }.
            One group a grant across a5e's packs (455 of 1121 proficiency grants
            have one, none more); several would add up. Read as plain keys they
@@ -354,8 +419,10 @@ export class GrantAbsorber {
         let options = flatten(choices);
         /* 1.4 prefixes each proficiency key with its kind. The pickers, the
            labels and the duplicate check all speak in plain keys, so the prefix
-           comes off here and goes back on when the pick is applied (#wire). */
-        const prefix = type === 'proficiency' ? this.#keyPrefix([...base, ...options]) : '';
+           comes off here and goes back on when the pick is applied (#wire).
+           The choice's kind: in a grant that mixes kinds (see #profType) the
+           keys of the other kinds keep theirs, and go back as they came. */
+        const prefix = type === 'proficiency' ? (this.#keyPrefix(options) || this.#keyPrefix(base)) : '';
         if (prefix) {
           const strip = (k) => (String(k).startsWith(prefix + ':') ? String(k).slice(prefix.length + 1) : k);
           base = base.map(strip);
@@ -440,11 +507,15 @@ export class GrantAbsorber {
     const type = this.#type(grant);
     let table = tables[type];
     if (type === 'proficiency') {
+      // A key that kept its kind - one of another kind than the choice - is read by its own
+      let kind = this.#profType(grant);
+      const at = String(key).indexOf(':');
+      if (at > 0) { kind = String(key).slice(0, at); key = String(key).slice(at + 1); }
       table = {
         skill: A5E.skills, tool: flat(A5E.tools), language: A5E.languages,
         armor: flat(A5E.armor), weapon: flat(A5E.weapons), savingThrow: A5E.abilities,
         tradition: A5E.maneuverTraditions
-      }[this.#profType(grant)] ?? null;
+      }[kind] ?? null;
     }
     if (type === 'trait') {
       table = {
@@ -465,6 +536,10 @@ export class GrantAbsorber {
       return localized === raw && !raw.includes('.') ? raw : localized;
     }
     if (raw && typeof raw === 'object' && raw.label) return game.i18n.localize(raw.label);
+    // A document by its uuid: its name, from the index of its pack
+    if (String(key).startsWith('Compendium.')) {
+      try { const name = fromUuidSync(key)?.name; if (name) return name; } catch { /* not indexed */ }
+    }
     // Fall back to a readable form of the key
     return String(key).replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
   }
@@ -535,6 +610,7 @@ export class GrantAbsorber {
 
     const out = { grants: [], features: [], fixedAbilities: [] };
     if (!doc || depth > this.#MAX_DEPTH) return out;
+    await GrantPools.prime(this.#preparedGrants(doc).map(([, g]) => g));
 
     /* Whether a grant fires at this level, which is what a level-up has to ask.
        Not simply "names this level": a feature created at this level brings
@@ -625,7 +701,7 @@ export class GrantAbsorber {
    *   grant for that choice and simply carries the two ability points.
    */
   static async apply(actor, item, choices = {}, lv = {}, depth = 0,
-                     { skip, exactOnly = false, visited = new Set(), only = null, walkOwned = true } = {}) {
+                     { skip, exactOnly = false, visited = new Set(), only = null, walkOwned = true, redo = null } = {}) {
     if (!actor || !item) return;
     if (depth > this.#MAX_DEPTH) {
       AM.log(2, `Grant nesting too deep at ${item.name}; leaving the rest to a5e`);
@@ -634,6 +710,7 @@ export class GrantAbsorber {
 
     const grantMap = item.grants;
     if (!grantMap) { AM.log(2, 'Item has no prepared grants collection:', item.name); return; }
+    await GrantPools.prime([...(grantMap.values?.() ?? [])]);
 
     let update = {};
     const itemUpdates = [];   // 1.4: the records of what was applied, on the items
@@ -647,7 +724,7 @@ export class GrantAbsorber {
       // without the same guard a class's 5th-level feature landed at creation,
       // and a heritage handed out every level's traits at once.
       if (!this.#appliesAtLevel(grant, lv)) continue;
-      if (this.#isOwnedElsewhere(grant, item?.type)) continue;
+      if (this.#isOwnedElsewhere(grant, item?.type, item)) continue;
 
       // Inside a feature the character already had, only what names this level
       // fires; the rest was applied when the feature arrived. A grant passed
@@ -660,8 +737,10 @@ export class GrantAbsorber {
          added its bonus again under a new id (a 4th-level ability increase
          counted once more at every level after: "ability scores grow by
          themselves", 2026-10-07) and overwrote what was picked at its own
-         level with nothing. Its features are still walked, as below. */
-      const done = this.#isApplied(grant);
+         level with nothing. Its features are still walked, as below.
+         GrantRepair names in `redo` the applied ones it puts right - see
+         GrantRepair.plan. */
+      const done = this.#isApplied(grant) && !redo?.has(id);
       // GrantRepair names the grants it means; the rest of the item is not its business
       if (only && !only.has(id)) continue;
       if (earlier || done || skip?.has(id)) {
@@ -691,22 +770,27 @@ export class GrantAbsorber {
          This branch used to fall through to the generic path below, so the
          record was written and nothing was made - every maneuver a class feature,
          feat, culture feature or paragon gift hands out this way was lost, and
-         so was a heritage's granted weapon. 40 grants across a5e's packs. */
-      if (type === 'item') {
-        if (!this.#isSupported(grant, lv, item?.type)) continue;
+         so was a heritage's granted weapon. 40 grants across a5e's packs.
+         a5e 1.4's spell and maneuver grants are the same kind of grant, and
+         went the same way until 1.4.10's feats made it show: Innate Arcanist's
+         spell was recorded as given, and never made. */
+      if (type === 'item' || type === 'spell' || type === 'maneuver') {
+        if (!this.#isSupported(grant, lv, item?.type, item)) continue;
         try {
-          const { update: u, records, ids } = await this.#applyItemGrant(actor, grant, choices[id]);
+          const { update: u, records, ids } = type === 'item'
+            ? await this.#applyItemGrant(actor, grant, choices[id])
+            : await this.#applyDocumentGrant(actor, grant, choices[id]);
           this.#mergeActorUpdate(update, u);
           itemUpdates.push(...records);
           if (ids.length) documentIds[id] = ids;
           applied++;
         } catch (err) {
-          AM.log(2, `Item grant ${id} on ${item.name} failed:`, err);
+          AM.log(2, `${type} grant ${id} on ${item.name} failed:`, err);
         }
         continue;
       }
 
-      if (!this.#isSupported(grant, lv, item?.type)) continue;
+      if (!this.#isSupported(grant, lv, item?.type, item)) continue;
       const spec = this.#specOf(grant) ?? { base: [], options: [], total: 0 };
 
       // Chosen keys, capped at what the grant allows; base is always included.
@@ -722,9 +806,12 @@ export class GrantAbsorber {
         // Grants with nothing to choose get the same call with just their base,
         // which is what a5e passes when it skips its dialog.
         const res = await this.#applyData(actor, grant, this.#wire(grant, spec, selected));
-        if (Object.keys(res.actor).length || res.items.length) {
+        /* A grant of a type to come that hands out documents too: made, as
+           a5e makes them after its writer, rather than recorded and lost. */
+        const made = res.documents.length ? await this.#createDocuments(actor, grant, res.documents) : [];
+        if (Object.keys(res.actor).length || res.items.length || made.length) {
           this.#mergeActorUpdate(update, res.actor);
-          itemUpdates.push(...res.items);
+          itemUpdates.push(...this.#withDocumentIds(res.items, grant, made));
           applied++;
         }
       } catch (err) {
@@ -1165,20 +1252,29 @@ export class GrantAbsorber {
     if (!prepared.length) return true;
 
     if (depth > this.#MAX_DEPTH) return false;
+    await GrantPools.prime(prepared.map(([, g]) => g));
 
     for (const [, grant] of prepared) {
       const type = this.#type(grant);
       if (!type) continue;
-      if (this.#isOwnedElsewhere(grant, doc?.type)) continue;   // stripped before creation
+      if (this.#isOwnedElsewhere(grant, doc?.type, doc)) continue;   // stripped before creation
       // A grant for a later level does not block absorption at this one
       if (!this.#appliesAtLevel(grant, lv)) continue;
       if (type === 'feature') {
+        /* A choice with nothing the module can list - a pool whose filters it
+           cannot judge - is a5e's to ask. Walked as a grant of no features,
+           it was taken over and granted nothing. */
+        if (this.#needsConfig(grant) && !this.#specOf(grant)?.options.length) {
+          AM.log(2, `Absorption declined: feature grant "${this.#name(grant)}" on ${doc?.name} `
+                  + `asks for something with no listable options`);
+          return false;
+        }
         if (await this.#featuresAbsorbable(grant, lv, depth, seen)) continue;
         AM.log(2, `Absorption declined: feature grant "${this.#name(grant) || type}" `
                 + `on ${doc?.name} has something the builder cannot model`);
         return false;
       }
-      if (this.#isSupported(grant, lv, doc?.type)) continue;
+      if (this.#isSupported(grant, lv, doc?.type, doc)) continue;
       // Name the culprit — otherwise "a5e's window appeared" has no explanation
       AM.log(2, `Absorption declined: ${type} grant "${this.#name(grant)}" on ${doc?.name} `
               + `asks for something with no listable options`);
@@ -1203,16 +1299,20 @@ export class GrantAbsorber {
     for (let depth = 0; tier.length && depth <= this.#MAX_DEPTH; depth++) {
       const uuids = [];
       const walk = [];          // the next tier: every document read, or only the granted-outright ones
+      await GrantPools.prime(tier.flatMap(doc => this.#preparedGrants(doc).map(([, g]) => g)));
       for (const doc of tier) {
         for (const [, grant] of this.#preparedGrants(doc)) {
-          if (this.#type(grant) !== 'feature' && this.#type(grant) !== 'item') continue;
+          const type = this.#type(grant);
+          if (!this.#DOCUMENT_TYPES.has(type)) continue;
           if (!this.#appliesAtLevel(grant, lv)) continue;
           const spec = this.#specOf(grant);
+          // A spell or a maneuver is read for its card; it grants nothing to walk into
+          const nests = type === 'feature' || type === 'item';
           for (const [uuid, isBase] of [...(spec?.base ?? []).map(u => [u, true]), ...(spec?.options ?? []).map(u => [u, false])]) {
             if (seen.has(uuid)) continue;
             seen.add(uuid);
             uuids.push(uuid);
-            if (isBase || deepOptions) walk.push(uuid);
+            if (nests && (isBase || deepOptions)) walk.push(uuid);
           }
         }
       }
@@ -1288,19 +1388,22 @@ export class GrantAbsorber {
     };
     const readable = async (uuids) => (await Promise.all(uuids.map(entryFor))).filter(Boolean);
 
-    // Every document the grants below name, in one request a pack
+    // The options of its pools, then every document the grants below name, in one request a pack
+    await GrantPools.prime(this.#preparedGrants(doc).map(([, g]) => g));
     await PackFilter.prefetch(this.#preparedGrants(doc)
-      .filter(([, g]) => this.#type(g) === 'feature' || this.#type(g) === 'item')
+      .filter(([, g]) => this.#DOCUMENT_TYPES.has(this.#type(g)))
       .flatMap(([, g]) => { const sp = this.#specOf(g); return [...(sp?.base ?? []), ...(sp?.options ?? [])]; }));
 
     for (const [id, grant] of this.#preparedGrants(doc)) {
       /* Item grants too: they hand out documents the same way - a maneuver from
          a class feature or a culture's Charging Leap, a heritage's needle gun -
          and a choice among them wants cards with names, not a row of uuids.
-         Starting equipment on a class or background stays with the Equipment
-         tab. */
-      if (this.#type(grant) !== 'feature' && this.#type(grant) !== 'item') continue;
-      if (this.#type(grant) === 'item' && this.#isOwnedElsewhere(grant, doc?.type)) continue;
+         So do a5e 1.4's spell and maneuver grants. Starting equipment on a
+         class or background stays with the Equipment tab, and a class's first
+         maneuvers with the Maneuvers step. */
+      const type = this.#type(grant);
+      if (!this.#DOCUMENT_TYPES.has(type)) continue;
+      if (type !== 'feature' && this.#isOwnedElsewhere(grant, doc?.type, doc)) continue;
       if (!this.#appliesAtLevel(grant, lv)) continue;   // a later level's feature
 
       const spec = this.#specOf(grant) ?? { base: [], options: [], total: 0 };
@@ -1381,21 +1484,51 @@ export class GrantAbsorber {
    * and the record is told their ids.
    */
   static async #applyItemGrant14(actor, grant, chosenUuids) {
+    return this.#applyDocumentGrant(actor, grant, chosenUuids);
+  }
+
+  /**
+   * A grant that hands out documents - items, spells, maneuvers: a5e's writer
+   * reads them itself (quantity override, exertion cost, uses and all) and
+   * hands back the record; the documents are made here, as a5e makes them
+   * after it, and the record is told their ids.
+   */
+  static async #applyDocumentGrant(actor, grant, chosenUuids) {
     const spec = this.#specOf(grant) ?? { base: [], options: [], total: 0 };
     const picked = (chosenUuids ?? []).filter(u => spec.options.includes(u)).slice(0, spec.total);
     const uuids = [...new Set([...spec.base, ...picked])];
+    await PackFilter.prefetch(uuids);
     const res = await this.#applyData(actor, grant, { uuids });
-    let ids = [];
-    const docs = (res.documents ?? []).map(d => {
+    const ids = await this.#createDocuments(actor, grant, res.documents, uuids);
+    return { update: res.actor, records: this.#withDocumentIds(res.items, grant, ids), ids };
+  }
+
+  /**
+   * Make what a grant's writer handed back. Each carries the entry it came
+   * from, matched by name and type to the uuids asked for, so the module's
+   * pickers know it as held (ManeuverService.getActorManeuverKeys) and the
+   * repairs can find it. @returns {Promise<string[]>} the ids made
+   */
+  static async #createDocuments(actor, grant, documents, uuids = []) {
+    if (!documents?.length) return [];
+    const sources = [];
+    for (const uuid of uuids) {
+      try { const d = fromUuidSync(uuid); if (d?.name) sources.push({ uuid, name: d.name, type: d.type }); } catch { /* unindexed */ }
+    }
+    const docs = documents.map(d => {
       const data = foundry.utils.deepClone(d);
       applyItemIcon(data);
+      const from = sources.find(s => s.name === data.name && (!s.type || s.type === data.type));
+      if (from && !data._stats?.compendiumSource) {
+        data._stats = { ...(data._stats ?? {}), compendiumSource: from.uuid };
+      }
       return data;
     });
-    if (docs.length) {
-      try { ids = (await actor.createEmbeddedDocuments('Item', docs)).map(i => i.id); }
-      catch (err) { AM.log(2, `Items of the grant "${this.#name(grant)}" could not be created:`, err); }
+    try { return (await actor.createEmbeddedDocuments('Item', docs)).map(i => i.id); }
+    catch (err) {
+      AM.log(2, `What the grant "${this.#name(grant)}" hands out could not be created:`, err);
+      return [];
     }
-    return { update: res.actor, records: this.#withDocumentIds(res.items, grant, ids), ids };
   }
 
   /** The applied record of a document grant, told the ids of what was made. */
