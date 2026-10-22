@@ -120,12 +120,20 @@ const CASES = [
   ['...a fighter', 'You must have the spellcasting feature', actor(), 'not met'],
   ['"Exertion pool of at least 4 and either the Spellcasting feature, ... or the Pact Magic feature", a caster', 'Exertion pool of at least 4 and either the Spellcasting feature, the Magic Wielding feature, or the Pact Magic feature', actor({ cls: 'Cleric', caster: 'full' }), 'met'],
   ['...a fighter', 'Exertion pool of at least 4 and either the Spellcasting feature, the Magic Wielding feature, or the Pact Magic feature', actor(), 'not met'],
-  ['"4 levels in wielder, no levels in non-wielder classes", a multiclass', '4 levels in wielder, no levels in non-wielder classes', actor({ cls: 'Wielder', level: 4, more: [['Fighter', 1]] }), 'not met']
+  ['"4 levels in wielder, no levels in non-wielder classes", a multiclass', '4 levels in wielder, no levels in non-wielder classes', actor({ cls: 'Wielder', level: 4, more: [['Fighter', 1]] }), 'not met'],
+  /* A revised class is its class (a5e 1.4.9's Arcane Power feats name both in
+     featClasses), and their single-class clause ends "at time of feat acquisition". */
+  ['"4 levels in artificer", an Artificer (Revised)', '4 levels in artificer', actor({ cls: 'Artificer (Revised)', level: 4 }), 'met'],
+  ['"4 levels in artificer, no levels in non-artificer classes at time of feat acquisition", an Artificer (Revised)', '4 levels in artificer, no levels in non-artificer classes at time of feat acquisition', actor({ cls: 'Artificer (Revised)', level: 4 }), 'met'],
+  ['...with a level of fighter', '4 levels in artificer, no levels in non-artificer classes at time of feat acquisition', actor({ cls: 'Artificer (Revised)', level: 4, more: [['Fighter', 1]] }), 'not met'],
+  ['"3 marshal", a Marshal (Revised)', '3 marshal', actor({ cls: 'Marshal (Revised)', level: 3 }), 'met']
 ];
 for (const [label, prereq, a, want] of CASES) {
   const got = verdict(a, prereq);
   check(label, got === want, got === want ? '' : `"${prereq}" -> ${got}, not ${want}`);
 }
+const revisedKeys = FeatService.actorClassKeys(actor({ cls: 'Artificer (Revised)' }));
+check('an Artificer (Revised) counts as an artificer for "feats for my class"', revisedKeys.includes('artificer'), JSON.stringify(revisedKeys));
 /* A sub-feat's parent is its prerequisite, and a description's "Prerequisite:" is one. */
 const loaded = await FeatService.loadAll({ force: true });
 const byName = (name) => loaded.find(x => x.name === name);

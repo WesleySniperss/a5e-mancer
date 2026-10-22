@@ -1,6 +1,7 @@
 import { AM } from '../am.js';
 import { PackFilter } from './packFilter.js';
 import { applyItemIcon } from '../data/a5eIcons.js';
+import { classKey } from '../data/a5eClassData.js';
 
 /**
  * Feats, for the "ability score increase OR a feat" choice a5e gives at 4th, 8th,
@@ -139,7 +140,12 @@ export class FeatService {
     return found;
   }
 
-  /** The class keys a character actually has levels in. */
+  /**
+   * The class keys a character actually has levels in. A revised class counts
+   * as its own key and as the class it revises: a Marshal (Revised) is
+   * `marshalrevised` and `marshal`, so the marshal's feats are "for my class".
+   * By name alone it was neither - "marshal(revised)" is no key.
+   */
   static actorClassKeys(actor) {
     const keys = new Map(
       Object.keys(CONFIG.A5E?.classes ?? {}).map(k => [k.toLowerCase(), k])
@@ -148,10 +154,34 @@ export class FeatService {
     for (const item of (actor?.items ?? [])) {
       if (item.type !== 'class') continue;
       const name = (item.name ?? '').toLowerCase();
-      const key = keys.get(name.replace(/\s+/g, '')) ?? keys.get(name);
-      if (key && !out.includes(key)) out.push(key);
+      const found = [keys.get(String(item.system?.slug ?? '').toLowerCase()),
+                     keys.get(name.replace(/\s+/g, '')) ?? keys.get(name),
+                     keys.get(classKey(item.name))];
+      for (const key of found) if (key && !out.includes(key)) out.push(key);
     }
     return out;
+  }
+
+  /**
+   * The character's classes a prerequisite's class name means - by name, by
+   * a5e's key, or as the class a revised one revises. a5e 1.4.10's Arcane
+   * Power feats list "artificer" and "artificerrevised" in featClasses and say
+   * "4 levels in artificer" in prose; read by name, an Artificer (Revised) of
+   * 4th level had "artificer 0/4", and counted as a class other than
+   * artificer in "no levels in non-artificer classes".
+   */
+  static #classesNamed(actor, name) {
+    const want = String(name ?? '').toLowerCase().trim();
+    if (!want) return [];
+    return (actor?.items ?? []).filter(i => i.type === 'class' && (
+      i.name.toLowerCase() === want || classKey(i.name) === want
+      || String(i.system?.slug ?? '').toLowerCase() === want));
+  }
+
+  /** Levels in the classes a prerequisite's class name means. */
+  static #levelsIn(actor, name) {
+    return this.#classesNamed(actor, name)
+      .reduce((n, c) => n + (Number(c.system?.classLevels ?? c.system?.levels ?? 0) || 0), 0);
   }
 
   /**
@@ -366,11 +396,13 @@ export class FeatService {
       return { ok: have >= Number(p[1]), reason: `exertion ${have}/${p[1]}` };
     }
 
-    // "No levels in non-wielder classes": that class and no other
-    p = clause.match(/^no levels in non-([a-z]+) class(?:es)?$/i);
+    // "No levels in non-wielder classes": that class and no other. The Arcane
+    // Power feats (a5e 1.4.9) add "... at time of feat acquisition".
+    p = clause.match(/^no levels in non-([a-z]+) class(?:es)?(?:\s+at\s+(?:the\s+)?time\s+of\s+(?:(?:the\s+)?feat\s+)?acquisition)?$/i);
     if (p) {
-      const only = p[1].toLowerCase();
-      const others = (actor?.items ?? []).filter(i => i.type === 'class' && i.name.toLowerCase() !== only);
+      // The items themselves: one not yet on an actor has no id to tell it by
+      const mine = new Set(this.#classesNamed(actor, p[1]));
+      const others = (actor?.items ?? []).filter(i => i.type === 'class' && !mine.has(i));
       return { ok: others.length === 0, reason: `no class but ${p[1]}` };
     }
 
@@ -378,10 +410,7 @@ export class FeatService {
     let m = clause.match(/^(\d+)\s+levels?\s+(?:in|of)\s+(.+)$/i);
     if (m) {
       const need = Number(m[1]);
-      const name = m[2].trim().toLowerCase();
-      const cls  = (actor?.items ?? []).find(i =>
-        i.type === 'class' && i.name.toLowerCase() === name);
-      const have = cls?.system?.classLevels ?? cls?.system?.levels ?? 0;
+      const have = this.#levelsIn(actor, m[2]);
       return { ok: have >= need, reason: `${m[2].trim()} ${have}/${need}` };
     }
 
@@ -399,11 +428,8 @@ export class FeatService {
     m = clause.match(/^(\d+)\s+([a-z][a-z'-]+)(?:\s*\(([^)]*)\))?$/i);
     if (m && !this.#NOT_A_CLASS.has(m[2].toLowerCase())) {
       const need = Number(m[1]);
-      const name = m[2].toLowerCase();
       const arch = m[3]?.trim().toLowerCase() ?? '';
-      const cls  = (actor?.items ?? []).find(i =>
-        i.type === 'class' && i.name.toLowerCase() === name);
-      const have = cls?.system?.classLevels ?? cls?.system?.levels ?? 0;
+      const have = this.#levelsIn(actor, m[2]);
 
       if (have < need) return { ok: false, reason: `${m[2]} ${have}/${need}` };
 
@@ -417,10 +443,7 @@ export class FeatService {
     }
 
     const classes = this.#classNames();
-    const levelsIn = (name) => {
-      const cls = (actor?.items ?? []).find(i => i.type === 'class' && i.name.toLowerCase() === name);
-      return cls?.system?.classLevels ?? cls?.system?.levels ?? 0;
-    };
+    const levelsIn = (name) => this.#levelsIn(actor, name);
 
     // "Artificer level 3"
     m = clause.match(/^([a-z][a-z' -]*?)\s+level\s+(\d+)$/i);
