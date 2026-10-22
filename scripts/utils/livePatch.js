@@ -64,6 +64,24 @@ const setClassName = (el, parts) => {
   if (el.className !== value) el.className = value;
 };
 
+/**
+ * The carried weight, as each sheet draws it: the character's with its
+ * capacity, its bar and the over-the-limit mark; the monster's as the figure
+ * alone. Given the character's bar and mark, a monster's block no longer
+ * matched its own redraw (livepatch: "gold paid out" on the Archfey Enchanter).
+ */
+const setCarried = (sheet, el) => {
+  const block = el.querySelector('.am-carried');
+  const state = block && sheet.liveCarryState ? sheet.liveCarryState() : null;
+  if (!state) return;
+  setText(block.querySelector('.am-a5e-value'), state.carried);
+  const cap = block.querySelector('.am-carry-cap');
+  if (!cap) return;
+  setText(cap, `/ ${state.capacity} lb`);
+  setClassName(block, ['am-carried', state.encumbered && 'am-over']);
+  setAttr(block, 'style', `--am-carry-pct: ${state.carriedPct}%`);
+};
+
 /* ── The rules ──────────────────────────────────────────────────────────── */
 
 /**
@@ -272,16 +290,7 @@ const itemStates = {
         setText(count.querySelector('.am-prepared-cap'), sp.cap);
       }
     }
-    if (fields.has('equippedState')) {
-      const block = el.querySelector('.am-carried');
-      const state = block && sheet.liveCarryState ? sheet.liveCarryState() : null;
-      if (state) {
-        setText(block.querySelector('.am-a5e-value'), state.carried);
-        setText(block.querySelector('.am-carry-cap'), `/ ${state.capacity} lb`);
-        setClassName(block, ['am-carried', state.encumbered && 'am-over']);
-        setAttr(block, 'style', `--am-carry-pct: ${state.carriedPct}%`);
-      }
-    }
+    if (fields.has('equippedState')) setCarried(sheet, el);
     return true;
   }
 };
@@ -382,14 +391,7 @@ const currency = {
       if (!!field !== drawn) return false;
       if (field) setValue(field, value);
     }
-    const block = el.querySelector('.am-carried');
-    const state = block && sheet.liveCarryState ? sheet.liveCarryState() : null;
-    if (state) {
-      setText(block.querySelector('.am-a5e-value'), state.carried);
-      setText(block.querySelector('.am-carry-cap'), `/ ${state.capacity} lb`);
-      setClassName(block, ['am-carried', state.encumbered && 'am-over']);
-      setAttr(block, 'style', `--am-carry-pct: ${state.carriedPct}%`);
-    }
+    setCarried(sheet, el);
     return true;
   }
 };
