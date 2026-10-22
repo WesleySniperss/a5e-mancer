@@ -108,6 +108,7 @@ export class MulticlassRules {
     const result = { known: !!spec, dropped: [], trimmed: [] };
     const grants = data?.system?.grants;
     if (!grants || typeof grants !== 'object') return result;
+    this.#splitByKind(grants);
 
     // A class's allowance is a total, not a per-grant one. Two 1st-level skill
     // grants (a fixed skill and a choice, say) would otherwise each be handed
@@ -149,6 +150,39 @@ export class MulticlassRules {
     return result;
   }
 
+  /**
+   * One proficiency grant per kind. a5e 1.4 lets a grant mix kinds: the
+   * Marshal (Revised) (a5e 1.4.10) has one holding its armor, weapons and
+   * saving throws and a choice of two skills. Every rule here is per kind, and
+   * read as one armor grant - its first key - the weapons were narrowed by the
+   * armor list, the skills went with them and the saving throws stayed. Split,
+   * each part takes its own rule. A choice whose candidates are of several
+   * kinds cannot be split by count, and the grant is left whole.
+   */
+  static #splitByKind(grants) {
+    const kindOf = (k) => { const i = String(k).indexOf(':'); return i > 0 ? String(k).slice(0, i) : ''; };
+    for (const [id, grant] of Object.entries(grants)) {
+      if (this.#typeOf(grant) !== 'proficiency' || this.#isExpertise(grant)) continue;
+      const base = [...(grant?.config?.keys?.base ?? [])];
+      const groups = [...(grant?.config?.keys?.options ?? [])].map(g => ({ ...g, candidates: [...(g?.candidates ?? [])] }));
+      if (groups.some(g => new Set(g.candidates.map(kindOf)).size > 1)) continue;
+      const kinds = [...new Set([...base.map(kindOf), ...groups.flatMap(g => g.candidates.map(kindOf))])];
+      if (kinds.length < 2 || kinds.includes('')) continue;
+      kinds.forEach((kind, n) => {
+        const part = foundry.utils.deepClone(grant);
+        const partId = n === 0 ? id : foundry.utils.randomID();
+        part._id = partId;
+        if ('id' in part) part.id = partId;
+        part.proficiencyType = kind;
+        part.config.keys = {
+          base: base.filter(k => kindOf(k) === kind),
+          options: groups.filter(g => g.candidates.length && kindOf(g.candidates[0]) === kind)
+        };
+        grants[partId] = part;
+      });
+    }
+  }
+
   /* ── one grant at a time ──────────────────────────────── */
 
   /**
@@ -160,6 +194,7 @@ export class MulticlassRules {
   static #verdict(grant, spec, spent) {
     const grantType = this.#typeOf(grant);
     if (grantType === 'item') return 'drop';          // no starting equipment
+    if (grantType === 'currency') return 'drop';      // nor its gold (a5e 1.4's Starting Currency)
     if (grantType !== 'proficiency') return 'keep';   // features, traits, bonuses
 
     const type = this.#profType(grant);

@@ -50,12 +50,14 @@ export class EquipmentService {
 
       const results = [];
       for (const grant of grantEntries) {
-        if (grant.grantType !== 'feature') continue;
+        if ((grant.type || grant.grantType) !== 'feature') continue;
 
-        // Collect features from base and options arrays
+        // Collect features from base and options arrays - a5e 1.4's config, or the old fields
+        const lists = (grant.config?.features?.base?.length || grant.config?.features?.options?.length)
+          ? grant.config.features : grant.features;
         const featureUuids = [
-          ...(grant.features?.base ?? []),
-          ...(grant.features?.options ?? [])
+          ...(lists?.base ?? []),
+          ...(lists?.options ?? [])
         ];
 
         for (const entry of featureUuids) {
@@ -201,10 +203,16 @@ export class EquipmentService {
       : Object.values(grants);
 
     for (const grant of grantEntries) {
-      if (grant.grantType !== 'item') continue;
+      if ((grant.type || grant.grantType) !== 'item') continue;
+      /* a5e 1.4 keeps the lists in `config.items`. Its migrated content still
+         carries the old `items` too, but a class made in 1.4 - the Marshal
+         (Revised), a5e 1.4.10 - has only the new ones, and its packages were
+         not offered. */
+      const lists = (grant.config?.items?.base?.length || grant.config?.items?.options?.length)
+        ? grant.config.items : grant.items;
 
       // Fixed/mandatory items (items.base)
-      for (const entry of (grant.items?.base ?? [])) {
+      for (const entry of (lists?.base ?? [])) {
         const entryUuid = entry?.uuid ?? entry;
         if (!entryUuid) continue;
         const qty = entry?.quantityOverride || 1;
@@ -225,9 +233,9 @@ export class EquipmentService {
       }
 
       // Choice items (items.options) — player picks items.total from these
-      const options = grant.items?.options ?? [];
+      const options = lists?.options ?? [];
       if (options.length) {
-        const total = grant.items?.total ?? 1;
+        const total = lists?.total ?? 1;
         const opts = [];
         for (const entry of options) {
           const entryUuid = entry?.uuid ?? entry;

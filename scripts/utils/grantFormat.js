@@ -151,5 +151,25 @@ export function documentToV14(data) {
   return data;
 }
 
+/** A grant's type, 1.4's field or 1.3's. */
+export function grantTypeOf(grant) {
+  return grant?.type || grant?.grantType || '';
+}
+
+/**
+ * One of a grant's lists - 'features', 'items', 'traits' - whichever a5e it was
+ * written for: 1.4's `config.<bucket>` when it holds anything, else 1.3's
+ * bucket beside the grant. a5e's migrated content carries both; content made
+ * in 1.4 - the Marshal (Revised), a5e 1.4.10 - only the first, and code that
+ * read 1.3's alone found it empty.
+ * @returns {{base: any[], options: any[], total: number}} and the bucket's other fields
+ */
+export function grantLists(grant, bucket) {
+  const size = (l) => (Array.isArray(l) ? l.length : (l?.size ?? 0));
+  const fresh = grant?.config?.[bucket];
+  const b = (fresh && (size(fresh.base) || size(fresh.options))) ? fresh : (grant?.[bucket] ?? fresh ?? {});
+  return { ...b, base: [...(b.base ?? [])], options: [...(b.options ?? [])], total: Number(b.total) || 0 };
+}
+
 /** Bumped when the conversion changes, so packs built from it are rebuilt. */
 export const GRANT_FORMAT = 'g14.1';

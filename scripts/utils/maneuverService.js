@@ -6,6 +6,7 @@ import { IMPORTED_TRADITIONS } from '../data/imported/traditions.js';
 import { iconForItem, applyItemIcon } from '../data/a5eIcons.js';
 import { castOnlyEffects } from './effectTiming.js';
 import { SiteText } from './siteText.js';
+import { grantLists, grantTypeOf } from './grantFormat.js';
 
 /**
  * Fallback tradition keys (camelCase, matching system data) used when CONFIG.A5E is unavailable.
@@ -667,14 +668,38 @@ export class ManeuverService {
     /* A feature offered as a choice counts too - the Dread Knight's Eldritch
        Maneuvers is one of two a player picks between - but only for a
        character that took it; maneuverBudget checks that. */
+    // 1.4's lists or 1.3's: an archetype made in 1.4 (the Marshal (Revised)'s) has only the first
     const featureUuids = (doc) => grantsOf(doc)
-      .filter(g => g?.grantType === 'feature')
+      .filter(g => grantTypeOf(g) === 'feature')
       .sort((a, b) => (Number(a.level) || 1) - (Number(b.level) || 1))
-      .flatMap(g => [
-        ...(g.features?.base ?? []).map(e => ({ uuid: e?.uuid ?? e, level: Number(g.level) || 1, optional: false })),
-        ...(g.features?.options ?? []).map(e => ({ uuid: e?.uuid ?? e, level: Number(g.level) || 1, optional: true }))
-      ])
+      .flatMap(g => {
+        const lists = grantLists(g, 'features');
+        return [
+          ...lists.base.map(e => ({ uuid: e?.uuid ?? e, level: Number(g.level) || 1, optional: false })),
+          ...lists.options.map(e => ({ uuid: e?.uuid ?? e, level: Number(g.level) || 1, optional: true }))
+        ];
+      })
       .filter(e => typeof e.uuid === 'string');
+    /* The grant naming the feature's traditions: a 1.3 trait, a 1.3
+       "tradition" proficiency, or a 1.4 one whose keys say "tradition:". */
+    const traditionsOf = (doc) => {
+      for (const g of grantsOf(doc)) {
+        const type = grantTypeOf(g);
+        if (type === 'trait' && (g?.config?.traits?.traitType || g?.traits?.traitType) === 'maneuverTraditions') {
+          return grantLists(g, 'traits');
+        }
+        if (type !== 'proficiency') continue;
+        const groups = g?.config?.keys?.options ?? [];
+        const keys = [...(g?.config?.keys?.base ?? []), ...groups.flatMap(o => [...(o?.candidates ?? [])])];
+        if (g?.proficiencyType !== 'tradition' && !keys.some(k => String(k).startsWith('tradition:'))) continue;
+        if (g?.keys?.base?.length || g?.keys?.options?.length) return g.keys;
+        const strip = (k) => String(k).replace(/^tradition:/, '');
+        return { base: [...(g?.config?.keys?.base ?? [])].map(strip),
+                 options: groups.flatMap(o => [...(o?.candidates ?? [])]).map(strip),
+                 total: groups.reduce((n, o) => n + (Number(o?.count) || 0), 0) };
+      }
+      return null;
+    };
 
     const read = async (uuid) => { try { return await fromUuid(uuid); } catch { return null; } };
     let found = null;
@@ -686,8 +711,7 @@ export class ManeuverService {
         if (!doc) continue;
         const table = this.parseClassProgression(SiteText.stored(doc));
         if (table) {
-          const trad = grantsOf(doc).find(g => g?.traits?.traitType === 'maneuverTraditions' || g?.proficiencyType === 'tradition');
-          const spec = trad?.traits ?? trad?.keys ?? null;
+          const spec = traditionsOf(doc);
           const base = spec?.base ?? [], options = spec?.options ?? [], total = Number(spec?.total) || 0;
           found = {
             ...table,

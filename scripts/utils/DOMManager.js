@@ -7,6 +7,7 @@ import { GrantAbsorber } from './grantAbsorber.js';
 import { LoreTableService } from './loreTableService.js';
 import { LevelUpService } from './levelUpService.js';
 import { SiteText } from './siteText.js';
+import { grantLists, grantTypeOf } from './grantFormat.js';
 
 const ITEM_TYPES = ['heritage', 'culture', 'background', 'destiny', 'class'];
 
@@ -316,8 +317,10 @@ export class DOMManager {
     try {
       const doc = await fromUuid(uuid);
       for (const grant of Object.values(doc?.system?.grants ?? {})) {
-        if (grant?.grantType !== 'trait' || grant?.traits?.traitType !== 'size') continue;
-        const key = grant.traits?.base?.[0];
+        if (grantTypeOf(grant) !== 'trait') continue;
+        const traits = grantLists(grant, 'traits');
+        if ((traits.traitType || grant?.traits?.traitType) !== 'size') continue;
+        const key = traits.base[0];
         if (!key) continue;
         const label = CONFIG?.A5E?.actorSizes?.[key];
         return label ? (game.i18n.localize(label) || label) : key;
@@ -564,11 +567,12 @@ export class DOMManager {
       // the same mistake the grant tree was making.
       const choices = AM.itemGrants?.[type]?.choices ?? {};
       for (const [id, grant] of (doc.grants?.entries?.() ?? [])) {
-        if (grant?.grantType !== 'feature') continue;
+        if (grantTypeOf(grant) !== 'feature') continue;
         const picked = choices[id] ?? [];
+        const lists = grantLists(grant, 'features');
         const uuids = [
-          ...(grant.features?.base ?? []).map(f => f.uuid ?? f),
-          ...(grant.features?.options ?? []).map(f => f.uuid ?? f).filter(u => picked.includes(u))
+          ...lists.base.map(f => f.uuid ?? f),
+          ...lists.options.map(f => f.uuid ?? f).filter(u => picked.includes(u))
         ];
         for (const u of uuids) {
           try {

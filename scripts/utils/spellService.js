@@ -4,6 +4,7 @@ import { iconForItem, applyItemIcon } from '../data/a5eIcons.js';
 import { castOnlyEffects } from './effectTiming.js';
 import { SiteText } from './siteText.js';
 import { SPELL_CLASS_ADDITIONS } from '../data/spellClassAdditions.js';
+import { grantLists, grantTypeOf } from './grantFormat.js';
 
 /**
  * Spell slot tables and known spells for a5e classes.
@@ -512,11 +513,12 @@ export class SpellService {
     // The source record: a plain object keyed by grant id, on a pack document and an owned one alike
     const grants = archetypeDoc._source?.system?.grants ?? archetypeDoc.system?.grants ?? {};
     const list = grants instanceof Map ? [...grants.values()] : Object.values(grants);
-    const ordered = list.filter(g => g?.grantType === 'feature')
+    const ordered = list.filter(g => grantTypeOf(g) === 'feature')
       .sort((a, b) => (Number(a.level) || 1) - (Number(b.level) || 1));
     outer:
     for (const grant of ordered) {
-      for (const entry of grant.features?.base ?? []) {
+      // 1.4's list or 1.3's: an archetype made in 1.4 has only the first
+      for (const entry of grantLists(grant, 'features').base) {
         const uuid = entry?.uuid ?? entry;
         if (typeof uuid !== 'string') continue;
         let doc = null;

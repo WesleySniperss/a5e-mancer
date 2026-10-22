@@ -308,8 +308,9 @@ export class ActorCreationService {
 
     let removed = 0;
     for (const [id, grant] of Object.entries(grants)) {
-      const isEquipment = (grant?.type || grant?.grantType) === 'item' && ownsEquipment;
       const type = grant?.type || grant?.grantType;
+      // The starting gold too: the Equipment tab sets it from the wealth (a5e 1.4's currency grant)
+      const isEquipment = (type === 'item' || type === 'currency') && ownsEquipment;
       const profKeys = [...(grant?.config?.keys?.base ?? []), ...(grant?.config?.keys?.options ?? []).flatMap(o => [...(o?.candidates ?? [])])];
       // a5e 1.3: a maneuverTraditions trait; 1.4: a "tradition:" proficiency
       const isTradition = ownsTradition && (
