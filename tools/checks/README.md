@@ -719,3 +719,27 @@ against the stylesheet that uses it - `/systems/a5e/ui/parchment.jpg`,
 body and its URLs made absolute against the page, a route prefix kept. Live
 after that: the parchment loads on plain messages and a5e cards, and is gone
 with the overlay off, the chat area switched off, or the preview ended.
+
+## `a5eupdate.mjs`
+
+Run after every a5e update: `node tools/checks/a5eupdate.mjs --packs`.
+
+a5e 1.4.9 and 1.4.10 were content releases, and they still broke things that
+threw nothing: the Marshal (Revised) and four Arcane Power feats choose from
+pool grants - compendium filters, no list of options - which the builder read
+as nothing to pick; the new class keeps its grants only in 1.4's `config`
+shape, which the Equipment tab and three readers never looked at; and two
+index fields the browser filters followers by were missing from ours.
+
+This reads the installed a5e's own sources out of `a5e.js.map` and lists what
+moved in what the module copies or leans on: the index fields
+(`compendiumIndexFix`), the browser's filters the pools are read through
+(`grantPools`), the grant types and their selection modes, the count slip in
+a5e's feature and item grants that `grantAbsorber` works around (it says when
+a5e has fixed it), and the a5e methods the module wraps or calls. `--packs`
+copies the packs (a running Foundry holds their locks) and tallies every grant
+shape and every item and actor type against the ones known at a5e 1.4.10. Run
+against 1.4.8 it names the vehicle as new; against 1.4.10, nothing.
+
+When it flags something, bring the module up to date, then the lists at the
+top of the file - `CHECKED_WITH` and the known shapes and types.

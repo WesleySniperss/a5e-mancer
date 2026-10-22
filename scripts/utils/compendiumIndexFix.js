@@ -20,7 +20,9 @@ import { SPELL_CLASS_ADDITIONS } from '../data/spellClassAdditions.js';
  * packs' majority types, so only what it left out is fetched (fillIndexFields).
  *
  * Field lists mirror the system's FIELD_MAPPINGS (a5e.js) so its filter
- * predicates find exactly the properties they expect.
+ * predicates find exactly the properties they expect. a5e 1.4.10 added the
+ * follower fields and the vehicle type; tools/checks/a5eupdate.mjs compares
+ * the two after an update.
  */
 const ABILITY_RES = [
   [/\bstrength\b/i, 'str'], [/\bdexterity\b/i, 'dex'], [/\bconstitution\b/i, 'con'],
@@ -70,6 +72,7 @@ const FIELD_MAPPINGS = {
   archetype: ['system.description', 'system.class', 'system.source'],
   feature: [
     'system.asi', 'system.description', 'system.classes', 'system.concentration',
+    'system.experienceType', 'system.followerType',
     'system.featClasses', 'system.featType', 'system.featureType',
     'system.prerequisite', 'system.source', 'system.synergy'
   ],
@@ -82,6 +85,9 @@ const FIELD_MAPPINGS = {
     'system.description', 'system.details.cr', 'system.details.creatureTypes',
     'system.details.elite', 'system.details.isSquad', 'system.details.isSwarm',
     'system.details.terrain', 'system.traits.size', 'system.source'
+  ],
+  vehicle: [
+    'system.description', 'system.details.terrain', 'system.traits.size', 'system.source'
   ],
   spell: [
     'system.concentration', 'system.components', 'system.classes',
@@ -120,7 +126,8 @@ export function allIndexFields() {
  */
 const INDEXED_MARKER = {
   archetype: 'system.class', feature: 'system.featureType', interaction: 'system.interactionType',
-  maneuver: 'system.degree', npc: 'system.details.cr', spell: 'system.level', object: 'system.objectType'
+  maneuver: 'system.degree', npc: 'system.details.cr', spell: 'system.level', object: 'system.objectType',
+  vehicle: 'system.details.terrain'
 };
 const isIndexed = (entry) => foundry.utils.hasProperty(entry, INDEXED_MARKER[entry.type] ?? 'system.description');
 
