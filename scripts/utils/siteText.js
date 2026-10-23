@@ -98,6 +98,13 @@ export class SiteText {
       if (!(uuid in map)) return m;
       const [, scope, name] = uuid.split('.');
       if (scope !== 'a5e' && game.packs?.get(`${scope}.${name}`)) return m;
+      /* A dead link a5e has since mended - the document is in its pack again -
+         is a5e's own and goes where a5e meant. Only a link that resolves is
+         left: one not found may be in a pack not indexed yet, and is sent on
+         as before. */
+      if (scope === 'a5e') {
+        try { if (fromUuidSync(uuid)) return m; } catch { /* not indexed */ }
+      }
       return map[uuid] ? `@UUID[${map[uuid]}]${braces ?? ''}` : (words ?? '');
     });
   }
@@ -115,11 +122,13 @@ export class SiteText {
     }
     let byText = this.#cache.get(id);
     if (!byText) this.#cache.set(id, byText = new Map());
-    let out = byText.get(html);
+    // Before the packs are indexed relink cannot tell a mended link: worked out again after
+    const key = `${game.ready ? 1 : 0}|${html}`;
+    let out = byText.get(key);
     if (out === undefined) {
       out = applyEntry(this.relink(html), SITE_TEXT.entries[id], SITE_TEXT.targets);
       if (byText.size > 4) byText.clear();
-      byText.set(html, out);
+      byText.set(key, out);
     }
     if (out !== html) sys.description = out;
   }

@@ -128,6 +128,15 @@ const linksOf = (html) => [...html.matchAll(/@UUID\[([^\]]+)\]\{([^}]*)\}/g)].ma
   ok(out.includes('My own notes.') && (out.match(/<table/g) || []).length === 3, 'an edited copy keeps its text and gets the tables once');
 }
 {
+  /* a5e adds the tables itself, a word of its own at the start of each: they
+     are a5e's, and ours step aside - found by the first words alone, all three
+     came twice. */
+  const { doc, e } = byName('spell', 'Control Weather');
+  const own = insertBlocks(descOf(doc), e.add.map(([a, b]) => [a, b.replace(/>([^<]*?)([A-Za-z]{3,})/, '>$1Changed')]));
+  const out = applyEntry(own, e, SITE_TEXT.targets);
+  ok((own.match(/<table/g) || []).length === 3 && (out.match(/<table/g) || []).length === 3, `tables a5e words its own way are not added again (${(out.match(/<table/g) || []).length})`);
+}
+{
   // linkText leaves existing links and enrichers alone
   const html = '<p>A @UUID[Compendium.a5e.a5e-monsters.Actor.x]{skeleton} and a skeleton, [[/condition id=prone label="prone"]] then prone.</p>';
   const out = linkText(html, [['skeleton', 0, 0], ['skeleton', 0, 1], ['prone', 1, 0], ['prone', 1, 1]], ['Compendium.a5e.a5e-monsters.Actor.y', 'condition:prone']);
@@ -171,6 +180,14 @@ const linksOf = (html) => [...html.matchAll(/@UUID\[([^\]]+)\]\{([^}]*)\}/g)].ma
   const none = relink.find(([, to]) => !to)?.[0];
   if (none) ok(SiteText.relink(`<p>x @UUID[${none}]{Words} y</p>`) === '<p>x Words y</p>', 'a link with nowhere to go becomes its words');
   ok(SiteText.relink('<p>@UUID[Compendium.a5e.a5e-spells.Item.ayutqhkyombboux8]{fine}</p>').includes('@UUID['), 'a working link is untouched');
+  // a dead a5e link a5e has since mended - its document found again - is a5e's own
+  const mended = relink.find(([from, to]) => from.startsWith('Compendium.a5e.') && to)?.[0];
+  if (mended) {
+    globalThis.fromUuidSync = (uuid) => (uuid === mended ? { name: 'mended' } : null);
+    ok(SiteText.relink(`<p>@UUID[${mended}]{Words}</p>`) === `<p>@UUID[${mended}]{Words}</p>`, 'a dead link a5e has mended is left as a5e wrote it');
+    delete globalThis.fromUuidSync;
+    ok(SiteText.relink(`<p>@UUID[${mended}]{Words}</p>`) !== `<p>@UUID[${mended}]{Words}</p>`, '...and still sent on while it is dead');
+  }
 }
 
 console.log(`site text: ${entries} entries, ${links} links, ${adds} blocks; ${pass} passed, ${fail} failed`);

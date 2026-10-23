@@ -63,15 +63,59 @@ export function blocksOf(html) {
   return out;
 }
 
+/** The runs of four words a text holds, its words as norm gives them. */
+function wordRuns(words) {
+  const w = String(words).split(' ').filter(Boolean);
+  const runs = new Set();
+  for (let i = 0; i + 4 <= w.length; i++) runs.add(w.slice(i, i + 4).join(' '));
+  return runs;
+}
+
+/**
+ * How much of a block a text already holds, as its share of the block's
+ * four-word runs; null for a block too short to have one.
+ */
+function heldShare(words, runs) {
+  const mine = wordRuns(words);
+  if (!mine.size) return null;
+  let held = 0;
+  for (const run of mine) if (runs.has(run)) held++;
+  return held / mine.size;
+}
+
+/**
+ * At or above this share a block is one the text already has, in other
+ * words. a5e may add a block the site has with its start worded its own way
+ * - a heading, one word changed - and found by its first words alone it was
+ * put in a second time (115 of 118 blocks, in a test that changed one word).
+ * Measured on a5e 1.4.10's texts (2026-10-23): no block shares more than
+ * 0.23 with the text it completes; reworded at its start, all but two of the
+ * shortest share 0.83 or more.
+ */
+const HELD = 0.6;
+
+/** Does a description already hold this block - its first words, or most of its runs? */
+export function holdsBlock(html, add) {
+  const have = norm(html);
+  const words = norm(add);
+  if (!words) return true;
+  if (have.includes(words.slice(0, 80))) return true;
+  const share = heldShare(words, wordRuns(have));
+  return share !== null && share >= HELD;
+}
+
 /**
  * Put in the blocks a description lacks. Each addition is [anchor, html]: the
  * html goes after the block that starts with anchor ('^' for the very start),
- * or at the end where no block does. An addition whose words the description
- * already holds is left out, so running this again changes nothing.
+ * or at the end where no block does. An addition the description already
+ * holds - its first words, or most of its four-word runs, however a5e has
+ * worded its start - is left out, so running this again changes nothing, and
+ * a block a5e adds itself is not shown twice.
  */
 export function insertBlocks(html, adds) {
   if (!adds?.length) return html;
   const have = norm(html);
+  const runs = wordRuns(have);
   const blocks = blocksOf(html);
   const anchors = blocks.map(anchorOf);
   const after = new Map();            // block index (-1 = start, blocks.length = end) -> html[]
@@ -79,6 +123,8 @@ export function insertBlocks(html, adds) {
   for (const [anchor, add] of adds) {
     const words = norm(add);
     if (!words || have.includes(words.slice(0, 80))) continue;
+    const share = heldShare(words, runs);
+    if (share !== null && share >= HELD) continue;
     let at = anchor === '^' ? -1 : anchors.findIndex(a => a && anchor && a.startsWith(anchor));
     if (at < 0 && anchor !== '^') at = blocks.length;
     if (!after.has(at)) after.set(at, []);
