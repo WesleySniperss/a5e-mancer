@@ -19,6 +19,12 @@
  *   6. with --packs: every grant shape in a5e's packs, and the item and actor
  *      types, against the ones known when this was last brought up to date.
  *      A new shape is where new content breaks first.
+ *   7. with --packs: the text the module adds from a5e.tools (data/siteText.js)
+ *      against a5e's text as it is now. A block a5e now has itself steps aside
+ *      on its own (insertBlocks), a word a5e links itself is not linked twice
+ *      (linkText); what is listed is where a5e's text moved under an addition -
+ *      a block whose place is gone goes to the end - and what can be dropped
+ *      from the data the next time tools/import/build-site-text.cjs runs.
  *
  * A difference is a place to look, not a verdict - the README's rule.
  *
@@ -27,7 +33,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 const R = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const argv = process.argv.slice(2);
@@ -225,6 +231,8 @@ if (WANT_PACKS) {
       fs.cpSync(path.join(SYS, 'packs'), copy, { recursive: true, filter: (src) => path.basename(src) !== 'LOCK' });
       const shapes = new Map(), itemTypes = new Map(), actorTypes = new Map();
       const note = (map, key, where) => { if (!map.has(key)) map.set(key, []); map.get(key).push(where); };
+      const { SITE_TEXT } = await import(pathToFileURL(path.join(R, 'scripts', 'data', 'siteText.js')).href);
+      const siteDocs = new Map();       // a5e's documents the site text completes, by id
       for (const pack of fs.readdirSync(copy)) {
         const dir = path.join(copy, pack);
         if (!fs.statSync(dir).isDirectory()) continue;
@@ -233,6 +241,7 @@ if (WANT_PACKS) {
         for await (const [key, doc] of db.iterator()) {
           if (/^!items![^.!]+$/.test(key)) {
             note(itemTypes, doc.type, `${pack}:${doc.name}`);
+            if (SITE_TEXT.entries[doc._id]) siteDocs.set(doc._id, doc);
             for (const g of Object.values(doc.system?.grants ?? {})) {
               note(shapes, `${g?.type || g?.grantType || ''}/${g?.config?.selectionType ?? '-'}`, `${pack}:${doc.name}`);
             }
@@ -250,6 +259,36 @@ if (WANT_PACKS) {
       report('actor type', actorTypes, KNOWN_ACTOR_TYPES);
       const pools = [...shapes].filter(([k]) => k.endsWith('/pool'));
       if (pools.length) say(`  -  pool grants: ${pools.map(([k, w]) => `${k} x${w.length}`).join(', ')}`);
+
+      say('\ntext added from a5e.tools, against a5e\'s text now');
+      const core = await import(pathToFileURL(path.join(R, 'scripts', 'utils', 'siteTextCore.js')).href);
+      const has = [], placeless = [], ownLinks = [], wordless = [];
+      let adds = 0, links = 0;
+      for (const [id, doc] of siteDocs) {
+        const entry = SITE_TEXT.entries[id];
+        const html = typeof doc.system?.description === 'string' ? doc.system.description : (doc.system?.description?.value ?? '');
+        const anchors = core.blocksOf(html).map(core.anchorOf);
+        for (const [anchor, add] of entry.add ?? []) {
+          adds++;
+          if (core.holdsBlock(html, add)) has.push(doc.name);
+          else if (anchor !== '^' && !anchors.some(a => a && a.startsWith(anchor))) placeless.push(doc.name);
+        }
+        // Links go in after the blocks, and some are on the blocks' own words (a Bag of Tricks' beasts)
+        const completed = core.insertBlocks(html, entry.add);
+        for (const [text, , occ] of entry.links ?? []) {
+          links++;
+          const spot = core.occurrences(completed, text)[occ ?? 0];
+          if (!spot) wordless.push(`${doc.name}: "${text}"`);
+          else if (!spot.linkable) ownLinks.push(`${doc.name}: "${text}"`);
+        }
+      }
+      const some = (list) => [...new Set(list)].slice(0, 6).join(' / ');
+      say(`  -  ${siteDocs.size} of a5e's documents completed: ${adds} block(s), ${links} link(s)`);
+      if (has.length) say(`  -  ${has.length} block(s) a5e now has itself, left out by themselves: ${some(has)}`);
+      if (ownLinks.length) say(`  -  ${ownLinks.length} word(s) a5e now links itself, not linked twice: ${some(ownLinks)}`);
+      if (placeless.length) flag(`${placeless.length} block(s) whose place in a5e's text is gone, put at the end: ${some(placeless)}`);
+      if (wordless.length) flag(`${wordless.length} link(s) whose words a5e's text no longer has: ${some(wordless)}`);
+      if (!has.length && !ownLinks.length && !placeless.length && !wordless.length) ok('a5e\'s text is as the additions were made for');
     } finally {
       fs.rmSync(copy, { recursive: true, force: true });
     }

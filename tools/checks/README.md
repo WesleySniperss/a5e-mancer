@@ -741,5 +741,12 @@ copies the packs (a running Foundry holds their locks) and tallies every grant
 shape and every item and actor type against the ones known at a5e 1.4.10. Run
 against 1.4.8 it names the vehicle as new; against 1.4.10, nothing.
 
+It also lays the text the module adds from a5e.tools over a5e's text as it is
+now: the blocks a5e has since added itself (left out on their own - matched by
+their first words or by most of their four-word runs, so a start a5e words its
+own way does not bring them twice), the words a5e now links itself, and what
+moved under an addition - a block whose place is gone, a link whose words are.
+On 1.4.10: 826 documents, 161 blocks, 1341 links, all as they were made for.
+
 When it flags something, bring the module up to date, then the lists at the
 top of the file - `CHECKED_WITH` and the known shapes and types.

@@ -237,8 +237,11 @@ try {
     { name: 'gold paid out', redraws: 0,
       from: () => ({ 'system.currency.gp': 120 }),
       to:   () => ({ 'system.currency.gp': 97 }) },
+    /* Coins weighed, 123456 of them make a character encumbered, and the
+       condition coming is a change of its own (an effect row): weighed off
+       here, so the case is the purse and nothing else. */
     { name: 'a large purse', redraws: 0,
-      from: () => ({ 'system.currency.sp': 3 }),
+      from: () => [{ 'flags.a5e.trackCurrencyWeight': false }, { 'system.currency.sp': 3 }],
       to:   () => ({ 'system.currency.sp': 123456 }) },
     { name: 'credits appearing', redraws: 1,
       from: () => ({ 'system.currency.cr': 0 }),
@@ -303,6 +306,9 @@ try {
       if (rounds === undefined) r['flags.a5e-mancer.durations.-=blinded'] = null;
       else r['flags.a5e-mancer.durations.blinded'] = rounds;
       for (const coin of ['gp', 'sp', 'cr']) r['system.currency.' + coin] = a.system.currency?.[coin] ?? 0;
+      const weighed = a.flags?.a5e?.trackCurrencyWeight;
+      if (weighed === undefined) r['flags.a5e.-=trackCurrencyWeight'] = null;
+      else r['flags.a5e.trackCurrencyWeight'] = weighed;
       return r; })()`);
     /* And every item a case toggles, as it was. */
     const itemRestore = await ev(`(() => { const a = game.actors.get('${who.id}');
