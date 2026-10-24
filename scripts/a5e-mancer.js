@@ -53,7 +53,7 @@ Hooks.on('init', () => {
   // Conditions run for the table: blinded, concentration, encumbered, saves - see conditionAutomation.js
   try { ConditionAutomation.install(); } catch (err) { console.error('a5e-mancer | condition automation:', err); }
 
-  // Every change to ability scores, and what made it, whispered to the GM - see abilityWatch.js
+  // Ability scores: what was wrong and put right told to the GM, every change when asked - see abilityWatch.js
   try { AbilityWatch.install(); } catch (err) { console.error('a5e-mancer | ability watch:', err); }
 
   // An actor prepared twice must not get its ability bonuses twice - see A5eFixes.idempotentPrepare

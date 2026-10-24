@@ -11,17 +11,29 @@ import { AM } from '../am.js';
  * into the score (2.91.0). Reported again after both, with nothing left in
  * the module's code that could be found doing it. In a5e 1.4 only a hand
  * should move the score as written - every increase is a bonus - so each
- * change now says where it came from (setting abilityWatch). Read on the
- * client that makes the change, before it is sent: that is where the stack
- * still holds the caller.
+ * change said where it came from. Read on the client that makes the change,
+ * before it is sent: that is where the stack still holds the caller.
+ *
+ * The cause was found (Geano's Phantom Performance) and is guarded against,
+ * so the note of every change is now asked for (setting abilityChangeNotes,
+ * off); what is wrong and was put right is still always told.
  */
 export class AbilityWatch {
 
   static KEYS = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
   static #CHANGE = /^system\.abilities\.(str|dex|con|int|wis|cha)\.value$/;
 
+  /**
+   * Whether every change is whispered: opt-in (setting abilityChangeNotes). It
+   * was on for everyone while the cause of growing scores was sought; found,
+   * it whispered every score a GM typed into a monster and every effect a
+   * homebrew item brought, which read as the module repairing something:
+   * "does it fix the monsters' abilities, will it break my homebrew?"
+   * (2026-10-24). What is still always told is what is wrong and was put
+   * right - a score written outside a preparation, a score off its data.
+   */
   static on() {
-    try { return game.settings.get(AM.ID, 'abilityWatch') !== false; } catch { return true; }
+    try { return game.settings.get(AM.ID, 'abilityChangeNotes') === true; } catch { return false; }
   }
 
   static install() {
@@ -29,8 +41,8 @@ export class AbilityWatch {
     Hooks.on('preCreateActiveEffect', (effect, data) => this.#guard(() => this.#onEffect(effect, data)));
     Hooks.on('preCreateItem', (item, data) => this.#guard(() => this.#onItem(item, data)));
     // Once the world is up, and once its scene is drawn: what each client shows, against its data
-    Hooks.once('ready', () => setTimeout(() => this.#guard(() => this.checkDrift('after loading')), 5000));
-    Hooks.once('canvasReady', () => setTimeout(() => this.#guard(() => this.checkDrift('after the scene was drawn')), 5000));
+    Hooks.once('ready', () => setTimeout(() => this.#safely(() => this.checkDrift('after loading')), 5000));
+    Hooks.once('canvasReady', () => setTimeout(() => this.#safely(() => this.checkDrift('after the scene was drawn')), 5000));
   }
 
   /* ── scores written outside preparation ──────────────────── */
@@ -58,7 +70,7 @@ export class AbilityWatch {
    * goes through.
    */
   static trap(actor) {
-    if (actor?.type !== 'character' || !this.on()) return;
+    if (actor?.type !== 'character') return;
     for (const [key, data] of Object.entries(actor.system?.abilities ?? {})) {
       if (!data || typeof data !== 'object') continue;
       const desc = Object.getOwnPropertyDescriptor(data, 'value');
@@ -135,8 +147,14 @@ export class AbilityWatch {
     }).catch(err => AM.log(2, 'Ability watch note:', err));
   }
 
+  /** A per-change note, when asked for. */
   static #guard(fn) {
     try { if (this.on()) fn(); } catch (err) { AM.log(2, 'Ability watch:', err); }
+  }
+
+  /** What is always done: a watch never stops what it watches. */
+  static #safely(fn) {
+    try { fn(); } catch (err) { AM.log(2, 'Ability watch:', err); }
   }
 
   static #label(key) {
@@ -249,7 +267,7 @@ export class AbilityWatch {
    * message about preparing actors" (2026-10-24).
    */
   static noteRepeat(actor) {
-    if (!this.on()) return;
+    if ((AM.LOG_LEVEL ?? 0) < 3) return;      // only ever logged: not worked out for nobody
     const from = this.where(/abilityWatch\.js|a5eFixes\.js/);   // not the wrapper that noticed it
     const entry = this.#repeats.get(from) ?? { actors: new Set(), count: 0, told: 0 };
     entry.actors.add(actor?.name ?? '?');
