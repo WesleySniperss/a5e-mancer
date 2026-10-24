@@ -239,8 +239,14 @@ export class AbilityWatch {
 
   /**
    * Noted by A5eFixes.idempotentPrepare, which also puts the scores right.
-   * Gathered and told once a few seconds later - at load there may be dozens -
-   * and only what is new after that.
+   * Gathered and logged once a few seconds later - at load there may be
+   * dozens - and only what is new after that.
+   *
+   * In the console, not the chat. It was a GM whisper while the cause was
+   * sought; found (Geano's Phantom Performance, and the user's world prepares
+   * every actor twice at load), and made harmless by the guards, it came at
+   * every load and every swap saying the same thing: "every time the same
+   * message about preparing actors" (2026-10-24).
    */
   static noteRepeat(actor) {
     if (!this.on()) return;
@@ -250,23 +256,16 @@ export class AbilityWatch {
     entry.count++;
     this.#repeats.set(from, entry);
     clearTimeout(this.#repeatTimer);
-    this.#repeatTimer = setTimeout(() => this.#tellRepeats(), 4000);
+    this.#repeatTimer = setTimeout(() => this.#logRepeats(), 4000);
   }
 
-  static #tellRepeats() {
-    if (!game.ready) { Hooks.once('ready', () => this.#tellRepeats()); return; }
-    const gms = game.users?.filter(u => u.isGM).map(u => u.id) ?? [];
+  static #logRepeats() {
     const fresh = [...this.#repeats].filter(([, e]) => e.count > e.told);
-    if (!gms.length || !fresh.length) return;
-    const items = fresh.map(([from, e]) => {
+    for (const [from, e] of fresh) {
       const names = [...e.actors];
       e.told = e.count;
-      return `<li>${this.#esc(names.slice(0, 6).join(', '))}${names.length > 6 ? ` and ${names.length - 6} more` : ''} - ${e.count}×, from: ${this.#esc(from)}</li>`;
-    }).join('');
-    ChatMessage.create({
-      whisper: gms, speaker: { alias: AM.NAME ?? 'A5e Mancer' },
-      content: `<div class="am-ability-watch"><strong>Actors prepared again without starting over</strong>`
-        + `<p class="am-ability-watch-from">Each would have added its ability bonuses once more; they were prepared from their stored data instead.</p><ul>${items}</ul></div>`
-    }).catch(err => AM.log(2, 'Ability watch note:', err));
+      AM.log(3, `Actors prepared again without starting over, prepared from their stored data instead: `
+        + `${names.slice(0, 6).join(', ')}${names.length > 6 ? ` and ${names.length - 6} more` : ''} - ${e.count}×, from: ${from}`);
+    }
   }
 }

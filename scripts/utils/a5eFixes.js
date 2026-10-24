@@ -31,7 +31,7 @@ export class A5eFixes {
    * 2026-10-21: "up by 3 as soon as I log in, down when I open the sheet"
    * (opening the sheet writes to the actor). A preparation that finds the
    * actor prepared since it was last initialised starts its system data over
-   * from the stored data, and the code that asked is told to the GM
+   * from the stored data, and the code that asked is noted in the console
    * (AbilityWatch). Only the system data: 2.93.1 reset the whole actor, items
    * and all - 33 ms a time against 4 for a preparation, measured, and the
    * user's world asks 199 times at login.
@@ -73,7 +73,7 @@ export class A5eFixes {
    *     what the last one left.
    *   - prepareCreatureDerivedData run again without prepareBaseData first
    *     starts from the scores it started from last time.
-   * Each repeat is told to the GM with the code that asked (AbilityWatch).
+   * Each repeat is noted in the console with the code that asked (AbilityWatch).
    */
   static idempotentAbilities() {
     const proto = CONFIG.Actor?.documentClass?.prototype;
