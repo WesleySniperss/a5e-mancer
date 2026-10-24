@@ -42,6 +42,7 @@ export class Beyond20Service {
   static _listeners = [];
   static _renderHook = null;
   static _createHook = null;
+  static _preCreateHook = null;
 
   static get enabled() {
     try { return game.settings.get(AM.ID, 'enableBeyond20') !== false; }
@@ -70,11 +71,16 @@ export class Beyond20Service {
     // Cards already on screen (rendered before we installed) need one pass too.
     try { this._repairCards(document); } catch { /* pre-canvas, ignore */ }
 
-    // Initiative rolls into the combat tracker - see _addInitiative. On the
-    // client that posted the roll only, or every connected player would add it.
-    this._createHook = Hooks.on('createChatMessage', (message, _options, userId) => {
+    // Initiative rolls into the combat tracker - see _addInitiative. The poster's
+    // client notes who rolled on the card; one client - the active GM's, else the
+    // poster's - puts it in the tracker, or every connected player would add it.
+    this._preCreateHook = Hooks.on('preCreateChatMessage', (message, _data, _options, userId) => {
       if (userId !== game.user.id) return;
-      try { this._onMessage(message); }
+      try { this._noteRoller(message); }
+      catch (err) { AM.log(1, 'Beyond20 bridge: could not note who rolled', err); }
+    });
+    this._createHook = Hooks.on('createChatMessage', (message, _options, userId) => {
+      try { this._onMessage(message, userId); }
       catch (err) { AM.log(1, 'Beyond20 bridge: message handling failed', err); }
     });
 
@@ -103,6 +109,10 @@ export class Beyond20Service {
     if (this._createHook !== null) {
       Hooks.off('createChatMessage', this._createHook);
       this._createHook = null;
+    }
+    if (this._preCreateHook !== null) {
+      Hooks.off('preCreateChatMessage', this._preCreateHook);
+      this._preCreateHook = null;
     }
   }
 
@@ -154,6 +164,16 @@ export class Beyond20Service {
      speaks for. A combatant is created where there is none, as Foundry's own
      initiative roll does; the GM's roll also starts an encounter when there is
      none, players are told to ask for one.
+
+     Reported again 2026-10-24: "it rolls, but nothing goes into the tracker".
+     A player's roll could only be added from the player's own client, which
+     cannot start an encounter; and the character was found only by the exact
+     name D&D Beyond gives it - "Remy" found no "Remy Ezekiel LeBeau". So the
+     poster's client now notes on the card who rolled (the tokens selected, the
+     scene, the player's own character), and the active GM's client - which may
+     start the encounter and add anyone - puts it in; the poster's only when no
+     GM is connected. A name that is the start of one character's name, or the
+     player's own character, is the character when nothing else is.
      ============================================================ */
 
   static get initiativeEnabled() {
@@ -179,43 +199,85 @@ export class Beyond20Service {
     return Number.isFinite(total) ? total : null;
   }
 
-  static _onMessage(message) {
-    if (!this.initiativeEnabled) return;
+  /**
+   * On the poster's client, as the card is made: who rolled, where only this
+   * client knows it - the tokens selected here, the scene looked at, and the
+   * player's own character - kept on the card for the client that adds it.
+   */
+  static _noteRoller(message) {
+    if (!this.initiativeEnabled || this._initiativeOf(message) === null) return;
+    const controlled = (canvas?.tokens?.controlled ?? []).filter(t => t.actor?.isOwner).map(t => t.document.id);
+    message.updateSource({ [`flags.${AM.ID}.beyond20`]: {
+      controlled, scene: canvas?.scene?.id ?? null, character: game.user.character?.id ?? null
+    } });
+  }
+
+  /**
+   * The client that puts a roll in the tracker: the active GM's, which may start
+   * an encounter and add anyone; the poster's when no GM is connected.
+   */
+  static _isAdder(posterId) {
+    const gm = game.users?.activeGM;
+    return gm ? gm.isSelf : posterId === game.user.id;
+  }
+
+  static _onMessage(message, posterId) {
+    if (!this.initiativeEnabled || !this._isAdder(posterId)) return;
     const total = this._initiativeOf(message);
     if (total === null) return;
     /* After Beyond20's own attempt, which runs once its card is posted: when it
        did add the combatant, this finds it and changes nothing, rather than
-       both creating one. */
+       both creating one. A failure is said, not only logged: the log is off by
+       default, and "nothing happens" is what was reported. */
     setTimeout(() => {
-      this._addInitiative(message, total)
-        .catch(err => AM.log(1, 'Beyond20 bridge: initiative could not be added', err));
+      this._addInitiative(message, total).catch((err) => {
+        AM.log(1, 'Beyond20 bridge: initiative could not be added', err);
+        ui.notifications.error(game.i18n.format('am.beyond20.initiative-failed', { n: total, error: err?.message ?? err }));
+      });
     }, 1200);
   }
 
   static async _addInitiative(message, total) {
-    const scene = canvas?.scene ?? null;
+    const note = message?.flags?.[AM.ID]?.beyond20 ?? {};
     const speaker = message?.speaker ?? {};
     const name = speaker.alias || game.actors.get(speaker.actor)?.name || '';
+    const owns = (actor) => !!actor && (game.user.isGM || actor.isOwner);
 
-    // Who rolled: the selected tokens, as Beyond20 asks; else the speaker's character
-    let tokens = (canvas?.tokens?.controlled ?? []).filter(t => t.actor?.isOwner).map(t => t.document);
+    /* The scene the roller was on, and the encounter running there. game.combat
+       is only the encounter of the scene this client looks at: a GM looking at
+       another scene found none, and started a second one. */
+    const scene = game.scenes.get(note.scene) ?? game.combat?.scene ?? canvas?.scene ?? game.scenes?.active ?? null;
+    let combat = game.combats?.find(c => c.active && c.scene?.id === scene?.id)
+      ?? (game.combat && (!game.combat.scene || game.combat.scene.id === scene?.id) ? game.combat : null);
+
+    /* Who rolled: the tokens the poster selected, as Beyond20 asks; else the
+       speaker's token or character; else a character by that name, or whose
+       name it begins; else the poster's own character. */
+    let tokens = (note.controlled ?? []).map(id => scene?.tokens?.get(id)).filter(t => t && owns(t.actor));
+    if (!tokens.length && !note.controlled && !game.user.isGM) {
+      // A card from before the note (or a poster without this module): what is selected here
+      tokens = (canvas?.tokens?.controlled ?? []).filter(t => t.actor?.isOwner).map(t => t.document);
+    }
     let actors = [];
     if (!tokens.length) {
       const fromToken = speaker.token ? scene?.tokens?.get(speaker.token)?.actor : null;
       const fromActor = speaker.actor ? game.actors.get(speaker.actor) : null;
-      actors = fromToken?.isOwner ? [fromToken]
-        : fromActor?.isOwner ? [fromActor]
+      const own = note.character ? game.actors.get(note.character) : (message?.author?.character ?? null);
+      actors = owns(fromToken) ? [fromToken]
+        : owns(fromActor) ? [fromActor]
         : this._findActors(name);
+      if (!actors.length) actors = this._actorsNamedLike(name);
+      // A player's roll is their character's; the GM's may be any monster D&D Beyond rolled for
+      if (!actors.length && owns(own) && !message?.author?.isGM) actors = [own];
       const seen = new Set();
-      tokens = actors.flatMap(a => a.getActiveTokens(false, true))
-        .filter(t => (!scene || t.parent === scene) && !seen.has(t.id) && seen.add(t.id));
+      tokens = actors.flatMap(a => (scene?.tokens?.filter?.(t => t.actorId === a.id) ?? []))
+        .filter(t => !seen.has(t.id) && seen.add(t.id));
     }
     if (!tokens.length && !actors.length) {
       ui.notifications.warn(game.i18n.format('am.beyond20.initiative-nobody', { n: total, name: name || '?' }));
       return;
     }
 
-    let combat = game.combat;
     if (!combat) {
       if (game.user.isGM && scene) {
         combat = await getDocumentClass('Combat').create({ scene: scene.id, active: true });
@@ -535,6 +597,21 @@ export class Beyond20Service {
    * Deduplicated by uuid, because a synthetic token actor shares the `id` of
    * the actor it was created from.
    */
+  /**
+   * The one character whose name begins with this one, or that this one begins
+   * with, in whole words: D&D Beyond's "Remy" for "Remy Ezekiel LeBeau". None
+   * when two would do - a guess between two is no answer.
+   */
+  static _actorsNamedLike(name) {
+    const words = (s) => String(s ?? '').toLowerCase().replace(/[^a-z0-9À-ɏЀ-ӿ]+/g, ' ').trim();
+    const want = words(name);
+    if (!want) return [];
+    const begins = (a, b) => a === b || a.startsWith(`${b} `);
+    const found = game.actors.filter(a => a.type === 'character' && (game.user.isGM || a.isOwner)
+      && (begins(words(a.name), want) || begins(want, words(a.name))));
+    return found.length === 1 ? found : [];
+  }
+
   static _findActors(name) {
     const wanted = String(name || '').toLowerCase().trim();
     if (!wanted) return [];
