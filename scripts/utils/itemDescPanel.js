@@ -1,4 +1,5 @@
 import { AM } from '../am.js';
+import { CardSummary } from './cardSummary.js';
 
 /**
  * Floating "full description" popup, opened by right-clicking a maneuver or spell
@@ -201,19 +202,35 @@ export class ItemDescPanel {
     const act = sys.activation ?? action.activation ?? {};
     if (act.type) push('fa-clock', 'Casting Time', `${act.cost ? `${act.cost} ` : ''}${act.type}`);
 
-    /* `range && typeof …` because typeof null is 'object', so an item carrying
-       none of these three fields fell into Object.values(null) and threw. The
-       throw was caught upstream and logged, which meant the whole description
-       panel silently did nothing for those items — right-click looked broken
-       rather than errored. Items from third-party packs hit it constantly. */
-    const range = sys.range ?? action.ranges ?? action.range ?? null;
-    const r = Array.isArray(range) ? range[0]
-            : (range && typeof range === 'object' ? Object.values(range)[0] : range);
-    if (r) push('fa-ruler', 'Range', typeof r === 'object' ? [r.range, r.distance].filter(Boolean).join(' ') : r);
+    /* Range, area and target as a5e writes them on its sheet (CardSummary,
+       from a5e's utils/summaries): every range of the action, "Short (30 ft.)"
+       rather than "short", and the area - "20-foot radius sphere" - which the
+       panel never read: a spell's reach was told only once it was on the
+       sheet (asked 2026-10-26, "the radius in the header, before it is added").
+       `range && typeof …` because typeof null is 'object', so an item carrying
+       none of these fields fell into Object.values(null) and threw - caught
+       upstream, the whole panel did nothing. */
+    const rangeText = CardSummary.rangeLabel(action);
+    if (rangeText) push('fa-ruler', 'Range', rangeText);
+    else {
+      const range = sys.range ?? action.range ?? null;
+      const r = Array.isArray(range) ? range[0]
+              : (range && typeof range === 'object' ? Object.values(range)[0] : range);
+      if (r) push('fa-ruler', 'Range', typeof r === 'object' ? [r.range, r.distance].filter(Boolean).join(' ') : r);
+    }
+    push('fa-bullseye', 'Area', CardSummary.areaLabel(action) || null);
+    // "Self" twice, as range and as target, says it once
+    const target = CardSummary.targetLabel(action);
+    if (target && target !== rangeText) push('fa-crosshairs', 'Target', target);
 
     const dur = sys.duration ?? action.duration ?? null;
-    if (dur) push('fa-hourglass', 'Duration',
-      typeof dur === 'object' ? [dur.value, dur.unit].filter(Boolean).join(' ') : dur);
+    if (dur && typeof dur === 'object') {
+      const A = CONFIG.A5E ?? {};
+      const n = Number(dur.value);
+      const named = ['instantaneous', 'permanent', 'special'].includes(dur.unit);
+      const period = dur.unit ? game.i18n.localize(((named || n === 1) ? A.timePeriods : A.timePeriodsPlural)?.[dur.unit] ?? dur.unit) : '';
+      push('fa-hourglass', 'Duration', (named ? period : [dur.value, period].filter(Boolean).join(' ')) || null);
+    } else if (dur) push('fa-hourglass', 'Duration', dur);
 
     /* Spell components (V/S/M) - stored as flags, the material as a string
        beside them (system.materials), which was never shown: the panel said M
