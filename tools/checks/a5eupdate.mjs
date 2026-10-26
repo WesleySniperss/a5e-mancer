@@ -68,6 +68,7 @@ const PATCH_POINTS = [
   ['prepareData', 'a5eFixes.idempotentPrepare'],
   ['prepareBaseData', 'a5eFixes.idempotentAbilities'],
   ['prepareCreatureDerivedData', 'a5eFixes.idempotentAbilities'],
+  ['applyActiveEffects', 'a5eFixes.effectPhaseOnce'],
   ['prepareSkills', 'a5eFixes.skillExpertise'],
   ['getGrantedTraits', 'a5eFixes.grantedTraits'],
   ['conditionChanges', 'a5eFixes.paralyzedAdvantage'],
@@ -206,6 +207,16 @@ say('\ncount of a limited feature or item grant');
     if (/this\.selectionType\s*===/.test(text)) ok(`${name} still reads this.selectionType - grantAbsorber's own count stays needed`);
     else say(`  -  ${name} no longer reads this.selectionType: grantAbsorber's count from config.*.total may be retired`);
   }
+}
+
+/* ── 4b. an effect phase applied once a preparation ── */
+say('\neffect phases');
+{
+  const text = source('documents/actor/actor.svelte.ts');
+  const body = text?.slice(text.indexOf('applyActiveEffects(phase'), text.indexOf('applyActiveEffects(phase') + 800) ?? '';
+  if (!body) flag('applyActiveEffects not found in a5e\'s actor');
+  else if (/_completedActiveEffectPhases\.has\(/.test(body)) say('  -  a5e\'s applyActiveEffects now tests a phase already applied: a5eFixes.effectPhaseOnce turns itself off');
+  else ok('a5e\'s applyActiveEffects still lacks core\'s once-a-phase test - effectPhaseOnce stays needed');
 }
 
 /* ── 5. names the module leans on ── */
