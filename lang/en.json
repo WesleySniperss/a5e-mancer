@@ -196,6 +196,7 @@
   "am.settings.beyond20-initiative.name": "Beyond20 Initiative to the Combat Tracker",
   "am.settings.beyond20-initiative.hint": "An initiative roll from D&D Beyond goes onto the character's combatant: the tokens the roller selected, else the character's tokens on the encounter's scene - found by its name, a name it begins with, or the player's own character. The GM's client adds it, and starts an encounter when there is none; with no GM connected, the roller's own client does.",
   "am.beyond20.initiative-no-encounter": "Beyond20: initiative {n} for {name} was not added - there is no encounter yet. The GM has to start one.",
+  "am.links.actor-missing": "The creature this link leads to is not there any more ({uuid}).",
   "am.beyond20.initiative-failed": "Beyond20: initiative {n} could not be added to the tracker - {error}",
   "am.beyond20.initiative-nobody": "Beyond20: initiative {n} was not added - no character named \"{name}\" was found. Select its token and roll again.",
   "am.settings.your-flavor.name": "Your Flavor Support",

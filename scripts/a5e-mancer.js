@@ -20,6 +20,7 @@ import { CardSummary } from './utils/cardSummary.js';
 import { SiteText } from './utils/siteText.js';
 import { ConditionAutomation } from './utils/conditionAutomation.js';
 import { AbilityWatch } from './utils/abilityWatch.js';
+import { ActorLinks } from './utils/actorLinks.js';
 
 /* AM moved to scripts/am.js, where it imports nothing and so cannot be part
    of an import cycle. Re-exported here so the old path keeps resolving. */
@@ -194,6 +195,8 @@ Hooks.once('ready', () => {
   ManeuverService.loadClassProgressions().catch(err =>
     AM.log(1, 'Class progressions could not be read from the compendia:', err));
   Beyond20Service.init();
+  // Creature links that open their sheet with Monk's Enhanced Journal active - see actorLinks.js
+  try { ActorLinks.install(); } catch (err) { AM.log(1, 'Actor links:', err); }
   /* Teaches Your Flavor about a5e's chat cards, which it otherwise skips
      entirely - see yourFlavorService.js. Safe to install here even though Your
      Flavor has not booted yet; the bridge waits for its API itself. */
