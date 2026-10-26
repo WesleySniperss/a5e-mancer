@@ -190,13 +190,43 @@ export class Beyond20Service {
   static _initiativeOf(message) {
     const html = String(message?.content ?? '');
     if (!html.includes('beyond20-message')) return null;
+    if (!/^initiative\b/i.test(this._titleOf(message))) return null;
     const doc = new DOMParser().parseFromString(html, 'text/html');
-    const title = (doc.querySelector('.beyond20-title, .beyond20-header summary')?.textContent ?? '').trim();
-    if (!/^initiative\b/i.test(title)) return null;
     const kept = [...doc.querySelectorAll('.beyond20-roll-value')]
       .filter(el => !el.classList.contains('beyond20-roll-detail-discarded'));
     const total = Number(String(kept[0]?.textContent ?? '').trim());
-    return Number.isFinite(total) ? total : null;
+    if (Number.isFinite(total) && kept.length) return total;
+    // The rolls Beyond20 attaches to the message, where the card shows no figure
+    const rolled = Number(message?.rolls?.[0]?.total);
+    return Number.isFinite(rolled) ? rolled : null;
+  }
+
+  /** A Beyond20 card's title: "Initiative (+2)", "Longsword". */
+  static _titleOf(message) {
+    const doc = new DOMParser().parseFromString(String(message?.content ?? ''), 'text/html');
+    return (doc.querySelector('.beyond20-title, .beyond20-header summary')?.textContent ?? '').trim();
+  }
+
+  /* What this client saw of the last Beyond20 cards and did with them, for
+     a5eMancer.beyond20Report() in the console: "nothing reaches the tracker"
+     said nothing of why, three times. */
+  static _seen = [];
+
+  static _note(entry) {
+    this._seen.push({ at: new Date().toLocaleTimeString(), ...entry });
+    if (this._seen.length > 8) this._seen.shift();
+    return this._seen.at(-1);
+  }
+
+  static report() {
+    const lines = [`a5e-mancer ${game.modules.get(AM.ID)?.version} | bridge ${this.enabled ? 'on' : 'OFF'} | `
+      + `initiative to the tracker ${this.initiativeEnabled ? 'on' : 'OFF'} | active GM ${game.users?.activeGM?.name ?? 'none'} | `
+      + `this client ${game.user?.name}`];
+    for (const s of this._seen) lines.push(`${s.at}  "${s.title || '?'}" by ${s.poster ?? '?'} as "${s.alias ?? ''}": ${s.outcome ?? '...'}`);
+    if (!this._seen.length) lines.push('No Beyond20 card has reached this client since it loaded.');
+    const text = lines.join('\n');
+    console.log(text);
+    return text;
   }
 
   /**
@@ -222,22 +252,28 @@ export class Beyond20Service {
   }
 
   static _onMessage(message, posterId) {
-    if (!this.initiativeEnabled || !this._isAdder(posterId)) return;
+    if (!String(message?.content ?? '').includes('beyond20-message')) return;
     const total = this._initiativeOf(message);
-    if (total === null) return;
+    const entry = this._note({ title: this._titleOf(message), poster: game.users?.get(posterId)?.name,
+                               alias: message?.speaker?.alias ?? '' });
+    if (total === null) { entry.outcome = 'not an initiative card'; return; }
+    if (!this.initiativeEnabled) { entry.outcome = `initiative ${total}: not added - "Beyond20 Initiative to the Combat Tracker" is off on this client`; return; }
+    if (!this._isAdder(posterId)) { entry.outcome = `initiative ${total}: left to ${game.users?.activeGM?.name ?? 'the roller'}'s client`; return; }
+    entry.outcome = `initiative ${total}: being added`;
     /* After Beyond20's own attempt, which runs once its card is posted: when it
        did add the combatant, this finds it and changes nothing, rather than
        both creating one. A failure is said, not only logged: the log is off by
        default, and "nothing happens" is what was reported. */
     setTimeout(() => {
-      this._addInitiative(message, total).catch((err) => {
+      this._addInitiative(message, total, entry).catch((err) => {
+        entry.outcome = `initiative ${total}: failed - ${err?.message ?? err}`;
         AM.log(1, 'Beyond20 bridge: initiative could not be added', err);
         ui.notifications.error(game.i18n.format('am.beyond20.initiative-failed', { n: total, error: err?.message ?? err }));
       });
     }, 1200);
   }
 
-  static async _addInitiative(message, total) {
+  static async _addInitiative(message, total, entry = {}) {
     const note = message?.flags?.[AM.ID]?.beyond20 ?? {};
     const speaker = message?.speaker ?? {};
     const name = speaker.alias || game.actors.get(speaker.actor)?.name || '';
@@ -247,7 +283,11 @@ export class Beyond20Service {
        is only the encounter of the scene this client looks at: a GM looking at
        another scene found none, and started a second one. */
     const scene = game.scenes.get(note.scene) ?? game.combat?.scene ?? canvas?.scene ?? game.scenes?.active ?? null;
+    /* An encounter may be linked to no scene at all (v14's tracker allows it):
+       the active one of the roller's scene, else an active one of no scene,
+       else the one this client's tracker shows when it fits. */
     let combat = game.combats?.find(c => c.active && c.scene?.id === scene?.id)
+      ?? game.combats?.find(c => c.active && !c.scene)
       ?? (game.combat && (!game.combat.scene || game.combat.scene.id === scene?.id) ? game.combat : null);
 
     /* Who rolled: the tokens the poster selected, as Beyond20 asks; else the
@@ -274,6 +314,7 @@ export class Beyond20Service {
         .filter(t => !seen.has(t.id) && seen.add(t.id));
     }
     if (!tokens.length && !actors.length) {
+      entry.outcome = `initiative ${total}: not added - no character named "${name}" found, no token selected`;
       ui.notifications.warn(game.i18n.format('am.beyond20.initiative-nobody', { n: total, name: name || '?' }));
       return;
     }
@@ -282,6 +323,7 @@ export class Beyond20Service {
       if (game.user.isGM && scene) {
         combat = await getDocumentClass('Combat').create({ scene: scene.id, active: true });
       } else {
+        entry.outcome = `initiative ${total}: not added - no encounter on ${scene?.name ?? "the scene"}, and only a GM can start one`;
         ui.notifications.warn(game.i18n.format('am.beyond20.initiative-no-encounter', { n: total, name: name || tokens[0]?.name || '?' }));
         return;
       }
@@ -305,6 +347,8 @@ export class Beyond20Service {
     }
     if (updates.length) await combat.updateEmbeddedDocuments('Combatant', updates);
     if (creates.length) await combat.createEmbeddedDocuments('Combatant', creates);
+    const who = [...tokens.map(t => t.name), ...(tokens.length ? [] : actors.map(a => a.name))].join(', ');
+    entry.outcome = `initiative ${total}: ${updates.length} set, ${creates.length} added, ${creates.length + updates.length ? '' : '(already so) '}for ${who} in the encounter on ${combat.scene?.name ?? 'no scene'}`;
     if (updates.length || creates.length) AM.log(3, `Beyond20 initiative ${total} for ${name}: ${updates.length} set, ${creates.length} added`);
   }
 
@@ -328,6 +372,9 @@ export class Beyond20Service {
       const amount = this._readAmount(line);
       if (amount !== null) line.appendChild(this._damageButtons(amount));
     }
+    // A critical hit with one damage roll has no total to put them on: see _criticalLine
+    const crit = this._criticalLine(card);
+    if (crit) crit.line.appendChild(this._damageButtons(crit.amount, 'critical hit'));
     for (const line of this._finalHealingLines(card)) {
       const amount = this._readAmount(line);
       if (amount !== null) line.appendChild(this._healButtons(amount));
@@ -360,13 +407,36 @@ export class Beyond20Service {
 
     if (!d.length) {
       const rolls = [...card.querySelectorAll('.beyond20-roll-damage')].filter(el =>
-        !el.classList.contains('beyond20-conditional-damage'));
+        !el.classList.contains('beyond20-conditional-damage') &&
+        !el.classList.contains('beyond20-critical-damage'));
       // Prefer the line flagged as the roll's total; else the first damage line.
       const primary = rolls.find(el => el.querySelector('.beyond20-roll-total')) ?? rolls[0];
       d = primary ? [primary] : [];
     }
 
     return d.filter(el => !this._isHealing(el));
+  }
+
+  /**
+   * A critical hit whose card has no total: Beyond20 adds up its damage only
+   * when there is more than one roll of a kind, so a weapon's crit is "Damage:
+   * 7" and "Critical Damage: 5" and nothing else - and the controls went on the
+   * 7, so the crit's own dice were never dealt (reported 2026-10-26: "critical
+   * damage is not passed on"). The critical line gets controls for the two
+   * together, as Beyond20's own "Combined" total would be; the damage line
+   * keeps its own.
+   * @returns {{line: Element, amount: number}|null}
+   */
+  static _criticalLine(card) {
+    if (card.querySelector('.beyond20-total-damage')) return null;   // its totals carry it
+    const rolls = [...card.querySelectorAll('.beyond20-roll-damage')]
+      .filter(el => !el.classList.contains('beyond20-conditional-damage') && !this._isHealing(el));
+    const crits = rolls.filter(el => el.classList.contains('beyond20-critical-damage'));
+    if (!crits.length) return null;
+    const regular = rolls.filter(el => !el.classList.contains('beyond20-critical-damage'));
+    const amounts = [...regular, ...crits].map(el => this._readAmount(el));
+    if (amounts.some(n => n === null)) return null;
+    return { line: crits.at(-1), amount: amounts.reduce((a, b) => a + b, 0) };
   }
 
   /** Healing total(s), preferred over per-roll healing breakdown lines. */
@@ -394,10 +464,11 @@ export class Beyond20Service {
     return Number.isFinite(n) ? n : null;
   }
 
-  static _damageButtons(amount) {
+  static _damageButtons(amount, what = '') {
     const group = this._group();
+    const of = what ? ` (${what})` : '';
     group.append(
-      this._btn(`<i class="fa-solid fa-heart-crack"></i>`, `Apply ${amount} damage`,
+      this._btn(`<i class="fa-solid fa-heart-crack"></i>`, `Apply ${amount} damage${of}`,
         () => this._apply(amount, {})),
       this._btn('½', `Apply ${Math.floor(amount / 2)} damage (half)`,
         () => this._apply(amount, { multiplier: 0.5 })),
