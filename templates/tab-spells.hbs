@@ -34,7 +34,7 @@
         <p>{{localize 'am.app.spells.preamble'}}</p>
 
         <div class="am-maneuver-summary-box">
-          {{#if spellInfo.cantrips}}
+          {{#if (gt spellInfo.cantrips 0)}}
             <div class="am-info-row">
               <i class="fa-solid fa-sparkles" style="color:var(--am-gold)"></i>
               <span>
@@ -95,7 +95,7 @@
 
         {{!-- Selection counters --}}
         <div class="am-selection-header">
-          {{#if spellInfo.cantrips}}
+          {{#if (gt spellInfo.cantrips 0)}}
             <div class="am-counter-badge {{#if (gte selectedCantripCount spellInfo.cantrips)}}am-badge-success{{else}}am-badge-pending{{/if}}">
               <i class="fa-solid fa-sparkles"></i>
               {{localize 'am.app.spells.cantrips'}}: {{selectedCantripCount}}/{{spellInfo.cantrips}}

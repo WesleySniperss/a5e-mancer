@@ -190,7 +190,7 @@ export class GrantAbsorber {
         proficiencyType: this.#profType(grant),
         traitType:       this.#traitType(grant),
         label:   this.#name(grant) || this.#defaultLabel(grant),
-        total:   spec.total,
+        total:   Math.min(spec.total, options.length),   // no more than can be picked
         base:    spec.base,
         baseLabels: spec.base.map(key => this.#labelFor(grant, key)),
         options
@@ -1408,18 +1408,24 @@ export class GrantAbsorber {
 
       const spec = this.#specOf(grant) ?? { base: [], options: [], total: 0 };
       const baseEntries = await readable(spec.base);
+      const options = await readable(spec.options);
       out.push({
         id,
         grant,                       // kept so the level can be re-checked later
         type:  'feature',
         label: this.#name(grant) || game.i18n.localize('am.grants.type-feature'),
-        total: spec.total,
+        /* Nothing to choose, nothing to count. a5e 1.4.9 gives every grant a
+           total of 1 by default, options or not, so a feature granted outright
+           read "0/1" and stood as unfinished (reported 2026-10-26: "don't put
+           these numbers on things with no choice"); and no more can be picked
+           than there are options. */
+        total: options.length ? Math.min(spec.total, options.length) : 0,
         base:      spec.base,
         baseUuids: spec.base,        // describeTree walks these for nested grants
         baseLabels: baseEntries.map(e => e.label),
         // Granted outright, but still the thing the player wants to read about
         baseEntries,
-        options:     await readable(spec.options)
+        options
       });
     }
     return out;
