@@ -118,6 +118,37 @@ export class A5eFixes {
   }
 
   /**
+   * An effect phase applied once a preparation, as Foundry's own
+   * applyActiveEffects allows. Core v14 refuses a phase already applied in
+   * this data-preparation cycle ("has already completed and cannot be run
+   * again"); a5e 1.4 replaces the method without that test, and applies the
+   * changes again on top of themselves - an effect adding to a score adds a
+   * second time whenever anything calls prepareEmbeddedDocuments or
+   * applyActiveEffects again outside a whole preparation, which performance
+   * modules do. Reported 2026-10-24, after every other repeat had been made
+   * harmless: scores still read high for a moment on a sheet opened at once,
+   * and were put right a little later. With the test back they never go up.
+   * a5e's prepareBaseData clears the phases (_clearData), so each whole
+   * preparation applies each phase once, as before. Off once a5e tests it.
+   * At init, before the world's actors are first prepared.
+   */
+  static effectPhaseOnce() {
+    const proto = CONFIG.Actor?.documentClass?.prototype;
+    const apply = proto?.applyActiveEffects;
+    if (typeof apply !== 'function' || apply.amPhaseOnce) return;
+    if (/_completedActiveEffectPhases\.has\(/.test(String(apply))) return;
+    const wrapped = function (phase, ...args) {
+      if (typeof phase === 'string' && this._completedActiveEffectPhases?.has?.(phase)) {
+        AM.log(3, `${this.name}: effect phase "${phase}" already applied in this preparation, not applied again`);
+        return undefined;
+      }
+      return apply.call(this, phase, ...args);
+    };
+    wrapped.amPhaseOnce = true;
+    proto.applyActiveEffects = wrapped;
+  }
+
+  /**
    * Attack rolls against a paralyzed creature have advantage - a5e's own
    * description says so - but its automation gives them disadvantage:
    * conditionChanges.paralyzed grants rollMode.attack.all -1, where blinded,
