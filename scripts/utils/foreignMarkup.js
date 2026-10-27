@@ -1,4 +1,5 @@
 import { AM } from '../am.js';
+import { NamedDocs } from './namedDocs.js';
 
 /**
  * Markup of other systems in a5e text, made readable.
@@ -21,6 +22,7 @@ import { AM } from '../am.js';
  *   @skill[Arcana], {@skill Arcana} a5e's skill check button
  *   @spell / @item / @feat / @class [Name|source|shown]
  *                                   a link to the document of that name, else the name
+ *   @creature[Name|source|shown]    a link to the creature of that name, else the name
  *   any other @tag[Name|source|shown]  the name, plain
  *   {@dice 1d6}, {@damage 2d8}      a roll; {@hit 5} "+5"; {@dc 13} "DC 13"
  * And `readable(text)` puts all of it - and Foundry's and a5e's own - into
@@ -112,6 +114,11 @@ export class ForeignMarkup {
     return (first.includes('=') ? first.split('=')[1] : first).toLowerCase();
   }
 
+  /** a5e's condition link for a condition's key ("poisoned"), for links that name one. */
+  static conditionElement(key, shown, options) {
+    return this.#condition(key, shown, options);
+  }
+
   static async #condition(key, shown, options) {
     const id = String(key ?? '').trim().toLowerCase();
     const text = shown || id;
@@ -128,28 +135,6 @@ export class ForeignMarkup {
     return null;
   }
 
-  static #names = new Map();
-
-  /** The uuid of an Item of this type and name in the world's Item packs, from their loaded indexes. */
-  static #uuidOf(type, name) {
-    const want = String(name ?? '').trim().toLowerCase();
-    if (!want) return null;
-    if (!this.#names.has(type)) {
-      const map = new Map();
-      for (const pack of game.packs ?? []) {
-        if (pack.documentName !== 'Item') continue;
-        for (const e of pack.index ?? []) {
-          if (e.type !== type || !e.name) continue;
-          const k = e.name.toLowerCase();
-          // a5e's own entries first: the system's packs win a name
-          if (!map.has(k) || pack.metadata?.packageType === 'system') map.set(k, `Compendium.${pack.collection}.Item.${e._id}`);
-        }
-      }
-      this.#names.set(type, map);
-    }
-    return this.#names.get(type).get(want) ?? null;
-  }
-
   static async #tag(tag, args, shown, options) {
     const parts = String(args ?? '').split('|').map(s => s.trim());
     const name = parts[0] ?? '';
@@ -161,8 +146,10 @@ export class ForeignMarkup {
       // Labelled with the skill alone: a5e's own label adds "Check", and the text goes on "check"
       return key ? this.#via(`[[/check skill=${key} label="${text.replace(/"/g, '')}"]]`, options, text) : this.#span(text);
     }
+    // a5e's own packs win a name (namedDocs.js): @spell[Fireball|XPHB] is a5e's Fireball
     const type = this.#LINKED[t];
-    const uuid = type ? this.#uuidOf(type, name) : null;
+    const uuid = t === 'creature' ? NamedDocs.uuidOf('Actor', name, { plural: true })
+      : type ? NamedDocs.uuidOf('Item', name, { type }) : null;
     return uuid ? this.#via(`@UUID[${uuid}]{${text}}`, options, text) : this.#span(text);
   }
 

@@ -20,7 +20,8 @@ import { CardSummary } from './utils/cardSummary.js';
 import { SiteText } from './utils/siteText.js';
 import { ConditionAutomation } from './utils/conditionAutomation.js';
 import { AbilityWatch } from './utils/abilityWatch.js';
-import { ActorLinks } from './utils/actorLinks.js';
+import { DocumentLinks } from './utils/documentLinks.js';
+import { LinkMend } from './utils/linkMend.js';
 
 /* AM moved to scripts/am.js, where it imports nothing and so cannot be part
    of an import cycle. Re-exported here so the old path keeps resolving. */
@@ -130,6 +131,8 @@ Hooks.on('init', () => {
 Hooks.once('setup', () => {
   // dnd5e and 5etools markup in a5e text, read as words, rolls and links - see foreignMarkup.js
   try { ForeignMarkup.register(); } catch (err) { AM.log(1, 'Text enrichers failed:', err); }
+  // Links whose document is gone lead to the document of the same name - see linkMend.js
+  try { LinkMend.install(); } catch (err) { AM.log(1, 'Link mending failed:', err); }
   // Chat cards with range, target, area and components, from the compendium entry for a stub - see cardSummary.js
   try { CardSummary.install(); } catch (err) { AM.log(1, 'Card summaries failed:', err); }
 
@@ -195,8 +198,8 @@ Hooks.once('ready', () => {
   ManeuverService.loadClassProgressions().catch(err =>
     AM.log(1, 'Class progressions could not be read from the compendia:', err));
   Beyond20Service.init();
-  // Creature links that open their sheet with Monk's Enhanced Journal active - see actorLinks.js
-  try { ActorLinks.install(); } catch (err) { AM.log(1, 'Actor links:', err); }
+  // Creature links that open their sheet with Monk's Enhanced Journal active, links kept as HTML - see documentLinks.js
+  try { DocumentLinks.install(); } catch (err) { AM.log(1, 'Document links:', err); }
   /* Teaches Your Flavor about a5e's chat cards, which it otherwise skips
      entirely - see yourFlavorService.js. Safe to install here even though Your
      Flavor has not booted yet; the bridge waits for its API itself. */
@@ -376,7 +379,7 @@ Hooks.once('ready', async () => {
   const arr = game.settings.get(AM.ID, 'customStandardArray') || StatRoller.getDefaultStandardArray();
   if (!arr || arr.trim() === '')
     game.settings.set(AM.ID, 'customStandardArray', StatRoller.getDefaultStandardArray());
-  globalThis.a5eMancer = { AM, beyond20Report: () => Beyond20Service.report() };
+  globalThis.a5eMancer = { AM, beyond20Report: () => Beyond20Service.report(), linkReport: () => LinkMend.report() };
   Hooks.callAll('a5eMancer.Ready');
 
   /* One-time world migration (v2): bring existing items in line with the icon
