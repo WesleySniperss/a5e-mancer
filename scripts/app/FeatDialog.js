@@ -1,6 +1,7 @@
 import { AM } from '../am.js';
 import { FeatService } from '../utils/featService.js';
 import { ItemDescPanel } from '../utils/itemDescPanel.js';
+import { HoverPanel } from '../utils/hoverPanel.js';
 import { DocumentService } from '../utils/documentService.js';
 import { PackFilter } from '../utils/packFilter.js';
 
@@ -149,23 +150,22 @@ export class FeatDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       }
     }
 
-    // Hovering a card reads its text into the panel below, as in the level-up
+    /* Hovering a card reads its text into the panel below, as in the level-up;
+       it stays when the pointer leaves, so its links can be clicked - see hoverPanel.js */
     const grid  = el.querySelector('.am-inline-card-grid');
     const panel = el.querySelector('.am-inline-description');
     if (grid && panel) {
-      const hint = panel.innerHTML;
-      grid.addEventListener('mouseover', async (e) => {
-        const card = e.target.closest('.am-card[data-uuid]');
-        if (!card) return;
-        const uuid = card.dataset.uuid;
-        if (!this._descCache.has(uuid)) {
-          panel.innerHTML = `<p class="am-loading"><i class="fas fa-spinner fa-spin"></i></p>`;
+      this._descShown ??= {};
+      HoverPanel.bind(grid, panel, {
+        keyOf: HoverPanel.uuidOf,
+        htmlOf: (uuid) => this._descCache.get(uuid) ?? (async () => {
           const html = await DocumentService.getEnrichedDescription(uuid);
           this._descCache.set(uuid, html || `<p class="am-hint">${game.i18n.localize('am.app.no-description')}</p>`);
-        }
-        if (panel.isConnected) panel.innerHTML = this._descCache.get(uuid);
+          return this._descCache.get(uuid);
+        })(),
+        memory: this._descShown,
+        has: HoverPanel.holds(grid)
       });
-      grid.addEventListener('mouseleave', () => { panel.innerHTML = hint; });
     }
   }
 

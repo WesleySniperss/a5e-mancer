@@ -8,12 +8,14 @@ import { LoreTableService } from './loreTableService.js';
 import { LevelUpService } from './levelUpService.js';
 import { SiteText } from './siteText.js';
 import { grantLists, grantTypeOf } from './grantFormat.js';
+import { HoverPanel } from './hoverPanel.js';
 
 const ITEM_TYPES = ['heritage', 'culture', 'background', 'destiny', 'class'];
 
 export class DOMManager {
   static #listeners  = [];
   static #descCache  = new Map(); // uuid → enriched HTML
+  static #descShown  = new Map(); // which card each description panel shows, across renders
 
   static async initialize(form) {
     this.cleanup();
@@ -185,33 +187,28 @@ export class DOMManager {
     // A5eMancer._onFirstRender - not here, where every render re-bound it.
 
     // ── Inline card description hover ────────────────────
-    for (const grid of form.querySelectorAll('.am-inline-card-grid')) {
+    // The text stays when the pointer leaves, so its links can be clicked - see hoverPanel.js
+    form.querySelectorAll('.am-inline-card-grid').forEach((grid, i) => {
       const panel = grid.closest('.lu-section, fieldset')?.querySelector('.am-inline-description');
-      if (!panel) continue;
+      if (!panel) return;
       const hintHtml = `<p class="am-hint am-inline-desc-hint">${game.i18n.localize('am.app.hover-for-description')}</p>`;
       if (!panel.innerHTML.trim()) panel.innerHTML = hintHtml;
 
-      const onMouseover = async (e) => {
-        const card = e.target.closest('.am-card[data-uuid]');
-        if (!card) return;
-        const uuid = card.dataset.uuid;
-        if (this.#descCache.has(uuid)) {
-          panel.innerHTML = this.#descCache.get(uuid);
-        } else {
-          panel.innerHTML = `<p class="am-loading"><i class="fas fa-spinner fa-spin"></i></p>`;
+      const where = `${grid.closest('[data-tab]')?.dataset.tab ?? ''}:${i}`;
+      if (!this.#descShown.has(where)) this.#descShown.set(where, {});
+      const off = HoverPanel.bind(grid, panel, {
+        keyOf: HoverPanel.uuidOf,
+        htmlOf: (uuid) => this.#descCache.get(uuid) ?? (async () => {
           const html = await DocumentService.getEnrichedDescription(uuid);
           const content = html || `<p class="am-hint">${game.i18n.localize('am.app.no-description')}</p>`;
           this.#descCache.set(uuid, content);
-          if (panel.isConnected) panel.innerHTML = content;
-        }
-      };
-      const onMouseleave = () => { panel.innerHTML = hintHtml; };
-
-      grid.addEventListener('mouseover', onMouseover);
-      grid.addEventListener('mouseleave', onMouseleave);
-      this.#listeners.push({ el: grid, type: 'mouseover', fn: onMouseover });
-      this.#listeners.push({ el: grid, type: 'mouseleave', fn: onMouseleave });
-    }
+          return content;
+        })(),
+        memory: this.#descShown.get(where),
+        has: HoverPanel.holds(grid)
+      });
+      this.#listeners.push({ type: '__cleanup', fn: off });
+    });
 
     this.updateTabIndicators(form);
     this.updateReviewTab(form);

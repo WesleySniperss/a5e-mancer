@@ -4,6 +4,7 @@ import { DocumentService } from '../utils/documentService.js';
 import { ManeuverService, CLASS_MANEUVER_TABLES, getTraditions, traditionAllowed, isMagicSchool, traditionLoreHtml } from '../utils/maneuverService.js';
 import { SpellService, CLASS_SPELL_TABLES } from '../utils/spellService.js';
 import { ItemDescPanel } from '../utils/itemDescPanel.js';
+import { HoverPanel } from '../utils/hoverPanel.js';
 import { GrantAbsorber } from '../utils/grantAbsorber.js';
 import { ProficiencyLedger } from '../utils/proficiencyLedger.js';
 import { MulticlassRules } from '../utils/multiclassRules.js';
@@ -1816,30 +1817,29 @@ export class LevelUpDialog extends HandlebarsApplicationMixin(ApplicationV2) {
       });
     }
 
-    /* ── Inline card description hover ── */
+    /* ── Inline card description hover ──
+       The text stays when the pointer leaves, so its links can be clicked,
+       and through the redraw a pick makes - see hoverPanel.js. */
     if (!this._descCache) this._descCache = new Map();
+    if (!this._descShown) this._descShown = new Map();
     const inlineHintHtml = `<p class="am-hint">${game.i18n.localize('am.app.hover-for-description')}</p>`;
-    for (const grid of this.element.querySelectorAll('.am-inline-card-grid')) {
+    this.element.querySelectorAll('.am-inline-card-grid').forEach((grid, i) => {
       const panel = grid.closest('.lu-section')?.querySelector('.am-inline-description');
-      if (!panel) continue;
+      if (!panel) return;
       if (!panel.innerHTML.trim()) panel.innerHTML = inlineHintHtml;
-
-      grid.addEventListener('mouseover', async (e) => {
-        const card = e.target.closest('.am-card[data-uuid]');
-        if (!card) return;
-        const uuid = card.dataset.uuid;
-        if (this._descCache.has(uuid)) {
-          panel.innerHTML = this._descCache.get(uuid);
-        } else {
-          panel.innerHTML = `<p class="am-loading"><i class="fas fa-spinner fa-spin"></i></p>`;
+      if (!this._descShown.has(i)) this._descShown.set(i, {});
+      HoverPanel.bind(grid, panel, {
+        keyOf: HoverPanel.uuidOf,
+        htmlOf: (uuid) => this._descCache.get(uuid) ?? (async () => {
           const html = await DocumentService.getEnrichedDescription(uuid);
           const content = html || `<p class="am-hint">${game.i18n.localize('am.app.no-description')}</p>`;
           this._descCache.set(uuid, content);
-          if (panel.isConnected) panel.innerHTML = content;
-        }
+          return content;
+        })(),
+        memory: this._descShown.get(i),
+        has: HoverPanel.holds(grid)
       });
-      grid.addEventListener('mouseleave', () => { panel.innerHTML = inlineHintHtml; });
-    }
+    });
   }
 
   /* ── Static action: maneuver browser ────────────────────────────────── */

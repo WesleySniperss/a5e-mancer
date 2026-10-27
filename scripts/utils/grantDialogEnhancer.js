@@ -1,6 +1,7 @@
 import { AM } from '../am.js';
 import { CLASS_MANEUVER_TABLES } from './maneuverService.js';
 import { ProficiencyLedger } from './proficiencyLedger.js';
+import { HoverPanel } from './hoverPanel.js';
 
 /**
  * Augments the a5e system's own "Apply Grants" dialog without replacing it.
@@ -240,22 +241,15 @@ export class GrantDialogEnhancer {
     panel.innerHTML = `<p class="am-hint">${game.i18n.localize('am.grants.hover-hint')}</p>`;
     section.appendChild(panel);
 
-    for (const tag of tags) {
-      tag.addEventListener('mouseenter', async () => {
-        const name = tag.textContent?.trim();
-        if (!name) return;
-        const html = await this.#lookupDescription(name);
-        if (!panel.isConnected) return;
-        panel.innerHTML = html
-          ? `<strong>${name}</strong><div class="am-grant-desc-body">${html}</div>`
-          : `<strong>${name}</strong><p class="am-hint">${game.i18n.localize('am.app.no-description')}</p>`;
-      });
-    }
-
-    list.addEventListener('mouseleave', () => {
-      if (panel.isConnected) {
-        panel.innerHTML = `<p class="am-hint">${game.i18n.localize('am.grants.hover-hint')}</p>`;
-      }
+    // The text stays when the pointer leaves, so its links can be clicked - see hoverPanel.js
+    const all = [...tags];
+    const format = (name, html) => html
+      ? `<strong>${name}</strong><div class="am-grant-desc-body">${html}</div>`
+      : `<strong>${name}</strong><p class="am-hint">${game.i18n.localize('am.app.no-description')}</p>`;
+    HoverPanel.bind(list, panel, {
+      keyOf: (target) => all.find(t => t.contains(target))?.textContent?.trim() || null,
+      htmlOf: (name) => this.#descCache.has(name) ? format(name, this.#descCache.get(name))
+        : this.#lookupDescription(name).then(html => format(name, html))
     });
   }
 
