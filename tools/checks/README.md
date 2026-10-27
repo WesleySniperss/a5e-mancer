@@ -750,3 +750,32 @@ On 1.4.10: 826 documents, 161 blocks, 1341 links, all as they were made for.
 
 When it flags something, bring the module up to date, then the lists at the
 top of the file - `CHECKED_WITH` and the known shapes and types.
+
+## `links.mjs` — live
+
+    node tools/checks/links.mjs --url <a copy's url> --user <a GM's user id> [--packs]
+
+Asked 2026-10-27: "links to creatures and spells lead nowhere, in every
+description", and "why can't I drag things from the compendium browser onto
+the sheet". Four causes, each a case here:
+
+- links into packs that are not there. a5e's packs of 5e content link the
+  dnd5e system's packs (`@Compendium[dnd5e.monsters...]{Clay Golem}`, `{Wish}`,
+  `{Charm Person}`), some texts link paid modules. Foundry draws them broken.
+  `linkMend.js` sends each to the document of its name and kind (`namedDocs.js`:
+  a5e's own packs first, packs of the link's own kind first, "Invocation: X"
+  answers to "X" there); a condition's name becomes a5e's condition;
+- links kept in a text as HTML, without `data-link`, which Foundry's handler
+  passes by (`documentLinks.js`), while another module's link of that shape,
+  carrying data of its own (Campaign Codex), is left to it;
+- the panel under the cards in the builder, the level-up, the feat window and
+  a5e's grant dialog went back to its hint as the pointer left the cards, and
+  every card crossed on the way replaced it: its links could not be reached
+  (`hoverPanel.js`; the timer is run by hand, a hidden tab throttles it);
+- the character sheet took a drop only on its tab content.
+
+`--packs` enriches every description in a5e's Item packs and lists the links
+still broken. On 1.4.10: 26 labels, all into paid modules, typos ("unconcious")
+or a family of items with no document of its own ("Bag of Tricks"). Creature
+links with Monk's Enhanced Journal on were tried by hand on a copy of MEJ 14.01
+(scratchpad live/mejclick): every one opens the actor's sheet.
