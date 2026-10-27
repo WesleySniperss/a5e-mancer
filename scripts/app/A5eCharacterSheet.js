@@ -146,7 +146,12 @@ export class A5eCharacterSheet extends ActorSheet {
          use data-sidebar-tab and are switched in activateListeners, because a
          second group nested inside .main-content would be caught by this one. */
       tabs: [{ navSelector: '.actor-tabs', contentSelector: '.main-content', initial: 'favorites' }],
-      dragDrop: [{ dragSelector: '.tidy-table-row-container[data-item-id]', dropSelector: '.main-content' }],
+      /* The whole sheet takes a drop. Only .main-content did: a spell or an
+         item dragged out of a5e's compendium browser and let go over the
+         portrait, the name, the trackers or the tab strip was simply dropped
+         on the floor - "why can't I drag things from the compendium browser
+         onto the sheet" (2026-10-27). a5e's own sheet takes it anywhere. */
+      dragDrop: [{ dragSelector: '.tidy-table-row-container[data-item-id]', dropSelector: null }],
       /* What scrolls, kept across a redraw. Empty, Foundry's v1 render put every
          tab and the sidebar back at the top whenever the sheet was redrawn -
          "you click something and it all jumps up". Measured: the sidebar and
@@ -5668,8 +5673,9 @@ export class A5eNPCSheet extends A5eCharacterSheet {
          the sheet opening on nothing. */
       tabs: [{ navSelector: '.actor-tabs', contentSelector: '.main-content',
                initial: 'favorites' }],
+      // The whole sheet takes a drop, as the character sheet does
       dragDrop: [{ dragSelector: '.tidy-table-row-container[data-item-id]',
-                   dropSelector: '.main-content' }]
+                   dropSelector: null }]
     });
   }
 
