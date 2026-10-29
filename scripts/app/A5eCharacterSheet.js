@@ -285,6 +285,51 @@ export class A5eCharacterSheet extends ActorSheet {
   }
 
   /**
+   * Speeds and senses as a5e prepares them - the base plus what grants add (a
+   * heritage's Speed, its Darkvision) - in a5e's own words and units: walk
+   * first, a fly speed that hovers, a sense with no limit, blindsight that is
+   * blind beyond. a5e 1.4 keeps senses at system.attributes.senses; the sheet
+   * read system.senses, which no a5e actor has, and so never showed one -
+   * reported 2026-10-29 with speeds, which were only in the small line under
+   * the name. Bare numbers of old data still read.
+   * @returns {{speeds: object[], senses: object[]}}  each {key, label, value, units, note}
+   */
+  static motionOf(sys) {
+    const loc = (key) => (key ? game.i18n.localize(key) : '');
+    const titleCase = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+    const distanceOf = (v) => Number(v?.distance ?? v?.value ?? v ?? 0) || 0;
+    const unitOf = (v) => loc(CONFIG.A5E?.distanceAbbreviations?.[v?.unit || 'feet']) || 'ft.';
+    const movement = sys?.attributes?.movement ?? {};
+    const hover = !!movement.traits?.hover;
+    const order = Object.keys(CONFIG.A5E?.movement ?? { walk: 1 });
+    const rank = (key) => (order.includes(key) ? order.indexOf(key) : order.length);
+    const speeds = Object.entries(movement)
+      .filter(([key, v]) => key !== 'traits' && (distanceOf(v) > 0 || (key === 'fly' && hover)))
+      .sort(([a], [b]) => rank(a) - rank(b))
+      .map(([key, v]) => ({
+        key,
+        // "Walking", "Flying": a5e's short words; its full ones say "Speed" each time
+        label: loc(CONFIG.A5E?.movementAbbreviations?.[key]) || loc(CONFIG.A5E?.movement?.[key]) || titleCase(key),
+        value: distanceOf(v),
+        units: unitOf(v),
+        note: key === 'fly' && hover ? loc('A5E.details.movement.hover').toLocaleLowerCase() : ''
+      }));
+    const senses = Object.entries(sys?.attributes?.senses ?? sys?.senses ?? {})
+      .filter(([key, v]) => distanceOf(v) > 0 || v?.unit === 'unlimited' || (key === 'blindsight' && v?.otherwiseBlind))
+      .map(([key, v]) => {
+        const unlimited = v?.unit === 'unlimited';
+        return {
+          key,
+          label: loc(CONFIG.A5E?.senses?.[key]) || titleCase(key),
+          value: unlimited ? (loc(CONFIG.A5E?.visionUnits?.unlimited) || 'Unlimited') : distanceOf(v),
+          units: unlimited ? '' : unitOf(v),
+          note: key === 'blindsight' && v?.otherwiseBlind ? 'blind beyond' : ''
+        };
+      });
+    return { speeds, senses };
+  }
+
+  /**
    * Features that are only a wrapper for others, once those others are on the
    * character: an elf's gift Prescient Vision, whose whole content is the
    * trait it hands out, Glance the Future - the same text twice in the list,
@@ -636,14 +681,17 @@ export class A5eCharacterSheet extends ActorSheet {
       return String(key).replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase());
     };
 
+    /* Speeds and senses as pills: "Walk 35 ft.", "Darkvision 60 ft." - see motionOf */
+    const motion = A5eCharacterSheet.motionOf(sys);
+    const pillOf = (m) => `${m.label} ${m.value}${m.units ? ` ${m.units}` : ''}${m.note ? ` (${m.note})` : ''}`;
+
     const proficiencies = {
       armor:     toArray(sys.proficiencies?.armor     ?? sys.traits?.armorProficiencies),
       weapons:   toArray(sys.proficiencies?.weapons   ?? sys.traits?.weaponProficiencies),
       tools:     toArray(sys.proficiencies?.tools     ?? sys.traits?.toolProficiencies),
       languages: toArray(sys.proficiencies?.languages ?? sys.traits?.languages ?? sys.languages),
-      senses:    toArray(sys.senses ? Object.entries(sys.senses)
-        .filter(([,v]) => v && v !== 0)
-        .map(([k, v]) => `${k.charAt(0).toUpperCase() + k.slice(1)}: ${v} ft.`) : []),
+      movement:  motion.speeds.map(pillOf),
+      senses:    motion.senses.map(pillOf),
 
       /* What a creature shrugs off. Both schemas keep these at system.traits
          as arrays of keys, and neither sheet here was reading any of them —
@@ -1420,7 +1468,7 @@ export class A5eCharacterSheet extends ActorSheet {
        unlocked — an empty one has to be reachable, or a character with no tool
        proficiencies could never be given the first. */
     const traitSections = Object.fromEntries(
-      ['senses', 'languages', 'weapons', 'armor', 'tools',
+      ['movement', 'senses', 'languages', 'weapons', 'armor', 'tools',
        'damageImmunities', 'damageResistances', 'damageVulnerabilities',
        'conditionImmunities'].map((k) =>
         [k, !!(proficiencies?.[k]?.length || unlocked)]));
@@ -1807,18 +1855,8 @@ export class A5eCharacterSheet extends ActorSheet {
       hdMax   += Number(die?.total ?? die?.max ?? 0) || 0;
     }
 
-    /* Movement and senses are printed in the subtitle. Both are stored either
-       as {distance} objects or as bare numbers depending on how the actor was
-       made, so read both shapes and drop anything empty. */
-    const distanceOf = (v) => Number(v?.distance ?? v?.value ?? v ?? 0) || 0;
-    const titleCase  = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-    const entries = (obj) => Object.entries(obj ?? {})
-      .map(([key, raw]) => ({ key, value: distanceOf(raw) }))
-      .filter((e) => e.value > 0)
-      .map((e) => ({ label: titleCase(e.key), value: e.value, units: 'ft' }));
-
-    const speeds = entries(sys.attributes?.movement);
-    const senses = entries(sys.senses);
+    /* Movement and senses are printed in the subtitle - see motionOf. */
+    const { speeds, senses } = A5eCharacterSheet.motionOf(sys);
 
     /* Concentration in a5e is a Constitution save plus its own bonus, rolled
        as a save of its own kind (saveType 'concentration' - see the
@@ -3966,6 +4004,7 @@ export class A5eCharacterSheet extends ActorSheet {
        own fields — no second editor of ours keeping a parallel idea of which
        languages a character speaks. */
     const TRAIT_DIALOGS = {
+      movement:  'configureMovement',
       senses:    'configureSenses',
       languages: 'configureLanguages',
       weapons:   'configureWeaponProficiencies',

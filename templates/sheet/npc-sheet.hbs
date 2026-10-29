@@ -73,7 +73,7 @@
                 <span class="speed main-speed">
                   <span class="color-text-gold font-label-medium">{{this.label}}</span>
                   <span class="color-text-default font-data-medium">{{this.value}}</span>
-                  <span class="color-text-lighter font-label-medium">{{this.units}}</span>
+                  <span class="color-text-lighter font-label-medium">{{this.units}}{{#if this.note}} ({{this.note}}){{/if}}</span>
                 </span>
                 <div class="divider-dot"></div>
               {{/each}}
@@ -82,7 +82,7 @@
                 <span class="sense main-sense hide-under-600">
                   <span class="color-text-gold font-label-medium">{{this.label}}</span>
                   <span class="color-text-default font-data-medium">{{this.value}}</span>
-                  <span class="color-text-lighter font-label-medium">{{this.units}}</span>
+                  <span class="color-text-lighter font-label-medium">{{this.units}}{{#if this.note}} ({{this.note}}){{/if}}</span>
                 </span>
                 <div class="hide-under-600 divider-dot"></div>
               {{/each}}
@@ -871,6 +871,32 @@
           </div>
 
           <div class="list traits">
+            {{!-- Speeds, as a5e prepares them with what grants add; the cog
+                 opens a5e's own movement window. Listed with the senses
+                 (2026-10-29: "the sheet shows no senses and no speeds"). --}}
+            {{#if traitSections.movement}}
+              <div class="list-entry">
+                <div class="list-label flexrow">
+                  <h4 class="font-weight-label"><i class="fa-solid fa-person-running"></i> Movement</h4>
+                  {{#if @root.unlocked}}
+                    <button type="button" class="button button-borderless button-icon-only am-stat-config"
+                      data-action="trait-config" data-trait="movement"
+                      data-tooltip="Configure Movement" aria-label="Configure Movement">
+                      <i class="fa-solid fa-cog"></i>
+                    </button>
+                  {{/if}}
+                </div>
+                <div class="list-content"><div class="list-values">
+                  <ul class="pills">
+                    {{#each proficiencies.movement}}
+                      <li class="pill pill-medium trait-pill">
+                        <span class="label font-label-medium">{{this}}</span>
+                      </li>
+                    {{/each}}
+                  </ul>
+                </div></div>
+              </div>
+            {{/if}}
             {{#if traitSections.senses}}
               <div class="list-entry">
                 <div class="list-label flexrow">
