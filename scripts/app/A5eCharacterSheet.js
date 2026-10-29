@@ -1349,20 +1349,21 @@ export class A5eCharacterSheet extends ActorSheet {
       }
     }
     const _stripHtml = h => h.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-    const _durations = actor.getFlag?.('a5e-mancer', 'durations') ?? {};
     const statusConditions = [..._condMap.values()]
       .map(s => {
         const rawDesc = s.description ? game.i18n.localize(s.description)
                       : s.hint        ? game.i18n.localize(s.hint)
                       : '';
+        /* Rounds put on by hand, or what is left of the effect that put it on */
+        const rounds = ConditionAutomation.roundsOf(actor, s.id)?.n ?? null;
         return {
           id:          s.id,
           label:       game.i18n.localize(s.label ?? s.name),
           icon:        s.icon ?? s.img ?? 'icons/svg/mystery-man.svg',
           description: rawDesc ? _stripHtml(rawDesc) : '',
           active:      activeCondIds.has(s.id),
-          duration:    _durations[s.id] ?? null,
-          durationColor: _SHEET_DUR_COLORS[_durations[s.id]] ?? null
+          duration:    rounds,
+          durationColor: rounds == null ? null : (_SHEET_DUR_COLORS[rounds] ?? '#e00006')
         };
       })
       .sort((a, b) => {
@@ -5461,8 +5462,8 @@ export class A5eCharacterSheet extends ActorSheet {
 
   /** The rounds left on one condition and the colour they are drawn in, as getData has them. */
   liveConditionRounds(id) {
-    const n = (this.actor.getFlag?.('a5e-mancer', 'durations') ?? {})[id] ?? null;
-    return { n, color: _SHEET_DUR_COLORS[n] ?? null };
+    const n = ConditionAutomation.roundsOf(this.actor, id)?.n ?? null;
+    return { n, color: n == null ? null : (_SHEET_DUR_COLORS[n] ?? '#e00006') };
   }
 
   #openFeatPicker() {

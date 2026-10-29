@@ -173,15 +173,17 @@ const conditions = {
       setClassName(tile, ['condition', on && 'active']);
       setAttr(tile.querySelector('[data-action="toggle-condition"]'), 'aria-pressed', on ? 'true' : 'false');
     }
-    return true;
+    // A status a spell's effect puts on comes with the rounds it lasts
+    return conditionRounds.apply(sheet, el);
   }
 };
 
 /**
  * Rounds on a condition: the number in the corner of its tile, which
- * ConditionAutomation counts down a round at a time. The badge is drawn on
- * every tile and hidden without a number, so a count that starts, ticks or
- * ends is set here; where its count started is drawn nowhere.
+ * ConditionAutomation counts down a round at a time - or what is left of the
+ * effect that put the condition on (ConditionAutomation.roundsOf). The badge
+ * is drawn on every tile and hidden without a number, so a count that starts,
+ * ticks or ends is set here; where its count started is drawn nowhere.
  */
 const conditionRounds = {
   owns: (path) => path.startsWith(`flags.${MODULE_ID}.duration`),
@@ -199,6 +201,17 @@ const conditionRounds = {
     return true;
   }
 };
+
+/**
+ * The rounds on an open sheet's condition tiles, set again. What is left of an
+ * effect moves with the turn and the world's clock, and nothing on the actor
+ * is written then.
+ */
+export function redrawConditionRounds(sheet) {
+  const el = sheet?.element?.[0] ?? sheet?.element;
+  if (!el?.querySelector) return false;
+  return conditionRounds.apply(sheet, el);
+}
 
 /** Armour class: the figure on the shield - a field while unlocked - and the
     breakdown its tooltip carries. */

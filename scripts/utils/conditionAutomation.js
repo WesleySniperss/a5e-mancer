@@ -34,7 +34,8 @@ import { ConditionSource } from './conditionSource.js';
  * - Rounds on a status (autoStatusRounds; asked 2026-10-21). The number put on
  *   a status - hover it in the token HUD or on the sheet and press 1-9, or 0
  *   for 10 - is the rounds it lasts, and in combat it counts itself down; at 0
- *   the status ends. See setRounds.
+ *   the status ends. See setRounds. A status an effect with a duration put on
+ *   (a spell's, from its card) shows what is left of it - see roundsOf.
  *
  * Who does the work. What changes another's actor - a target's effects, a
  * caster's concentration - is done by the active GM's client. The client that
@@ -498,12 +499,14 @@ export class ConditionAutomation {
       [`flags.${AM.ID}.durations.${id}`]: n,
       [`flags.${AM.ID}.durationStart.${id}`]: this.#mark(this.#combatOf(actor), n)
     });
+    await this.#holdClocks(actor, id);
   }
 
   /**
    * Take the rounds off these statuses. Deleted by key: a flag object written
    * back without one keeps it, which is why a number never went away before
-   * 2.92.0 - not with its status, not with its digit pressed again.
+   * 2.92.0 - not with its status, not with its digit pressed again. An effect
+   * whose own duration the number had stopped gets it back.
    */
   static async clearRounds(actor, ids) {
     const flags = actor?.flags?.[AM.ID] ?? {};
@@ -513,6 +516,87 @@ export class ConditionAutomation {
       if (flags.durationStart && id in flags.durationStart) update[`flags.${AM.ID}.durationStart.-=${id}`] = null;
     }
     if (Object.keys(update).length) await actor.update(update, { amRounds: true });
+    for (const id of ids) await this.#releaseClocks(actor, id);
+  }
+
+  /**
+   * The rounds a status has left, as its number shows them (asked
+   * 2026-10-29: "the number shows the rounds whether it came by itself or we
+   * put it there"). The number put on it by hand first; else what is left of
+   * the effect that put it on - a spell's invisibility for a minute shows 10,
+   * a stun for one turn 1. a5e gives its effects durations, and Foundry
+   * counts them down and a5e deletes them at the end (expiryAction
+   * 'delete'). An item's own effect (a5e applies 'passive' ones while the
+   * item is held) has no start, never counts down, and shows nothing.
+   * @returns {{n: number|string, manual: boolean}|null}  n is rounds, or a
+   *          time ("10m", "8h") when there are more than 99
+   */
+  static roundsOf(actor, id) {
+    if (!actor || !id || this.LEVELLED.has(id)) return null;
+    const set = Number(actor.flags?.[AM.ID]?.durations?.[id]);
+    if (set > 0) return { n: set, manual: true };
+    let best = 0;
+    for (const { effect, owned } of ConditionSource.findAll(actor, id)) {
+      if (!owned || !effect.start || !effect.active) continue;
+      best = Math.max(best, this.#roundsLeft(effect) ?? 0);
+    }
+    return best > 0 ? { n: this.#shown(best), manual: false } : null;
+  }
+
+  /** Rounds left on an effect, from the duration Foundry prepares: rounds, turns or time. */
+  static #roundsLeft(effect) {
+    const d = effect?.duration ?? {};
+    if (!Number.isFinite(d.value)) return null;
+    const roundTime = CONFIG.time?.roundTime || 6;
+    // rounds in combat, or anything reframed as time out of it
+    if (Number.isFinite(d.secondsRemaining)) return Math.ceil(d.secondsRemaining / roundTime);
+    if (d.units === 'turns') {
+      const turns = Number.isFinite(d.remaining) ? d.remaining : d.value;
+      return Math.ceil(turns / Math.max(1, game.combat?.turns?.length ?? 1));
+    }
+    return Number.isFinite(d.remaining) ? d.remaining : d.value;
+  }
+
+  /** A count as its badge holds it: rounds up to 99, then minutes, hours or days. */
+  static #shown(rounds) {
+    if (rounds <= 99) return rounds;
+    const minutes = rounds * (CONFIG.time?.roundTime || 6) / 60;
+    if (minutes < 60) return `${Math.ceil(minutes)}m`;
+    if (minutes < 1440) return `${Math.ceil(minutes / 60)}h`;
+    return `${Math.ceil(minutes / 1440)}d`;
+  }
+
+  /**
+   * A number put on a status that an effect with a duration of its own holds:
+   * the number is what counts ("if we put it there, it counts down from what
+   * we put"), so the effect's own clock is stopped - else a stun of one turn
+   * given 3 would still end after the turn. Kept on the effect, and given
+   * back when the number is taken off.
+   */
+  static async #holdClocks(actor, id) {
+    for (const { effect, owned } of ConditionSource.findAll(actor, id)) {
+      const d = effect.duration ?? {};
+      if (!owned || !Number.isFinite(d.value) || effect.getFlag?.(AM.ID, 'heldDuration')) continue;
+      try {
+        await effect.update({
+          'duration.value': null, 'duration.expiry': null,
+          [`flags.${AM.ID}.heldDuration`]: { value: d.value, units: d.units, expiry: d.expiry ?? 'turnStart' }
+        });
+      } catch (err) { AM.log(2, `Could not stop the clock of ${effect.name}:`, err); }
+    }
+  }
+
+  static async #releaseClocks(actor, id) {
+    for (const { effect, owned } of ConditionSource.findAll(actor, id)) {
+      const held = owned ? effect.getFlag?.(AM.ID, 'heldDuration') : null;
+      if (!held) continue;
+      try {
+        await effect.update({
+          'duration.value': held.value, 'duration.units': held.units, 'duration.expiry': held.expiry,
+          [`flags.${AM.ID}.-=heldDuration`]: null
+        });
+      } catch (err) { AM.log(2, `Could not give ${effect.name} its clock back:`, err); }
+    }
   }
 
   /** Where a count starts: this point of the combat, or nowhere yet. */

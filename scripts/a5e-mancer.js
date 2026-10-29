@@ -22,6 +22,7 @@ import { ConditionAutomation } from './utils/conditionAutomation.js';
 import { AbilityWatch } from './utils/abilityWatch.js';
 import { DocumentLinks } from './utils/documentLinks.js';
 import { LinkMend } from './utils/linkMend.js';
+import { redrawConditionRounds } from './utils/livePatch.js';
 
 /* AM moved to scripts/am.js, where it imports nothing and so cannot be part
    of an import cycle. Re-exported here so the old path keeps resolving. */
@@ -62,6 +63,8 @@ Hooks.on('init', () => {
   try { A5eFixes.idempotentPrepare(); } catch (err) { console.error('a5e-mancer | idempotent prepare:', err); }
   try { A5eFixes.idempotentAbilities(); } catch (err) { console.error('a5e-mancer | idempotent abilities:', err); }
   try { A5eFixes.effectPhaseOnce(); } catch (err) { console.error('a5e-mancer | effect phase once:', err); }
+  // An actor's effect with a duration gets its start, so it counts down and ends - see A5eFixes.effectStart
+  try { A5eFixes.effectStart(); } catch (err) { console.error('a5e-mancer | effect start:', err); }
 
 
   /* ── Handlebars partials ── */
@@ -555,6 +558,30 @@ Hooks.on('updateActor', (actor, changes) => {
   setTimeout(() => _updateEffectsPanelDurations(actor), 100);
 });
 
+/* ── Rounds an effect has left: they change with the turn and the clock ──
+   A status an effect with a duration put on shows what is left of it
+   (ConditionAutomation.roundsOf), and that moves without any flag being
+   written: at a turn, when the world's time goes on, when the effect comes.
+   The effects panel and an open token HUD are drawn again then; our sheets
+   get their numbers set in place (core v14 redraws a combatant's sheet at
+   every turn anyway). */
+function _redrawRounds() {
+  clearTimeout(_redrawRounds.timer);
+  _redrawRounds.timer = setTimeout(() => {
+    for (const token of canvas?.tokens?.controlled ?? []) _updateEffectsPanelDurations(token.actor);
+    const hud = canvas?.hud?.token;
+    if (hud?.rendered) hud.render();
+    for (const app of Object.values(ui.windows)) {
+      if (app instanceof A5eCharacterSheet && app.rendered) redrawConditionRounds(app);
+    }
+  }, 150);
+}
+Hooks.on('combatTurnChange', _redrawRounds);
+Hooks.on('updateWorldTime', _redrawRounds);
+for (const hook of ['createActiveEffect', 'updateActiveEffect']) {
+  Hooks.on(hook, (effect) => { if (effect?.statuses?.size) _redrawRounds(); });
+}
+
 /* ── Token HUD: duration tracking (hover status + press 1–9, 0 for 10) ── */
 /* A5e renders its Token HUD via Svelte 5 into TokenHUDA5e.
    Each setFlag triggers a re-render → renderTokenHUDA5e fires again.
@@ -638,8 +665,6 @@ function _updateEffectsPanelDurations(actor) {
   const panel = document.querySelector('#a5e-effects-panel');
   if (!panel) return;
 
-  const durs = actor.getFlag?.('a5e-mancer', 'durations') ?? {};
-
   panel.querySelectorAll('img.a5e-effect-item__icon').forEach(img => {
     const root = img.parentElement?.parentElement;
     if (!root) return;
@@ -659,10 +684,12 @@ function _updateEffectsPanelDurations(actor) {
 
     root.dataset.amConditionId = condId;
 
-    if (durs[condId] != null) {
+    /* Rounds put on by hand, or what is left of the effect that put it on */
+    const rounds = ConditionAutomation.roundsOf(actor, condId)?.n;
+    if (rounds != null) {
       root.classList.add('am-duration-counter');
-      root.style.setProperty('--am-duration', `'${durs[condId]}'`);
-      root.style.setProperty('--am-duration-col', _DURATION_COLORS[durs[condId]] ?? '#e00006');
+      root.style.setProperty('--am-duration', `'${rounds}'`);
+      root.style.setProperty('--am-duration-col', _DURATION_COLORS[rounds] ?? '#e00006');
     }
   });
 }
@@ -684,7 +711,6 @@ Hooks.on('renderTokenHUDA5e', (hud, html) => {
   sortStatusEffects();
 
   const el   = html?.jquery ? html[0] : html;
-  const durs = actor.getFlag?.('a5e-mancer', 'durations') ?? {};
 
   /* A5e Svelte component renders: button.condition-container[data-status-id].
      Skip multi-level conditions — A5e already shows their counter (fatigue-counter etc).
@@ -699,10 +725,12 @@ Hooks.on('renderTokenHUDA5e', (hud, html) => {
 
     if (_A5E_MULTILEVEL.has(id)) return; /* A5e shows this one — don't duplicate */
 
-    if (durs[id] != null) {
+    /* Rounds put on by hand, or what is left of the effect that put it on */
+    const rounds = ConditionAutomation.roundsOf(actor, id)?.n;
+    if (rounds != null) {
       btn.classList.add('am-duration-counter');
-      btn.style.setProperty('--am-duration', `'${durs[id]}'`);
-      btn.style.setProperty('--am-duration-col', _DURATION_COLORS[durs[id]] ?? '#e00006');
+      btn.style.setProperty('--am-duration', `'${rounds}'`);
+      btn.style.setProperty('--am-duration-col', _DURATION_COLORS[rounds] ?? '#e00006');
     }
 
     /* Guard against duplicate listeners if Svelte reuses the same DOM node */

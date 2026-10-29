@@ -149,6 +149,36 @@ export class A5eFixes {
   }
 
   /**
+   * An actor's effect with a duration starts when it is made. Foundry's
+   * ActiveEffect#_preCreate records when (the world time, and the combat,
+   * round and turn), and that start is what its duration counts down from
+   * and what lets Foundry end it. a5e 1.4 overrides _preCreate and calls
+   * Foundry's without awaiting it, so the start is set a moment after the
+   * effect has gone to the server, or not at all: of four effects a spell's
+   * card might put on, two came without one (found 2026-10-29). Those never
+   * counted down and never ended, and showed no rounds. Set here, before the
+   * effect is sent; an effect that already states its start keeps it.
+   * At init.
+   */
+  static effectStart() {
+    const proto = CONFIG.ActiveEffect?.documentClass?.prototype;
+    const pre = proto?._preCreate;
+    if (typeof pre !== 'function' || pre.amEffectStart) return;
+    if (/await\s+super\._preCreate\(/.test(String(pre))) return;
+    const wrapped = async function (data, options, user) {
+      const allowed = await pre.call(this, data, options, user);
+      if (allowed === false) return false;
+      if (this.parent instanceof Actor && Number.isFinite(this._source.duration?.value) && !this._source.start) {
+        const start = this.constructor.getEffectStart?.();
+        if (start) this.updateSource({ start });
+      }
+      return allowed;
+    };
+    wrapped.amEffectStart = true;
+    proto._preCreate = wrapped;
+  }
+
+  /**
    * Attack rolls against a paralyzed creature have advantage - a5e's own
    * description says so - but its automation gives them disadvantage:
    * conditionChanges.paralyzed grants rollMode.attack.all -1, where blinded,
