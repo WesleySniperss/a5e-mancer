@@ -535,12 +535,21 @@ export class ConditionAutomation {
     if (!actor || !id || this.LEVELLED.has(id)) return null;
     const set = Number(actor.flags?.[AM.ID]?.durations?.[id]);
     if (set > 0) return { n: set, manual: true };
+    // Asked of every status a sheet draws, each read of it: most are not on at all
+    if (!actor.statuses?.has?.(id)) return null;
     let best = 0;
     for (const { effect, owned } of ConditionSource.findAll(actor, id)) {
       if (!owned || !effect.start || !effect.active) continue;
       best = Math.max(best, this.#roundsLeft(effect) ?? 0);
     }
     return best > 0 ? { n: this.#shown(best), manual: false } : null;
+  }
+
+  /** What is left of one effect that carries no status, as a badge holds it. */
+  static effectRounds(effect) {
+    if (!effect?.start || !effect.active) return null;
+    const left = this.#roundsLeft(effect) ?? 0;
+    return left > 0 ? this.#shown(left) : null;
   }
 
   /** Rounds left on an effect, from the duration Foundry prepares: rounds, turns or time. */

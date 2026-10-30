@@ -22,7 +22,9 @@ import { ConditionAutomation } from './utils/conditionAutomation.js';
 import { AbilityWatch } from './utils/abilityWatch.js';
 import { DocumentLinks } from './utils/documentLinks.js';
 import { LinkMend } from './utils/linkMend.js';
-import { redrawConditionRounds } from './utils/livePatch.js';
+/* As a namespace, read where it is used: a name imported from a file the browser
+   holds an older copy of stops the whole module loading - see fresh-scripts.js. */
+import * as LivePatch from './utils/livePatch.js';
 
 /* AM moved to scripts/am.js, where it imports nothing and so cannot be part
    of an import cycle. Re-exported here so the old path keeps resolving. */
@@ -562,25 +564,51 @@ Hooks.on('updateActor', (actor, changes) => {
    A status an effect with a duration put on shows what is left of it
    (ConditionAutomation.roundsOf), and that moves without any flag being
    written: at a turn, when the world's time goes on, when the effect comes.
-   The effects panel and an open token HUD are drawn again then; our sheets
-   get their numbers set in place (core v14 redraws a combatant's sheet at
-   every turn anyway). */
+   The effects panel, an open token HUD and our sheets get their numbers set
+   in place. The HUD is not drawn again for it: a draw forgets the status the
+   pointer is on, and a clock ticking the world's time on would take every
+   key pressed over a status with it. */
 function _redrawRounds() {
   clearTimeout(_redrawRounds.timer);
   _redrawRounds.timer = setTimeout(() => {
     for (const token of canvas?.tokens?.controlled ?? []) _updateEffectsPanelDurations(token.actor);
     const hud = canvas?.hud?.token;
-    if (hud?.rendered) hud.render();
+    const el = hud?.rendered ? (hud.element instanceof HTMLElement ? hud.element : hud.element?.[0]) : null;
+    const actor = hud?.object?.actor;
+    if (el && actor) el.querySelectorAll('button.condition-container[data-status-id]').forEach(btn => _stampHudButton(btn, actor));
     for (const app of Object.values(ui.windows)) {
-      if (app instanceof A5eCharacterSheet && app.rendered) redrawConditionRounds(app);
+      if (app instanceof A5eCharacterSheet && app.rendered) LivePatch.redrawConditionRounds?.(app);
     }
   }, 150);
 }
+
+/* The number a status shows: rounds put on by hand, or what is left of the
+   effect that put it on. */
+function _roundsShown(actor, id) {
+  return ConditionAutomation.roundsOf?.(actor, id)?.n ?? actor.getFlag?.('a5e-mancer', 'durations')?.[id] ?? null;
+}
+
+/* The number on one of the token HUD's status buttons, set in place. */
+function _stampHudButton(btn, actor) {
+  const id = btn.dataset.statusId;
+
+  /* Reset counter state (Svelte may reuse DOM nodes across re-renders) */
+  btn.classList.remove('am-duration-counter');
+  btn.style.removeProperty('--am-duration');
+  btn.style.removeProperty('--am-duration-col');
+
+  if (_A5E_MULTILEVEL.has(id)) return; /* A5e shows this one — don't duplicate */
+
+  const rounds = _roundsShown(actor, id);
+  if (rounds != null) {
+    btn.classList.add('am-duration-counter');
+    btn.style.setProperty('--am-duration', `'${rounds}'`);
+    btn.style.setProperty('--am-duration-col', _DURATION_COLORS[rounds] ?? '#e00006');
+  }
+}
 Hooks.on('combatTurnChange', _redrawRounds);
 Hooks.on('updateWorldTime', _redrawRounds);
-for (const hook of ['createActiveEffect', 'updateActiveEffect']) {
-  Hooks.on(hook, (effect) => { if (effect?.statuses?.size) _redrawRounds(); });
-}
+for (const hook of ['createActiveEffect', 'updateActiveEffect']) Hooks.on(hook, () => _redrawRounds());
 
 /* ── Token HUD: duration tracking (hover status + press 1–9, 0 for 10) ── */
 /* A5e renders its Token HUD via Svelte 5 into TokenHUDA5e.
@@ -669,10 +697,16 @@ function _updateEffectsPanelDurations(actor) {
     const root = img.parentElement?.parentElement;
     if (!root) return;
 
-    /* Match icon src to a status condition via CONFIG.statusEffects */
-    let condId = null;
-    for (const se of (CONFIG.statusEffects ?? [])) {
-      if (se.img && img.src?.endsWith(se.img)) { condId = se.id; break; }
+    /* The row's effect: a5e writes its name on the icon. A spell's effect has
+       a picture of its own, which no status has - and it may carry no status. */
+    const effect = actor.effects?.find(e => e.name === img.alt) ?? null;
+    let condId = effect?.statuses?.size ? [...effect.statuses][0] : null;
+
+    /* Else match icon src to a status condition via CONFIG.statusEffects */
+    if (!condId) {
+      for (const se of (CONFIG.statusEffects ?? [])) {
+        if (se.img && img.src?.endsWith(se.img)) { condId = se.id; break; }
+      }
     }
 
     /* Clear previous state first (Svelte may reuse nodes across re-renders) */
@@ -680,12 +714,11 @@ function _updateEffectsPanelDurations(actor) {
     root.style.removeProperty('--am-duration');
     root.style.removeProperty('--am-duration-col');
 
-    if (!condId || _A5E_MULTILEVEL.has(condId)) return;
+    if (_A5E_MULTILEVEL.has(condId) || !(condId || effect)) return;
 
-    root.dataset.amConditionId = condId;
+    root.dataset.amConditionId = condId ?? effect.id;
 
-    /* Rounds put on by hand, or what is left of the effect that put it on */
-    const rounds = ConditionAutomation.roundsOf(actor, condId)?.n;
+    const rounds = condId ? _roundsShown(actor, condId) : (ConditionAutomation.effectRounds?.(effect) ?? null);
     if (rounds != null) {
       root.classList.add('am-duration-counter');
       root.style.setProperty('--am-duration', `'${rounds}'`);
@@ -716,22 +749,8 @@ Hooks.on('renderTokenHUDA5e', (hud, html) => {
      Skip multi-level conditions — A5e already shows their counter (fatigue-counter etc).
      For the rest: add class + CSS vars, matching A5e's h3::before counter style. */
   el.querySelectorAll('button.condition-container[data-status-id]').forEach(btn => {
-    const id = btn.dataset.statusId;
-
-    /* Reset counter state (Svelte may reuse DOM nodes across re-renders) */
-    btn.classList.remove('am-duration-counter');
-    btn.style.removeProperty('--am-duration');
-    btn.style.removeProperty('--am-duration-col');
-
-    if (_A5E_MULTILEVEL.has(id)) return; /* A5e shows this one — don't duplicate */
-
-    /* Rounds put on by hand, or what is left of the effect that put it on */
-    const rounds = ConditionAutomation.roundsOf(actor, id)?.n;
-    if (rounds != null) {
-      btn.classList.add('am-duration-counter');
-      btn.style.setProperty('--am-duration', `'${rounds}'`);
-      btn.style.setProperty('--am-duration-col', _DURATION_COLORS[rounds] ?? '#e00006');
-    }
+    _stampHudButton(btn, actor);
+    if (_A5E_MULTILEVEL.has(btn.dataset.statusId)) return;
 
     /* Guard against duplicate listeners if Svelte reuses the same DOM node */
     if (!btn.dataset.amHudInit) {

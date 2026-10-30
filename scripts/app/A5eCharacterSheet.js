@@ -1403,7 +1403,7 @@ export class A5eCharacterSheet extends ActorSheet {
                       : s.hint        ? game.i18n.localize(s.hint)
                       : '';
         /* Rounds put on by hand, or what is left of the effect that put it on */
-        const rounds = ConditionAutomation.roundsOf(actor, s.id)?.n ?? null;
+        const rounds = ConditionAutomation.roundsOf?.(actor, s.id)?.n ?? actor.getFlag?.('a5e-mancer', 'durations')?.[s.id] ?? null;
         return {
           id:          s.id,
           label:       game.i18n.localize(s.label ?? s.name),
@@ -5501,7 +5501,7 @@ export class A5eCharacterSheet extends ActorSheet {
 
   /** The rounds left on one condition and the colour they are drawn in, as getData has them. */
   liveConditionRounds(id) {
-    const n = ConditionAutomation.roundsOf(this.actor, id)?.n ?? null;
+    const n = ConditionAutomation.roundsOf?.(this.actor, id)?.n ?? this.actor.getFlag?.('a5e-mancer', 'durations')?.[id] ?? null;
     return { n, color: n == null ? null : (_SHEET_DUR_COLORS[n] ?? '#e00006') };
   }
 

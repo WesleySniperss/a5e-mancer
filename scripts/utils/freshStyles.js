@@ -20,8 +20,8 @@
  * query-less file has that copy refreshed too, and the swap itself is served
  * from the cache with no gap in between.
  *
- * Scripts and templates cannot be swapped like this; they come from the same
- * hosts, but a stale stylesheet under fresh markup is the case that was seen.
+ * Scripts cannot be swapped like this: see fresh-scripts.js. Templates need
+ * nothing, they come over Foundry's socket.
  */
 
 const MODULE_ID = 'a5e-mancer';
