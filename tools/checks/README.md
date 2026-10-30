@@ -779,3 +779,28 @@ still broken. On 1.4.10: 26 labels, all into paid modules, typos ("unconcious")
 or a family of items with no document of its own ("Bag of Tricks"). Creature
 links with Monk's Enhanced Journal on were tried by hand on a copy of MEJ 14.01
 (scratchpad live/mejclick): every one opens the actor's sheet.
+
+## `freshscripts.mjs` — live
+
+    node tools/checks/freshscripts.mjs --url <a copy's url> --user <a GM's user id> [--only <case text>]
+
+2.96.0 reached the user as "nothing works, no sheet, no numbers": the Forge
+serves a module's files under the same URL for every version with no
+`Cache-Control`, so a browser keeps what it thinks is still good, and a new
+`a5e-mancer.js` importing a name from last version's `livePatch.js` stops the
+whole module at link time. No check here could see it: they all load one
+version's files. `scripts/fresh-scripts.js` is the answer, and this runs it the
+way it is met: a proxy stands in for the Forge in front of a copy of the world,
+sends the scripts with a day's max-age and can answer with an older version's
+file out of git, until the browser asks with `cache: 'reload'`.
+
+Each case is a new browser profile: the state that reached the user, the same
+behind a redirect to another host (the shape of a CDN), an older file that
+breaks nothing at link time, every script a whole version behind with one of
+them gone from the server, and nothing old, where the page must not load twice.
+Before any browser it checks the walk against the files: it reaches every
+script and asks for none that is not there.
+
+Sync the working tree to the copy first. A new name imported from a file that
+already exists is what makes a release lethal; these cases are why that no
+longer takes the module down for more than one reload.
