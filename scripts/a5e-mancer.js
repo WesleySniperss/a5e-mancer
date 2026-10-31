@@ -67,6 +67,8 @@ Hooks.on('init', () => {
   try { A5eFixes.effectPhaseOnce(); } catch (err) { console.error('a5e-mancer | effect phase once:', err); }
   // An actor's effect with a duration gets its start, so it counts down and ends - see A5eFixes.effectStart
   try { A5eFixes.effectStart(); } catch (err) { console.error('a5e-mancer | effect start:', err); }
+  // "Next round" past a combatant that never had a turn stops the turn's events - see A5eFixes.skippedTurnEnd
+  try { A5eFixes.skippedTurnEnd(); } catch (err) { console.error('a5e-mancer | skipped turn end:', err); }
 
 
   /* ── Handlebars partials ── */
@@ -518,7 +520,7 @@ Hooks.on('createActiveEffect', (effect) => {
   if (!effect.statuses?.size) return;
   const hud = canvas?.hud?.token;
   if (hud?.rendered && hud.object?.actor?.id === effect.parent.id) hud.render();
-  setTimeout(() => _updateEffectsPanelDurations(effect.parent), 100);
+  setTimeout(_updateEffectsPanelDurations, 100);
 });
 
 /* ── Auto-clear duration flags when a status effect is removed ───────── */
@@ -534,7 +536,7 @@ Hooks.on('deleteActiveEffect', (effect) => {
   /* Force Token HUD re-render so conditions show as inactive immediately */
   const hud = canvas?.hud?.token;
   if (hud?.rendered && hud.object?.actor?.id === actor.id) hud.render();
-  setTimeout(() => _updateEffectsPanelDurations(actor), 100);
+  setTimeout(_updateEffectsPanelDurations, 100);
 
   if (!actor.isOwner) return;
 
@@ -549,16 +551,40 @@ Hooks.on('deleteActiveEffect', (effect) => {
 });
 
 /* ── Effects Panel: re-apply badges when selected token changes ──────── */
-Hooks.on('controlToken', (token, controlled) => {
-  if (!controlled) return;
-  setTimeout(() => _updateEffectsPanelDurations(token.actor), 100);
+Hooks.on('controlToken', () => { setTimeout(_updateEffectsPanelDurations, 100); });
+
+/* ── Effects Panel: re-apply badges when the actor it shows changes ─────
+   Its flags are the numbers; and a level of fatigue or strife has a5e write the
+   row's style attribute anew, which takes our number's variables with it. */
+Hooks.on('updateActor', (actor) => {
+  if (actor?.uuid === _effectsPanelActor()?.uuid) setTimeout(_updateEffectsPanelDurations, 100);
 });
 
-/* ── Effects Panel: re-apply badges when actor duration flags change ──── */
-Hooks.on('updateActor', (actor, changes) => {
-  if (!foundry.utils.hasProperty(changes, 'flags.a5e-mancer.durations')) return;
-  setTimeout(() => _updateEffectsPanelDurations(actor), 100);
-});
+/* ── Effects Panel: a5e draws its rows when it likes ─────────────────────
+   A row for a new effect, all of them for another token, the panel itself at
+   each scene. Whatever drew them, they get their numbers. Only the panel is
+   watched, and for rows coming and going: #ui-right also holds the chat. */
+function _watchEffectsPanel() {
+  const ui = document.querySelector('#ui-right');
+  if (!ui || _watchEffectsPanel.watching) return;
+  _watchEffectsPanel.watching = true;
+  const soon = () => {
+    clearTimeout(soon.timer);
+    soon.timer = setTimeout(_updateEffectsPanelDurations, 50);
+  };
+  const rows = new MutationObserver(soon);
+  let watched = null;
+  const find = () => {
+    const panel = document.querySelector('#a5e-effects-panel');
+    if (panel === watched) return;
+    rows.disconnect();
+    watched = panel;
+    if (panel) { rows.observe(panel, { childList: true, subtree: true }); soon(); }
+  };
+  new MutationObserver(find).observe(ui, { childList: true });
+  find();
+}
+Hooks.on('canvasReady', _watchEffectsPanel);
 
 /* ── Rounds an effect has left: they change with the turn and the clock ──
    A status an effect with a duration put on shows what is left of it
@@ -571,7 +597,7 @@ Hooks.on('updateActor', (actor, changes) => {
 function _redrawRounds() {
   clearTimeout(_redrawRounds.timer);
   _redrawRounds.timer = setTimeout(() => {
-    for (const token of canvas?.tokens?.controlled ?? []) _updateEffectsPanelDurations(token.actor);
+    _updateEffectsPanelDurations();
     const hud = canvas?.hud?.token;
     const el = hud?.rendered ? (hud.element instanceof HTMLElement ? hud.element : hud.element?.[0]) : null;
     const actor = hud?.object?.actor;
@@ -607,6 +633,7 @@ function _stampHudButton(btn, actor) {
   }
 }
 Hooks.on('combatTurnChange', _redrawRounds);
+Hooks.on('updateCombat', _redrawRounds);
 Hooks.on('updateWorldTime', _redrawRounds);
 for (const hook of ['createActiveEffect', 'updateActiveEffect']) Hooks.on(hook, () => _redrawRounds());
 
@@ -684,14 +711,15 @@ async function _clearDurationFlag(actor, id) {
    Each item: img.a5e-effect-item__icon → root = img.parentElement.parentElement.
    We set data-am-condition-id on the root so CSS can target it, then add
    the am-duration-counter class + CSS vars matching A5e's counter style. */
-function _updateEffectsPanelDurations(actor) {
-  if (!actor) return;
-  /* Only stamp badges when this actor's token is the currently controlled one */
-  const controlled = canvas?.tokens?.controlled;
-  if (!controlled?.some(t => t.actor?.id === actor.id)) return;
+function _effectsPanelActor() {
+  /* The actor the panel shows, as a5e picks it: the first token under control */
+  return canvas?.tokens?.controlled?.at(0)?.document?.actor ?? null;
+}
 
+function _updateEffectsPanelDurations() {
+  const actor = _effectsPanelActor();
   const panel = document.querySelector('#a5e-effects-panel');
-  if (!panel) return;
+  if (!actor || !panel) return;
 
   panel.querySelectorAll('img.a5e-effect-item__icon').forEach(img => {
     const root = img.parentElement?.parentElement;

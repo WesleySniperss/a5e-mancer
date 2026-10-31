@@ -149,7 +149,32 @@ export class A5eFixes {
   }
 
   /**
-   * An actor's effect with a duration starts when it is made. Foundry's
+   * A combatant skipped by "next round" before it ever had a turn. a5e's
+   * Encounter#_onEndTurn reads combatant.flags.a5e, which only a first turn
+   * writes, and the TypeError stops all the events of that turn change: no
+   * recharges, no effect ending, no combatTurnChange on the GM's client. Found
+   * 2026-10-31, where it left the rounds on the statuses standing still. Such a
+   * combatant gets what a5e means for it: it did not go this round, so its turn
+   * ends. Off once a5e guards it.
+   * At init.
+   */
+  static skippedTurnEnd() {
+    const proto = CONFIG.Combat?.documentClass?.prototype;
+    const end = proto?._onEndTurn;
+    if (typeof end !== 'function' || end.amSkippedTurn) return;
+    if (/flags\??\.a5e\?\.|flags\.a5e\s*\?\?/.test(String(end))) return;
+    const wrapped = function (combatant, context) {
+      if (context?.skipped && combatant && !combatant.flags?.a5e && this.started) {
+        return combatant.onEndTurn?.({ round: context.round });
+      }
+      return end.call(this, combatant, context);
+    };
+    wrapped.amSkippedTurn = true;
+    proto._onEndTurn = wrapped;
+  }
+
+  /**
+   * An actor's effect starts when it is made. Foundry's
    * ActiveEffect#_preCreate records when (the world time, and the combat,
    * round and turn), and that start is what its duration counts down from
    * and what lets Foundry end it. a5e 1.4 overrides _preCreate and calls
@@ -168,7 +193,7 @@ export class A5eFixes {
     const wrapped = async function (data, options, user) {
       const allowed = await pre.call(this, data, options, user);
       if (allowed === false) return false;
-      if (this.parent instanceof Actor && Number.isFinite(this._source.duration?.value) && !this._source.start) {
+      if (this.parent instanceof Actor && !this._source.start) {
         const start = this.constructor.getEffectStart?.();
         if (start) this.updateSource({ start });
       }

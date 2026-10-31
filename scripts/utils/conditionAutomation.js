@@ -71,7 +71,7 @@ export class ConditionAutomation {
   /** At init: a5e has set its document classes; the world is not prepared yet. */
   static install() {
     this.#wrapActor();
-    Hooks.once('setup', () => this.#blindVision());
+    Hooks.once('setup', () => { this.#blindVision(); this.#roundTime(); });
     Hooks.on('preCreateChatMessage', (msg) => this.#markSave(msg));
     Hooks.on('createChatMessage', (msg) => this.#onSaveRolled(msg));
     Hooks.on('createActiveEffect', (effect, options, userId) => this.#onEffectOn(effect, userId));
@@ -81,7 +81,15 @@ export class ConditionAutomation {
     Hooks.on('deleteActiveEffect', (effect, options, userId) => this.#onEffectOff(effect, userId));
     Hooks.on('combatTurnChange', (combat, previous, current) => {
       this.#onTurn(combat, previous, current);
-      this.#countRounds(combat);
+      this.#countSoon(combat);
+    });
+    /* And at the update itself. On the GM's client Foundry fires combatTurnChange
+       only after the turn's events, and an error in any of them means it never
+       comes - so the numbers stood still ("the numbers don't show the rounds
+       left", 2026-10-31). A count is worked out from where it started, so
+       hearing of a turn twice does no harm. */
+    Hooks.on('updateCombat', (combat, changes) => {
+      if ('round' in changes || 'turn' in changes) this.#countSoon(combat);
     });
     for (const hook of ['createItem', 'updateItem', 'deleteItem']) {
       Hooks.on(hook, (item, ...rest) => this.#encumbranceSoon(item?.parent, rest.at(-1)));
@@ -552,10 +560,24 @@ export class ConditionAutomation {
     return left > 0 ? this.#shown(left) : null;
   }
 
+  /**
+   * A round is six seconds. a5e leaves Foundry's default, which is no time at
+   * all, so the world's clock stood still through a fight, and an effect of "60
+   * seconds" - nearly all of a5e's spells' are in seconds - never ran down in
+   * combat and never ended: Hold Person read 10 round after round (found
+   * 2026-10-31). Foundry moves the clock on by this at each new round, and back
+   * when a round is taken back. Left alone if something else has set it.
+   */
+  static #roundTime() {
+    if (this.on('autoStatusRounds') && CONFIG.time && !CONFIG.time.roundTime) CONFIG.time.roundTime = 6;
+  }
+
   /** Rounds left on an effect, from the duration Foundry prepares: rounds, turns or time. */
   static #roundsLeft(effect) {
-    const d = effect?.duration ?? {};
-    if (!Number.isFinite(d.value)) return null;
+    /* As of now. Foundry refreshes a duration only at the turn events it runs
+       on the active GM's client, or when the world's time moves. */
+    const d = effect?.updateDuration?.() ?? effect?.duration ?? {};
+    if (!Number.isFinite(d.value)) return this.#roundsOfItem(effect);
     const roundTime = CONFIG.time?.roundTime || 6;
     // rounds in combat, or anything reframed as time out of it
     if (Number.isFinite(d.secondsRemaining)) return Math.ceil(d.secondsRemaining / roundTime);
@@ -566,13 +588,34 @@ export class ConditionAutomation {
     return Number.isFinite(d.remaining) ? d.remaining : d.value;
   }
 
+  /**
+   * An effect with no duration of its own lasts as what made it does: a5e's
+   * Bless, Bane, Hex and Black Tentacles state theirs only on the spell's action
+   * ("1 minute"). A number to read and nothing more - nothing ends by it, because
+   * not all of these end with the spell. For that reason a fall shows none (a
+   * creature stays prone until it gets up), nor a level of fatigue or strife.
+   */
+  static #roundsOfItem(effect) {
+    if (!effect?.origin || !Number.isFinite(effect.start?.time)) return null;
+    if (effect.statuses?.has?.('prone') || /^(fatigue|strife|exhaustion)$/i.test(effect.name ?? '')) return null;
+    const actions = fromUuidSync(effect.origin)?._source?.system?.actions;
+    if (!actions) return null;
+    const roundTime = CONFIG.time?.roundTime || 6;
+    const seconds = { round: roundTime, minute: 60, hour: 3600, day: 86400 };
+    const lasting = (action) => seconds[action?.duration?.unit] && Number(action.duration.value) > 0;
+    const action = actions[effect.flags?.a5e?.actionId] ?? Object.values(actions).find(lasting);
+    if (!lasting(action)) return null;
+    const left = Number(action.duration.value) * seconds[action.duration.unit] - (game.time.worldTime - effect.start.time);
+    return left > 0 ? Math.ceil(left / roundTime) : null;
+  }
+
   /** A count as its badge holds it: rounds up to 99, then minutes, hours or days. */
   static #shown(rounds) {
     if (rounds <= 99) return rounds;
-    const minutes = rounds * (CONFIG.time?.roundTime || 6) / 60;
-    if (minutes < 60) return `${Math.ceil(minutes)}m`;
-    if (minutes < 1440) return `${Math.ceil(minutes / 60)}h`;
-    return `${Math.ceil(minutes / 1440)}d`;
+    const minutes = Math.ceil(rounds * (CONFIG.time?.roundTime || 6) / 60);
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.ceil(minutes / 60);
+    return hours < 24 ? `${hours}h` : `${Math.ceil(hours / 24)}d`;
   }
 
   /**
@@ -627,6 +670,14 @@ export class ConditionAutomation {
     const at = combat.turns.findIndex(t => t.id === start.combatant);
     const where = at >= 0 ? at : (Number(start.turn) || 0);
     return (combat.round - start.round) - ((combat.turn ?? 0) < where ? 1 : 0);
+  }
+
+  static #counting = Promise.resolve();
+
+  /** One count at a time: a status ending is taken off and announced once. */
+  static #countSoon(combat) {
+    this.#counting = this.#counting.then(() => this.#countRounds(combat))
+      .catch((err) => AM.log(1, 'Could not count down the rounds:', err));
   }
 
   /**
