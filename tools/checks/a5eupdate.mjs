@@ -69,6 +69,8 @@ const PATCH_POINTS = [
   ['prepareBaseData', 'a5eFixes.idempotentAbilities'],
   ['prepareCreatureDerivedData', 'a5eFixes.idempotentAbilities'],
   ['applyActiveEffects', 'a5eFixes.effectPhaseOnce'],
+  ['_preCreate', 'a5eFixes.effectStart'],
+  ['_onEndTurn', 'a5eFixes.skippedTurnEnd'],
   ['prepareSkills', 'a5eFixes.skillExpertise'],
   ['getGrantedTraits', 'a5eFixes.grantedTraits'],
   ['conditionChanges', 'a5eFixes.paralyzedAdvantage'],

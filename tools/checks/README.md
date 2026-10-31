@@ -804,3 +804,18 @@ script and asks for none that is not there.
 Sync the working tree to the copy first. A new name imported from a file that
 already exists is what makes a release lethal; these cases are why that no
 longer takes the module down for more than one reload.
+
+## `statusrounds.mjs` — live, with the canvas
+
+    node tools/checks/statusrounds.mjs --url <a copy's url> --user <a GM's user id> [--shots <dir>]
+
+The numbers on the status icons in the corner of the screen (a5e's effects
+panel), asked for and "never done" twice. Twice the check that said they were
+there had read only that a class was set. This one reads the badge the browser
+would paint on each icon, after what a table does: a digit over a status in the
+token HUD, a spell's effect as its card's button puts it on, the tracker's own
+buttons, "next round" past a combatant who never had a turn, a number put by
+hand on a spell's status and taken off again, a level of fatigue, another token,
+two tokens, a scene drawn again - and from a player's client, since the GM's
+counts and the player's has to show it. Point `--shots` at a directory to look
+at the icons yourself; a number in a screenshot is what was asked for.
