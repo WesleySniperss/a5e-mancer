@@ -22,6 +22,8 @@ import { ConditionAutomation } from './utils/conditionAutomation.js';
 import { AbilityWatch } from './utils/abilityWatch.js';
 import { DocumentLinks } from './utils/documentLinks.js';
 import { LinkMend } from './utils/linkMend.js';
+import { InitiativeRelay } from './utils/initiativeRelay.js';
+import { PartRolls } from './utils/partRolls.js';
 /* As a namespace, read where it is used: a name imported from a file the browser
    holds an older copy of stops the whole module loading - see fresh-scripts.js. */
 import * as LivePatch from './utils/livePatch.js';
@@ -69,6 +71,8 @@ Hooks.on('init', () => {
   try { A5eFixes.effectStart(); } catch (err) { console.error('a5e-mancer | effect start:', err); }
   // "Next round" past a combatant that never had a turn stops the turn's events - see A5eFixes.skippedTurnEnd
   try { A5eFixes.skippedTurnEnd(); } catch (err) { console.error('a5e-mancer | skipped turn end:', err); }
+  // A player's initiative with no encounter on their scene goes to the GM's client - see initiativeRelay.js
+  try { InitiativeRelay.install(); } catch (err) { console.error('a5e-mancer | initiative relay:', err); }
 
 
   /* ── Handlebars partials ── */
@@ -169,6 +173,9 @@ Hooks.once('ready', () => { installCompendiumFilterFix(); });
 
 /* Faults in a5e itself, each repaired only while a5e still has it (a5eFixes.js). */
 Hooks.once('ready', () => { try { A5eFixes.install(); } catch (err) { AM.log(1, 'a5e fixes failed:', err); } });
+
+/* The attack alone and the damage alone, from an item's Actions table, rolled through a5e (partRolls.js). */
+Hooks.once('ready', () => { try { PartRolls.install(); } catch (err) { AM.log(1, 'part rolls failed:', err); } });
 
 /* A character's darkvision carried to their token (tokenVision.js). */
 Hooks.once('ready', () => { try { TokenVision.installHooks(); } catch (err) { AM.log(1, 'Token vision hooks failed:', err); } });

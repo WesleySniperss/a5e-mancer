@@ -43,6 +43,8 @@ export class Beyond20Service {
   static _renderHook = null;
   static _createHook = null;
   static _preCreateHook = null;
+  static _clickListener = null;
+  static _hushed = false;
 
   static get enabled() {
     try { return game.settings.get(AM.ID, 'enableBeyond20') !== false; }
@@ -83,6 +85,13 @@ export class Beyond20Service {
       try { this._onMessage(message, userId); }
       catch (err) { AM.log(1, 'Beyond20 bridge: message handling failed', err); }
     });
+    this._hushOwnWarning();
+
+    this._clickListener = (event) => {
+      try { this._forwardCardClick(event); }
+      catch (err) { AM.log(1, 'Beyond20 bridge: card button failed', err); }
+    };
+    document.addEventListener('click', this._clickListener, true);
 
     AM.log(3, 'Beyond20 bridge installed',
       game.beyond20?.loaded ? '(extension detected)' : '(extension not loaded yet)');
@@ -113,6 +122,10 @@ export class Beyond20Service {
     if (this._preCreateHook !== null) {
       Hooks.off('preCreateChatMessage', this._preCreateHook);
       this._preCreateHook = null;
+    }
+    if (this._clickListener !== null) {
+      document.removeEventListener('click', this._clickListener, true);
+      this._clickListener = null;
     }
   }
 
@@ -174,11 +187,37 @@ export class Beyond20Service {
      start the encounter and add anyone - puts it in; the poster's only when no
      GM is connected. A name that is the start of one character's name, or the
      player's own character, is the character when nothing else is.
+
+     Asked again 2026-10-31, and tried with Beyond20's real script: "Remy" went to
+     the GM's own character. With no actor of that exact name Beyond20's speaker
+     is a guess (the token selected, else whoever the user plays as), so the
+     speaker counts only when it carries the name on the card. And every roll with
+     nothing selected left Beyond20's "Cannot add initiative to tracker" on the
+     screen, over a roll the bridge did add: see _hushOwnWarning.
      ============================================================ */
 
   static get initiativeEnabled() {
     try { return game.settings.get(AM.ID, 'beyond20Initiative') !== false; }
     catch { return true; }
+  }
+
+  /**
+   * Beyond20's own add warns the roller whenever no token is selected or no
+   * encounter exists, and has no option for the warning alone; its own add has to
+   * stay, for the tokens that are selected. While the bridge handles initiative,
+   * what it says is the true one: the warning read as the failure of a roll that
+   * was added. Only these words, by the start of their text.
+   */
+  static _hushOwnWarning() {
+    const notes = ui.notifications;
+    if (this._hushed || typeof notes?.warn !== 'function') return;
+    this._hushed = true;
+    const warn = notes.warn;
+    notes.warn = function (message, ...rest) {
+      if (String(message).startsWith('Cannot add initiative to tracker:')
+        && Beyond20Service.enabled && Beyond20Service.initiativeEnabled) return null;
+      return warn.call(this, message, ...rest);
+    };
   }
 
   /**
@@ -291,8 +330,9 @@ export class Beyond20Service {
       ?? (game.combat && (!game.combat.scene || game.combat.scene.id === scene?.id) ? game.combat : null);
 
     /* Who rolled: the tokens the poster selected, as Beyond20 asks; else the
-       speaker's token or character; else a character by that name, or whose
-       name it begins; else the poster's own character. */
+       speaker's token or character if it is the one the card names; else a
+       character by that name, or whose name it begins; else the poster's own
+       character. */
     let tokens = (note.controlled ?? []).map(id => scene?.tokens?.get(id)).filter(t => t && owns(t.actor));
     if (!tokens.length && !note.controlled && !game.user.isGM) {
       // A card from before the note (or a poster without this module): what is selected here
@@ -300,11 +340,12 @@ export class Beyond20Service {
     }
     let actors = [];
     if (!tokens.length) {
-      const fromToken = speaker.token ? scene?.tokens?.get(speaker.token)?.actor : null;
+      const named = (doc) => String(doc?.name ?? '').toLowerCase().trim() === name.toLowerCase().trim();
+      const fromToken = speaker.token ? scene?.tokens?.get(speaker.token) : null;
       const fromActor = speaker.actor ? game.actors.get(speaker.actor) : null;
       const own = note.character ? game.actors.get(note.character) : (message?.author?.character ?? null);
-      actors = owns(fromToken) ? [fromToken]
-        : owns(fromActor) ? [fromActor]
+      actors = owns(fromToken?.actor) && (named(fromToken) || named(fromToken.actor)) ? [fromToken.actor]
+        : owns(fromActor) && named(fromActor) ? [fromActor]
         : this._findActors(name);
       if (!actors.length) actors = this._actorsNamedLike(name);
       // A player's roll is their character's; the GM's may be any monster D&D Beyond rolled for
@@ -350,6 +391,36 @@ export class Beyond20Service {
     const who = [...tokens.map(t => t.name), ...(tokens.length ? [] : actors.map(a => a.name))].join(', ');
     entry.outcome = `initiative ${total}: ${updates.length} set, ${creates.length} added, ${creates.length + updates.length ? '' : '(already so) '}for ${who} in the encounter on ${combat.scene?.name ?? 'no scene'}`;
     if (updates.length || creates.length) AM.log(3, `Beyond20 initiative ${total} for ${name}: ${updates.length} set, ${creates.length} added`);
+  }
+
+  /* ============================================================
+     Beyond20's buttons on a card
+
+     Beyond20 binds "Roll Damages" and the dice in a description with a Hooks.once
+     on the next card drawn, which is the chat log's copy. The copy that pops up
+     while the sidebar is shut and a popped-out chat's are drawn after it and get
+     nothing, so with Beyond20's automatic damage off a press there did nothing:
+     no damage, no critical. A press there goes to the same button in the copy
+     that listens. A card drawn again since it was rolled (the page reloaded, say)
+     has none; Beyond20 alone holds what it would roll, so that is said.
+     ============================================================ */
+
+  static _CARD_BUTTONS = '.beyond20-button-roll-damages, .ct-beyond20-custom-roll';
+
+  static _forwardCardClick(event) {
+    const button = event.target?.closest?.(this._CARD_BUTTONS);
+    const card = button?.closest('.chat-message[data-message-id]');
+    const listens = (el) => !!globalThis.$?._data?.(el, 'events')?.click;
+    if (!card || listens(button)) return;
+    const index = [...card.querySelectorAll(this._CARD_BUTTONS)].indexOf(button);
+    for (const copy of document.querySelectorAll(`.chat-message[data-message-id="${card.dataset.messageId}"]`)) {
+      const twin = copy.querySelectorAll(this._CARD_BUTTONS)[index];
+      if (twin && listens(twin)) {
+        twin.click();
+        return;
+      }
+    }
+    ui.notifications.warn(game.i18n.localize('am.beyond20.button-dead'));
   }
 
   /* ============================================================

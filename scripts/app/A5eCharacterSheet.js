@@ -15,6 +15,7 @@ import { ArmorClass } from '../utils/armorClass.js';
 import { GrantRepair } from '../utils/grantRepair.js';
 import { WeaponSpells } from '../utils/weaponSpells.js';
 import { ForeignMarkup } from '../utils/foreignMarkup.js';
+import { PartRolls } from '../utils/partRolls.js';
 
 const MODULE_ID = 'a5e-mancer';
 
@@ -4508,13 +4509,24 @@ export class A5eCharacterSheet extends ActorSheet {
        the attack or only the damage is wanted, which is most of what a
        second click is ever for.
 
-       They roll the figure the row is showing rather than going back
-       through the system, because that figure is already the resolved one —
-       ability, proficiency and bonus worked out in #parseRollsFromAction. */
+       They go through a5e with the other half taken out (PartRolls), so a
+       natural 20 is a critical and the damage after it critical damage. A
+       plain roll of the figure the row shows is what is left where a5e cannot
+       take them: an item with no action of its own, or a5e without its roll
+       managers. */
+    const partRoll = async (b, part) => {
+      const row = b.closest('[data-action-id]');
+      const item = this.actor.items.get(row?.dataset.itemId);
+      const actionId = row?.dataset.actionId;
+      if (!item || !actionId || !item.actions?.get?.(actionId) || !PartRolls.available) return false;
+      await PartRolls.roll(item, actionId, part);
+      return true;
+    };
     el.querySelectorAll('[data-action="roll-attack"]').forEach(b =>
       b.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
+        if (await partRoll(b, 'attack')) return;
         const bonus = String(b.dataset.bonus ?? '').trim();
         const formula = bonus ? `1d20 ${bonus.startsWith('-') ? '- ' + bonus.slice(1) : '+ ' + bonus.replace(/^\+/, '')}` : '1d20';
         await this.#roll(formula, `${b.dataset.label ?? 'Attack'} — to hit`);
@@ -4525,6 +4537,7 @@ export class A5eCharacterSheet extends ActorSheet {
       b.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
+        if (await partRoll(b, 'damage')) return;
         const formula = String(b.dataset.formula ?? '').trim();
         if (!formula) return;
         await this.#roll(formula, `${b.dataset.label ?? 'Damage'} — damage`);
