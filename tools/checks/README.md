@@ -805,6 +805,59 @@ Sync the working tree to the copy first. A new name imported from a file that
 already exists is what makes a release lethal; these cases are why that no
 longer takes the module down for more than one reload.
 
+## `partrolls.mjs` — live, with the canvas
+
+    node tools/checks/partrolls.mjs --url <a copy's url> --user <a GM's user id> [--shots <dir>]
+
+"A crit on a 20 was not counted and not shown properly." The Attack and Damage
+figures in an item's Actions table (the Favourites tab, where the sheet opens)
+rolled Foundry's plain dice: a natural 20 was a plain number and the damage after
+it never critical. `PartRolls` rolls each half through a5e with the other half
+taken out of its roll state. This stars a Longsword, expands its row and presses
+the figures with the dice forced: a natural 20 and its damage, applied to a token
+(16, not 8); a plain roll and its damage; a natural 1; a crit range of 19. Then it
+checks that the halves spend nothing and start no concentration, against the
+whole action, which does both. On 2.96.2 it fails 7 of 9. Point `--shots` at a
+directory to look at the cards.
+
+## `initiative.mjs` — live, a GM's client and a player's
+
+    node tools/checks/initiative.mjs --url <a copy's url> --user <a GM's user id>
+
+"A roll from Foundry, and the character from Foundry was not added to the
+initiative." Pressed for real, the sheet's initiative button adds the token in
+every state of an encounter but one: a player whose scene has no encounter gets
+Foundry's "There is no active Combat Encounter in your currently viewed Scene"
+and nothing else, since only a GM may start one. `InitiativeRelay` sends that
+roll to the active GM's client. This presses the button and the dialog's Roll as
+a person does, one dialog at a time, and reads the GM's tracker against the
+number on the card. Cases: a player with no encounter, with and without the
+dialog; two of their characters at once (one encounter); a natural 20; the dialog
+closed without rolling (nothing); a player with an encounter and a GM with none
+(Foundry's own roll); no GM connected (Foundry's warning). Its first version
+passed in a bare world and failed with the user's modules: Monk's Combat Details
+wraps `getInitiativeRoll` and asks the combatant for a flag, so the roll needs a
+real (unsaved) combatant.
+
+## `beyond20.mjs` — live, with the extension's own script
+
+    node tools/checks/beyond20.mjs --url <a copy's url> --user <a GM's user id> [--script <fvtt_script.js>]
+
+Initiative reported as not reaching the tracker four times, and critical damage
+as not passed on, while every test posted a copy of Beyond20's card. A copy can't
+see what its script does around the card. This one loads the extension's real
+`fvtt_script.js` (from Chrome's default profile, or `--script`) into a GM's page
+and a player's, sends it the events the D&D Beyond tab sends, with the dice forced
+where it matters, and reads the tracker, what reached `ui.notifications.notify`
+and the HP. Initiative by exact name, by a short one, by a name nobody has, for a
+token selected, whispered, as a card D&D Beyond's digital dice already rendered,
+with no encounter. A natural 20 with one damage roll and with two, and with
+Beyond20's automatic damage off, pressing "Roll Damages" on the chat log's copy
+of the card and on the copy that pops up while the sidebar is shut. The control:
+with our initiative setting off, Beyond20's own warning has to be back.
+
+Run it on the code before a fix too: on 2.96.2 it fails where the fix is.
+
 ## `statusrounds.mjs` — live, with the canvas
 
     node tools/checks/statusrounds.mjs --url <a copy's url> --user <a GM's user id> [--shots <dir>]
