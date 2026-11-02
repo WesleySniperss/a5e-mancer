@@ -40,19 +40,20 @@ export const MM_CLASSES = ['wizard', 'cleric', 'druid', 'bard'];
  *   schools    — how many schools may be open
  *   maxDegree  — highest degree that may be learned
  */
-/* From 2nd level, and ten known by 20th (2026-09-16, by request). One more
-   every other level to 14th, then at 17th and 20th; a second degree at 6th,
-   a third at 12th; a third school at 8th and a fourth at 14th. */
+/* From 2nd level (2026-09-16, by request). One more every other level to
+   14th, then at 17th and 20th; a second degree at 6th, a third at 12th; a
+   third school at 8th and a fourth at 14th. One more known at every step
+   since 2026-11-02 ("it seems few"): three at 2nd, eleven by 20th. */
 export const MM_PROGRESSION = [
-  { level: 2,  known: 2,  schools: 2, maxDegree: 1 },
-  { level: 4,  known: 3,  schools: 2, maxDegree: 1 },
-  { level: 6,  known: 4,  schools: 2, maxDegree: 2 },
-  { level: 8,  known: 5,  schools: 3, maxDegree: 2 },
-  { level: 10, known: 6,  schools: 3, maxDegree: 2 },
-  { level: 12, known: 7,  schools: 3, maxDegree: 3 },
-  { level: 14, known: 8,  schools: 4, maxDegree: 3 },
-  { level: 17, known: 9,  schools: 4, maxDegree: 3 },
-  { level: 20, known: 10, schools: 4, maxDegree: 3 }
+  { level: 2,  known: 3,  schools: 2, maxDegree: 1 },
+  { level: 4,  known: 4,  schools: 2, maxDegree: 1 },
+  { level: 6,  known: 5,  schools: 2, maxDegree: 2 },
+  { level: 8,  known: 6,  schools: 3, maxDegree: 2 },
+  { level: 10, known: 7,  schools: 3, maxDegree: 2 },
+  { level: 12, known: 8,  schools: 3, maxDegree: 3 },
+  { level: 14, known: 9,  schools: 4, maxDegree: 3 },
+  { level: 17, known: 10, schools: 4, maxDegree: 3 },
+  { level: 20, known: 11, schools: 4, maxDegree: 3 }
 ];
 
 /**
@@ -76,8 +77,8 @@ export const MAGIC_MANEUVERS = [
   /* ── Elements ─────────────────────────────────────────── */
   { id: 'ice', name: 'Ice', school: 'stykhia', degree: 1, cost: 1,
     trigger: 'damageType', damageType: 'cold', activation: 'damage', consumesState: true,
-    flavor: `Frost-wardens of the high passes teach that cold is not a blow but a grip. Their magic settles into the joints and marrow of whatever it strikes and lingers there, until flesh and bone grow brittle enough to shatter under a hammer or a heel.`,
-    effect: `When you deal cold damage to a creature with a spell or cantrip, you can use this maneuver as the damage is dealt. Until the end of your next turn, the next attack made against that creature treats it as vulnerable to bludgeoning damage.` },
+    flavor: `Frost-wardens of the high passes teach that cold is not a blow but a grip. Their magic settles into the joints and marrow of whatever it strikes and lingers there, stiffening every limb, until flesh and bone grow brittle enough to shatter under a hammer or a heel.`,
+    effect: `When you deal cold damage to a creature with a spell or cantrip, you can use this maneuver as the damage is dealt. Until the end of your next turn, the next attack made against that creature treats it as vulnerable to bludgeoning damage, and the creature has disadvantage on its next Strength, Dexterity, or Constitution saving throw.` },
 
   { id: 'acid', name: 'Acid', school: 'stykhia', degree: 1, cost: 1,
     trigger: 'damageType', damageType: 'acid', activation: 'damage', consumesState: true,
@@ -125,6 +126,14 @@ export const MAGIC_MANEUVERS = [
     flavor: `Light that has found its mark once will find it again. Priests of the dawn teach that radiance leaves a trace on those it burns, a glow no shadow can hide, which guides the next spell home or strips away the will to withstand it.`,
     effect: `When you deal radiant damage to a creature with a spell or cantrip, you can use this maneuver as the damage is dealt. Until the end of your next turn, your next spell attack roll against that creature has advantage or, if your next spell or cantrip against it calls for a saving throw instead, the creature makes that saving throw with disadvantage. If that attack, spell, or cantrip deals radiant damage to the creature, the light bursts from it: each other hostile creature within 5 feet of it takes radiant damage equal to half the damage dealt.` },
 
+  /* A spell's leftover charge as damage of its own, scaling with the level the
+     spell was cast at (2026-11-02, by request: "a die times the level of the
+     last spell cast"). A d8, so a 3rd-level spell leaves 3d8. */
+  { id: 'residue', name: 'Residue', school: 'esentsia', degree: 2, cost: 2,
+    trigger: 'recentSpell', activation: 'bonusAction', consumesState: false,
+    flavor: `Every spell leaves something behind: a charge in the air that fades within a breath. Battle-mages learn to catch it before it goes and hurl it after the first blow, so that one working strikes twice.`,
+    effect: `If you have cast a spell of 1st level or higher since the end of your previous turn, you can use a bonus action to release what it left behind. Make a ranged spell attack against one creature you can see within 60 feet of you. On a hit, the creature takes 1d8 damage for each level at which you cast that spell, of a type that spell dealt, or force damage if it dealt none.` },
+
   { id: 'peak', name: 'Peak', school: 'esentsia', degree: 3, cost: 4,
     trigger: 'damageType', damageType: 'any', activation: 'bonusAction', consumesState: false,
     flavor: `At the very edge of their power, a caster can pour everything they have into a single working. Nothing is held back and nothing is left to chance; the spell strikes with all the force it was ever capable of.`,
@@ -168,9 +177,17 @@ export const MAGIC_MANEUVERS = [
     effect: `When you cast an enchantment spell or cantrip, you can use this maneuver as part of casting it. The spell has no visible source, and a creature that succeeds on its saving throw against it does not realize it was charmed.` },
 
   { id: 'countercast', name: 'Countercast', school: 'vlada', degree: 3, cost: 3,
-    trigger: 'enemyCast', activation: 'reaction', reactionTrigger: 'When a hostile creature you can see casts a spell or cantrip', consumesState: false,
+    trigger: 'enemyCast', activation: 'reaction', reactionTrigger: 'When a hostile creature you can see within 30 feet of you casts a spell or cantrip', consumesState: false,
+    range: 30,
     flavor: `Every spell is a thread, and a thread can be pulled from either end. Those who master dominion seize a hostile incantation as it forms and turn it about, so that the enemy's own magic breaks upon its caster.`,
-    effect: `When a hostile creature you can see casts a spell or cantrip, you can turn it back on its caster for half its cost, provided you have that same spell or cantrip prepared or known. Make a spellcasting ability check contested by the caster's spellcasting ability check. On a success, the spell targets its caster instead.` },
+    effect: `When a hostile creature you can see within 30 feet of you casts a spell or cantrip, you can turn it back on its caster, provided you have that same spell or cantrip prepared or known. To do so, you expend a spell slot of half the level of the slot the caster used, rounded down (minimum 1st level); turning back a cantrip expends no slot. Make a spellcasting ability check contested by the caster's spellcasting ability check. On a success, the spell targets its caster instead.` },
+
+  /* The school's ultimate (2026-11-02, by request): every creature the spell
+     touched, and the dearest exertion in the catalogue. */
+  { id: 'soul-link', name: 'Soul Link', school: 'vlada', degree: 3, cost: 5,
+    trigger: 'multiTarget', activation: 'cast', consumesState: false,
+    flavor: `The greatest masters of dominion do not strike one foe; they bind many into one. Their spell draws a single cord through every soul it touches, and a wound dealt to any of them is felt by all.`,
+    effect: `When you cast a spell or cantrip that affects two or more creatures, you can use this maneuver as part of casting it. Once the spell or cantrip has taken effect, choose any number of the creatures it affected: until the end of your next turn, they are linked. Whenever a linked creature takes damage, each other linked creature takes half that damage, of the same type. Damage taken through the link does not pass on again, and a creature leaves the link when it drops to 0 hit points.` },
 
   { id: 'generous-hand', name: 'Open Hand', school: 'vlada', degree: 2, cost: 4,
     trigger: 'healing', activation: 'cast', consumesState: false,
@@ -214,6 +231,11 @@ export const MAGIC_MANEUVERS = [
     flavor: `To a trained eye, every spell cast is also a question. As their magic touches a foe, diviners feel where it catches and where it slides away, and learn what the creature was made to withstand.`,
     effect: `When you cast a spell or cantrip at a creature, you can use this maneuver as part of casting it. You learn the creature's damage resistances and immunities.` },
 
+  { id: 'forewarning', name: 'Forewarning', school: 'provydinnia', degree: 1, cost: 1,
+    trigger: 'any', activation: 'cast', consumesState: false,
+    flavor: `A diviner's spell lands a heartbeat ahead of the fight. In the instant it touches a foe, the caster sees the blow that foe is already shaping, its angle and its mark, and calls it out before it falls.`,
+    effect: `When you cast a spell or cantrip at a creature, you can use this maneuver as part of casting it. Until the start of your next turn, the first attack roll that creature makes has disadvantage.` },
+
   { id: 'premonition', name: 'Premonition', school: 'provydinnia', degree: 2, cost: 1,
     trigger: 'any', activation: 'cast', consumesState: false,
     flavor: `Every creature has a place where its defenses run thin, and magic finds that place the way water finds a crack. The caster feels it in the moment of casting and knows where the next spell should strike.`,
@@ -221,6 +243,6 @@ export const MAGIC_MANEUVERS = [
 
   { id: 'farsight', name: 'Farsight', school: 'provydinnia', degree: 3, cost: 3,
     trigger: 'any', activation: 'cast', consumesState: false,
-    flavor: `The greatest seers glimpse not only what is, but what is about to be. As their spell is loosed, the moment ahead unfolds before them, and they see the enemy's next move before the enemy has chosen it.`,
-    effect: `When you cast a spell or cantrip, you can use this maneuver as part of casting it. Choose one hostile creature you can see. You learn the specific spell or action it will take on its next turn.` }
+    flavor: `The greatest seers glimpse not only what is, but what is about to be. As their spell is loosed, the moment ahead unfolds before them, and they see what another will do before that creature has chosen it.`,
+    effect: `When you cast a spell or cantrip, you can use this maneuver as part of casting it. Choose one creature you can see. You learn the specific spell or action it will take on its next turn.` }
 ];

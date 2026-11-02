@@ -19,6 +19,7 @@ const MM_ICONS = {
   psychic:         'control/hypnosis-mesmerism-swirl.webp',
   necrotic:        'unholy/strike-body-life-soul-purple.webp',
   radiant:         'light/beam-rays-yellow.webp',
+  residue:         'light/orbs-smoke-pink.webp',
   peak:            'symbols/star-rising-purple.webp',
   bypass:          'movement/trail-streak-impact-blue.webp',
   reflection:      'light/beam-impact-deflect-teal.webp',
@@ -28,6 +29,7 @@ const MM_ICONS = {
   resonance:       'sonic/projectile-sound-rings-wave.webp',
   suggestion:      'control/hypnosis-mesmerism-pendulum.webp',
   countercast:     'defensive/shield-barrier-deflect-gold.webp',
+  'soul-link':     'control/debuff-chains-ropes-net-purple-blue.webp',
   'generous-hand': 'life/heart-hand-gold-green.webp',
   cleansing:       'life/cross-beam-green.webp',
   recall:          'time/arrows-circling-green.webp',
@@ -36,6 +38,7 @@ const MM_ICONS = {
   riposte:         'defensive/shield-barrier-blades-teal.webp',
   steadfast:       'defensive/armor-stone-skin.webp',
   insight:         'perception/third-eye-blue-red.webp',
+  forewarning:     'perception/eye-ringed-glow-angry-teal.webp',
   premonition:     'perception/orb-crystal-ball-scrying-blue.webp',
   farsight:        'time/hourglass-tilted-glowing-gold.webp'
 };
@@ -58,7 +61,7 @@ const MM_ICONS = {
 export class MagicManeuverPack {
 
   static PACK_NAME = 'a5e-mancer-magic-maneuvers';
-  static VERSION   = 13;         // bump to force a rebuild after data changes (13: a5e 1.4 grants)
+  static VERSION   = 14;         // bump to force a rebuild after data changes (14: Forewarning, Soul Link, Residue; Ice hampers physical saves; Farsight and Countercast reworded, Countercast 30 ft; one more known at every level)
   /* The feature that gives a magic maneuver caster its exertion pool, kept
      under one id so a character's copy is always recognisable. */
   static FEATURE_ID = 'amMagicManeuvers';
@@ -223,6 +226,9 @@ export class MagicManeuverPack {
   static itemData(m) {
     const actionId    = foundry.utils.randomID();
     const consumerId  = foundry.utils.randomID();
+    /* A maneuver that states a reach in feet carries it on its action, so a5e's
+       card shows it ("30 ft.") the way it shows a spell's */
+    const ranges = m.range ? { [foundry.utils.randomID()]: { range: m.range, unit: 'feet', value: 0 } } : {};
 
     return {
       name: m.name,
@@ -240,6 +246,7 @@ export class MagicManeuverPack {
             name:    m.name,
             default: true,
             activation: { cost: 1, type: this.#activationType(m), reactionTrigger: m.reactionTrigger ?? '' },
+            ranges,
             consumers: {
               [consumerId]: {
                 type:            'resource',
