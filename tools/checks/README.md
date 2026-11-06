@@ -805,6 +805,19 @@ Sync the working tree to the copy first. A new name imported from a file that
 already exists is what makes a release lethal; these cases are why that no
 longer takes the module down for more than one reload.
 
+## `residue.mjs` — live, with the canvas
+
+    node tools/checks/residue.mjs --url <a copy's url> --user <a GM's user id>
+
+Residue costs exertion equal to the level of the spell it follows (2026-11-06,
+the user's pick against "a bonus-action attack after every spell"). a5e charges
+what the activation's consumption data says, and `MagicManeuverPack` sets that to
+the level on the actor's last spell card. This casts Fireball and Magic Missile
+from the compendium and reads the exertion after Residue (3, then 1), uses
+Residue with no spell before it (nothing, and a warning), and gives a character a
+copy as 2.97.0 had it for `refreshLearned`, which Fill In runs: brought to the
+catalogue once, and left alone the second time.
+
 ## `partrolls.mjs` — live, with the canvas
 
     node tools/checks/partrolls.mjs --url <a copy's url> --user <a GM's user id> [--shots <dir>]
