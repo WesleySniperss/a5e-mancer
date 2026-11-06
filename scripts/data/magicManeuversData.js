@@ -128,11 +128,14 @@ export const MAGIC_MANEUVERS = [
 
   /* A spell's leftover charge as damage of its own, scaling with the level the
      spell was cast at (2026-11-02, by request: "a die times the level of the
-     last spell cast"). A d8, so a 3rd-level spell leaves 3d8. */
-  { id: 'residue', name: 'Residue', school: 'esentsia', degree: 2, cost: 2,
+     last spell cast"). A d8, so a 3rd-level spell leaves 3d8. Its exertion is
+     that same level (2026-11-06: a bonus-action attack after every spell for a
+     flat 2 was too cheap), so `cost` is the least it can be and
+     costPerSpellLevel has the card charge the rest (MagicManeuverPack). */
+  { id: 'residue', name: 'Residue', school: 'esentsia', degree: 2, cost: 1, costPerSpellLevel: true,
     trigger: 'recentSpell', activation: 'bonusAction', consumesState: false,
     flavor: `Every spell leaves something behind: a charge in the air that fades within a breath. Battle-mages learn to catch it before it goes and hurl it after the first blow, so that one working strikes twice.`,
-    effect: `If you have cast a spell of 1st level or higher since the end of your previous turn, you can use a bonus action to release what it left behind. Make a ranged spell attack against one creature you can see within 60 feet of you. On a hit, the creature takes 1d8 damage for each level at which you cast that spell, of a type that spell dealt, or force damage if it dealt none.` },
+    effect: `If you have cast a spell of 1st level or higher since the end of your previous turn, you can use a bonus action to release what it left behind, spending exertion equal to the level at which you cast that spell. Make a ranged spell attack against one creature you can see within 60 feet of you. On a hit, the creature takes 1d8 damage for each level at which you cast that spell, of a type that spell dealt, or force damage if it dealt none.` },
 
   { id: 'peak', name: 'Peak', school: 'esentsia', degree: 3, cost: 4,
     trigger: 'damageType', damageType: 'any', activation: 'bonusAction', consumesState: false,

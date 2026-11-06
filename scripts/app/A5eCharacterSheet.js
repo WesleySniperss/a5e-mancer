@@ -206,6 +206,11 @@ export class A5eCharacterSheet extends ActorSheet {
             const { TokenVision } = await import('../utils/tokenVision.js');
             return (await TokenVision.sync(actor)) ? ['the token\'s darkvision'] : [];
           });
+          // Learned magic maneuvers brought to the catalogue (2026-11-06)
+          await step('magic maneuvers', async () => {
+            const { MagicManeuverPack } = await import('../utils/magicManeuverPack.js');
+            return (await MagicManeuverPack.refreshLearned?.(actor)) ?? [];
+          });
           if (done.length) ui.notifications.info(`${AM.NAME}: ${actor.name} - ${done.join('; ')}.`);
           const fixed = await GrantRepair.run(actor);
           // null: a window was closed unapplied - there was something, so say nothing

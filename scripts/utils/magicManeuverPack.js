@@ -61,7 +61,7 @@ const MM_ICONS = {
 export class MagicManeuverPack {
 
   static PACK_NAME = 'a5e-mancer-magic-maneuvers';
-  static VERSION   = 14;         // bump to force a rebuild after data changes (14: Forewarning, Soul Link, Residue; Ice hampers physical saves; Farsight and Countercast reworded, Countercast 30 ft; one more known at every level)
+  static VERSION   = 15;         // bump to force a rebuild after data changes (15: Residue's exertion is its spell's level)
   /* The feature that gives a magic maneuver caster its exertion pool, kept
      under one id so a character's copy is always recognisable. */
   static FEATURE_ID = 'amMagicManeuvers';
@@ -394,8 +394,99 @@ export class MagicManeuverPack {
         this.ensurePool(actor);
       }, 500));
     });
+    this.#installSpellLevelCost();
   }
   static #timers = new Map();
+
+  /* ── Exertion by the spell's level ───────────────────────────────────────
+     Residue costs exertion equal to the level at which its spell was cast
+     (asked 2026-11-06: a bonus-action attack after every spell for a flat 2
+     was too cheap). a5e charges a resource consumer what the activation's
+     consumption data says, so when such a maneuver is used its exertion
+     becomes the level of the last spell of 1st level or higher this actor
+     cast, as that spell's card states it (system.castingLevel). With none, it
+     charges nothing and says so: the maneuver needs a spell to follow. */
+  static #lastSpell = new Map();            // actor uuid -> { level, at }
+  static #SPELL_WINDOW = 10 * 60 * 1000;
+
+  static #installSpellLevelCost() {
+    const proto = game.a5e?.managers?.RollStateManager?.prototype;
+    if (typeof proto?._preparePostDialogState !== 'function' || proto._preparePostDialogState.amSpellLevelCost) return;
+    Hooks.on('preCreateChatMessage', (message, _data, _options, userId) => {
+      if (userId !== game.user?.id) return;
+      const sys = message.system ?? {};
+      const level = Number(sys.castingLevel);
+      if (!sys.actorId || !(level >= 1)) return;
+      if (fromUuidSync(sys.itemId)?.type !== 'spell') return;
+      this.#lastSpell.set(sys.actorId, { level, at: Date.now() });
+    });
+    const prepare = proto._preparePostDialogState;
+    const wrapped = function (data) {
+      const state = prepare.call(this, data);
+      try { MagicManeuverPack.#chargeBySpellLevel(state); }
+      catch (err) { AM.log(1, 'Magic maneuver exertion by spell level:', err); }
+      return state;
+    };
+    wrapped.amSpellLevelCost = true;
+    proto._preparePostDialogState = wrapped;
+  }
+
+  static #chargeBySpellLevel(state) {
+    const id = state?.item?.flags?.[AM.ID]?.maneuverId;
+    if (!id || !MAGIC_MANEUVERS.find(m => m.id === id)?.costPerSpellLevel) return;
+    // A roll of one half (PartRolls) has no consumers left: nothing to charge
+    const consumer = (state.consumers ?? []).find(c => c?.type === 'resource' && c?.resource === 'exertion');
+    if (!consumer) return;
+    const last = this.#lastSpell.get(state.actor?.uuid);
+    const level = last && Date.now() - last.at < this.#SPELL_WINDOW ? last.level : 0;
+    const name = state.item.name;
+    if (!level) ui.notifications.warn(game.i18n.format('am.mm.no-spell', { name }));
+    else {
+      const have = Number(foundry.utils.getProperty(state.actor?.system ?? {}, 'attributes.exertion.current')) || 0;
+      if (have < level) ui.notifications.warn(game.i18n.format('am.mm.short-exertion', { name, n: level, have }));
+    }
+    const resources = { ...(state.consumptionData?.resources ?? {}) };
+    resources[consumer.id] = { ...(resources[consumer.id] ?? {}), quantity: level };
+    state.consumptionData = { ...(state.consumptionData ?? {}), resources };
+  }
+
+  /**
+   * A character's learned magic maneuvers brought to the catalogue: their
+   * text, exertion and degree, and on their action the reaction line, the
+   * reach and the exertion charged. A learned copy is the character's own and
+   * keeps what the catalogue said when it was learned, so a change to a
+   * maneuver reached nobody who knew it already. From Fill In only, where the
+   * owner asks for it, because edits made by hand to a copy go too.
+   * @returns {Promise<string[]>} what was done, for Fill In's note
+   */
+  static async refreshLearned(actor) {
+    const updates = [];
+    const names = [];
+    for (const item of actor?.items ?? []) {
+      const m = item.type === 'maneuver' && MAGIC_MANEUVERS.find(x => x.id === item.flags?.[AM.ID]?.maneuverId);
+      if (!m) continue;
+      const change = {};
+      const description = this.itemData(m).system.description;
+      if ((item._source.system?.description ?? '') !== description) change['system.description'] = description;
+      if (item._source.system?.exertionCost !== m.cost) change['system.exertionCost'] = m.cost;
+      if (item._source.system?.degree !== m.degree) change['system.degree'] = m.degree;
+      const [actionId, action] = Object.entries(item._source.system?.actions ?? {})[0] ?? [];
+      if (actionId) {
+        const at = `system.actions.${actionId}`;
+        if ((action.activation?.reactionTrigger ?? '') !== (m.reactionTrigger ?? '')) change[`${at}.activation.reactionTrigger`] = m.reactionTrigger ?? '';
+        const [rangeId, range] = Object.entries(action.ranges ?? {})[0] ?? [];
+        if (m.range && !rangeId) change[`${at}.ranges.${foundry.utils.randomID()}`] = { range: m.range, unit: 'feet', value: 0 };
+        else if (m.range && range?.range !== m.range) change[`${at}.ranges.${rangeId}.range`] = m.range;
+        const [consumerId, consumer] = Object.entries(action.consumers ?? {}).find(([, c]) => c?.type === 'resource' && c?.resource === 'exertion') ?? [];
+        if (consumerId && consumer.quantity !== m.cost) change[`${at}.consumers.${consumerId}.quantity`] = m.cost;
+      }
+      if (!Object.keys(change).length) continue;
+      updates.push({ _id: item.id, ...change });
+      names.push(item.name);
+    }
+    if (updates.length) await actor.updateEmbeddedDocuments('Item', updates);
+    return names.map(n => `${n}: as the catalogue has it now`);
+  }
 
   /** For the GM, once a session: the characters who learned magic maneuvers before this. */
   static async sweep() {
