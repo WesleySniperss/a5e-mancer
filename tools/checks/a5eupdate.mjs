@@ -26,6 +26,10 @@
  *      a block whose place is gone goes to the end - and what can be dropped
  *      from the data the next time tools/import/build-site-text.cjs runs.
  *
+ *   8. a5e 1.5.0's faults the module puts right - roll classes renamed, a
+ *      resource read whole in a formula, quantity consumers, resource grants
+ *      shipped marked applied (with --packs) - and whether each still is.
+ *
  * A difference is a place to look, not a verdict - the README's rule.
  *
  *   node tools/checks/a5eupdate.mjs [--packs] [--system <path to systems/a5e>]
@@ -42,22 +46,25 @@ const SYS = at >= 0 ? argv[at + 1] : path.resolve(R, '..', '..', 'systems', 'a5e
 const WANT_PACKS = argv.includes('--packs');
 
 /* What this file was last brought up to date with. */
-const CHECKED_WITH = '1.4.10';
+const CHECKED_WITH = '1.5.0';
 
+/* 1.5.0 added resource (in ResourceGrants.ts: the file names are read both ways). */
 const KNOWN_GRANT_TYPES = new Set([
   'ability', 'attack', 'currency', 'damage', 'exertion', 'expertiseDice', 'feature', 'healing',
-  'hitPoint', 'initiative', 'item', 'maneuver', 'movement', 'proficiency', 'rollOverride',
+  'hitPoint', 'initiative', 'item', 'maneuver', 'movement', 'proficiency', 'resource', 'rollOverride',
   'senses', 'settings', 'skill', 'skillSpecialty', 'spell', 'trait'
 ]);
 
-/* type/selectionType in a5e 1.4.10's packs; "-" is a grant still in 1.3's
-   shape, which a5e migrates as it loads. */
+/* type/selectionType in a5e 1.5.0's packs; "-" is a grant still in 1.3's
+   shape, which a5e migrates as it loads. 1.5.0 added the class resources
+   (resource/-, 132) and a choice of skill specialties (skillSpecialty/limited,
+   3) - both taken by the builder as they are, checked with tools/checks/a5e150.mjs. */
 const KNOWN_SHAPES = new Set([
   'ability/-', 'attack/-', 'currency/-', 'damage/-', 'exertion/-', 'expertiseDice/-',
   'feature/-', 'feature/limited', 'feature/pool', 'healing/-', 'hitPoint/-', 'initiative/-',
   'item/-', 'item/limited', 'maneuver/limited', 'maneuver/pool', 'movement/-', 'proficiency/-',
-  'rollOverride/-', 'senses/-', 'settings/-', 'skill/-', 'skillSpecialty/-', 'spell/limited',
-  'spell/pool', 'trait/-', '/-'
+  'resource/-', 'rollOverride/-', 'senses/-', 'settings/-', 'skill/-', 'skillSpecialty/-',
+  'skillSpecialty/limited', 'spell/limited', 'spell/pool', 'trait/-', '/-'
 ]);
 const KNOWN_ITEM_TYPES = new Set(['archetype', 'background', 'class', 'culture', 'destiny', 'feature',
   'heritage', 'maneuver', 'object', 'spell', 'interaction', 'hacking', 'monsterFeature']);
@@ -178,11 +185,11 @@ say('\npool filters (grantPools FILTERS)');
 /* ── 3. grant types and their selection modes ── */
 say('\ngrant types');
 {
-  const files = [...sources.keys()].filter(p => /dataModels\/item\/Grants\/(\w+)Grant\.ts$/.test(p) && !/BaseGrant/.test(p));
+  const files = [...sources.keys()].filter(p => /dataModels\/item\/Grants\/(\w+?)Grants?\.ts$/.test(p) && !/BaseGrant/.test(p));
   if (!files.length) flag('no grant sources found');
   const pools = new Set(Object.keys(literal(ours('scripts/utils/grantPools.js'), 'FILTERS') ?? {}));
   for (const file of files) {
-    const name = file.match(/(\w+)Grant\.ts$/)[1];
+    const name = file.match(/(\w+?)Grants?\.ts$/)[1];
     const type = name[0].toLowerCase() + name.slice(1);
     const text = sources.get(file);
     const modes = text.match(/selectionType:\s*new fields\.StringField\(\{[\s\S]*?choices:\s*\{([^}]*)\}/)?.[1];
@@ -195,7 +202,8 @@ say('\ngrant types');
     const unknownModes = choices.filter(c => c !== 'limited' && c !== 'pool');
     if (unknownModes.length) flag(`${type}: selection mode(s) ${unknownModes.join(', ')}`);
   }
-  const missing = [...KNOWN_GRANT_TYPES].filter(t => !files.some(f => f.endsWith(`/${t[0].toUpperCase()}${t.slice(1)}Grant.ts`)));
+  const fileOf = (t) => new RegExp(`/${t[0].toUpperCase()}${t.slice(1)}Grants?\\.ts$`);
+  const missing = [...KNOWN_GRANT_TYPES].filter(t => !files.some(f => fileOf(t).test(f)));
   if (missing.length) flag(`gone from a5e: ${missing.join(', ')}`);
   else if (files.length) ok(`${files.length} grant types, none new`);
 }
@@ -221,6 +229,24 @@ say('\neffect phases');
   else ok('a5e\'s applyActiveEffects still lacks core\'s once-a-phase test - effectPhaseOnce stays needed');
 }
 
+/* ── 4c. what a5e 1.5.0 broke, put right by a5eFixes while it is so ── */
+say('\na5e 1.5 faults');
+{
+  let bundle = '';
+  try { bundle = fs.readFileSync(path.join(SYS, 'a5e.js'), 'utf8'); } catch { /* the map alone */ }
+  const rollName = bundle.match(/BaseRoll = class ([\w$]+) extends Roll\b/)?.[1];
+  if (!rollName) say('  -  BaseRoll\'s declaration not found in a5e.js: is oldRollNames still right?');
+  else if (rollName === 'e') ok('a5e\'s rolls are still called "e", as 1.4 stored them - oldRollNames stays off');
+  else ok(`a5e's rolls are called "${rollName}" - oldRollNames reads the ones 1.4 stored as "e"`);
+  const action = source('dataModels/item/actions/ActionDataModel.ts') ?? '';
+  if (/quantity:\s*grouped\.hitDice/.test(action)) ok('getConsumersByType still files quantity under hitDice (#714) - quantityConsumers stays needed');
+  else say('  -  getConsumersByType reads quantity again: a5eFixes.quantityConsumers turns itself off');
+  const resources = source('dataModels/fields/ResourcesField.ts');
+  if (resources === null) say('  -  ResourcesField.ts not found: an a5e before 1.5, or it moved');
+  else if (/toString\s*\(/.test(resources)) say('  -  a5e\'s resources give a figure of their own in a formula: resourceFormulas turns itself off');
+  else ok('a resource read whole in a formula is still an object - resourceFormulas stays needed');
+}
+
 /* ── 5. names the module leans on ── */
 say('\na5e methods the module wraps or calls');
 {
@@ -243,6 +269,7 @@ if (WANT_PACKS) {
     try {
       fs.cpSync(path.join(SYS, 'packs'), copy, { recursive: true, filter: (src) => path.basename(src) !== 'LOCK' });
       const shapes = new Map(), itemTypes = new Map(), actorTypes = new Map();
+      let resourceGrants = 0, shippedApplied = 0;
       const note = (map, key, where) => { if (!map.has(key)) map.set(key, []); map.get(key).push(where); };
       const { SITE_TEXT } = await import(pathToFileURL(path.join(R, 'scripts', 'data', 'siteText.js')).href);
       const siteDocs = new Map();       // a5e's documents the site text completes, by id
@@ -257,6 +284,7 @@ if (WANT_PACKS) {
             if (SITE_TEXT.entries[doc._id]) siteDocs.set(doc._id, doc);
             for (const g of Object.values(doc.system?.grants ?? {})) {
               note(shapes, `${g?.type || g?.grantType || ''}/${g?.config?.selectionType ?? '-'}`, `${pack}:${doc.name}`);
+              if ((g?.type || g?.grantType) === 'resource') { resourceGrants++; if (g?.applied?.isApplied) shippedApplied++; }
             }
           } else if (/^!actors![^.!]+$/.test(key)) note(actorTypes, doc.type, `${pack}:${doc.name}`);
         }
@@ -272,6 +300,8 @@ if (WANT_PACKS) {
       report('actor type', actorTypes, KNOWN_ACTOR_TYPES);
       const pools = [...shapes].filter(([k]) => k.endsWith('/pool'));
       if (pools.length) say(`  -  pool grants: ${pools.map(([k, w]) => `${k} x${w.length}`).join(', ')}`);
+      if (shippedApplied) ok(`${shippedApplied} of ${resourceGrants} resource grants ship marked applied - a5eFixes.resourceEntries stays needed`);
+      else if (resourceGrants) say(`  -  no resource grant ships marked applied any more (${resourceGrants} in all): resourceEntries only mends older characters`);
 
       say('\ntext added from a5e.tools, against a5e\'s text now');
       const core = await import(pathToFileURL(path.join(R, 'scripts', 'utils', 'siteTextCore.js')).href);

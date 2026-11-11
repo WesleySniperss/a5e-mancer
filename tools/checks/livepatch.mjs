@@ -121,6 +121,8 @@ try {
          writes after it, so those are waited out before the redraw. */
       /* A write to the actor, or to one of its items: { __item: id, data };
          the armour class correction at an amount, 0 for none: { __acFix: n };
+         a change of turn, which writes nothing and has core ask every
+         combatant's sheet to redraw: { __turn: 1 };
          or several of those in turn: [ ... ]. */
       const acFix = (n, options) => {
         const fx = st.actor.effects.find((e) => e.flags?.['a5e-mancer']?.acCorrection);
@@ -134,6 +136,7 @@ try {
         if (Array.isArray(data)) { for (const d of data) await write(d, options); return; }
         if (data && data.__item) return st.actor.items.get(data.__item).update(data.data, options);
         if (data && '__acFix' in data) return acFix(data.__acFix, options);
+        if (data && '__turn' in data) return options?.render === false ? null : st.actor.render(false, { renderContext: 'updateCombat' });
         return st.actor.update(data, options);
       };
       const full = async (data) => {
@@ -217,6 +220,12 @@ try {
     { name: 'a spell slot spent', redraws: (a) => (a.slotDrawn ? 0 : 1), skipUnless: 'slot',
       from: (a) => ({ [`system.spellResources.slots.${a.slotLevel}.current`]: a.slotMax }),
       to:   (a) => ({ [`system.spellResources.slots.${a.slotLevel}.current`]: Math.max(0, a.slotMax - 1) }) },
+    /* A tracker stepped by a5e - Channel Divinity or Rage spent by an action,
+       refilled by a rest - which writes the resource's value (a5e 1.5:
+       system.resources.<slug>.value). The figure and its bar. */
+    { name: 'a class resource spent', redraws: 0, skipUnless: 'resource',
+      from: (a) => ({ [a.resourcePath]: a.resourceMax }),
+      to:   (a) => ({ [a.resourcePath]: Math.max(0, a.resourceMax - 1) }) },
     /* The armour class typed in on the unlocked sheet is an effect of this
        sheet's (utils/armorClass.js). Its amount changing moves the figure on
        the shield - a field while unlocked - and the breakdown in its tooltip,
@@ -232,6 +241,13 @@ try {
     { name: 'a condition’s rounds counted down', redraws: 0,
       from: () => ({ 'flags.a5e-mancer.durations.blinded': 3 }),
       to:   () => ({ 'flags.a5e-mancer.durations.blinded': 2 }) },
+    /* A change of turn: core has every combatant's sheet redraw (renderContext
+       "updateCombat"). Nothing on the sheet is drawn from the encounter, so it
+       stays as it is - two whole redraws a turn with two sheets open were the
+       module's largest cost in a fight (2026-11-10). */
+    { name: 'a change of turn', redraws: 0,
+      from: () => ({ 'system.attributes.hp.value': 9 }),
+      to:   () => ({ __turn: 1 }) },
     /* Coins: the field in the purse, and the carried weight where coins count.
        Credits are drawn only while held, so their first coin is a redraw. */
     { name: 'gold paid out', redraws: 0,
@@ -287,6 +303,13 @@ try {
                  const spell = a.items.find(i => i.type === 'spell' && Number(i.system?.level ?? 0) > 0 && Number(i.system?.prepared ?? 0) < 2 && drawn(i));
                  return { armorId: obj('armor')?.id ?? null, weaponId: obj('weapon')?.id ?? null, spellId: spell?.id ?? null };
                })(),
+               ...(() => {
+                 const input = [...window.__am.st.sheet.element[0].querySelectorAll('.am-tracker [data-action="resource-value"]')]
+                   .find(i => i.closest('.am-tracker')?.querySelector('.max') && Number(i.closest('.am-tracker').querySelector('.max').textContent) >= 1);
+                 return { resourcePath: input?.dataset.path ?? null,
+                          resourceMax: input ? Number(input.closest('.am-tracker').querySelector('.max').textContent) : null,
+                          resourceWas: input ? (foundry.utils.getProperty(a._source, input.dataset.path) ?? null) : null };
+               })(),
                nodes: window.__am.st.sheet.element[0].querySelectorAll('*').length };
     })()`);
 
@@ -306,6 +329,8 @@ try {
       if (rounds === undefined) r['flags.a5e-mancer.durations.-=blinded'] = null;
       else r['flags.a5e-mancer.durations.blinded'] = rounds;
       for (const coin of ['gp', 'sp', 'cr']) r['system.currency.' + coin] = a.system.currency?.[coin] ?? 0;
+      const res = ${JSON.stringify(facts.resourcePath)};
+      if (res && ${JSON.stringify(facts.resourceWas)} !== null) r[res] = ${JSON.stringify(facts.resourceWas)};
       const weighed = a.flags?.a5e?.trackCurrencyWeight;
       if (weighed === undefined) r['flags.a5e.-=trackCurrencyWeight'] = null;
       else r['flags.a5e.trackCurrencyWeight'] = weighed;
@@ -324,6 +349,7 @@ try {
       if (c.skipUnless === 'armor' && !facts.armorId) continue;
       if (c.skipUnless === 'weapon' && !facts.weaponId) continue;
       if (c.skipUnless === 'spell' && !facts.spellId) continue;
+      if (c.skipUnless === 'resource' && !facts.resourcePath) continue;
       const from = JSON.stringify(c.from(facts));
       const to   = JSON.stringify(c.to(facts));
       step(`${facts.name}: ${c.name}`);

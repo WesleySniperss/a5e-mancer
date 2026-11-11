@@ -751,6 +751,14 @@ On 1.4.10: 826 documents, 161 blocks, 1341 links, all as they were made for.
 When it flags something, bring the module up to date, then the lists at the
 top of the file - `CHECKED_WITH` and the known shapes and types.
 
+Since 1.5.0 it also says, for each fault of 1.5.0's that `a5eFixes` puts right,
+whether a5e still has it: its roll classes renamed ("e" in 1.4, "_" in 1.5.0),
+a resource read whole in a formula giving an object, the quantity consumer filed
+under hit dice (a5e's #714), and with `--packs` the resource grants its packs
+ship marked applied (132 of 132 in 1.5.0). The grant files are read as
+`XGrant.ts` and `XGrants.ts`: 1.5.0's resource grant is the second, and was
+missed as "none new" until it was.
+
 ## `links.mjs` — live
 
     node tools/checks/links.mjs --url <a copy's url> --user <a GM's user id> [--packs]
@@ -885,3 +893,45 @@ hand on a spell's status and taken off again, a level of fatigue, another token,
 two tokens, a scene drawn again - and from a player's client, since the GM's
 counts and the player's has to show it. Point `--shots` at a directory to look
 at the icons yourself; a number in a screenshot is what was asked for.
+
+## `graphics.mjs` — live, with the canvas
+
+    node tools/checks/graphics.mjs --url <a copy's url> --user <a GM's user id>
+
+"Every round the page reloaded, or stopped counting, or showed a white screen"
+(2026-11-10, the GM's weak laptop, in a fight). The console had every WebGL
+context of the page lost at once, then Dice So Nice unable to make a new one,
+which holds every roll's card behind an animation it never runs. A browser cannot
+be made to crash its graphics on request, so the losses are made with WebGL's own
+`WEBGL_lose_context` and held for as long as a case needs. It checks the Graphics
+Guard with the canvas on: a context taken straight back draws nothing again; one
+gone for three seconds is said, and the scene drawn again (the screen read back);
+one not back after ten is said with what to do; twice in twenty minutes offers
+light graphics, and "no" changes nothing; the dice box rebuilt with no context to
+be had shows the held roll and every later one at once; light graphics sets core's
+four settings and makes no dice canvas after a reload, and off puts every one back
+without having written to the user; the connection lost for seven seconds makes
+Foundry reload, and the next page says why; a page that ended without closing is
+told apart. It writes this browser's client settings only, and puts them back.
+
+## `a5e150.mjs` — live
+
+    node tools/checks/a5e150.mjs --url <a copy's url> --user <a GM's user id>
+
+What a5e 1.5.0 broke that the module puts right, on characters the builder makes
+the way a player does (`DOMManager.loadItemGrants`, then `createCharacter`):
+every message stored under 1.4 keeps its rolls (151 of 1052 in a copy of the
+user's world) and one written as 1.4 wrote it is read with its total; a Berserker
+starts with Rage stored and full and both start with full hit points (the
+builder left the actor's default of 10), a5e's own spending of it is kept, and with its
+entry taken away a write is dropped - what 1.5.0 does - until `resourceEntries`
+stores it again; `((@resource.sneak-attack)d6)` is 1d6 at 1st level and a dagger
+attack with Sneak Attack ticked rolls it; a Potion of Healing drunk leaves two of
+three (#714); and on the sheet Rage is a tracker stepped in place, by its minus
+and by a5e, Rage Hit Points is shown as its figure, and unlocked a tracker is
+made, named and taken away. On an a5e before 1.5 it says so and stops.
+
+Run the whole set on a copy with only one browser logged in as the GM: a check's
+browser left behind by an interrupted run stays logged in, and a5e's createActor
+hook then adds the basic actions once per GM client (159 items, not 53), and every
+write is answered twice.
