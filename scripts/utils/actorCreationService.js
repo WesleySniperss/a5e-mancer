@@ -69,6 +69,19 @@ export class ActorCreationService {
       try { await TokenVision.sync(actor, { force: true }); }
       catch (err) { AM.log(2, 'Token vision could not be set:', err); }
 
+      // A new character starts rested: its current hit points at the maximum its
+      // class, heritage and features have just made. The class's hit points are
+      // written to the class (hp.levels), which moves the maximum and leaves the
+      // current figure at the actor's default of 10: 27 of 31 characters made on a
+      // copy of the user's world read 10/14, 10/8 - or 10/4, above their maximum.
+      try {
+        const hp = actor.system?.attributes?.hp;
+        const max = Number(hp?.max);
+        if (Number.isFinite(max) && max > 0 && Number(hp.value) !== max) {
+          await actor.update({ 'system.attributes.hp.value': max });
+        }
+      } catch (err) { AM.log(2, 'Starting hit points could not be set:', err); }
+
       ui.notifications.info(
         game.i18n.format('am.app.character-created', { name: actor.name }),
         { permanent: false }

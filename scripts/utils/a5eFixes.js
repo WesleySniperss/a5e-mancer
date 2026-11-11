@@ -19,6 +19,9 @@ export class A5eFixes {
     this.skillExpertise();
     this.damageBonusFormulas();
     this.paralyzedAdvantage();
+    this.hudPalette();
+    this.quantityConsumers();
+    this.resourceEntriesWatch();
   }
 
   /**
@@ -174,6 +177,60 @@ export class A5eFixes {
   }
 
   /**
+   * The token HUD's status palette, taken down before the next one stays.
+   * a5e 1.4 mounts its Svelte palette on every render of the HUD
+   * (renderTokenHUDA5E: `hud._svelteComponent = mount(…)`) and unmounts only
+   * the last one, when the HUD closes. Every render in between leaves a whole
+   * palette alive - its 86 buttons, their listeners, its effects - and in a
+   * fight the HUD renders two or three times a turn: a combatant written to,
+   * the token written to, Combat Booster opening it for whoever's turn it is.
+   * Measured 2026-11-10 on the user's modules: 306 DOM nodes and 143 listeners
+   * more per turn, never released, the nodes the same with this module off.
+   *
+   * Svelte's unmount is inside a5e's bundle, and a5e's own _onClose is the one
+   * place that calls it. So the palette left behind is handed to that method,
+   * with the parent's _onClose (which would unbind the HUD) stood in for
+   * during the call. Wherever a5e's _onClose no longer reads this way, nothing
+   * is done; and once a5e takes the old palette down itself, taking it down
+   * again here does nothing (Svelte ignores a component it no longer holds).
+   * At ready: after a5e's own hook, which has to have mounted the new one.
+   */
+  static hudPalette() {
+    if (this.#done.has('hudPalette')) return;
+    this.#done.add('hudPalette');
+    const kept = new WeakMap();   // HUD -> the palette a5e mounted at its last render
+    let fault = null;             // decided at the first render: can a palette be taken down at all
+    const decide = (hud) => {
+      const proto = Object.getPrototypeOf(hud);
+      const close = Object.hasOwn(proto, '_onClose') ? proto._onClose : null;
+      if (typeof close !== 'function' || !/unmount\(\s*this\._svelteComponent\s*\)/.test(String(close))) return false;
+      return { proto, close };
+    };
+    const takeDown = (palette) => {
+      const base = Object.getPrototypeOf(fault.proto);
+      const own = Object.getOwnPropertyDescriptor(base, '_onClose');
+      Object.defineProperty(base, '_onClose', { value() {}, configurable: true, writable: true });
+      try { fault.close.call({ _svelteComponent: palette }); }
+      finally {
+        if (own) Object.defineProperty(base, '_onClose', own);
+        else delete base._onClose;
+      }
+    };
+    Hooks.on('renderTokenHUDA5e', (hud) => {
+      try {
+        fault ??= decide(hud);
+        if (!fault) return;
+        const fresh = hud._svelteComponent ?? null;
+        const old = kept.get(hud) ?? null;
+        if (fresh) kept.set(hud, fresh); else kept.delete(hud);
+        if (old && old !== fresh) takeDown(old);
+      } catch (err) { AM.log(1, 'The token HUD\'s old palette could not be taken down:', err); }
+    });
+    // a5e's _onClose has unmounted the last one itself
+    Hooks.on('closeTokenHUDA5e', (hud) => kept.delete(hud));
+  }
+
+  /**
    * An actor's effect starts when it is made. Foundry's
    * ActiveEffect#_preCreate records when (the world time, and the combat,
    * round and turn), and that start is what its duration counts down from
@@ -201,6 +258,200 @@ export class A5eFixes {
     };
     wrapped.amEffectStart = true;
     proto._preCreate = wrapped;
+  }
+
+  /**
+   * a5e 1.5.0 renamed its rolls in passing. Its build gives each roll class a
+   * one-letter name, the same for all three - BaseRoll, D20Roll and
+   * DamageRoll were all "e" in 1.4 and are all "_" in 1.5.0 - and a chat
+   * message stores the name of its rolls' class, which Foundry looks up when
+   * it reads the message. Every roll stored under 1.4 is now "Unable to
+   * recreate e instance from provided data": the card keeps its text and
+   * loses its rolls (no damage to apply from it, no total for a module to
+   * read), with an error in the console for each one at every load - 260 in
+   * a copy of the user's world. Found 2026-11-11.
+   * The old name is given back: a class called "e" that is a5e's BaseRoll,
+   * which is what 1.4 itself made of all three when it read them (the first
+   * class of that name). An a5e that still has the name is left alone.
+   * At init: the world's messages are read before setup.
+   */
+  static oldRollNames() {
+    if (this.#done.has('oldRollNames')) return;
+    this.#done.add('oldRollNames');
+    const rolls = CONFIG.Dice?.rolls;
+    const D20Roll = game.a5e?.dice?.D20Roll;
+    const BaseRoll = typeof D20Roll === 'function' ? Object.getPrototypeOf(D20Roll) : null;
+    if (!Array.isArray(rolls) || typeof BaseRoll !== 'function' || !(BaseRoll.prototype instanceof Roll)) return;
+    if (rolls.some((cls) => cls?.name === 'e')) return;
+    const named = { e: class extends BaseRoll {} };
+    rolls.push(named.e);
+    AM.log(3, 'a5e fix: rolls stored under a5e 1.4 are read again');
+  }
+
+  /**
+   * a5e 1.5.0 keeps class resources on the character, each a resource of its
+   * own (system.resources.<slug>, from the class's resource grants), and
+   * rewrote every formula that read them: @classResources.sneak-attack is
+   * now @resource.sneak-attack. What that names in a roll's data is the
+   * resource itself, an object, and Foundry writes an object into a formula
+   * as its JSON - "((@resource.sneak-attack)d6)" is "Unresolved StringTerm
+   * ... requested for evaluation", and the attack it is added to does not
+   * roll. Sneak Attack, Martial Arts, Divine Smite, Bardic Inspiration and
+   * fifty more of a5e's features read their figure this way (its packs,
+   * counted 2026-11-11).
+   * 1.4 put the class table's figure there, worked out where it could be and
+   * left as dice where it could not. A resource asked for whole gives the
+   * same again: a "uses" resource its maximum, a counter its count, a dice
+   * resource its die. @resource.x.value and the other fields read as before.
+   * An a5e that gives its resources a figure of its own is left alone.
+   * At init: before anything is rolled.
+   */
+  static resourceFormulas() {
+    if (this.#done.has('resourceFormulas')) return;
+    this.#done.add('resourceFormulas');
+    const proto = CONFIG.Actor?.documentClass?.prototype;
+    const original = proto?.getRollData;
+    if (typeof original !== 'function') return;
+    const Model = foundry.abstract.DataModel;
+    const seen = new WeakSet();
+    const busy = new Set();
+    /* The figure; `this` is the resource. */
+    function figure() {
+      const key = this.slug || this.name || '';
+      if (busy.has(key)) return '0';
+      busy.add(key);
+      try {
+        if (this.type === 'counter') return String(Number(this.value) || 0);
+        if (this.type === 'dice' && typeof this.getFormula === 'function') return String(this.getFormula(1));
+        const raw = String(this.max ?? '').trim();
+        if (!raw) return String(Number(this.value) || 0);
+        const actor = this.parent instanceof Actor ? this.parent : (this.getNearestDocument?.() ?? null);
+        const data = actor?.getRollData?.() ?? {};
+        try {
+          const n = game.a5e?.utils?.getDeterministicBonus?.(raw, data, { strict: true });
+          if (n !== null && n !== undefined && n !== '' && Number.isFinite(Number(n))) return String(n);
+        } catch { /* dice: kept as dice, as 1.4 kept them */ }
+        return Roll.replaceFormulaData(raw, data, { missing: '0' }).trim() || '0';
+      } catch { return '0'; }
+      finally { busy.delete(key); }
+    }
+    proto.getRollData = function getRollData(...args) {
+      const data = original.apply(this, args);
+      try {
+        for (const resource of Object.values(data?.resource ?? {})) {
+          if (!(resource instanceof Model)) continue;
+          const kind = Object.getPrototypeOf(resource);
+          if (seen.has(kind)) continue;
+          seen.add(kind);
+          if (Object.hasOwn(kind, 'toString')) continue;
+          Object.defineProperty(kind, 'toString', { value: figure, configurable: true, writable: true });
+          AM.log(3, `a5e fix: a ${resource.type ?? 'named'} resource read whole in a formula gives its figure`);
+        }
+      } catch { /* the roll data as a5e made it */ }
+      return data;
+    };
+  }
+
+  /**
+   * a5e 1.5.0: a resource a class grants is only prepared data until its
+   * entry is stored, and a value written to a resource with no stored entry
+   * is dropped without a word - by a5e's own consumers and rests as much as
+   * by any sheet. a5e stores the entry when its grant window applies the
+   * grant; its packs ship every one of those grants marked as applied
+   * already (all 132, from its own migration script), so a builder that
+   * leaves applied grants alone never stores them, and its migration of 1.4
+   * characters stored only the resources a character had once spent. A
+   * Berserker made or migrated under 1.5.0 shows Rage 0/2 and can neither
+   * spend nor regain it. Found 2026-11-11.
+   * The entry is stored, full - what 1.4 showed for a resource never spent -
+   * for every granted resource that has none: at ready on the GM's client,
+   * when an item with a resource grant is added (by whoever added it), and
+   * by Fill In.
+   * @returns {Promise<string[]>} the names of the resources stored
+   */
+  static async resourceEntries(actor) {
+    if (!actor?.isOwner || !foundry.utils.isNewerVersion(game.system?.version ?? '0', '1.4.999')) return [];
+    const grants = actor.grants?.byType?.('resource') ?? [];
+    if (!grants.length) return [];
+    const stored = actor._source?.system?.resources ?? {};
+    if ('classResources' in stored) return [];   // not migrated yet
+    const update = {}, names = [];
+    let data = null;
+    for (const grant of grants) {
+      const slug = grant.config?.slug || grant.name?.slugify?.({ strict: true }) || '';
+      const key = `system.resources.${slug}`;
+      if (!slug || slug in stored || key in update) continue;
+      const type = grant.config?.type || 'uses';
+      let value = 0;
+      if (type !== 'counter') {
+        data ??= actor.getRollData();
+        try {
+          value = Number(game.a5e?.utils?.getDeterministicBonus?.(String(actor.system?.resources?.[slug]?.max ?? ''), data, { strict: true })) || 0;
+        } catch { value = 0; }
+      }
+      update[key] = { name: grant.name || slug, slug, type, value: Math.max(0, value) };
+      names.push(grant.name || slug);
+    }
+    if (!names.length) return [];
+    await actor.update(update);
+    AM.log(3, `${actor.name}: class resources stored - ${names.join(', ')}`);
+    return names;
+  }
+
+  /** resourceEntries for the world at ready, and for each item that brings a resource grant. */
+  static resourceEntriesWatch() {
+    if (this.#done.has('resourceEntries')) return;
+    this.#done.add('resourceEntries');
+    if (!foundry.utils.isNewerVersion(game.system?.version ?? '0', '1.4.999')) return;
+    const waiting = new Map();
+    const later = (actor) => {
+      if (!actor || waiting.has(actor.uuid)) return;
+      waiting.set(actor.uuid, setTimeout(() => {
+        waiting.delete(actor.uuid);
+        this.resourceEntries(actor).catch((err) => AM.log(2, `Class resources of ${actor.name}:`, err));
+      }, 400));
+    };
+    const brings = (item) => Object.values(item?._source?.system?.grants ?? {}).some((g) => (g?.type ?? g?.grantType) === 'resource');
+    Hooks.on('createItem', (item, _options, userId) => {
+      if (userId === game.user.id && item.parent instanceof Actor && brings(item)) later(item.parent);
+    });
+    if (!game.user?.isGM || game.users?.activeGM?.id !== game.user.id) return;
+    for (const actor of game.actors ?? []) {
+      if (actor.items.some(brings)) later(actor);
+    }
+  }
+
+  /**
+   * a5e 1.4.10 and 1.5.0: an action's quantity consumer - a potion drunk, a
+   * kit's uses kept as its quantity - spends nothing. getConsumersByType files
+   * it under hitDice (`quantity: grouped.hitDice?.at(0)`, a line copied from
+   * the one above), so what a5e consumes never includes it. a5e's own issue
+   * #714, open since 2026-11-09. Put right only while the line is wrong.
+   * At ready.
+   */
+  static quantityConsumers() {
+    if (this.#done.has('quantityConsumers')) return;
+    this.#done.add('quantityConsumers');
+    let model = null;
+    for (const data of Object.values(CONFIG.Item?.dataModels ?? {})) {
+      const field = data?.schema?.fields?.actions;
+      const cls = field?.element?.model ?? field?.model ?? null;
+      if (typeof cls?.prototype?.getConsumersByType === 'function') { model = cls; break; }
+    }
+    const proto = model?.prototype;
+    const original = proto?.getConsumersByType;
+    if (typeof original !== 'function') return;
+    if (!/quantity\s*:\s*[\w$]+\.hitDice\b/.test(String(original))) return;
+    proto.getConsumersByType = function getConsumersByType(...args) {
+      const grouped = original.apply(this, args);
+      try {
+        if (grouped && typeof grouped === 'object') {
+          grouped.quantity = Object.values(this.consumers ?? {}).find((c) => c?.type === 'quantity') ?? null;
+        }
+      } catch { /* a5e's answer */ }
+      return grouped;
+    };
+    AM.log(3, 'a5e fix: quantity consumers spend what they name');
   }
 
   /**

@@ -73,7 +73,14 @@ export class FeatureAutomation {
     const actions = item.system?.actions;
     const count = actions instanceof Map ? actions.size : Object.keys(actions ?? {}).length;
     if (count) return false;
-    await item.update({ 'system.actions.amSneakAttack001': foundry.utils.deepClone(action) });
+    /* a5e 1.5 reads a class's figure as @resource.<slug>, and rewrote 1.4's
+       @classResources.<slug> in every stored formula when it migrated: one
+       written in the old form now would roll nothing. */
+    let made = foundry.utils.deepClone(action);
+    if (foundry.utils.isNewerVersion(game.system?.version ?? '0', '1.4.999')) {
+      made = JSON.parse(JSON.stringify(made).replaceAll('@classResources.', '@resource.'));
+    }
+    await item.update({ 'system.actions.amSneakAttack001': made });
     AM.log(3, `${item.name}: given a roll of its own`);
     return true;
   }

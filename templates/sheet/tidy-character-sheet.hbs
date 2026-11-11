@@ -547,6 +547,16 @@
          maximum — that is how a tracker for anything at all gets made. Locked,
          only the ones that have a maximum, or that hide it, are shown. --}}
     {{#each actorResources}}
+      {{#if this.figure}}
+      {{!-- a5e 1.5: a figure from the class table, which formulas read as
+           @resource.<slug> - Sneak Attack's dice, Martial Arts' die. It has no
+           recovery and nothing to spend, so it is shown, not stepped. --}}
+      <div class="am-a5e-stat am-tracker am-tracker-class am-tracker-figure"
+        data-tooltip="{{this.label}}: {{this.figure}}">
+        <span class="am-a5e-label font-label-medium color-text-gold">{{this.label}}</span>
+        <span class="am-a5e-value am-tracker-figure-value">{{this.figure}}</span>
+      </div>
+      {{else}}
       <div class="am-a5e-stat am-tracker{{#if this.isClassResource}} am-tracker-class{{/if}}"
         data-tooltip="{{#if this.label}}{{this.label}}{{else}}Unnamed tracker{{/if}}">
         {{#if @root.unlocked}}
@@ -554,7 +564,7 @@
             <span class="am-a5e-label font-label-medium color-text-gold">{{this.label}}</span>
           {{else}}
             <input type="text" class="uninput am-tracker-name font-label-medium color-text-gold"
-              data-action="resource-field" data-resource="{{this.key}}" data-field="label"
+              data-action="resource-field" data-resource="{{this.key}}" data-field="{{this.labelField}}"
               value="{{this.label}}" placeholder="Name it…" aria-label="Tracker name" />
           {{/if}}
         {{else}}
@@ -596,15 +606,26 @@
           {{else}}
             {{!-- max is a formula, not a number, so it is a text field: @prof
                  and the like are what a5e stores here. --}}
+            {{#unless this.isCounter}}
             <span class="am-a5e-value color-text-lighter">/</span>
             <input type="text" class="uninput am-tracker-max"
               data-action="resource-field" data-resource="{{this.key}}" data-field="max"
               value="{{this.maxFormula}}" placeholder="max" aria-label="{{this.label}} maximum" />
+            {{/unless}}
+            {{#if this.canHideMax}}
             <label class="am-tracker-hidemax" data-tooltip="Hide the maximum">
               <input type="checkbox" data-action="resource-field"
                 data-resource="{{this.key}}" data-field="hideMax"
                 {{#if this.hideMax}}checked{{/if}} aria-label="Hide the maximum" />
             </label>
+            {{/if}}
+            {{#if this.removable}}
+            <button type="button" class="button button-borderless button-icon-only am-tracker-remove"
+              data-action="resource-remove" data-resource="{{this.key}}"
+              data-tooltip="Remove this tracker" aria-label="Remove {{this.label}}">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+            {{/if}}
           {{/if}}
         {{/if}}
 
@@ -614,7 +635,16 @@
           <i class="fa-solid fa-plus"></i>
         </button>
       </div>
+      {{/if}}
     {{/each}}
+    {{!-- a5e 1.5 has no free slots to name: a tracker is made, as its own
+         sheet makes one, and removed again with the cross beside it. --}}
+    {{#if @root.unlocked}}{{#if @root.namedResources}}
+      <button type="button" class="button button-borderless am-tracker-add"
+        data-action="resource-add" data-tooltip="Add a tracker" aria-label="Add a tracker">
+        <i class="fa-solid fa-plus"></i> Tracker
+      </button>
+    {{/if}}{{/if}}
 
     {{!-- Our own two counters, kept in a flag rather than on the actor, for
          things a5e has no field for. They have always been saved and stepped

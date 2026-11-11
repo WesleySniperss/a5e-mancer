@@ -174,7 +174,7 @@ export class ForeignMarkup {
   /** "@spellcasting.mod" -> "spellcasting mod", "@abilities.str.mod" -> "str mod" */
   static #words(formula) {
     return String(formula ?? '').replace(/@([\w.\-]+)/g, (_, path) => {
-      const bits = path.split('.').filter(b => !['abilities', 'attributes', 'system', 'details', 'classResources'].includes(b));
+      const bits = path.split('.').filter(b => !['abilities', 'attributes', 'system', 'details', 'classResources', 'resource'].includes(b));
       return bits.slice(-2).join(' ').replace(/-/g, ' ');
     }).replace(/\s+/g, ' ').trim();
   }

@@ -409,7 +409,35 @@ const currency = {
   }
 };
 
-const RULES = [hitPoints, deathSaves, conditions, conditionRounds, armorClass, itemStates, exertion, spellSlots, currency];
+/**
+ * A tracker's figure: a resource's value, which a5e steps when an action
+ * spends it (Channel Divinity, Rage) and a rest refills. a5e 1.5 keeps it at
+ * system.resources.<slug>.value; 1.4 kept a class's as a bare number under
+ * system.resources.classResources.<slug>, its own four slots at .value. The
+ * figure and its bar; a maximum or a name moving is shape. A value with no
+ * figure on the sheet - a tracker hidden, a class figure - is a redraw, as
+ * before this rule.
+ */
+const RESOURCE_VALUE = /^system\.resources\.(?:classResources\.[^.]+|[^.]+\.value)$/;
+const resourceValues = {
+  owns: (path) => RESOURCE_VALUE.test(path),
+  apply(sheet, el, paths) {
+    const actor = sheet.actor;
+    for (const path of paths) {
+      const inputs = [...el.querySelectorAll('[data-action="resource-value"]')].filter((i) => i.dataset.path === path);
+      if (!inputs.length) return false;
+      const value = num(foundry.utils.getProperty(actor, path) ?? foundry.utils.getProperty(actor?._source, path));
+      for (const input of inputs) {
+        setValue(input, value);
+        const meter = input.closest('.am-tracker-meter, .meter');
+        if (meter) meter.style.setProperty('--bar-percentage', `${pct01(value, num(meter.querySelector('.max')?.textContent))}%`);
+      }
+    }
+    return true;
+  }
+};
+
+const RULES = [hitPoints, deathSaves, conditions, conditionRounds, armorClass, itemStates, exertion, spellSlots, currency, resourceValues];
 
 /* Foundry's own bookkeeping rides along in every diff and means nothing here. */
 const IGNORED = new Set(['_id', '_stats']);

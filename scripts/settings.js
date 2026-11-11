@@ -102,6 +102,28 @@ export function registerSettings() {
     scope: 'client', config: true, type: Boolean, default: true, requiresReload: true
   });
 
+  // The scene's graphics lost, a dead dice box, a page that loads again: said,
+  // mended where it can be, and kept in a record - see graphicsGuard.js. Each
+  // browser has its own, as each has its own graphics card.
+  game.settings.register(AM.ID, 'graphicsGuard', {
+    name: 'am.settings.graphics-guard.name', hint: 'am.settings.graphics-guard.hint',
+    scope: 'client', config: true, type: Boolean, default: true, requiresReload: true
+  });
+  // Foundry turned down on this computer in one step, and put back when off
+  game.settings.register(AM.ID, 'lightGraphics', {
+    name: 'am.settings.light-graphics.name', hint: 'am.settings.light-graphics.hint',
+    scope: 'client', config: true, type: Boolean, default: false, requiresReload: true,
+    onChange: (value) => {
+      import('./utils/graphicsGuard.js')
+        .then(({ GraphicsGuard }) => GraphicsGuard.setLight(value === true))
+        .catch(err => AM.log(1, 'Light graphics:', err));
+    }
+  });
+  // What light graphics changed, to put it back
+  game.settings.register(AM.ID, 'lightGraphicsBefore', {
+    scope: 'client', config: false, type: Object, default: {}
+  });
+
   game.settings.register(AM.ID, 'enableRandomize', {
     name: 'am.settings.randomize.name', hint: 'am.settings.randomize.hint',
     scope: 'world', config: true, type: Boolean, default: true

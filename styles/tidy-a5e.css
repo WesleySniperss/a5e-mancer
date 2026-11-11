@@ -1016,6 +1016,31 @@
   opacity: 0.85;
 }
 
+/* a5e 1.5: a class's figure, shown rather than stepped - Sneak Attack's dice,
+   Rage's hit points. Set like a tracker's figure, without the buttons. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-figure .am-tracker-figure-value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The cross that takes a player's own tracker away, and the button that makes one. */
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-remove {
+  opacity: 0.6;
+}
+.tidy5e-sheet.application.a5e-mancer-sheet .am-tracker-add {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--t5e-size-1x, 0.25rem);
+  width: auto;
+  font-size: var(--font-size-12, 0.75rem);
+  opacity: 0.75;
+}
+.tidy5e-sheet.application.a5e-mancer-sheet :is(.am-tracker-remove, .am-tracker-add):hover {
+  opacity: 1;
+}
+
 /* ── Behind the lock ───────────────────────────────────────────────────────
    An ability score and a skill describe a character rather than track them, so
    they only become editable when the padlock is open. The cog beside each one

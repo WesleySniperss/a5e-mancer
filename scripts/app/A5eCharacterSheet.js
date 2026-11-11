@@ -206,6 +206,11 @@ export class A5eCharacterSheet extends ActorSheet {
             const { TokenVision } = await import('../utils/tokenVision.js');
             return (await TokenVision.sync(actor)) ? ['the token\'s darkvision'] : [];
           });
+          // a5e 1.5: the class resources a grant gives, stored so they can be spent (2026-11-11)
+          await step('class resources', async () => {
+            const { A5eFixes } = await import('../utils/a5eFixes.js');
+            return ((await A5eFixes.resourceEntries?.(actor)) ?? []).map(n => `${n}: kept count of`);
+          });
           // Learned magic maneuvers brought to the catalogue (2026-11-06)
           await step('magic maneuvers', async () => {
             const { MagicManeuverPack } = await import('../utils/magicManeuverPack.js');
@@ -493,6 +498,16 @@ export class A5eCharacterSheet extends ActorSheet {
    */
   async _render(force = false, options = {}) {
     if (!force) {
+      /* A change of turn. Core asks every combatant's sheet to redraw on each
+         one (Combat#updateCombatantActors, renderContext "updateCombat"), and
+         nothing on this sheet is drawn from the encounter but the rounds on
+         the conditions, which are set in place by their own hook. With two
+         sheets open that was two whole redraws a turn for nothing: measured
+         2026-11-10, 2.1 s of this module's time over 12 turns on a fast
+         machine, and none with the sheets closed - on the GM's slow laptop,
+         in a fight, the page hanging at every turn. A change to the actor at
+         the same moment (a recharge) asks with its own render and is drawn. */
+      if (options.renderContext === 'updateCombat' && this._state === this.constructor.RENDER_STATES.RENDERED) return;
       if (this._state === this.constructor.RENDER_STATES.RENDERED) {
         try {
           const shown = patchInPlace(this, options, this.#drawn);
@@ -553,6 +568,41 @@ export class A5eCharacterSheet extends ActorSheet {
     };
     requestAnimationFrame(again);
     for (const ms of [120, 300, 600]) setTimeout(again, ms);
+  }
+
+  /**
+   * a5e 1.5: the resources this character's own content reads whole in a
+   * formula - @resource.<slug>, with no field after it - and that no action
+   * spends (a consumer naming the slug). Those are a class's figures, not
+   * counts. The grant's recovery would have told them apart, but a5e's grant
+   * model turns "no recovery" into a long rest as it loads its packs.
+   * Kept for the actor until an item or the actor is written again.
+   */
+  static #figures = new WeakMap();
+  #figureSlugs(actor) {
+    const stamp = `${actor.items.size}:${actor._stats?.modifiedTime ?? 0}:`
+      + actor.items.reduce((n, i) => Math.max(n, i._stats?.modifiedTime ?? 0), 0);
+    const kept = A5eCharacterSheet.#figures.get(actor);
+    if (kept?.stamp === stamp) return kept.slugs;
+    const read = new Set(), spent = new Set();
+    const scan = (part) => {
+      if (!part) return;
+      const text = JSON.stringify(part);
+      if (!text.includes('resource')) return;
+      for (const m of text.matchAll(/@resource\.([a-z0-9-]+)(?![\w.-])/gi)) read.add(m[1]);
+      for (const m of text.matchAll(/"resourceSlug":"([^"]+)"/g)) spent.add(m[1]);
+    };
+    for (const item of actor.items) {
+      const src = item._source?.system;
+      if (!src) continue;
+      scan(src.actions); scan(src.grants); scan(src.uses);
+      for (const effect of item.effects ?? []) scan(effect._source?.system ?? effect._source?.changes);
+    }
+    scan(actor._source?.system?.bonuses);
+    for (const effect of actor.effects ?? []) scan(effect._source?.system ?? effect._source?.changes);
+    const slugs = new Set([...read].filter((slug) => !spent.has(slug)));
+    A5eCharacterSheet.#figures.set(actor, { stamp, slugs });
+    return slugs;
   }
 
   /* What the sheet on screen was drawn from — see snapshot in livePatch. */
@@ -950,7 +1000,58 @@ export class A5eCharacterSheet extends ActorSheet {
 
     const hideGeneric = decided.hideGenericResources;
 
-    const actorResources = Object.entries(sys.resources ?? {})
+    /* a5e 1.5 keeps every resource as one of its own models under its slug,
+       with a name, a value, a maximum for "uses" and none for a counter: the
+       ones a class or archetype grants (grantedBy, its maximum from the class
+       table) and the ones a player makes. 1.4 kept a class's value apart, a
+       bare number under classResources, beside four generic slots with a
+       label - the branch after this one. */
+    const figures = namedResources(actor) ? this.#figureSlugs(actor) : null;
+    const actorResources = figures ? Object.entries(sys.resources ?? {})
+      .filter(([, r]) => r && typeof r === 'object')
+      .map(([key, r]) => {
+        const granted = !!r.grantedBy;
+        if (hideGeneric && !granted) return null;
+        const counter = r.type === 'counter';
+        const maxFormula = String(r.max ?? '');
+        const max = counter || r.type === 'item' ? 0 : resolveMax(maxFormula);
+        const value = Number(r.value ?? 0) || 0;
+        const label = String(r.name ?? '').trim() || (granted ? key : '');
+        /* A class's figure rather than a count: a number from the class
+           table (Sneak Attack's dice, Martial Arts' die, Rage's hit points)
+           that the character's own features read whole in a formula and no
+           action spends - see #figureSlugs. a5e lists it with a value to
+           step; here it is the figure, and only when there is one. */
+        if (granted && r.type === 'uses' && figures.has(key)) {
+          let figure = max ? String(max) : '';
+          if (!figure && maxFormula.trim() && !/^0+$/.test(maxFormula.trim())) {
+            try { figure = Roll.replaceFormulaData(maxFormula, rollData, { missing: '0' }).trim(); }
+            catch { figure = maxFormula.trim(); }
+          }
+          if (!figure || figure === '0') return null;
+          return { key, label, figure, isClassResource: true, show: true };
+        }
+        const show = unlocked ? (!granted || counter || max !== 0) : (counter || max !== 0);
+        return {
+          key,
+          isClassResource: granted,
+          label,
+          labelField: 'name',
+          value,
+          max,
+          maxFormula,
+          hideMax: counter || max <= 0,
+          isCounter: counter,
+          canHideMax: false,
+          removable: !granted,
+          per: r.per ?? '',
+          show,
+          pct: max > 0 ? pct01(value, max) : 0,
+          path: `system.resources.${key}.value`
+        };
+      })
+      .filter(r => r?.show)
+      : Object.entries(sys.resources ?? {})
       .filter(([key, r]) => key !== 'classResources' && r && typeof r === 'object')
       .filter(([key]) => !(hideGeneric && GENERIC_RESOURCES.includes(key)))
       .map(([key, r]) => {
@@ -968,6 +1069,8 @@ export class A5eCharacterSheet extends ActorSheet {
           max,
           maxFormula: r.max ?? '',
           hideMax:  !!r.hideMax,
+          labelField: 'label',
+          canHideMax: true,
           per:      r.per ?? '',
           show,
           /* pct01, not pct: the identical helper further down is a const, and
@@ -1780,7 +1883,7 @@ export class A5eCharacterSheet extends ActorSheet {
         return { appearance: on === 'appearance', bio: on === 'bio',
                  notes: on === 'notes', privateNotes: on === 'privateNotes' };
       })(),
-      unlocked, readOnly, actorResources, equipment, currency,
+      unlocked, readOnly, actorResources, namedResources: namedResources(actor), equipment, currency,
       showFavorites, showXP, hideGenericRes,
       xp: sys.details?.xp?.value ?? sys.details?.xp ?? 0,
       fatiguePips, strifePips, exertionPips,
@@ -4092,7 +4195,12 @@ export class A5eCharacterSheet extends ActorSheet {
         const path  = b.dataset.path;
         const delta = Number(b.dataset.delta) || 0;
         const max   = b.dataset.max === '' ? null : Number(b.dataset.max);
-        const now   = Number(foundry.utils.getProperty(this.actor, path) ?? 0) || 0;
+        /* From the figure on the sheet: a 1.4 class resource is stored under
+           classResources but prepared without it, so the actor's own reading
+           of the path was always nothing and a minus did nothing. */
+        const shown = Number(figureFor(b, '[data-action="resource-value"]')?.value);
+        const now   = Number.isFinite(shown) ? shown
+          : (Number(foundry.utils.getProperty(this.actor, path) ?? 0) || 0);
         let next = now + delta;
         if (next < 0) next = 0;
         if (max !== null && Number.isFinite(max) && max > 0 && next > max) next = max;
@@ -4107,6 +4215,30 @@ export class A5eCharacterSheet extends ActorSheet {
         await this.actor.update({
           [`system.resources.${t.dataset.resource}.${t.dataset.field}`]: value
         });
+      }));
+
+    /* a5e 1.5: a tracker made and taken away, as its own sheet does it - a
+       "uses" resource under a slug of its own, named and given a maximum in
+       the fields that then appear. A granted one has no cross: the class
+       gives it back at every preparation. */
+    el.querySelector('[data-action="resource-add"]')?.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const have = this.actor._source.system?.resources ?? {};
+      let slug = 'tracker';
+      for (let i = 2; slug in have; i++) slug = `tracker-${i}`;
+      await this.actor.update({
+        [`system.resources.${slug}`]: { type: 'uses', slug, name: 'New Tracker', value: 0, max: '', per: 'longRest' }
+      });
+    });
+    el.querySelectorAll('[data-action="resource-remove"]').forEach(b =>
+      b.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const key = b.dataset.resource;
+        if (!key || !(key in (this.actor._source.system?.resources ?? {}))) return;
+        const Gone = foundry.data?.operators?.ForcedDeletion;
+        await this.actor.update(Gone
+          ? { [`system.resources.${key}`]: new Gone() }
+          : { [`system.resources.-=${key}`]: null });
       }));
 
     /* ── Settings ───────────────────────────────────────────────────────
@@ -5639,6 +5771,15 @@ export class A5eCharacterSheet extends ActorSheet {
 }
 
 function sign(n) { return n >= 0 ? `+${n}` : `${n}`; }
+
+/* a5e 1.5 and later: every resource a named model under its slug (see the
+   trackers in getData). Its own figure of the version, not a guess from what
+   one actor happens to hold: 1.4 keeps classResources beside them. */
+function namedResources(actor) {
+  const version = game.system?.version ?? '0';
+  if (!foundry.utils.isNewerVersion(version, '1.4.999')) return false;
+  return !('classResources' in (actor?._source?.system?.resources ?? {}));
+}
 
 /**
  * Read an item description regardless of which shape it is stored in.

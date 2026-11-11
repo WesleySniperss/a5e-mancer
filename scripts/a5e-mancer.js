@@ -24,6 +24,7 @@ import { DocumentLinks } from './utils/documentLinks.js';
 import { LinkMend } from './utils/linkMend.js';
 import { InitiativeRelay } from './utils/initiativeRelay.js';
 import { PartRolls } from './utils/partRolls.js';
+import { GraphicsGuard } from './utils/graphicsGuard.js';
 /* As a namespace, read where it is used: a name imported from a file the browser
    holds an older copy of stops the whole module loading - see fresh-scripts.js. */
 import * as LivePatch from './utils/livePatch.js';
@@ -71,6 +72,10 @@ Hooks.on('init', () => {
   try { A5eFixes.effectStart(); } catch (err) { console.error('a5e-mancer | effect start:', err); }
   // "Next round" past a combatant that never had a turn stops the turn's events - see A5eFixes.skippedTurnEnd
   try { A5eFixes.skippedTurnEnd(); } catch (err) { console.error('a5e-mancer | skipped turn end:', err); }
+  // Rolls stored under a5e 1.4 are read again under 1.5 - see A5eFixes.oldRollNames
+  try { A5eFixes.oldRollNames(); } catch (err) { console.error('a5e-mancer | old roll names:', err); }
+  // @resource.sneak-attack in a formula is the class figure again, not an object - see A5eFixes.resourceFormulas
+  try { A5eFixes.resourceFormulas(); } catch (err) { console.error('a5e-mancer | resource formulas:', err); }
   // A player's initiative with no encounter on their scene goes to the GM's client - see initiativeRelay.js
   try { InitiativeRelay.install(); } catch (err) { console.error('a5e-mancer | initiative relay:', err); }
 
@@ -176,6 +181,11 @@ Hooks.once('ready', () => { try { A5eFixes.install(); } catch (err) { AM.log(1, 
 
 /* The attack alone and the damage alone, from an item's Actions table, rolled through a5e (partRolls.js). */
 Hooks.once('ready', () => { try { PartRolls.install(); } catch (err) { AM.log(1, 'part rolls failed:', err); } });
+
+/* The scene's graphics lost, a dead dice box, a page that loads again by itself: said, mended where it can be,
+   and kept in a record for a5eMancer.sessionReport() (graphicsGuard.js). */
+Hooks.once('ready', () => { try { GraphicsGuard.install(); } catch (err) { AM.log(1, 'graphics guard failed:', err); } });
+Hooks.once('setup', () => { try { GraphicsGuard.shadeDice(); } catch (err) { AM.log(1, 'light graphics, dice:', err); } });
 
 /* A character's darkvision carried to their token (tokenVision.js). */
 Hooks.once('ready', () => { try { TokenVision.installHooks(); } catch (err) { AM.log(1, 'Token vision hooks failed:', err); } });
@@ -393,7 +403,7 @@ Hooks.once('ready', async () => {
   const arr = game.settings.get(AM.ID, 'customStandardArray') || StatRoller.getDefaultStandardArray();
   if (!arr || arr.trim() === '')
     game.settings.set(AM.ID, 'customStandardArray', StatRoller.getDefaultStandardArray());
-  globalThis.a5eMancer = { AM, beyond20Report: () => Beyond20Service.report(), linkReport: () => LinkMend.report() };
+  globalThis.a5eMancer = { AM, beyond20Report: () => Beyond20Service.report(), linkReport: () => LinkMend.report(), sessionReport: () => GraphicsGuard.report() };
   Hooks.callAll('a5eMancer.Ready');
 
   /* One-time world migration (v2): bring existing items in line with the icon
