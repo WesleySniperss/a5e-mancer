@@ -46,7 +46,7 @@ const SYS = at >= 0 ? argv[at + 1] : path.resolve(R, '..', '..', 'systems', 'a5e
 const WANT_PACKS = argv.includes('--packs');
 
 /* What this file was last brought up to date with. */
-const CHECKED_WITH = '1.5.0';
+const CHECKED_WITH = '1.5.1';
 
 /* 1.5.0 added resource (in ResourceGrants.ts: the file names are read both ways). */
 const KNOWN_GRANT_TYPES = new Set([
@@ -242,7 +242,14 @@ say('\na5e 1.5 faults');
   if (/quantity:\s*grouped\.hitDice/.test(action)) ok('getConsumersByType still files quantity under hitDice (#714) - quantityConsumers stays needed');
   else say('  -  getConsumersByType reads quantity again: a5eFixes.quantityConsumers turns itself off');
   const resources = source('dataModels/fields/ResourcesField.ts');
+  const actorSrc = source('documents/actor/actor.svelte.ts') ?? '';
   if (resources === null) say('  -  ResourcesField.ts not found: an a5e before 1.5, or it moved');
+  else if (/data\.resource\[slug\]\s*=\s*resource\?\.getRollData/.test(actorSrc)) {
+    /* 1.5.1: each resource puts its own figure in the roll data, but a uses maximum written as a formula is
+       worked out with no roll data, and goes into the roll with its @ references unread */
+    if (/getDeterministicBonus\(this\.max,\s*\{\}/.test(resources)) ok('resources give their figure in the roll data (1.5.1), a formula maximum still worked out with no data - resourceFormulas fills it in');
+    else say('  -  a resource\'s figure in the roll data is worked out with data now: resourceFormulas has nothing left to do there');
+  }
   else if (/toString\s*\(/.test(resources)) say('  -  a5e\'s resources give a figure of their own in a formula: resourceFormulas turns itself off');
   else ok('a resource read whole in a formula is still an object - resourceFormulas stays needed');
 }

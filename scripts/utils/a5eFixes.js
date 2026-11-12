@@ -304,6 +304,12 @@ export class A5eFixes {
    * same again: a "uses" resource its maximum, a counter its count, a dice
    * resource its die. @resource.x.value and the other fields read as before.
    * An a5e that gives its resources a figure of its own is left alone.
+   * a5e 1.5.1 puts a figure in the roll data itself (getRollData on each
+   * resource), but works a "uses" maximum out with no roll data at all: a
+   * class table's formula - round(@classes.rogue.level/2), @prof,
+   * max(@wis.mod,1) - cannot be, and goes into the roll as it is written, its
+   * @ references unread, so Sneak Attack still did not roll. Such a figure is
+   * worked out here with the actor's own data.
    * At init: before anything is rolled.
    */
   static resourceFormulas() {
@@ -335,10 +341,22 @@ export class A5eFixes {
       } catch { return '0'; }
       finally { busy.delete(key); }
     }
+    /* 1.5.1: a figure left as a formula with references in it */
+    const worked = (formula, data) => {
+      try {
+        const n = game.a5e?.utils?.getDeterministicBonus?.(formula, data, { strict: true });
+        if (n !== null && n !== undefined && n !== '' && Number.isFinite(Number(n))) return Number(n);
+      } catch { /* dice: kept as dice */ }
+      return Roll.replaceFormulaData(formula, data, { missing: '0' }).trim() || '0';
+    };
     proto.getRollData = function getRollData(...args) {
       const data = original.apply(this, args);
       try {
-        for (const resource of Object.values(data?.resource ?? {})) {
+        for (const [slug, resource] of Object.entries(data?.resource ?? {})) {
+          if (typeof resource === 'string' && resource.includes('@')) {
+            data.resource[slug] = worked(resource, data);
+            continue;
+          }
           if (!(resource instanceof Model)) continue;
           const kind = Object.getPrototypeOf(resource);
           if (seen.has(kind)) continue;
