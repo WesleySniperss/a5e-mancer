@@ -10,8 +10,8 @@
  *   985 features
  *   314 exploration challenges
  *   117 spells and psionic powers
- *   387 items
- *   91 maneuver
+ *   381 items
+ *   85 maneuver
  *   20 background
  *   7 destiny
  *   313 monsters
@@ -47,10 +47,10 @@ export const GENERATED = {
   files: [
     { file: 'scripts/data/imported/a5etools-archetypes.json', count: 622, documents: 'Item', hash: '18js5qi' },
     { file: 'scripts/data/imported/a5etools-challenges.json', count: 314, documents: 'JournalEntry', hash: '13w5or4' },
-    { file: 'scripts/data/imported/a5etools-content.json', count: 775, documents: 'Item', hash: '1ue4c6z' },
+    { file: 'scripts/data/imported/a5etools-content.json', count: 763, documents: 'Item', hash: '5wxt00' },
     { file: 'scripts/data/imported/a5etools-monsters.json', count: 313, documents: 'Actor', hash: 'x30uzw' },
     { file: 'scripts/data/imported/a5etools-origins.json', count: 351, documents: 'Item', hash: 'r6bi6r' }
   ],
-  count: 2375,
-  hash: 'nq3h3t'
+  count: 2363,
+  hash: '1bktbmn'
 };

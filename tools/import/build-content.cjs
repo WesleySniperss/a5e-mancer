@@ -12,7 +12,7 @@ const { fieldsOf } = require('./lib/fields.cjs');
 const { detectUses, detectAction } = require('./lib/actions.cjs');
 const { detectGrants } = require('./lib/grants.cjs');
 const M = require('./lib/match.cjs');
-const { iconIndex } = require('./lib/icons.cjs');
+const { iconIndex, ok: iconOk } = require('./lib/icons.cjs');
 const { emit } = require('./lib/emit.cjs');
 
 const dry = process.argv.includes('--dry');
@@ -637,6 +637,32 @@ function destinyDocs(list, row) {
 }
 const PACK = 'Compendium.world.a5e-mancer-imported.Item.';
 
+/* What a rebuild would change only because a5e's own lists grew stays as the last build had it. The icons
+   are voted for by the names of a5e's documents, so a5e's new gear and maneuvers moved ten of them (an
+   Armored Corset drawn as a saw). And a grant's id is hashed over its keys, so a5e's new tools gave two
+   tool grants new ids; a character's applied grants are known by id. A document new to this build, or a
+   grant of a kind the last build did not have, is made as before. */
+const LAST = (() => {
+  try { return new Map(JSON.parse(fs.readFileSync(path.join(P.OUT, 'a5etools-content.json'), 'utf8')).map((d) => [d._id, d])); }
+  catch { return new Map(); }
+})();
+function keepStable(d) {
+  const last = LAST.get(d._id);
+  if (!last) return;
+  if (last.img && last.img !== d.img && iconOk(last.img)) d.img = last.img;
+  const now = d.system?.grants;
+  if (!now) return;
+  const before = Object.values(last.system?.grants ?? {});
+  const kind = (g) => `${g.grantType}|${g.proficiencyType ?? ''}|${g.label ?? ''}|${g.level ?? 0}`;
+  for (const [gid, g] of Object.entries({ ...now })) {
+    if (last.system?.grants?.[gid]) continue;
+    const was = before.filter((x) => kind(x) === kind(g) && !now[x._id]);
+    if (was.length !== 1 || Object.values(now).filter((x) => kind(x) === kind(g)).length !== 1) continue;
+    delete now[gid];
+    now[was[0]._id] = { ...g, _id: was[0]._id };
+  }
+}
+
 /* ── run ──────────────────────────────────────────────────────────── */
 const docs = [];
 const report = [];
@@ -659,6 +685,7 @@ for (const [list, rows] of Object.entries(want)) {
   for (const d of extra) byName.set(`${d.name}\u0000${d._id}`, d);
   report.push(`\n## ${list} (${byName.size})`);
   for (const d of byName.values()) {
+    keepStable(d);
     docs.push(d);
     const s = d.system;
     const a = Object.values(s.actions)[0];

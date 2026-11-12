@@ -46,8 +46,9 @@ const obj = CONTENT.filter((d) => d.type === 'object');
 
 /* A. the documents */
 {
-  check('25 spells, 92 psionic powers, 387 objects, 91 maneuvers, 112 feats, 20 backgrounds, 7 destinies',
-    sp.length - psi.length === 25 && psi.length === 92 && obj.length === 387 && man.length === 91 && feats.length === 112 && bgs.length === 20 && dests.length === 7,
+  /* 387 objects and 91 maneuvers until a5e 1.5 shipped six of each itself (siege engines, Martial Artistry, GPG 11) */
+  check('25 spells, 92 psionic powers, 381 objects, 85 maneuvers, 112 feats, 20 backgrounds, 7 destinies',
+    sp.length - psi.length === 25 && psi.length === 92 && obj.length === 381 && man.length === 85 && feats.length === 112 && bgs.length === 20 && dests.length === 7,
     `${sp.length - psi.length}/${psi.length}/${obj.length}/${man.length}/${feats.length}/${bgs.length}/${dests.length}`);
   const { DREAD_KNIGHT } = await import(pathToFileURL(path.join(root, 'data', 'imported', 'dreadKnight.js')).href);
   const ids = [...CONTENT, ...ARCH, ...DREAD_KNIGHT].map((d) => d._id);
@@ -130,9 +131,10 @@ const obj = CONTENT.filter((d) => d.type === 'object');
   check('Mjölnir: a legendary weapon needing attunement', mj.system.objectType === 'weapon' && mj.system.rarity === 'legendary' && mj.system.requiresAttunement);
   const tome = O('Tome of the Spellblade'), piece = O('Diamond-Encrusted Piece +1');
   check('the kind comes from the category before the name: a tome is not a blade, a Weapon-category "piece" is a weapon', tome.system.objectType === 'miscellaneous' && piece.system.objectType === 'weapon');
-  const bal = O('Ballista'), ba = Object.values(bal.system.actions)[0];
-  check('Ballista: 500 gp, a ranged attack at 140/480 ft., 3d10 piercing', bal.system.price.value === 500 && Object.values(ba.rolls).some((r) => r.attackType === 'rangedWeaponAttack')
-    && Object.values(ba.rolls).some((r) => r.formula === '3d10' && r.damageType === 'piercing') && Object.values(ba.ranges).map((r) => r.range).join() === '140,480');
+  /* The Ballista carried this case until a5e shipped its own (1.5): Bolas is the ranged weapon left */
+  const bal = O('Bolas'), ba = Object.values(bal.system.actions)[0];
+  check('Bolas: 20 gp, a ranged attack at 30/60 ft., 1d4 bludgeoning', bal.system.price.value === 20 && Object.values(ba.rolls).some((r) => r.attackType === 'rangedWeaponAttack')
+    && Object.values(ba.rolls).some((r) => /^1d4\b/.test(r.formula ?? '') && r.damageType === 'bludgeoning') && Object.values(ba.ranges).map((r) => r.range).join() === '30,60');
   const apc = O('APC, "Streetfighter"');
   check('a vehicle: credits, tons as pounds, its statistics in the text', apc.system.price.denomination === 'cr' && apc.system.price.value === 20000 && apc.system.weight === 32000 && /Hit Points/.test(apc.system.description));
   const cd = O('Crossdagger'), cda = Object.values(cd.system.actions)[0];
@@ -152,8 +154,9 @@ const obj = CONTENT.filter((d) => d.type === 'object');
   const { IMPORTED_TRADITIONS } = await import(pathToFileURL(path.join(root, 'data', 'imported', 'traditions.js')).href);
   check('the two traditions a5e lacks are registered by the module, with the duels\' note', Object.keys(IMPORTED_TRADITIONS).sort().join() === 'duelingManeuvers,unerringHawk' && /duels/.test(IMPORTED_TRADITIONS.duelingManeuvers.lore));
   const MN = (n) => man.find((d) => d.name === n);
-  const hg = MN('Hungry Ghosts'), dm = MN('Deflect Missile');
-  check('Hungry Ghosts: Eldritch Blackguard, 4th degree, 3 exertion, a bonus-action stance', hg.system.tradition === 'eldritchBlackguard' && hg.system.degree === 4 && hg.system.exertionCost === 3 && hg.system.isStance
+  /* Hungry Ghosts carried this case until a5e shipped it (GPG 11, in 1.5) */
+  const hg = MN('Hunting Stance'), dm = MN('Deflect Missile');
+  check('Hunting Stance: Unerring Hawk, 4th degree, 3 exertion, a bonus-action stance', hg.system.tradition === 'unerringHawk' && hg.system.degree === 4 && hg.system.exertionCost === 3 && hg.system.isStance
     && Object.values(hg.system.actions)[0].activation.type === 'bonusAction');
   check('the site\'s "Def lect Missile" is Deflect Missile', !!dm && !man.some((d) => /Def lect/.test(d.name)));
   const FT = (n) => feats.find((d) => d.name === n);
@@ -206,11 +209,13 @@ const obj = CONTENT.filter((d) => d.type === 'object');
     game.packs.set(pack.collection, pack);
     return pack;
   };
-  globalThis.Item = { createDocuments: async (docs) => { created.push(...docs); return docs; }, deleteDocuments: async () => [] };
-  globalThis.Actor = { createDocuments: async (docs) => docs, deleteDocuments: async () => [] };
-  globalThis.JournalEntry = { createDocuments: async (docs) => docs, deleteDocuments: async () => [] };
+  // database.get: the server's own list of what a pack holds, which the builder counts and clears by - empty here
+  const database = { get: async () => [] };
+  globalThis.Item = { createDocuments: async (docs) => { created.push(...docs); return docs; }, deleteDocuments: async () => [], database };
+  globalThis.Actor = { createDocuments: async (docs) => docs, deleteDocuments: async () => [], database };
+  globalThis.JournalEntry = { createDocuments: async (docs) => docs, deleteDocuments: async () => [], database };
   globalThis.foundry.documents = {
-    Folder: { createDocuments: async (datas) => datas.map((d, i) => { const f = { ...d, id: `folder${d.type}${String(i).padStart(10, '0')}` }; (d.type === 'Item' ? folders : elsewhere).push(f); return f; }), deleteDocuments: async () => [] },
+    Folder: { createDocuments: async (datas) => datas.map((d, i) => { const f = { ...d, id: `folder${d.type}${String(i).padStart(10, '0')}` }; (d.type === 'Item' ? folders : elsewhere).push(f); return f; }), deleteDocuments: async () => [], database },
     collections: { CompendiumCollection: { createCompendium: async (data) => makePack(data) } }
   };
   ImportedPack.registerSource();
@@ -223,8 +228,8 @@ const obj = CONTENT.filter((d) => d.type === 'object');
     order === 'Heritages / Heritage Features / Paragon Gifts / Cultures / Culture Features / Backgrounds / Background Features / Destinies / Destiny Features / Archetypes / Archetype Features / Feats / Combat Maneuvers / Spells / Psionic Powers / Magic Items / Equipment'
     && created.every((d) => d.folder), order);
   const inFolder = (n) => created.filter((d) => d.folder === folders.find((f) => f.name === n)?.id).length;
-  check('the counts per folder', inFolder('Archetypes') === 89 && inFolder('Spells') === 25 && inFolder('Psionic Powers') === 92 && inFolder('Magic Items') === 142 && inFolder('Equipment') === 245
-      && inFolder('Combat Maneuvers') === 91 && inFolder('Feats') === 112 && inFolder('Backgrounds') === 20 && inFolder('Background Features') === 20 && inFolder('Destinies') === 7 && inFolder('Destiny Features') === 21
+  check('the counts per folder', inFolder('Archetypes') === 89 && inFolder('Spells') === 25 && inFolder('Psionic Powers') === 92 && inFolder('Magic Items') === 142 && inFolder('Equipment') === 239
+      && inFolder('Combat Maneuvers') === 85 && inFolder('Feats') === 112 && inFolder('Backgrounds') === 20 && inFolder('Background Features') === 20 && inFolder('Destinies') === 7 && inFolder('Destiny Features') === 21
       && inFolder('Heritages') === 20 && inFolder('Cultures') === 33 && inFolder('Heritage Features') + inFolder('Paragon Gifts') + inFolder('Culture Features') === ORIGINS.length - 53,
     folders.map((f) => `${f.name} ${inFolder(f.name)}`).join(', '));
 }

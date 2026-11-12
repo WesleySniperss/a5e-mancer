@@ -245,7 +245,9 @@ const G = (f, type) => Object.values(f?.system.grants ?? {}).filter(g => (g.prof
   game.packs.set('a5e.a5e-spells', { collection: 'a5e.a5e-spells', async getDocuments(q) { return lookupOr(spells, q, () => spells.map(asDocument)); } });
   const documentClass = () => ({
     createDocuments: async (docs, { pack }) => { batches.push(docs.length); held.get(pack).push(...docs); return docs; },
-    deleteDocuments: async () => []
+    deleteDocuments: async () => [],
+    // the server's own list of what a pack holds, which the builder counts and clears by (#storedIds)
+    database: { get: async (cls, { pack }) => (held.get(pack) ?? []).map(d => ({ _id: d._id })) }
   });
   globalThis.Item = documentClass();
   globalThis.Actor = documentClass();
@@ -260,7 +262,8 @@ const G = (f, type) => Object.values(f?.system.grants ?? {}).filter(g => (g.prof
         if (x.type === 'Compendium') game.folders.push(folder);
         return folder;
       }),
-      deleteDocuments: async () => []
+      deleteDocuments: async () => [],
+      database: { get: async () => [] }
     },
     collections: { CompendiumCollection: { createCompendium: async (data) => makePack(data) } } };
   ImportedPack.registerSource();
