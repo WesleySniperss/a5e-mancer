@@ -224,7 +224,15 @@ export class ImportedPack {
     if (!count) return null;
 
     let pack = this.packOf(kind);
-    if (pack && !force && this.#builtHash(kind) === this.hashOf(kind)) return pack;
+    /* Built for this data, and still holding it. A pack that lost its documents - emptied on the user's server
+       (2026-11-12), half filled by a build that was stopped - is built again although its hash matches. The
+       index is asked afresh: the one in memory has a5e's hidden sources taken out (HiddenSources). */
+    if (pack && !force && this.#builtHash(kind) === this.hashOf(kind)) {
+      let held = count;
+      try { held = (await pack.getIndex()).size; } catch { /* as built */ }
+      if (held >= count) return pack;
+      AM.log(2, `${spec.label} holds ${held} of its ${count} entries: built again`);
+    }
 
     try {
       const created = !pack;
@@ -302,8 +310,11 @@ export class ImportedPack {
     const wasLocked = pack.locked;
     if (wasLocked) await pack.configure({ locked: false });
     try {
-      const existing = await pack.getDocuments();
-      if (existing.length) await Document.deleteDocuments(existing.map(d => d.id), { pack: pack.collection });
+      /* Every document, by the index: getDocuments leaves out those the system cannot make any more - the
+         monsters a5e 1.4 wrote are not valid in 1.5 - and those left behind would stop the documents of
+         the same id being made again. */
+      const ids = [...(await pack.getIndex()).keys()];
+      if (ids.length) await Document.deleteDocuments(ids, { pack: pack.collection });
       const docs = await this.documents(kind);
       if (kind === 'Actor') await this.#castSpells(docs);
       const folders = await this.#folders(pack, new Set(docs.map(d => this.folderOf(d)).filter(Boolean)), kind);
