@@ -76,6 +76,8 @@ Hooks.on('init', () => {
   try { A5eFixes.oldRollNames(); } catch (err) { console.error('a5e-mancer | old roll names:', err); }
   // @resource.sneak-attack in a formula is the class figure again, not an object - see A5eFixes.resourceFormulas
   try { A5eFixes.resourceFormulas(); } catch (err) { console.error('a5e-mancer | resource formulas:', err); }
+  // A chat card whose item is gone - a deleted token's attack - is drawn again - see A5eFixes.goneItemCards
+  try { A5eFixes.goneItemCards(); } catch (err) { console.error('a5e-mancer | gone item cards:', err); }
   // A player's initiative with no encounter on their scene goes to the GM's client - see initiativeRelay.js
   try { InitiativeRelay.install(); } catch (err) { console.error('a5e-mancer | initiative relay:', err); }
 

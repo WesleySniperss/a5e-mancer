@@ -289,6 +289,49 @@ export class A5eFixes {
   }
 
   /**
+   * A chat card whose item is gone did not draw. a5e 1.5's ItemCard reads the
+   * name of the message's item, and the message's `item` is fromUuidSync of
+   * the card's itemId - nothing once the item is gone. That is every attack
+   * of a monster whose token was deleted after the fight (its items live on
+   * the token), and every card of a deleted item or character: 166 of the
+   * 742 item cards in the test world's log. Each came up blank, with
+   * "Cannot read properties of undefined (reading 'name')" from a5e, at every
+   * load of the log. Found 2026-11-12.
+   * While such a card is drawn, the message answers with a stand-in named for
+   * the card's action, which is what the card shows as its title. Outside the
+   * drawing the message answers as a5e has it, so nothing else that asks for
+   * a message's item - a click on the card, another module - is told of an
+   * item that is not there.
+   * At init: the log is drawn after setup, with the documents a5e sets at init.
+   */
+  static goneItemCards() {
+    if (this.#done.has('goneItemCards')) return;
+    const Message = CONFIG.ChatMessage?.documentClass;
+    if (!Message?.prototype || typeof Message.prototype.renderHTML !== 'function') return;
+    let owner = Message.prototype;
+    while (owner && !Object.getOwnPropertyDescriptor(owner, 'item')) owner = Object.getPrototypeOf(owner);
+    const own = owner && Object.getOwnPropertyDescriptor(owner, 'item');
+    if (typeof own?.get !== 'function') return;                // not a5e's message class
+    this.#done.add('goneItemCards');
+    const drawing = new Set();
+    Object.defineProperty(owner, 'item', {
+      ...own,
+      get() {
+        const item = own.get.call(this);
+        if (item || !drawing.has(this) || !this.system?.itemId) return item;
+        return { name: this.system.actionName || this.system.actorName || '', type: '', img: this.system.img ?? '', system: {}, actions: new Map(), flags: {} };
+      }
+    });
+    const render = Message.prototype.renderHTML;
+    Message.prototype.renderHTML = async function (...args) {
+      drawing.add(this);
+      try { return await render.apply(this, args); }
+      finally { drawing.delete(this); }
+    };
+    AM.log(3, 'a5e fix: chat cards whose item is gone are drawn');
+  }
+
+  /**
    * a5e 1.5.0 keeps class resources on the character, each a resource of its
    * own (system.resources.<slug>, from the class's resource grants), and
    * rewrote every formula that read them: @classResources.sneak-attack is

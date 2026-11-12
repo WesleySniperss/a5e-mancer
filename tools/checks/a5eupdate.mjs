@@ -252,6 +252,11 @@ say('\na5e 1.5 faults');
   }
   else if (/toString\s*\(/.test(resources)) say('  -  a5e\'s resources give a figure of their own in a formula: resourceFormulas turns itself off');
   else ok('a resource read whole in a formula is still an object - resourceFormulas stays needed');
+  /* A card whose item is gone (a deleted token's attack): ItemCard read item.name of nothing (1.5.1) */
+  const card = source('view/chat/ItemCard.svelte');
+  if (card === null) say('  -  ItemCard.svelte not found: is goneItemCards still right?');
+  else if (/const item = message\?\.item;/.test(card) && /[=(]\s*item\.name\b/.test(card)) ok('ItemCard still reads the name of an item that may be gone - goneItemCards stays needed');
+  else say('  -  ItemCard no longer reads item.name unguarded: a5eFixes.goneItemCards can go');
 }
 
 /* ── 5. names the module leans on ── */

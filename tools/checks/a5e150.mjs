@@ -255,6 +255,33 @@ try {
   console.log('FAILED', err.message);
 }
 
+/* A chat card whose item is gone - a monster's attack after its token was deleted: a5e 1.5's ItemCard read the
+   name of nothing, and the card came up blank with an error at every load of the log (A5eFixes.goneItemCards) */
+try {
+  const card = await b.evaluate(`(async () => {
+    const actor = await Actor.create({ name: 'AM 150 gone card', type: 'npc' });
+    const [item] = await actor.createEmbeddedDocuments('Item', [{ name: 'AM 150 Claw', type: 'object' }]);
+    const msg = await ChatMessage.create({ type: 'item', speaker: { alias: 'AM 150 gone card' },
+      system: { itemId: item.uuid, actorId: actor.uuid, actionName: 'AM 150 Claw', actorName: actor.name, img: item.img } });
+    const before = (await msg.renderHTML())?.querySelector('.a5e-chat-card__body__header')?.textContent ?? '';
+    await actor.delete();
+    const errs = [];
+    const ce = console.error;
+    console.error = (...a) => { errs.push(a.map(x => x?.message ?? String(x)).join(' ').slice(0, 160)); return ce.apply(console, a); };
+    let html = null;
+    try { html = await msg.renderHTML(); } finally { console.error = ce; }
+    const title = (html?.querySelector('.a5e-chat-card__body__header')?.textContent ?? '').replace(/\\s+/g, ' ').trim();
+    const outside = msg.item;
+    await msg.delete();
+    return { before: before.replace(/\\s+/g, ' ').trim(), title, errs, outside: outside === undefined ? 'undefined' : typeof outside };
+  })()`);
+  check(!card.errs.length && /AM 150 Claw/.test(card.title) && /AM 150 Claw/.test(card.before) && card.outside === 'undefined',
+    "a card whose item is gone is drawn, titled by its action, and the message's item is still nothing outside the drawing", JSON.stringify(card));
+} catch (err) {
+  failures++;
+  console.log('FAILED', err.message);
+}
+
 try {
   await b.evaluate(`(async () => {
     for (const a of game.actors.filter(x => /^AM 150 /.test(x.name))) await a.delete();
