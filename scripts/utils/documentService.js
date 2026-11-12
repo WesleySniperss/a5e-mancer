@@ -2,6 +2,7 @@ import { AM } from '../am.js';
 import { PackFilter } from './packFilter.js';
 import { HiddenSources } from './hiddenSources.js';
 import { classKey, isReplaced5eClass } from '../data/a5eClassData.js';
+import { isCompanionClass } from '../data/companionClasses.js';
 import { CLASS_DESCRIPTIONS, HERITAGE_DESCRIPTIONS } from '../data/a5eDescriptions.js';
 import { iconForItem } from '../data/a5eIcons.js';
 
@@ -92,6 +93,8 @@ export class DocumentService {
           if (entry.type !== type) continue;
           // A 5e barbarian, monk or paladin from a 5e pack: not a class of this edition
           if (type === 'class' && isReplaced5eClass(entry.name)) continue;
+          // A Sentinel's companion's class (Martial Artistry): not one a character is built from
+          if (type === 'class' && isCompanionClass(entry.name, pack.collection)) continue;
           docs.push({
             id:          entry._id,
             name:        entry.name,
