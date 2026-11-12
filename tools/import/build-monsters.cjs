@@ -12,6 +12,7 @@ const P = require('./lib/paths.cjs');
 const N = require('./lib/normalize.cjs');
 const { fieldsOf } = require('./lib/fields.cjs');
 const { emit } = require('./lib/emit.cjs');
+const { pictureOf } = require('./lib/monsterArt.cjs');
 
 const dry = process.argv.includes('--dry');
 const only = process.argv.slice(2).filter((a) => !a.startsWith('--')).map((s) => s.toLowerCase());
@@ -414,6 +415,9 @@ function monsterDoc(row) {
 
   const artSrc = (/<img[^>]+src="([^"]+)"/.exec(F['monster-image']?.html ?? '') || [])[1];
   const art = artSrc ? new URL(artSrc, 'https://a5e.tools').href : null;
+  // a5e.tools' picture is the portrait; a token needs one the world's own server serves (lib/monsterArt.cjs)
+  const drawn = pictureOf(row.name, creatureTypes);
+  const picture = drawn?.img ?? icon(creatureTypes[0]);
   // Every skill, each with its ability: a5e 1.3 keeps only the skills an actor's data names, and a
   // skill named without an ability rolls with none. 1.2 filled both in itself.
   const skills = Object.fromEntries(Object.keys(K.skills).map((key) => [key, {
@@ -428,7 +432,7 @@ function monsterDoc(row) {
     return head.saveBonus[a] - mod(a) >= pb;
   };
   const actor = {
-    _id: id, name: row.name, type: 'npc', img: art ?? icon(creatureTypes[0]),
+    _id: id, name: row.name, type: 'npc', img: art ?? picture,
     system: {
       abilities: Object.fromEntries(['str', 'dex', 'con', 'int', 'wis', 'cha'].map((a) => [a, {
         value: abilities[a] ?? 10, check: { expertiseDice: 0, bonus: '' }, save: { proficient: proficientSave(a), expertiseDice: 0, bonus: '' }
@@ -449,11 +453,11 @@ function monsterDoc(row) {
     },
     prototypeToken: {
       name: row.name, displayName: 0, actorLink: false, width: TOKEN_SIZE[size] ?? 1, height: TOKEN_SIZE[size] ?? 1,
-      disposition: -1, sight: { enabled: false }, texture: { src: icon(creatureTypes[0]) }, bar1: { attribute: 'attributes.hp' }
+      disposition: -1, sight: { enabled: false }, texture: { src: picture }, bar1: { attribute: 'attributes.hp' }
     },
     items,
     effects: [],
-    flags: { 'a5e-mancer': { imported: `monsters/${slug}`, url: `https://a5e.tools${row.url}`, folder: FOLDER[creatureTypes[0]] ?? 'Humanoids', ...(art ? { art } : {}) } }
+    flags: { 'a5e-mancer': { imported: `monsters/${slug}`, url: `https://a5e.tools${row.url}`, folder: FOLDER[creatureTypes[0]] ?? 'Humanoids', ...(art ? { art } : {}), picture: drawn?.how ?? 'type' } }
   };
   if (casting.length) {
     const slots = {};
@@ -490,7 +494,11 @@ for (const row of want) {
     + ` · ${actor.items.length} entries (${attacks} attacks)${actor.flags['a5e-mancer'].spells ? ` · ${actor.flags['a5e-mancer'].spells.length} spells` : ''}${Object.keys(s.skills).length ? ' · skills ' + Object.keys(s.skills).join(',') : ''}${s.proficiencies.languages.length ? ' · ' + s.proficiencies.languages.join(',') : ''}${s.details.terrain.length ? ' · ' + s.details.terrain.join(',') : ''}`);
   if (notes.length) { report.push('      ! ' + notes.join('; ')); withNotes++; }
 }
+const pictures = {};
+for (const a of all) { const k = (a.flags['a5e-mancer'].art ? 'a5e.tools portrait, token ' : '') + a.flags['a5e-mancer'].picture; pictures[k] = (pictures[k] ?? 0) + 1; }
+report.unshift(`pictures: ${JSON.stringify(pictures)}`);
 fs.writeFileSync(path.join(P.CACHE, 'monsters-report.txt'), report.join('\n'));
+console.log('pictures:', JSON.stringify(pictures));
 console.log(`${all.length} monsters, ${all.reduce((n, a) => n + a.items.length, 0)} traits and actions, ${withNotes} with notes - report in .cache/monsters-report.txt`);
 if (dry || only.length) process.exit(0);
 const r = emit('a5etools-monsters', all);

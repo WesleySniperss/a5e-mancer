@@ -37,7 +37,8 @@ async function readPack(dir, kind = 'items') {
   // the whole of it is 30 MB and the converter needs the names and the shape
   const monsters = await readPack(path.join(P.SYSTEM, 'packs', 'monsters'), 'actors');
   fs.writeFileSync(path.join(P.PACKS, 'monsterIndex.json'), JSON.stringify(monsters.map((m) => ({
-    _id: m._id, name: m.name, img: m.img, cr: m.system?.details?.cr, source: m.system?.source ?? m.system?.details?.source, items: (m.items ?? []).length
+    _id: m._id, name: m.name, img: m.img, cr: m.system?.details?.cr, source: m.system?.source ?? m.system?.details?.source, items: (m.items ?? []).length,
+    types: m.system?.details?.creatureTypes ?? []          // lib/monsterArt.cjs: a picture goes to a monster of its own kind
   }))));
   fs.writeFileSync(path.join(P.PACKS, 'monsterSample.json'), JSON.stringify(monsters.slice(0, 3)));
   console.log(`a5e monsters: ${monsters.length} actors`);

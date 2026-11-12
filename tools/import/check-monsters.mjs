@@ -33,11 +33,22 @@ const VARIES = 'Swarm of Tiny and Small Animated Objects';
   check('every trait and action has an id of its own, even where a monster names two the same',
     itemIds.every((i) => /^[A-Za-z0-9]{16}$/.test(i)) && new Set(itemIds).size === itemIds.length, `${itemIds.length} entries`);
   const art = MONSTERS.filter((m) => /^https:\/\//.test(m.img));
-  const missing = [...new Set(MONSTERS.flatMap((m) => [m.prototypeToken.texture.src, ...(/^https:/.test(m.img) ? [] : [m.img])]))].filter((i) => !fs.existsSync(P.PUBLIC + i));
-  check('a page\'s picture is the portrait, linked where a5e.tools keeps it; every other image and every token is one of Foundry\'s icons',
+  /* a5e's own pictures (lib/monsterArt.cjs) are in the system's folder, the icons in Foundry's */
+  const served = (i) => (i.startsWith('systems/a5e/') ? fs.existsSync(path.join(P.SYSTEM, i.slice('systems/a5e/'.length))) : fs.existsSync(P.PUBLIC + i));
+  const missing = [...new Set(MONSTERS.flatMap((m) => [m.prototypeToken.texture.src, ...(/^https:/.test(m.img) ? [] : [m.img])]))].filter((i) => !served(i));
+  check('a page\'s picture is the portrait, linked where a5e.tools keeps it; every other image and every token is a5e\'s own picture or one of Foundry\'s icons',
     !missing.length && art.length === 50 && art.every((m) => m.img.startsWith('https://a5e.tools/sites/default/files/') && m.flags['a5e-mancer'].art === m.img)
     && MONSTERS.filter((m) => !art.includes(m)).every((m) => m.prototypeToken.texture.src === m.img),
     `${art.length} portraits${missing.length ? `; missing ${missing.slice(0, 3).join(', ')}` : ''}`);
+  /* A token's texture is fetched in CORS mode, and a5e.tools sends no CORS headers: a token drawn from there is blank */
+  const offsite = bad(MONSTERS, (m) => /^https?:/.test(m.prototypeToken.texture.src));
+  check('no token is drawn from another site', !offsite.length, names(offsite));
+  const a5eArt = MONSTERS.filter((m) => m.prototypeToken.texture.src.startsWith('systems/a5e/assets/'));
+  const byName = (n) => MONSTERS.find((m) => m.name === n)?.prototypeToken.texture.src;
+  check('a5e\'s own picture goes to a monster of its family and kind, and to none whose name only shares a word',
+    a5eArt.length >= 25 && byName('Skeleton Horde') === 'systems/a5e/assets/skeleton.webp' && byName('Dracula') === 'systems/a5e/assets/vampire.webp'
+    && !byName('Shadow Elf Archmage').startsWith('systems/a5e/') && !byName('BEAR(Battle Enhanced Animalistic Replicant)').startsWith('systems/a5e/'),
+    `${a5eArt.length} with a5e's art`);
   const leaks = bad(MONSTERS, (m) => /<(span|font|div|img)\b|style=|class=|&nbsp;|⟦L/.test(m.system.details.bio + m.items.map((i) => i.system.description).join('')));
   check('no page markup left in the text', !leaks.length, names(leaks));
   const short = bad(entries, (i) => i.system.description.replace(/<[^>]+>/g, '').trim().length < 10);
