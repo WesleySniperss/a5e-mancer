@@ -82,10 +82,19 @@ export class MagicManeuverPack {
    * Create and fill the pack when it is missing or out of date. Safe to call on
    * every startup; it does nothing once current.
    */
-  static async ensure({ force = false } = {}) {
-    if (!game.user.isGM) return null;                     // only a GM may create packs
-    if (!game.settings.get(AM.ID, 'buildMagicManeuverPack')) return null;
+  static #queue = Promise.resolve();
+  static ensure({ force = false } = {}) {
+    if (!game.user?.isGM) return Promise.resolve(null);   // only a GM may create packs
+    if (!game.settings.get(AM.ID, 'buildMagicManeuverPack')) return Promise.resolve(null);
+    /* One build at a time, by one GM - two at once delete each other's work (see ImportedPack.ensure) */
+    const active = game.users?.activeGM;
+    if (!force && active && !active.isSelf) return Promise.resolve(null);
+    const run = this.#queue.then(() => this.#ensureOnce(force));
+    this.#queue = run.catch(() => null);
+    return run;
+  }
 
+  static async #ensureOnce(force) {
     let pack = this.pack;
     // The built version is kept in a world setting, not on the pack.
     // CompendiumCollection is a DocumentCollection, not a Document: it has no

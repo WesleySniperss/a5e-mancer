@@ -189,13 +189,30 @@ export class ImportedPack {
     return CONFIG?.[kind]?.documentClass ?? globalThis[kind] ?? foundry.documents?.[kind] ?? null;
   }
 
+  /**
+   * The ids a pack holds, as the server has them. Not the index in memory: a5e's hidden sources are taken out of
+   * that (HiddenSources), and getIndex() asked for no new field hands it back as it is. Counted and cleared by
+   * it, a pack in a world that hides Voidrunner's Codex looked short of 254 items, 49 monsters and 14
+   * challenges, so every later look built it again, and the entries left behind kept the folders they were in.
+   */
+  static async #storedIds(pack, cls = pack.documentClass) {
+    const rows = await cls.database.get(cls, { query: {}, index: true, indexFields: ['_id'], pack: pack.collection }, game.user);
+    return (rows ?? []).map(r => r._id).filter(Boolean);
+  }
+
   /** A pack's folders, made afresh: name -> id. A failure leaves the documents unfoldered, not unbuilt. */
   static async #folders(pack, names, kind) {
     const out = new Map();
+    const FolderClass = foundry.documents?.Folder ?? globalThis.Folder;
+    /* The old ones as the server has them, apart from the making of the new: a folder list the client still held
+       after the server had let go of one made the delete throw, and the throw took the new folders with it. */
     try {
-      const FolderClass = foundry.documents?.Folder ?? globalThis.Folder;
-      const old = [...(pack.folders ?? [])].map(f => f.id);
+      const old = (await FolderClass.database.get(FolderClass, { query: {}, pack: pack.collection }, game.user) ?? []).map(f => f._id);
       if (old.length) await FolderClass.deleteDocuments(old, { pack: pack.collection });
+    } catch (err) {
+      AM.log(2, 'Could not clear the imported compendium\'s old folders:', err);
+    }
+    try {
       const order = [...names].sort((a, b) => (this.FOLDER_ORDER[kind].indexOf(a) + 1 || 99) - (this.FOLDER_ORDER[kind].indexOf(b) + 1 || 99));
       const made = await FolderClass.createDocuments(order.map((name, i) => ({ name, type: kind, sorting: 'a', sort: (i + 1) * 1000 })), { pack: pack.collection });
       for (const f of made ?? []) out.set(f.name, f.id);
@@ -205,10 +222,27 @@ export class ImportedPack {
     return out;
   }
 
-  /** Every pack, each built only if what it holds has changed, and all in one folder. */
-  static async ensure({ force = false } = {}) {
-    if (!game.user.isGM) return null;
-    if (!game.settings.get(AM.ID, 'buildImportedPack')) return null;
+  /**
+   * Every pack, each built only if what it holds has changed, and all in one folder.
+   *
+   * One build at a time, by one GM. Two builds of the same pack at once each deleted what the other had just
+   * made (2026-11-12, on a copy of the user's world: "Folder ... does not exist!", every pack built twice over).
+   * That is what a second GM in the world does at load, or a Rebuild pressed while the load's build runs. So at
+   * load only the GM Foundry names as the active one builds, and a call that comes while a build runs waits for
+   * it and then looks again - by then there is usually nothing left to do.
+   */
+  static #queue = Promise.resolve();
+  static ensure({ force = false } = {}) {
+    if (!game.user?.isGM) return Promise.resolve(null);
+    if (!game.settings.get(AM.ID, 'buildImportedPack')) return Promise.resolve(null);
+    const active = game.users?.activeGM;
+    if (!force && active && !active.isSelf) return Promise.resolve(null);
+    const run = this.#queue.then(() => this.#ensureAll(force));
+    this.#queue = run.catch(() => null);
+    return run;
+  }
+
+  static async #ensureAll(force) {
     let first = null;
     for (const kind of this.KINDS) {
       const pack = await this.#ensureOne(kind, force);
@@ -225,11 +259,11 @@ export class ImportedPack {
 
     let pack = this.packOf(kind);
     /* Built for this data, and still holding it. A pack that lost its documents - emptied on the user's server
-       (2026-11-12), half filled by a build that was stopped - is built again although its hash matches. The
-       index is asked afresh: the one in memory has a5e's hidden sources taken out (HiddenSources). */
+       (2026-11-12), half filled by a build that was stopped - is built again although its hash matches. Counted
+       on the server, hidden sources and all (#storedIds). */
     if (pack && !force && this.#builtHash(kind) === this.hashOf(kind)) {
       let held = count;
-      try { held = (await pack.getIndex()).size; } catch { /* as built */ }
+      try { held = (await this.#storedIds(pack)).length; } catch { /* as built */ }
       if (held >= count) return pack;
       AM.log(2, `${spec.label} holds ${held} of its ${count} entries: built again`);
     }
@@ -310,18 +344,39 @@ export class ImportedPack {
     const wasLocked = pack.locked;
     if (wasLocked) await pack.configure({ locked: false });
     try {
-      /* Every document, by the index: getDocuments leaves out those the system cannot make any more - the
-         monsters a5e 1.4 wrote are not valid in 1.5 - and those left behind would stop the documents of
-         the same id being made again. */
-      const ids = [...(await pack.getIndex()).keys()];
+      /* Every document, as the server holds them: getDocuments leaves out those the system cannot make any
+         more - the monsters a5e 1.4 wrote are not valid in 1.5 - and the index in memory those of hidden
+         sources (#storedIds). */
+      const ids = await this.#storedIds(pack, Document);
       if (ids.length) await Document.deleteDocuments(ids, { pack: pack.collection });
       const docs = await this.documents(kind);
       if (kind === 'Actor') await this.#castSpells(docs);
       const folders = await this.#folders(pack, new Set(docs.map(d => this.folderOf(d)).filter(Boolean)), kind);
       for (const d of docs) { const id = folders.get(this.folderOf(d)); if (id) d.folder = id; }
-      // In batches: a thousand documents in one request is a large message to send and to validate at once
-      for (let i = 0; i < docs.length; i += 100) {
-        await Document.createDocuments(docs.slice(i, i + 100), { pack: pack.collection, keepId: true });
+      /* As a5e's own packs hold them. a5e's createActor hook gives every new creature its six basic maneuvers
+         and 47 interactions unless it comes from a compendium; made in one, each of the 313 monsters got
+         them, 53 items apiece, each made with a request of its own (2026-11-12: the build took hours and
+         the monsters carried them out into the world). And a5e's item _onCreate writes every effect's
+         origin back with a request per item; in a compendium the origin means nothing, and a5e writes it
+         again when the item is taken onto an actor. Both are let be while this pack is built. */
+      const ItemProto = CONFIG.Item?.documentClass?.prototype;
+      const writeEmbedded = ItemProto?.updateEmbeddedDocuments;
+      const building = pack.collection;
+      if (typeof writeEmbedded === 'function') {
+        ItemProto.updateEmbeddedDocuments = function (name, updates, operation) {
+          const originsOnly = name === 'ActiveEffect' && Array.isArray(updates)
+            && updates.every(u => Object.keys(u ?? {}).every(k => k === '_id' || k === 'origin'));
+          if (this.pack === building && originsOnly) return Promise.resolve([]);
+          return writeEmbedded.call(this, name, updates, operation);
+        };
+      }
+      try {
+        // In batches: a thousand documents in one request is a large message to send and to validate at once
+        for (let i = 0; i < docs.length; i += 100) {
+          await Document.createDocuments(docs.slice(i, i + 100), { pack: pack.collection, keepId: true, fromCompendium: true });
+        }
+      } finally {
+        if (typeof writeEmbedded === 'function') ItemProto.updateEmbeddedDocuments = writeEmbedded;
       }
       // The fields a5e's browser and the module's pickers read, at once
       const fields = this.PACKS[kind].index.flatMap(t => indexFieldsFor(t));
