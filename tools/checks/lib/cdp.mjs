@@ -7,7 +7,7 @@
  *
  * Point it at a COPY of the world. Everything here writes.
  */
-import { spawn } from 'child_process';
+import { spawn, execFileSync } from 'child_process';
 import { mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -99,6 +99,23 @@ export async function openBrowser({ port = 9333, width = 1600, height = 1000 } =
     writeFileSync(file, Buffer.from(r.data, 'base64'));
   };
 
-  const close = () => { try { ws.close(); } catch {} proc.kill(); };
+  /* The whole browser, not just the process this script started. On Windows
+     Edge hands itself on to other processes, and killing the first left them
+     running - with the page still logged in to whatever world it was in. One
+     left logged in as a GM to the user's own server (2026-11-11) kept a5e's
+     world migration starting again at each of its reconnects. Everything on
+     this check's own profile goes, synchronously, before the script exits. */
+  const close = () => {
+    try { ws.close(); } catch {}
+    try { proc.kill(); } catch {}
+    if (process.platform !== 'win32') return;
+    try { execFileSync('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' }); } catch {}
+    const tag = String(profile).split(/[\\/]/).pop();
+    try {
+      execFileSync('powershell.exe', ['-NoProfile', '-Command',
+        `Get-CimInstance Win32_Process -Filter "Name='msedge.exe'" | Where-Object { $_.CommandLine -like '*${tag}*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`],
+        { stdio: 'ignore' });
+    } catch {}
+  };
   return { send, evaluate, click, shot, close, console: console_, sleep };
 }
