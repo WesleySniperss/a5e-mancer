@@ -106,9 +106,25 @@ const VARIES = 'Swarm of Tiny and Small Animated Objects';
   check('an attack has a5e\'s attack type and the page\'s bonus, rolled as written rather than from an ability',
     attacks.length > 400 && attacks.every((r) => Object.hasOwn(K.attackTypes, r.attackType) && /^[+-]\d+$/.test(r.bonus) && r.ability === 'none'), `${attacks.length} attacks`);
   const damage = rollsOf('damage');
-  check('damage is a dice formula and a damage type a5e knows',
-    damage.length > 400 && damage.every((r) => /^[\dd+\-* ]+$/.test(r.formula) && Object.hasOwn(K.damageTypes, r.damageType)),
-    [...new Set(damage.filter((r) => !/^[\dd+\-* ]+$/.test(r.formula)).map((r) => r.formula))].slice(0, 3).join(' | '));
+  /* Untyped ('') is a damage of the weapon's type - Sneak Attack's "extra 14 (4d6) damage" - which a5e allows */
+  check('damage is a dice formula and a damage type a5e knows, or none for the weapon\'s own',
+    damage.length > 400 && damage.every((r) => /^[\dd+\-* ]+$/.test(r.formula) && (r.damageType === '' || Object.hasOwn(K.damageTypes, r.damageType))),
+    [...new Set(damage.filter((r) => !/^[\dd+\-* ]+$/.test(r.formula) || !(r.damageType === '' || Object.hasOwn(K.damageTypes, r.damageType))).map((r) => r.formula + ' ' + r.damageType))].slice(0, 3).join(' | ')
+      || `${damage.length} damage rolls, ${damage.filter((r) => r.damageType === '').length} of the weapon's type`);
+  /* 2026-11-12: "monsters still do not get all their abilities" - 401 entries said dice or a DC in their text
+     and had no action to roll them. Spellcasting entries are let be: their spells are items of their own. */
+  /* A DC for another creature's check ("a DC 10 Engineering check to end it") and a caster's "spell save DC" are
+     not rolls of the monster's */
+  const textOnly = entries.filter((i) => {
+    if (Object.keys(i.system.actions ?? {}).length || /spellcasting/i.test(i.name)) return false;
+    const t = String(i.system.description ?? '').replace(/<[^>]+>/g, ' ')
+      .replace(/\bDC\s*\d+\s*[\w’'() ]{0,40}?\bchecks?\b/gi, ' ').replace(/spell save DC\s*\d+/gi, ' ');
+    return /\b\d+d\d+\b|\bDC\s*\d+/i.test(t);
+  });
+  check('an entry whose text rolls dice or asks a save has an action to roll it',
+    textOnly.length <= 10, `${textOnly.length} left${textOnly.length ? ': ' + textOnly.slice(0, 6).map((i) => i.name).join(' | ') : ''}`);
+  const healing = rollsOf('healing');
+  check('hit points regained are a healing roll', healing.every((r) => /^[\dd+\-* ]+$/.test(r.formula) && r.healingType === 'healing'), `${healing.length} healing rolls`);
   const saves = actions.flatMap((a) => Object.values(a.prompts));
   check('a saving throw is an ability of a5e\'s and the page\'s DC',
     saves.length > 200 && saves.every((p) => p.type === 'savingThrow' && ['str', 'dex', 'con', 'int', 'wis', 'cha'].includes(p.ability) && /^\d+$/.test(p.saveDC.bonus)), `${saves.length} saves`);

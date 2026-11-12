@@ -276,7 +276,20 @@ function actionOf(id, name, text, category) {
   const hit = new RegExp(`Hit:\\s*\\d+\\s*\\(([^)]+)\\)\\s*(${DMG})\\s*damage`, 'i').exec(text.replace(/\bd\s+amage\b/g, 'damage'));
   const extra = new RegExp(`plus\\s*\\d+\\s*\\(([^)]+)\\)\\s*(${DMG})\\s*damage`, 'i').exec(text);
   const save = new RegExp(`DC\\s*(\\d+)\\s*(strength|dexterity|constitution|intelligence|wisdom|charisma)\\s*saving throw`, 'i').exec(text);
-  if (!activation && !atk && !save && !hit) return null;
+  /* Damage said anywhere in the text, with its type or without ("deals an extra 14 (4d6) damage" - Sneak
+     Attack's, of the weapon's type), and hit points regained. A trait that has any of these is an action to
+     roll from the sheet as well (2026-11-12: 401 entries with dice or a DC in their text had no action). */
+  const dmgAny = new RegExp(`\\b\\d+\\s*\\(([^)]*\\dd\\d[^)]*)\\)\\s*(?:(?:additional|extra|more)\\s+)?(?:(?:weapon|${DMG})\\s+)?damage`, 'i').exec(text)
+    || new RegExp(`\\b(\\d+d\\d+(?:\\s*[+-]\\s*\\d+)?)\\s*(?:(?:additional|extra|more)\\s+)?(?:(${DMG}|weapon)\\s+)?damage`, 'i').exec(text)
+    || /\bextra damage is\s+(\d+d\d+(?:\s*[+-]\s*\d+)?)/i.exec(text);
+  if (dmgAny && dmgAny[2] && /^weapon$/i.test(dmgAny[2])) dmgAny[2] = '';
+  const heal = /regains?\s+\d+\s*\(([^)]*\dd\d[^)]*)\)\s*hit points/i.exec(text) || /regains?\s+(\d+d\d+(?:\s*[+-]\s*\d+)?)\s*hit points/i.exec(text);
+  /* The creature's own die, when the entry rolls nothing else: "roll 1d20", "reduce the damage by 10 (1d12 + 4)",
+     "Bardic Inspiration 1d8" - a plain roll on the sheet. A DC for another creature's check is not one of its rolls. */
+  const own = !atk && !hit && !dmgAny && !heal
+    ? (/\b\d+\s*\(([^)]*\dd\d[^)]*)\)/.exec(text) || /\b(\d+d\d+(?:\s*[+-]\s*\d+)?)\b/.exec(`${name} ${text}`)) : null;
+  const generic = own && !/\b(hours?|days?|minutes?|weeks?|months?|years?)\b/i.test(text.slice(Math.max(0, (own.index ?? 0) - 4), (own.index ?? 0) + own[0].length + 12)) ? own : null;
+  if (!activation && !atk && !save && !hit && !dmgAny && !heal && !generic) return null;
   const action = {
     name, activation: activation ?? { type: 'special', cost: 1, reactionTrigger: '' },
     duration: { unit: '', value: '' }, ranges: {}, area: { shape: '', size: '', placeTemplate: false },
@@ -296,7 +309,11 @@ function actionOf(id, name, text, category) {
   if (!hit && !atk) {
     const dm = new RegExp(`\\b\\d+\\s*\\(([^)]*\\dd\\d[^)]*)\\)\\s*(${DMG})\\s*damage`, 'i').exec(text) || new RegExp(`\\b(\\d+d\\d+(?:\\s*[+-]\\s*\\d+)?)\\s*(${DMG})\\s*damage`, 'i').exec(text);
     if (dm) action.rolls[rid(`${id}|damage`, 'r')] = { type: 'damage', default: true, canCrit: false, formula: formula(dm[1]), damageType: dm[2].toLowerCase(), label: '' };
+    /* No type said: the damage is the weapon's (Sneak Attack, a smite) - rolled untyped, and it can crit */
+    else if (dmgAny) action.rolls[rid(`${id}|damage`, 'r')] = { type: 'damage', default: true, canCrit: /when it hits|on a hit|weapon attack/i.test(text), formula: formula(dmgAny[1]), damageType: (dmgAny[2] ?? '').toLowerCase(), label: '' };
   }
+  if (heal) action.rolls[rid(`${id}|healing`, 'r')] = { type: 'healing', default: true, formula: formula(heal[1]), healingType: 'healing', label: '' };
+  if (generic && !Object.keys(action.rolls).length) action.rolls[rid(`${id}|roll`, 'r')] = { type: 'generic', default: true, formula: formula(generic[1]), label: '' };
   if (save) action.prompts[rid(`${id}|save`, 'p')] = { type: 'savingThrow', default: true, ability: ABIL[save[2].toLowerCase()],
     saveDC: { type: 'custom', bonus: save[1] }, label: '', onSave: /half (?:as much )?damage|takes half/i.test(text) ? 'Half damage' : '' };
   return action;
