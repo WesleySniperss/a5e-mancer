@@ -5766,7 +5766,39 @@ export class A5eCharacterSheet extends ActorSheet {
       window.removeEventListener('keydown', this._condKeydownHandler, true);
       this._condKeydownHandler = null;
     }
-    return super.close(options);
+    const closed = await super.close(options);
+    this.#letGoOfPage();
+    return closed;
+  }
+
+  /**
+   * A closed sheet kept its whole last page alive. Foundry's tab controller
+   * keeps the nav and the content it was bound to, and the form application
+   * keeps its form. Any node in that page holds all the rest, so every
+   * character opened in a session stayed in memory until it was opened
+   * again. On the user's server (2026-11-13, 89 modules) that was 30,137
+   * nodes and 2,474 listeners for Remy, 27,580 and 2,290 for Ace. A GM who
+   * opens thirty characters in a fight carries most of a million nodes.
+   * Only what is no longer in the document is let go: a sheet opened again
+   * while it was closing has new ones. The nav is given an empty
+   * stand-in, because core's Tabs.activate reads it without asking.
+   * The next render binds everything afresh.
+   */
+  #letGoOfPage() {
+    const gone = (el) => !!el && !el.isConnected;
+    for (const tabs of this._tabs ?? []) {
+      if (gone(tabs._nav)) {
+        const nav = document.createElement('nav');
+        if (tabs._nav.dataset?.group) nav.dataset.group = tabs._nav.dataset.group;
+        tabs._nav = nav;
+      }
+      if (gone(tabs._content)) tabs._content = null;
+    }
+    for (const filter of this._searchFilters ?? []) {
+      if (gone(filter._input)) filter._input = null;
+      if (gone(filter._content)) filter._content = null;
+    }
+    if (gone(this.form)) this.form = null;
   }
 }
 

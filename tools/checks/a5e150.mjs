@@ -282,6 +282,35 @@ try {
   console.log('FAILED', err.message);
 }
 
+/* A closed sheet lets go of its page (A5eCharacterSheet #letGoOfPage): Foundry's tab controller and the form kept
+   the whole last page of every character opened in a session - 30,137 nodes for one of the user's characters */
+try {
+  const held = await b.evaluate(`(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    /* A character whose sheet is ours: the test world's default is a5e's own, which this is not about */
+    const a = game.actors.find(x => x.type === 'character' && x.isOwner && x.sheet?.constructor?.name === 'A5eCharacterSheet');
+    if (!a) return { name: 'no character with our sheet' };
+    const sheet = a.sheet;
+    await sheet.render(true);
+    for (let i = 0; i < 100 && !sheet.rendered; i++) await wait(100);
+    await wait(1500);
+    const bound = !!sheet.form?.isConnected && !!sheet._tabs?.[0]?._nav?.isConnected;
+    await sheet.close();
+    const t = sheet._tabs?.[0];
+    const out = { name: a.name, bound, form: sheet.form === null, nav: !!t?._nav && !t._nav.isConnected && t._nav.childElementCount === 0, content: t?._content === null };
+    await sheet.render(true);
+    for (let i = 0; i < 100 && !sheet.rendered; i++) await wait(100);
+    await wait(1500);
+    out.again = !!sheet.form?.isConnected && !!sheet._tabs?.[0]?._nav?.isConnected && sheet._tabs[0]._nav.childElementCount > 0;
+    await sheet.close();
+    return out;
+  })()`);
+  check(held.bound && held.form && held.nav && held.content && held.again, 'a closed sheet lets go of its page, and binds a new one when opened again', JSON.stringify(held));
+} catch (err) {
+  failures++;
+  console.log('FAILED', err.message);
+}
+
 try {
   await b.evaluate(`(async () => {
     for (const a of game.actors.filter(x => /^AM 150 /.test(x.name))) await a.delete();
