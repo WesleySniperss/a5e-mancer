@@ -282,6 +282,37 @@ try {
   console.log('FAILED', err.message);
 }
 
+/* "dead" put on at once by a5e (hit points to 0), Monk's Combat Details and Combat Booster: the second made the
+   same fixed-id effect again and the refusal came up on screen (the user's game, 2026-11-14; StatusOnce) */
+try {
+  const dead = await b.evaluate(`(async () => {
+    const errs = [];
+    const ce = console.error;
+    console.error = (...a) => { errs.push(a.map(x => x?.message ?? String(x)).join(' ').slice(0, 200)); return ce.apply(console, a); };
+    const onReject = (e) => errs.push('unhandled: ' + String(e.reason?.message ?? e.reason).slice(0, 200));
+    window.addEventListener('unhandledrejection', onReject);
+    const actor = await Actor.create({ name: 'AM 150 dies twice', type: 'npc', system: { attributes: { hp: { value: 10, baseMax: 10 } } } });
+    const results = await Promise.all([
+      actor.update({ 'system.attributes.hp.value': 0 }),
+      actor.toggleStatusEffect('dead', { active: true, overlay: true }),
+      actor.toggleStatusEffect('dead', { active: true, overlay: true })
+    ]).catch(e => { errs.push('threw: ' + e.message); return []; });
+    await new Promise(r => setTimeout(r, 1500));
+    const deadOn = actor.effects.filter(e => e.statuses?.has('dead')).length;
+    const off = await Promise.all([actor.toggleStatusEffect('dead', { active: false }), actor.toggleStatusEffect('dead', { active: false })]).catch(e => { errs.push('off threw: ' + e.message); return []; });
+    await new Promise(r => setTimeout(r, 800));
+    const deadAfter = actor.effects.filter(e => e.statuses?.has('dead')).length;
+    window.removeEventListener('unhandledrejection', onReject);
+    console.error = ce;
+    await actor.delete();
+    return { deadOn, deadAfter, answers: results.slice(1).map(r => r === true ? 'true' : (r?.documentName ?? String(r))), errs };
+  })()`);
+  check(dead.deadOn === 1 && dead.deadAfter === 0 && !dead.errs.length, '"dead" put on three times at once is on once, with no error, and comes off once', JSON.stringify(dead));
+} catch (err) {
+  failures++;
+  console.log('FAILED', err.message);
+}
+
 /* A closed sheet lets go of its page (A5eCharacterSheet #letGoOfPage): Foundry's tab controller and the form kept
    the whole last page of every character opened in a session - 30,137 nodes for one of the user's characters */
 try {

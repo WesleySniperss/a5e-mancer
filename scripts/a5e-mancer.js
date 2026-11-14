@@ -13,6 +13,7 @@ import { ConditionSource } from './utils/conditionSource.js';
 import { ItemRepair } from './utils/itemRepair.js';
 import { FreshStyles } from './utils/freshStyles.js';
 import { A5eFixes } from './utils/a5eFixes.js';
+import { StatusOnce } from './utils/statusOnce.js';
 import { TokenVision } from './utils/tokenVision.js';
 import { FeatureAutomation } from './utils/featureAutomation.js';
 import { ForeignMarkup } from './utils/foreignMarkup.js';
@@ -78,6 +79,8 @@ Hooks.on('init', () => {
   try { A5eFixes.resourceFormulas(); } catch (err) { console.error('a5e-mancer | resource formulas:', err); }
   // A chat card whose item is gone - a deleted token's attack - is drawn again - see A5eFixes.goneItemCards
   try { A5eFixes.goneItemCards(); } catch (err) { console.error('a5e-mancer | gone item cards:', err); }
+  // "dead" put on by a5e, Monk's Combat Details and Combat Booster at once is put on once - see statusOnce.js
+  try { StatusOnce.install(); } catch (err) { console.error('a5e-mancer | status once:', err); }
   // A player's initiative with no encounter on their scene goes to the GM's client - see initiativeRelay.js
   try { InitiativeRelay.install(); } catch (err) { console.error('a5e-mancer | initiative relay:', err); }
 
