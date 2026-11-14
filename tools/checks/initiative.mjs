@@ -134,7 +134,16 @@ try {
       cards: cards.map(m => (m.speaker?.alias ?? '?') + ' ' + m.rolls?.[0]?.total).sort().join(', ') };
   })()`;
   const clear = `(async () => { for (const c of [...game.combats]) { try { await c.delete(); } catch {} } window.__k.since = Date.now(); await window.__k.sleep(500); return 'ok'; })()`;
-  const settle = async () => { await gm.sleep(2500); return g(look); };
+  /* The GM's client adds relayed rolls one after another, each after its own encounter work; on a busy machine the
+     second of two came after a fixed 2.5 s (2026-11-15, the same zip that passed two days before). So: wait while
+     there are cards the tracker has not caught up with, up to ten seconds more. */
+  const settle = async () => {
+    await gm.sleep(2500);
+    let r = await g(look);
+    const behind = (x) => x.cards && (!x.tracker || x.tracker.split(', ').length < x.cards.split(', ').length);
+    for (let i = 0; i < 20 && behind(r); i++) { await gm.sleep(500); r = await g(look); }
+    return r;
+  };
   const same = (r) => r.tracker && r.cards && r.tracker.split(', ').every(t => { const [n, v] = t.split('='); return r.cards.includes(n + ' ' + v); });
 
   pl = await openBrowser({ port: 9446, width: 1600, height: 1000 });
