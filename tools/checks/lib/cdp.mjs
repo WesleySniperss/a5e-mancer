@@ -8,7 +8,7 @@
  * Point it at a COPY of the world. Everything here writes.
  */
 import { spawn, execFileSync } from 'child_process';
-import { mkdtempSync, writeFileSync } from 'fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { EDGE } from './browser.mjs';
@@ -105,10 +105,17 @@ export async function openBrowser({ port = 9333, width = 1600, height = 1000 } =
      left logged in as a GM to the user's own server (2026-11-11) kept a5e's
      world migration starting again at each of its reconnects. Everything on
      this check's own profile goes, synchronously, before the script exits. */
+  /* And its profile with it: each run made one in the temp folder and none
+     went - 313 of them, 27 GB, filled the disk mid-release (2026-11-15), and
+     the test world could no longer write its database. Windows holds the
+     files a moment after the browser dies: retried. */
+  const dropProfile = () => {
+    try { rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); } catch {}
+  };
   const close = () => {
     try { ws.close(); } catch {}
     try { proc.kill(); } catch {}
-    if (process.platform !== 'win32') return;
+    if (process.platform !== 'win32') { dropProfile(); return; }
     try { execFileSync('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' }); } catch {}
     const tag = String(profile).split(/[\\/]/).pop();
     try {
@@ -116,6 +123,7 @@ export async function openBrowser({ port = 9333, width = 1600, height = 1000 } =
         `Get-CimInstance Win32_Process -Filter "Name='msedge.exe'" | Where-Object { $_.CommandLine -like '*${tag}*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`],
         { stdio: 'ignore' });
     } catch {}
+    dropProfile();
   };
   return { send, evaluate, click, shot, close, console: console_, sleep };
 }
