@@ -320,16 +320,21 @@ try {
     await k.sleep(${wait});
     return 'ok';
   })()`);
-  const playerScene = async (label, args, want) => {
+  /* Nothing selected means nothing selected: with a5e's vision automation on
+     (the user's world has it) the player's own token came up selected on their
+     client, and its roll went to it - Beyond20's rule, not the case asked. */
+  const releasePlayer = () => pv(`(async () => { canvas.tokens?.releaseAll?.(); await new Promise(r => setTimeout(r, 200)); return canvas.tokens?.controlled?.length ?? 0; })()`);
+  const playerScene = async (label, args, want, { release = false } = {}) => {
     await ev(clear);
+    if (release) await releasePlayer();
     await playerRoll(args);
     const got = await ev(tracker);
     const own = (await pv(SAID)).filter(s => /Cannot add initiative/.test(s));
     check(got === want && !own.length, label, `tracker: ${got || '(empty)'}${own.length ? ' | the player was told: ' + own[0] : ''}`);
   };
-  await playerScene('the exact name, nothing selected', Q(HERO), HERO);
-  await playerScene('a short name, no character assigned', Q(SHORT), HERO);
-  await playerScene('a name nobody has, no character assigned: nobody added', Q('Nobody At All'), '');
+  await playerScene('the exact name, nothing selected', Q(HERO), HERO, { release: true });
+  await playerScene('a short name, no character assigned', Q(SHORT), HERO, { release: true });
+  await playerScene('a name nobody has, no character assigned: nobody added', Q('Nobody At All'), '', { release: true });
   const told = await ev(SAID);
   check(told.some(s => /Nobody At All/.test(s)), 'and the GM is told', told.join(' / ') || 'nothing said');
   await ev(`(async () => { await window.__b20.u.update({ character: window.__b20.hero.id }); return 'ok'; })()`);
