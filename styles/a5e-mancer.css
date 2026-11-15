@@ -3770,6 +3770,54 @@ button.lu-levels-title {
     font-weight: 600;
 }
 
+/* A spell card's conditions, to put on the targets (utils/spellConditions.js) */
+.chat-message .am-spell-conditions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    margin: 4px 0 2px;
+}
+
+.chat-message .am-spell-conditions__label {
+    font-size: 0.85em;
+    opacity: 0.8;
+    margin-right: 2px;
+}
+
+/* Light, with dark text, like a5e's own prompt buttons on the card - the
+   theme's button colours gave dark text on the dark card */
+.chat-message .am-spell-condition {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    width: auto;
+    flex: 0 0 auto;
+    height: 26px;
+    min-height: 0;
+    line-height: 24px;
+    padding: 0 9px 0 4px;
+    border: 1px solid rgba(0, 0, 0, 0.35);
+    border-radius: 999px;
+    background: #dcd7cf;
+    color: #111;
+    font-size: 0.85em;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.chat-message .am-spell-condition:hover {
+    background: #eee9e1;
+    box-shadow: 0 0 4px rgba(var(--am-gold-rgb, 200, 160, 60), 0.6);
+}
+
+.chat-message .am-spell-condition img {
+    width: 18px;
+    height: 18px;
+    border: 0;
+    flex: 0 0 18px;
+}
+
 /* Ability score changes, whispered to the GM (utils/abilityWatch.js). */
 .chat-message .am-ability-watch ul {
     margin: 2px 0 4px;

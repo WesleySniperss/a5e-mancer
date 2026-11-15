@@ -1,5 +1,6 @@
 import { AM } from '../am.js';
 import { ConditionSource } from './conditionSource.js';
+import { SpellConditions } from './spellConditions.js';
 
 /**
  * Conditions a5e describes and leaves to the table, run for it. Asked for on
@@ -100,6 +101,7 @@ export class ConditionAutomation {
           || foundry.utils.hasProperty(changes, 'flags.a5e')) this.#encumbranceSoon(actor, userId);
     });
     document.addEventListener('click', (event) => this.#onClick(event), true);
+    SpellConditions.install();
   }
 
   /* ── 1. blinded ──────────────────────────────────────────── */
@@ -289,7 +291,7 @@ export class ConditionAutomation {
           await this.#note(actor, `${this.#esc(actor.name)} loses concentration (${total} against DC ${save.dc}).`);
         }
       } else if (save.kind === 'prompt') {
-        if (!passed && this.on('autoSaveEffects')) await this.#applyEffects(actor, save, total);
+        if (this.on('autoSaveEffects')) await this.#applyEffects(actor, save, total, passed);
       } else if (save.kind === 'saveEnds') {
         if (passed) {
           const effect = await fromUuid(save.effectUuid).catch(() => null);
@@ -304,25 +306,33 @@ export class ConditionAutomation {
     }
   }
 
-  /** A failed save's effects on the creature that failed it. */
-  static async #applyEffects(actor, save, total) {
+  /**
+   * A save's effects on the creature that rolled it. Failed: the card's own
+   * effects (a5e's transfer: as the item holds them, the item their origin),
+   * and the conditions the spell's text gives a failure that no effect of it
+   * carries (SpellConditions - Grease's prone, Sunbeam's blinded for a round).
+   * Passed: what the spell gives a success (Slow's rattled).
+   */
+  static async #applyEffects(actor, save, total, passed = false) {
     const applied = [];
-    for (const uuid of save.effects ?? []) {
-      const effect = await fromUuid(uuid).catch(() => null);
-      if (!effect || effect.system?.applyToSelf) continue;
-      /* a5e's own transfer: the effect as the item holds it, its origin the
-         item - and one already there is turned back on, not doubled. */
-      const already = actor.effects.find(e => effect.equals?.(e));
-      if (already) { if (already.disabled) await already.update({ disabled: false }); applied.push(effect.name); continue; }
-      const data = foundry.utils.deepClone(effect.toObject());
-      delete data._id;
-      data.origin = effect.parent?.uuid ?? data.origin;
-      await actor.createEmbeddedDocuments('ActiveEffect', [data]);
-      applied.push(effect.name);
+    const item = save.itemUuid ? await fromUuid(save.itemUuid).catch(() => null) : null;
+    if (!passed && SpellConditions.ownEffectsCount(item)) {
+      for (const uuid of save.effects ?? []) {
+        const effect = await fromUuid(uuid).catch(() => null);
+        if (!effect || effect.system?.applyToSelf) continue;
+        if (await SpellConditions.copyEffect(actor, effect, item)) applied.push(effect.name);
+      }
+    }
+    for (const [status, lasts] of SpellConditions.forSave(item, passed)) {
+      try {
+        if (await SpellConditions.give(actor, item, status, lasts)) applied.push(`${SpellConditions.label(status)} (${SpellConditions.describe(lasts, item)})`);
+      } catch (err) {
+        AM.log(1, `Condition automation: ${status} from ${item?.name} not put on ${actor.name}:`, err);
+      }
     }
     if (applied.length) {
       const ability = game.i18n.localize(CONFIG.A5E?.abilities?.[save.ability] ?? save.ability);
-      await this.#note(actor, `${this.#esc(actor.name)} fails the ${this.#esc(ability)} save (${total} against DC ${save.dc}): ${applied.map(n => this.#esc(n)).join(', ')}.`);
+      await this.#note(actor, `${this.#esc(actor.name)} ${passed ? 'succeeds on' : 'fails'} the ${this.#esc(ability)} save (${total} against DC ${save.dc}): ${applied.map(n => this.#esc(n)).join(', ')}.`);
     }
   }
 
@@ -401,15 +411,45 @@ export class ConditionAutomation {
   static repeatSave(html) {
     const text = String(html ?? '').replace(/@UUID\[[^\]]*\]\{([^}]*)\}/g, '$1').replace(/\[\[[^\]]*?label="([^"]*)"[^\]]*\]\]/g, '$1')
       .replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/[’‘]/g, "'").replace(/\s+/g, ' ');
-    for (const sentence of text.split(/(?<=\.)\s+/)) {
-      const turn = sentence.match(/\b(?:at the )?(end|start) of each of (?:its|their|your|the (?:target|creature)'?s?|the [a-z]+ creature'?s?) turns?\b/i);
-      if (!turn) continue;
-      const save = sentence.match(/\bsav(?:ing throw|e)\b/i);
-      if (!save) continue;
-      const after = sentence.slice(save.index);
-      if (!/\b(ending|ends?\b|to end|on a success|returning)/i.test(after)) continue;
+    const sentences = text.split(/(?<=\.)\s+/);
+    /* The way out may come in the next sentence: Hideous Laughter's "...the
+       target may attempt another saving throw. On a successful save, the spell
+       ends." */
+    const thenEnds = (i) => /^on a success(?:ful save)?\b[^.]*\b(ends?|ending)\b/i.test(sentences[i + 1] ?? '');
+    const result = (sentence, timing) => {
       const named = sentence.match(/\b(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma)\b/i)?.[1];
-      return { timing: turn[1].toLowerCase(), ability: named ? this.ABILITIES[named.toLowerCase()] : null };
+      return { timing, ability: named ? this.ABILITIES[named.toLowerCase()] : null };
+    };
+    for (const [i, sentence] of sentences.entries()) {
+      const turn = sentence.match(/\b(?:at the )?(end|start) of each of (?:its|their|your|the (?:target|creature)'?s?|the [a-z]+ creature'?s?) turns?\b/i);
+      if (turn) {
+        const save = sentence.match(/\bsav(?:ing throw|e)\b/i);
+        if (save && (/\b(ending|ends?\b|to end|on a success|returning)/i.test(sentence.slice(save.index)) || thenEnds(i))) {
+          return result(sentence, turn[1].toLowerCase());
+        }
+      }
+      /* One turn, and a save made again to be free of it - not a harm that comes
+         back each turn:
+         - Power Word Stun: "At the end of the target's turn, it makes a
+           Constitution saving throw to end the effect."
+         - Sticky Situation: "may repeat their saving throw at the beginning of
+           their turn and are no longer prone or restrained on a success."
+         - Fear: "When the creature ends its turn in a location where it doesn't
+           have line of sight to you, the creature can repeat the saving throw,
+           ending the spell's effects on it" - offered each turn; the table
+           decides whether it may.
+         - Irresistible Dance: "On each of its turns, the target can use an
+           action to repeat the saving throw". */
+      const one = sentence.match(/\b(?:at the )?(end|start|beginning) of (?:its|their|the (?:target|creature)'s) turn\b/i)
+        ?? sentence.match(/\b(ends) (?:its|their) turn\b/i)
+        ?? sentence.match(/\bon each of (?:its|their) (turns)\b/i);
+      if (!one) continue;
+      const again = /\b(?:repeat|another|new)\b[^.]{0,20}\bsav(?:ing throw|e)\b/i.test(sentence)
+        || /\bmakes? an? [A-Za-z]+ saving throw to end\b/i.test(sentence);
+      const out = /\b(ending|to end|on a success|no longer)\b/i.test(sentence) || thenEnds(i);
+      if (!again || !out) continue;
+      const word = one[1].toLowerCase();
+      return result(sentence, word === 'end' || word === 'ends' ? 'end' : 'start');
     }
     return null;
   }
