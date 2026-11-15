@@ -138,10 +138,15 @@ export class TokenVision {
     /* With a5e's automation on: every client, every change to a creature or what
        it carries, since each client prepares its own tokens and nothing is
        written. Comparing a few numbers per token; most changes find nothing. */
+    /* Gathered, not put off: the first change sets the look 150 ms on, and the
+       ones in between join it. Putting it off again at each change waited out
+       a whole stream - the fifty basic actions a5e gives a new character, one
+       createItem each - and the sight was redrawn seconds late (the 2.99.3
+       release run). */
     const follow = (doc) => {
       const actor = doc?.documentName === 'Actor' ? doc : (doc?.parent?.documentName === 'Actor' ? doc.parent : doc?.parent?.parent);
       if (!actor || actor.documentName !== 'Actor' || !this.a5eAutomates) return;
-      clearTimeout(this.#following.get(actor.uuid));
+      if (this.#following.has(actor.uuid)) return;
       this.#following.set(actor.uuid, setTimeout(() => {
         this.#following.delete(actor.uuid);
         try { this.follow(actor); } catch (err) { AM.log(2, `Token vision for ${actor.name} not followed:`, err); }
