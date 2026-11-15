@@ -97,9 +97,12 @@ export class SpellConditions {
    * was null - the condition kept no turn of its caster, and core counted
    * "until the caster's next turn" from the creature's own.
    */
+  /* Only one these creatures are in: an encounter elsewhere (another table's,
+     one left running) gave its own rounds to their effects - Hold Person read
+     7 rounds left the moment it was cast (the release run of 2.99.3). */
   static #combatFor(...actors) {
     const running = [game.combat, game.combats?.active, ...(game.combats ?? [])].filter(c => c?.started);
-    return running.find(c => actors.some(a => a && c.getCombatantsByActor?.(a)?.length)) ?? running[0] ?? null;
+    return running.find(c => actors.some(a => a && c.getCombatantsByActor?.(a)?.length)) ?? null;
   }
 
   static #combatantOf(combat, actor) {
