@@ -289,6 +289,37 @@ export class A5eFixes {
   }
 
   /**
+   * A condition's effect showed "A5E.conditions.rattled.description" where its
+   * rules belong - Rattled, Blinded, every one (the user, 2026-11-15: "why does
+   * rattled have no description?"). a5e gives each status the translation key
+   * of its text, and core makes the effect from the status translating the
+   * name only, so the key is what the effect keeps and what its window shows.
+   * A new one gets the text; one made before is shown with it (prepared, not
+   * written - nothing in the world changes).
+   * At init: before a status is put on anything.
+   */
+  static conditionText() {
+    if (this.#done.has('conditionText')) return;
+    const Effect = CONFIG.ActiveEffect?.documentClass;
+    if (!Effect || typeof Effect._fromStatusEffect !== 'function') return;
+    this.#done.add('conditionText');
+    const key = (s) => typeof s === 'string' && /^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)+$/.test(s) && game.i18n?.has?.(s);
+    const make = Effect._fromStatusEffect;
+    Effect._fromStatusEffect = function (statusId, effectData, options) {
+      if (key(effectData?.description)) effectData.description = game.i18n.localize(effectData.description);
+      return make.call(this, statusId, effectData, options);
+    };
+    const proto = Effect.prototype;
+    const prepare = proto.prepareBaseData;
+    proto.prepareBaseData = function (...args) {
+      const done = typeof prepare === 'function' ? prepare.apply(this, args) : undefined;
+      if (key(this.description)) this.description = game.i18n.localize(this.description);
+      return done;
+    };
+    AM.log(3, 'a5e fix: conditions keep their rules text, not its key');
+  }
+
+  /**
    * A chat card whose item is gone did not draw. a5e 1.5's ItemCard reads the
    * name of the message's item, and the message's `item` is fromUuidSync of
    * the card's itemId - nothing once the item is gone. That is every attack

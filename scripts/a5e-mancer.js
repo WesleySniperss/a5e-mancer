@@ -79,6 +79,8 @@ Hooks.on('init', () => {
   try { A5eFixes.resourceFormulas(); } catch (err) { console.error('a5e-mancer | resource formulas:', err); }
   // A chat card whose item is gone - a deleted token's attack - is drawn again - see A5eFixes.goneItemCards
   try { A5eFixes.goneItemCards(); } catch (err) { console.error('a5e-mancer | gone item cards:', err); }
+  // A condition's effect keeps its rules text, not the key of it - see A5eFixes.conditionText
+  try { A5eFixes.conditionText(); } catch (err) { console.error('a5e-mancer | condition text:', err); }
   // "dead" put on by a5e, Monk's Combat Details and Combat Booster at once is put on once - see statusOnce.js
   try { StatusOnce.install(); } catch (err) { console.error('a5e-mancer | status once:', err); }
   // A player's initiative with no encounter on their scene goes to the GM's client - see initiativeRelay.js

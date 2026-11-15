@@ -282,6 +282,25 @@ try {
   console.log('FAILED', err.message);
 }
 
+/* A condition's effect showed the key of its text, "A5E.conditions.rattled.description" (A5eFixes.conditionText) */
+try {
+  const text = await b.evaluate(`(async () => {
+    const actor = await Actor.create({ name: 'AM 150 rattled', type: 'npc' });
+    await actor.toggleStatusEffect('rattled', { active: true });
+    const made = actor.effects.find(e => e.statuses?.has('rattled'));
+    const [old] = await actor.createEmbeddedDocuments('ActiveEffect', [{ name: 'Blinded (made before)', img: 'icons/svg/blind.svg', description: 'A5E.conditions.blinded.description' }]);
+    const out = { made: String(made?.description ?? '').replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, 70),
+      old: String(old.description).replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, 50), oldStored: old._source.description };
+    await actor.delete();
+    return out;
+  })()`);
+  check(/expertise dice/.test(text.made) && /can't see/.test(text.old) && text.oldStored === 'A5E.conditions.blinded.description',
+    "a condition's effect has its rules text; one made before shows it, and keeps what it stored", JSON.stringify(text));
+} catch (err) {
+  failures++;
+  console.log('FAILED', err.message);
+}
+
 /* "dead" put on at once by a5e (hit points to 0), Monk's Combat Details and Combat Booster: the second made the
    same fixed-id effect again and the refusal came up on screen (the user's game, 2026-11-14; StatusOnce) */
 try {
