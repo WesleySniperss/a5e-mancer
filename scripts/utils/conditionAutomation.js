@@ -260,6 +260,12 @@ export class ConditionAutomation {
     return waiting.length === 1 ? waiting[0].slice(actorUuid.length + 1) : null;
   }
 
+  /** The ability a save's message is for (null: a death save, or no way to tell) */
+  static saveAbility(message) {
+    if (message?.system?.rollType !== 'savingThrow') return null;
+    return this.#abilityOf(message, message.system?.actorId ?? '');
+  }
+
   /** On the rolling client: what a save is for goes with its message. */
   static #markSave(message) {
     if (message.system?.rollType !== 'savingThrow') return;

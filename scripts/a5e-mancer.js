@@ -20,6 +20,7 @@ import { ForeignMarkup } from './utils/foreignMarkup.js';
 import { CardSummary } from './utils/cardSummary.js';
 import { SiteText } from './utils/siteText.js';
 import { ConditionAutomation } from './utils/conditionAutomation.js';
+import { ManeuverSaves } from './utils/maneuverSaves.js';
 import { AbilityWatch } from './utils/abilityWatch.js';
 import { DocumentLinks } from './utils/documentLinks.js';
 import { LinkMend } from './utils/linkMend.js';
@@ -61,6 +62,8 @@ Hooks.on('init', () => {
 
   // Conditions run for the table: blinded, concentration, encumbered, saves - see conditionAutomation.js
   try { ConditionAutomation.install(); } catch (err) { console.error('a5e-mancer | condition automation:', err); }
+  // Ice's and Psychic's disadvantage on the next save, on the creature the spell struck - see maneuverSaves.js
+  try { ManeuverSaves.install(); } catch (err) { console.error('a5e-mancer | maneuver saves:', err); }
 
   // Ability scores: what was wrong and put right told to the GM, every change when asked - see abilityWatch.js
   try { AbilityWatch.install(); } catch (err) { console.error('a5e-mancer | ability watch:', err); }
