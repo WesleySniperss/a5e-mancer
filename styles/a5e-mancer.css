@@ -3830,3 +3830,16 @@ button.lu-levels-title {
     opacity: 0.8;
     word-break: break-word;
 }
+
+/* The tracker's End Combat button kept its icon under Carolingian UI's carousel.
+ *
+ * Monk's Combat Details, while enemies stand, turns the End Combat button into
+ * a bare icon: it empties it and puts Font Awesome's classes on the button
+ * itself (fa-solid fa-xmark), so the cross is the button's own ::before.
+ * Carolingian UI's combat carousel (#combat-popout) gives that button its UI
+ * font, unlayered, expecting core's <i> and <span> inside. The cross was drawn
+ * in Work Sans, which has no such glyph: an empty box (2026-11-17). The same
+ * for the End Turn button Monk's makes an icon when no enemy is left. */
+body.crlngn-ui #combat-popout nav.combat-controls button.combat-control.icon[class*="fa-"] {
+    font-family: var(--_fa-family, var(--font-awesome)) !important;
+}
