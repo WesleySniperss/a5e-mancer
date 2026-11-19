@@ -16,7 +16,8 @@ import { AM } from '../am.js';
  *
  * The cause was found (Geano's Phantom Performance) and is guarded against,
  * so the note of every change is now asked for (setting abilityChangeNotes,
- * off); what is wrong and was put right is still always told.
+ * off); a score written outside a preparation is still always told. The look
+ * at shown scores against their data (checkDrift) is run by hand since 2.99.6.
  */
 export class AbilityWatch {
 
@@ -40,9 +41,7 @@ export class AbilityWatch {
     Hooks.on('preUpdateActor', (actor, changes) => this.#guard(() => this.#onUpdate(actor, changes)));
     Hooks.on('preCreateActiveEffect', (effect, data) => this.#guard(() => this.#onEffect(effect, data)));
     Hooks.on('preCreateItem', (item, data) => this.#guard(() => this.#onItem(item, data)));
-    // Once the world is up, and once its scene is drawn: what each client shows, against its data
-    Hooks.once('ready', () => setTimeout(() => this.#safely(() => this.checkDrift('after loading')), 5000));
-    Hooks.once('canvasReady', () => setTimeout(() => this.#safely(() => this.checkDrift('after the scene was drawn')), 5000));
+    // What a client shows against its data (checkDrift) is no longer looked at by itself: a5eMancer.checkDrift() looks by hand
   }
 
   /* ── scores written outside preparation ──────────────────── */
@@ -119,19 +118,36 @@ export class AbilityWatch {
   /* ── what a client shows against its data ────────────────── */
 
   /**
-   * Each character's scores as this client shows them, against a copy
-   * prepared afresh from its data; one that differs is prepared again from
-   * its data, and the GM is told. Once after loading and once after the
-   * scene is drawn - where the user's world showed scores three points high.
-   * About 10 ms a character.
+   * The scores of the characters this client shows, against a copy prepared
+   * afresh from their data; one that differs is prepared again from its data,
+   * and the GM is told.
+   *
+   * Run by hand since 2.99.6: a5eMancer.checkDrift() in the console. Until
+   * then it ran after every load, where the user's world had shown scores
+   * three points high; its cause (Geano's Phantom Performance preparing
+   * actors twice) is guarded by A5eFixes.idempotentPrepare, and the user
+   * turned the look off (2026-11-19: "вона не треба") - kept for a day the
+   * scores drift again.
+   *
+   * Only the characters this client shows (#shownCharacters), one copy at a
+   * time with a pause between, so each copy can be collected before the next.
+   * A copy is the whole character with every item, 100-160 of them in the
+   * user's world. Copying all 33 characters at once, twice per load and on
+   * every client, allocated ~870 MB within seconds of ready and lifted the
+   * page's peak by ~130 MB (2026-11-19, the user's server in an emulated
+   * iPhone 13, whose Safari drops the world right after it loads).
    */
-  static checkDrift(when) {
+  static async checkDrift(when = 'on request') {
     const drifted = [];
-    for (const actor of game.actors?.filter(a => a.type === 'character') ?? []) {
+    for (const actor of this.#shownCharacters()) {
+      await new Promise(resolve => setTimeout(resolve, 150));
+      if (!game.actors?.has(actor.id)) continue;
       const shown = this.KEYS.map(k => actor.system?.abilities?.[k]?.value);
-      let fresh;
-      try { fresh = actor.clone({}, { keepId: true }); } catch { continue; }
-      const truth = this.KEYS.map(k => fresh.system?.abilities?.[k]?.value);
+      let truth;
+      try {
+        const fresh = actor.clone({}, { keepId: true });
+        truth = this.KEYS.map(k => fresh.system?.abilities?.[k]?.value);
+      } catch { continue; }
       const off = this.KEYS.filter((k, i) => shown[i] !== truth[i]).map((k) => `${this.#label(k)} ${shown[this.KEYS.indexOf(k)]} (its data gives ${truth[this.KEYS.indexOf(k)]})`);
       if (!off.length) continue;
       drifted.push(`${actor.name}: ${off.join(', ')}`);
@@ -147,14 +163,25 @@ export class AbilityWatch {
     }).catch(err => AM.log(2, 'Ability watch note:', err));
   }
 
+  /**
+   * The characters this client shows: those with a token on the scene it
+   * shows, those assigned to a player, and for a player their own. The
+   * user's world keeps many more (old, retired, half-built) that no screen
+   * shows; they are not copied. The drift that was seen came from actors
+   * prepared twice, which A5eFixes.idempotentPrepare now makes harmless.
+   */
+  static #shownCharacters() {
+    const characters = game.actors?.filter(a => a.type === 'character') ?? [];
+    const onScene = new Set();
+    for (const token of globalThis.canvas?.scene?.tokens ?? []) if (token.actorId) onScene.add(token.actorId);
+    const assigned = new Set(game.users?.filter(u => !u.isGM && u.character).map(u => u.character.id) ?? []);
+    const gm = game.user?.isGM === true;
+    return characters.filter(a => onScene.has(a.id) || (gm ? assigned.has(a.id) : a.isOwner));
+  }
+
   /** A per-change note, when asked for. */
   static #guard(fn) {
     try { if (this.on()) fn(); } catch (err) { AM.log(2, 'Ability watch:', err); }
-  }
-
-  /** What is always done: a watch never stops what it watches. */
-  static #safely(fn) {
-    try { fn(); } catch (err) { AM.log(2, 'Ability watch:', err); }
   }
 
   static #label(key) {

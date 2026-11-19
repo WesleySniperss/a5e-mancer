@@ -413,7 +413,8 @@ Hooks.once('ready', async () => {
   const arr = game.settings.get(AM.ID, 'customStandardArray') || StatRoller.getDefaultStandardArray();
   if (!arr || arr.trim() === '')
     game.settings.set(AM.ID, 'customStandardArray', StatRoller.getDefaultStandardArray());
-  globalThis.a5eMancer = { AM, beyond20Report: () => Beyond20Service.report(), linkReport: () => LinkMend.report(), sessionReport: () => GraphicsGuard.report() };
+  globalThis.a5eMancer = { AM, beyond20Report: () => Beyond20Service.report(), linkReport: () => LinkMend.report(), sessionReport: () => GraphicsGuard.report(),
+    checkDrift: (when) => AbilityWatch.checkDrift(when) };
   Hooks.callAll('a5eMancer.Ready');
 
   /* One-time world migration (v2): bring existing items in line with the icon
